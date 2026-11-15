@@ -28,7 +28,7 @@
 
 namespace
 {
-	constexpr float HarpoonCmPerM = 100.f;
+	constexpr float HarpoonComponentCmPerM = 100.f;
 	/** The serpent's body spheres are basic-shape spheres: 100 cm across at scale 1. */
 	constexpr float SphereRadiusCmAtScale1 = 50.f;
 }
@@ -300,7 +300,7 @@ void UDeepHarpoonComponent::FireAlong(const FVector& OriginCm, const FVector& Di
 	LatchSeconds = 0.f;
 
 	// Is there something to hit beyond the range? Then a miss reads "out of range", not just "missed".
-	const float RangeCm = Settings.RangeM * HarpoonCmPerM;
+	const float RangeCm = Settings.RangeM * HarpoonComponentCmPerM;
 	const FDeepHarpoonTrace Far = TraceAim(OriginCm, BoltDir, RangeCm * Settings.AimLookAheadFactor);
 	BeyondRangeCm = (Far.Target != EDeepHarpoonTarget::None && Far.DistanceCm > RangeCm) ? Far.DistanceCm : 0.f;
 
@@ -410,7 +410,7 @@ void UDeepHarpoonComponent::StepFlight(float DeltaSeconds)
 			Bolt->PlaceBolt(BoltPosCm, BoltDir);
 		}
 	}
-	if (TravelledCm >= Settings.RangeM * HarpoonCmPerM - 0.5f)
+	if (TravelledCm >= Settings.RangeM * HarpoonComponentCmPerM - 0.5f)
 	{
 		EndFlight(BeyondRangeCm > 0.f ? EDeepHarpoonResult::OutOfRange : EDeepHarpoonResult::Missed);
 	}
@@ -441,7 +441,7 @@ void UDeepHarpoonComponent::HandleHit(const FDeepHarpoonTrace& Hit)
 		// Just under the airlock, inside the home radius (the winch's approach point), so the run re-tethers.
 		const FDeepTetherTuning& Tether = UDeepTuningSettings::Get().Tether;
 		const float BelowM = FMath::Clamp(Tether.WinchApproachBelowM, 0.f, FMath::Max(0.f, Tether.WinchArriveM - 0.5f));
-		ReelTargetCm = Sub ? Sub->GetAnchorLocation() - FVector(0.f, 0.f, BelowM * HarpoonCmPerM) : Hit.PointCm;
+		ReelTargetCm = Sub ? Sub->GetAnchorLocation() - FVector(0.f, 0.f, BelowM * HarpoonComponentCmPerM) : Hit.PointCm;
 		SetResult(EDeepHarpoonResult::LatchedSub);
 		Fire(DeepHarpoonEvent::HitSub);
 		break;
@@ -464,7 +464,7 @@ void UDeepHarpoonComponent::HandleHit(const FDeepHarpoonTrace& Hit)
 	default:
 		Phase = EDeepHarpoonPhase::Latched;
 		LatchTarget = EDeepHarpoonTarget::Terrain;
-		ReelTargetCm = Hit.PointCm + Hit.NormalCm.GetSafeNormal(UE_SMALL_NUMBER, -BoltDir) * Settings.TerrainStandOffM * HarpoonCmPerM;
+		ReelTargetCm = Hit.PointCm + Hit.NormalCm.GetSafeNormal(UE_SMALL_NUMBER, -BoltDir) * Settings.TerrainStandOffM * HarpoonComponentCmPerM;
 		SetResult(EDeepHarpoonResult::LatchedTerrain);
 		Fire(DeepHarpoonEvent::HitTerrain);
 		break;
@@ -475,7 +475,7 @@ void UDeepHarpoonComponent::EndFlight(EDeepHarpoonResult Result)
 {
 	Phase = EDeepHarpoonPhase::Idle;
 	LatchTarget = EDeepHarpoonTarget::None;
-	LastOutOfRangeM = Result == EDeepHarpoonResult::OutOfRange ? BeyondRangeCm / HarpoonCmPerM : 0.f;
+	LastOutOfRangeM = Result == EDeepHarpoonResult::OutOfRange ? BeyondRangeCm / HarpoonComponentCmPerM : 0.f;
 	// Leave the spent bolt hanging at the end of the line for a moment so the miss is seen.
 	DestroyBolt(0.5f);
 	SetResult(Result);
@@ -506,7 +506,7 @@ void UDeepHarpoonComponent::StepReel(float DeltaSeconds)
 	}
 	LatchSeconds += DeltaSeconds;
 	const FVector At = Diver->GetActorLocation();
-	bool bArrived = FVector::Dist(At, ReelTargetCm) <= Settings.ArriveM * HarpoonCmPerM;
+	bool bArrived = FVector::Dist(At, ReelTargetCm) <= Settings.ArriveM * HarpoonComponentCmPerM;
 	if (bSub && !bArrived)
 	{
 		const UDeepTetherComponent* Tether = Diver->GetTether();
@@ -574,7 +574,7 @@ FDeepHarpoonTrace UDeepHarpoonComponent::TraceAim(const FVector& OriginCm, const
 				Out.Actor = Serpent;
 			}
 		};
-		TrySphere(Serpent->GetHeadLocation(), UDeepHarpoonSettings::Get().MonsterHeadRadiusM * HarpoonCmPerM);
+		TrySphere(Serpent->GetHeadLocation(), UDeepHarpoonSettings::Get().MonsterHeadRadiusM * HarpoonComponentCmPerM);
 		for (const FTransform& Segment : Serpent->GetSegmentTransforms())
 		{
 			TrySphere(Segment.GetLocation(), static_cast<float>(Segment.GetScale3D().GetMax()) * SphereRadiusCmAtScale1);

@@ -2,12 +2,12 @@
 
 namespace
 {
-	constexpr float HarpoonCmPerM = 100.f;
+	constexpr float HarpoonRulesCmPerM = 100.f;
 }
 
 bool UDeepHarpoonRules::InRange(const FVector& FromCm, const FVector& ToCm, float RangeM)
 {
-	const double RangeCm = FMath::Max(0.f, RangeM) * HarpoonCmPerM;
+	const double RangeCm = FMath::Max(0.f, RangeM) * HarpoonRulesCmPerM;
 	return FVector::DistSquared(FromCm, ToCm) <= RangeCm * RangeCm;
 }
 
@@ -20,7 +20,7 @@ FVector UDeepHarpoonRules::ReelStep(const FVector& PositionCm, const FVector& Ta
 {
 	const FVector ToTarget = TargetCm - PositionCm;
 	const double Distance = ToTarget.Size();
-	const double Step = FMath::Max(0.f, SpeedMps) * HarpoonCmPerM * FMath::Max(0.f, DeltaSeconds);
+	const double Step = FMath::Max(0.f, SpeedMps) * HarpoonRulesCmPerM * FMath::Max(0.f, DeltaSeconds);
 	if (Distance <= Step || Distance <= UE_KINDA_SMALL_NUMBER)
 	{
 		return TargetCm;
@@ -30,8 +30,8 @@ FVector UDeepHarpoonRules::ReelStep(const FVector& PositionCm, const FVector& Ta
 
 float UDeepHarpoonRules::BoltStepCm(float TravelledCm, float RangeM, float SpeedMps, float DeltaSeconds)
 {
-	const float Left = FMath::Max(0.f, FMath::Max(0.f, RangeM) * HarpoonCmPerM - FMath::Max(0.f, TravelledCm));
-	return FMath::Min(Left, FMath::Max(0.f, SpeedMps) * HarpoonCmPerM * FMath::Max(0.f, DeltaSeconds));
+	const float Left = FMath::Max(0.f, FMath::Max(0.f, RangeM) * HarpoonRulesCmPerM - FMath::Max(0.f, TravelledCm));
+	return FMath::Min(Left, FMath::Max(0.f, SpeedMps) * HarpoonRulesCmPerM * FMath::Max(0.f, DeltaSeconds));
 }
 
 float UDeepHarpoonRules::SegmentSphereHit(const FVector& StartCm, const FVector& EndCm, const FVector& CentreCm, float RadiusCm)
