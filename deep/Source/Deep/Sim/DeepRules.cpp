@@ -73,6 +73,11 @@ FDeepTetherSolve UDeepRules::SolveTether(const FVector& AnchorCm, const FVector&
 	return Out;
 }
 
+float UDeepRules::WinchSpeedMps(bool bCarryingRelic, const FDeepTetherTuning& Tuning)
+{
+	return FMath::Max(0.f, bCarryingRelic ? Tuning.RelicWinchSpeedMps : Tuning.WinchSpeedMps);
+}
+
 FVector UDeepRules::WinchStep(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning)
 {
 	const FVector ToAnchor = AnchorCm - DiverCm;

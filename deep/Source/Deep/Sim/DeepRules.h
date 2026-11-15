@@ -43,6 +43,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FDeepTetherSolve SolveTether(const FVector& AnchorCm, const FVector& WantedCm, float LengthM, const FDeepTetherTuning& Tuning);
 
+	/** The winch's speed: RelicWinchSpeedMps while the relic is aboard, else WinchSpeedMps. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
+	static float WinchSpeedMps(bool bCarryingRelic, const FDeepTetherTuning& Tuning);
+
 	/** One winch step: moves toward the anchor at WinchSpeedMps, stopping WinchArriveM from it. Never moves away. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FVector WinchStep(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);

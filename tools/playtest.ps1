@@ -1,4 +1,4 @@
-﻿<#
+<#
 playtest.ps1 - scripted playtests for DEEP through the editor's MCP server. Costs no model tokens.
 
   playtest.ps1 <scenario|all> [-Port 8012] [-KeepEditor]
@@ -11,7 +11,12 @@ Scenarios (the game since the submarine room, Nov 15):
   S4-cut      cut tether + bailout air, back aboard (fee), then death and respawn aboard
   S5-harpoon  the harpoon reels a cut diver into the hatch
   S6-bank     the settlement numbers and the automatic gate purchase
-  S7-run      full run: stop 1, flashlight, stop 2, hull upgrade, stop 3, relic, win screen
+  S7-run      full run: stop 1, flashlight, stop 2, hull upgrade, stop 3, relic (reached by teleport, brought home by
+              winch with the lamp on the serpent), win screen
+  S10-relic   swim down the sinkhole by keys, take the relic, winch it home with R held; when the serpent stalks,
+              bites or hunts within 30 m, aim the lamp at its head (Deep.Look at the state report's serpent.head_cm);
+              on a cut, harpoon the sub if within 25 m, else drop the relic and swim home. -NoLamp: lamp off (danger check)
+  S10-cutdrop the relic aboard, cut at the bottom of the hole: drop it and swim home on bailout air (lamp defence)
   S8-keys     stop 1 on simulated keys only (walk to hatch, grab with E, console, helm, hold C), then lamp/winch/cut/harpoon/pause
 Starts the editor if the port does not answer, runs PIE per scenario, asserts on DeepToolset.GetState JSON
 (and the DEEPMONSTER log line for the serpent), saves a viewport PNG per scenario to
@@ -24,6 +29,7 @@ param(
     [int]$Port = 8012,
     [switch]$KeepEditor,
     [double]$Speed = 1,         # game-time speed: slomo n, and every game-time wait and key hold shortened by n
+    [switch]$NoLamp,            # S10: the scripted player never uses the lamp (the danger check)
     [switch]$NoUnthrottle       # leave the editor's background CPU throttle on when this script starts the editor
 )
 $ErrorActionPreference = 'Stop'
@@ -33,7 +39,7 @@ $ShotDir = Join-Path $Repo 'deep\Saved\Harness\playtest'
 $MediaDir = Join-Path $Repo 'devlog\media'
 New-Item -ItemType Directory -Force -Path $ShotDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
-$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys', 'S9-floor', 'S10-relic', 'S11-pass', 'S12-sidehome')
+$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys', 'S9-floor', 'S10-relic', 'S10-cutdrop', 'S11-pass', 'S12-sidehome')
 $script:Notes = @()
 
 # ---- MCP in-process: one HTTP session for the whole run (the same protocol as tools\mcp.ps1) ----------
@@ -524,7 +530,13 @@ function S7-run {
     $s = Get-State
     $script:Notes += ('S7 relic: carrying={0} distance {1:N1} m cargo {2} kg' -f $s.carrying_relic, $s.relic_distance_m, $s.cargo_kg)
     Need ($s.carrying_relic) ('the relic was not picked up (relic_in_world {0}, distance {1:N1} m)' -f $s.relic_in_world, $s.relic_distance_m)
-    $null = Run-Exec 'Deep.EnterSub'
+    # home the way a player comes home: winch (R held), the lamp on the serpent when it closes in (no teleport)
+    $anc = (Get-Arena).anchor_cm
+    $null = Run-Exec 'Deep.Lamp 1'
+    $r = Ascend-With-Relic $anc 'S7'
+    $s = Get-State
+    $script:Notes += ('S7 ascent: inside {0} carrying {1} run_state {2}; {3}' -f $s.inside, $s.carrying_relic, $s.run_state, $r)
+    Need ($s.inside -and $s.carrying_relic) ('the relic did not come home: inside {0} carrying {1} run_state {2}; {3}' -f $s.inside, $s.carrying_relic, $s.run_state, $r)
     $null = Run-Exec 'Deep.Console'
     $s = Wait-State { param($s) $s.won } 15 'the win'
     $script:Notes += ('S7 won: rating {0} kept {1} divers {2} at {3:N0}s' -f $s.run_totals.rating, $s.run_totals.kept, $s.run_totals.divers_expended, $sw.Elapsed.TotalSeconds)
@@ -811,29 +823,103 @@ function S10-relic {
     Need ($s.carrying_relic) ('swam to the relic but E did not take it: diver {0} relic {1} dist {2:N1} m' -f ($s.pos_cm -join ','), ($rp.pos_cm -join ','), $s.relic_distance_m)
     # home: the relic overloads the diver (60 kg), so swimming is out by design; the player winches (hold R)
     $s = Get-State
-    $script:Notes += ('S10 loaded: overloaded {0} cargo_kg {1} (the relic is meant to be winched home)' -f $s.overloaded, $s.cargo_kg)
-    $prevd = $s.tether_distance_m; $flat = 0
-    for ($leg = 0; $leg -lt 60; $leg++) {
-        $s = Get-State
-        if ($s.inside) { break }
-        if (-not $s.carrying_relic) { $script:Notes += ('S10 relic no longer carried at leg {0}: cargo_kg {1} run_state {2} last_event {3} diver {4}' -f $leg, $s.cargo_kg, $s.run_state, $s.last_event, ($s.pos_cm -join ',')); break }
-        Hold @('R') 1.5
-        $x = Get-State
-        if ($x.run_state -eq 'cut') { $m = Get-Monster; $script:Notes += ('S10 tether cut at leg {0}: diver {1} tether_distance {2:N1} m serpent state {3} diver_distance {4} m first_sight_done {5} lamp {6}' -f $leg, ($x.pos_cm -join ','), $x.tether_distance_m, $m.state, $m.diver_distance_m, $m.first_sight_done, $x.lamp) }
-        if ($x.run_state -eq 'cut' -and -not $script:CutSeen) { $script:CutSeen = $true; $script:Notes += 'FINDING S10: the serpent cut the tether while the relic was winched out of the sinkhole; trying the harpoon as the player would'; $null = Run-Exec 'Deep.Harpoon.AimSub fire'; Wait-Sec 1; $script:Notes += ('S10 harpoon after the cut: ' + ((Get-State).harpoon | ConvertTo-Json -Compress)) }
-        if ($leg % 5 -eq 0) { $script:Notes += ('S10 winch leg {0}: diver {1} tether_distance {2:N1} m run_state {3}' -f $leg, ($x.pos_cm -join ','), $x.tether_distance_m, $x.run_state) }
-        if ([Math]::Abs($x.tether_distance_m - $prevd) -lt 0.2) { $flat++ } else { $flat = 0 }
-        $prevd = $x.tether_distance_m
-        if ($flat -ge 4) { throw ('winching the relic made no progress: diver {0} tether_distance {1:N1} m run_state {2} winching {3}' -f ($x.pos_cm -join ','), $x.tether_distance_m, $x.run_state, $x.winching) }
-    }
+    $script:Notes += ('S10 loaded: overloaded {0} cargo_kg {1} lamp {2} (the relic is meant to be winched home; NoLamp {3})' -f $s.overloaded, $s.cargo_kg, $s.lamp, [bool]$NoLamp)
+    if ($NoLamp) { $null = Run-Exec 'Deep.Lamp 0' } else { $null = Run-Exec 'Deep.Lamp 1' }
+    $r = Ascend-With-Relic $anc 'S10'
     $s = Get-State
-    $script:Notes += ('S10 home with the relic: inside {0} run_state {1} carrying {2} tether_distance {3:N1} m diver {4} (legs {5})' -f $s.inside, $s.run_state, $s.carrying_relic, $s.tether_distance_m, ($s.pos_cm -join ','), $leg)
-    Need $s.inside ('could not climb back aboard with the relic: diver {0} anchor {1} tether_distance {2:N1} m' -f ($s.pos_cm -join ','), ($anc -join ','), $s.tether_distance_m)
-    Need $s.carrying_relic 'the relic was lost on the way home'
+    $script:Notes += ('S10 home with the relic: inside {0} run_state {1} carrying {2} tether_distance {3:N1} m diver {4}; {5}' -f $s.inside, $s.run_state, $s.carrying_relic, $s.tether_distance_m, ($s.pos_cm -join ','), $r)
+    Need $s.inside ('could not climb back aboard with the relic: diver {0} anchor {1} tether_distance {2:N1} m run_state {3}; {4}' -f ($s.pos_cm -join ','), ($anc -join ','), $s.tether_distance_m, $s.run_state, $r)
+    Need $s.carrying_relic ('home, but the relic was lost on the way: {0}' -f $r)
     $null = Run-Exec 'Deep.Console'
     $s = Wait-State { param($s) $s.won } 15 'the win after banking the relic'
     $script:Notes += ('S10 won: rating {0} kept {1}' -f $s.run_totals.rating, $s.run_totals.kept)
     Wait-Sec 1
+}
+# ---- the last ascent, played the way a careful player plays it ---------------------------------------------
+# The lamp is the defence: when the serpent stalks, bites or hunts within the beam's reach, aim at its head and keep
+# it there until it turns away (Recoil). Otherwise look ahead, level (not up the line: that would be a free defence).
+$script:LampReachM = 30
+function Serpent-Threatens($s) {
+    if ($NoLamp -or $null -eq $s.serpent) { return $false }
+    $z = $s.serpent
+    if ($z.bite_alarm_s -gt 0) { return $true }
+    return (($z.state -in @('Stalk', 'Bite', 'Hunt')) -and $z.diver_distance_m -le $script:LampReachM)
+}
+function Aim-Lamp-At-Serpent($s) {
+    $eye = @($s.pos_cm[0], $s.pos_cm[1], ($s.pos_cm[2] + 60))
+    Look-At $eye $s.serpent.head_cm
+}
+# Winch home; on a cut, harpoon the sub if it is in reach, else drop the relic and swim home on bailout air.
+# Returns a summary string; the caller checks inside / carrying_relic.
+function Ascend-With-Relic($anc, [string]$tag) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $bites = 0; $repels = 0; $aimS = 0.0; $lastState = ''; $events = @(); $cutAt = $null
+    $prevd = (Get-State).tether_distance_m; $flatSince = $sw.Elapsed.TotalSeconds
+    while ($sw.Elapsed.TotalSeconds -lt 120) {
+        $s = Get-State
+        if ($s.inside -or $s.run_state -in @('dead', 'aboard', 'settling', 'won')) { break }
+        $z = $s.serpent
+        if ($z -and $z.state -ne $lastState) {
+            if ($z.state -eq 'Bite') { $bites++ }
+            if ($lastState -in @('Stalk', 'Bite', 'Hunt') -and $z.state -eq 'Recoil') { $repels++ }
+            $events += ('{0:N1}s {1}@{2:N0}m' -f $sw.Elapsed.TotalSeconds, $z.state, $s.tether_distance_m)
+            $lastState = $z.state
+        }
+        if ($s.run_state -eq 'cut') {
+            if ($null -eq $cutAt) {
+                $cutAt = $s.tether_distance_m
+                $events += ('{0:N1}s CUT diver {1:N1} m from the anchor' -f $sw.Elapsed.TotalSeconds, $cutAt)
+                # the last resort: the harpoon on the sub, if it is within its reach
+                if ($s.harpoon.shots -gt 0 -and $cutAt -le 25) {
+                    $null = Run-Exec 'Deep.Harpoon.AimSub fire'; Wait-Sec 0.6
+                    $h = (Get-State).harpoon
+                    $events += ('harpoon phase {0} latch {1} last {2}' -f $h.phase, $h.latch, $h.last)
+                }
+            }
+            $h = $s.harpoon
+            if ($h.latch -eq 'sub') { Wait-Sec 0.3; continue }   # being reeled in to the hatch
+            # out of harpoon reach (or it missed): the relic is lost, the diver is not. Drop it and swim up.
+            if ($s.carrying_relic) {
+                for ($k = 0; $k -lt 3 -and (Get-State).cargo_kg -gt 0; $k++) { Hold @('G') 0.2; Wait-Sec 0.2 }
+                $events += ('{0:N1}s dropped the cargo, swimming home on {1:N0} s of air' -f $sw.Elapsed.TotalSeconds, $s.bailout_air_s)
+            }
+            if (Serpent-Threatens $s) { Aim-Lamp-At-Serpent $s; Hold @('SpaceBar') 0.4; $aimS += 0.4 }
+            elseif ($s.pos_cm[2] -lt $anc[2] - 1500) { Look-At $s.pos_cm @($anc[0], $anc[1], ($s.pos_cm[2] + 1000)); Hold @('W', 'LeftShift') 1.0 }   # up the shaft, steering back to its axis (under the hatch) as it goes
+            else { Look-At $s.pos_cm @($anc[0], $anc[1], ($anc[2] - 60)); Hold @('W', 'LeftShift') 1.0 }
+            continue
+        }
+        # R stays held the whole way (Deep.Winch 1 is the winch key held down); the mouse aims meanwhile.
+        if (-not $s.winching) { $null = Run-Exec 'Deep.Winch 1' }
+        $t0 = $sw.Elapsed.TotalSeconds
+        if (Serpent-Threatens $s) { Aim-Lamp-At-Serpent $s; Wait-Sec 0.1; $aimS += $sw.Elapsed.TotalSeconds - $t0 }
+        else { $null = Run-Exec ('Deep.Look 0 {0:N1}' -f (Yaw-Of ($anc[0] - $s.pos_cm[0]) ($anc[1] - $s.pos_cm[1]))); Wait-Sec 0.1 }
+        if ([Math]::Abs($s.tether_distance_m - $prevd) -ge 0.2) { $flatSince = $sw.Elapsed.TotalSeconds; $prevd = $s.tether_distance_m }
+        if ($sw.Elapsed.TotalSeconds - $flatSince -gt 8) { throw ('{0}: winching made no progress for 8 s: diver {1} tether_distance {2:N1} m run_state {3}' -f $tag, ($s.pos_cm -join ','), $s.tether_distance_m, $s.run_state) }
+    }
+    $s = Get-State
+    return ('{0:N0} s, bites {1}, repels {2}, lamp aimed {3:N1} s, cut at {4}, serpent: {5}' -f $sw.Elapsed.TotalSeconds, $bites, $repels, $aimS, $(if ($null -eq $cutAt) { 'never' } else { '{0:N1} m' -f $cutAt }), ($events -join ', '))
+}
+# A cut at the bottom of the sinkhole with the relic aboard: drop it, swim home on bailout air (lamp defence). Survives?
+function S10-cutdrop {
+    Begin-Run
+    $null = Run-Exec 'Deep.BuyGate free'; $null = Run-Exec 'Deep.BuyGate free'
+    $s = Drive-Now 's3'
+    Need ($s.parked_stop -eq 3) ('could not park at stop 3: sub_depth {0:N1}' -f $s.sub_depth_m)
+    Dive
+    $anc = (Get-Arena).anchor_cm
+    $null = Run-Exec 'Deep.Relic'; Wait-Sec 0.5
+    $null = Run-Exec 'Deep.Grab'; Wait-Sec 0.5
+    $s = Get-State
+    Need ($s.carrying_relic) ('the relic was not picked up (distance {0:N1} m)' -f $s.relic_distance_m)
+    $null = Run-Exec 'Deep.Harpoon.Reset'
+    $null = Run-Exec 'Deep.ForceCut'; Wait-Sec 0.3
+    $s = Get-State
+    $script:Notes += ('S10-cutdrop cut at {0:N1} m from the anchor, air {1:N0} s, cargo {2} kg, diver {3}' -f $s.tether_distance_m, $s.bailout_air_s, $s.cargo_kg, ($s.pos_cm -join ','))
+    Need ($s.run_state -eq 'cut') ('ForceCut did not cut: run_state {0}' -f $s.run_state)
+    $r = Ascend-With-Relic $anc 'S10-cutdrop'
+    $s = Get-State
+    $script:Notes += ('S10-cutdrop end: inside {0} run_state {1} diver_number {2}; {3}' -f $s.inside, $s.run_state, $s.diver_number, $r)
+    Need ($s.inside -and $s.diver_number -eq 1) ('the cut diver who dropped the relic did not get home: run_state {0} diver_number {1}; {2}' -f $s.run_state, $s.diver_number, $r)
 }
 # The serpent's first pass: staged once per run for a player-controlled diver; it must end, and then normal hunting follows.
 function S11-pass {

@@ -20,6 +20,7 @@
 #include "Monster/DeepSerpentController.h"
 #include "Perception/AIPerceptionSystem.h"
 #include "AI/AISystemBase.h"
+#include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepSubmarine.h"
 
@@ -658,6 +659,38 @@ bool FDeepMonsterLoopTest::RunTest(const FString& Parameters)
 	Run->ResetRun();
 	StepAll(Dt);
 	TestNull(TEXT("No serpent after a reset to stop 1"), Brain->GetSerpent());
+	return true;
+}
+
+// The last ascent's budget, from the shipped numbers (the ending is winnable only while these hold):
+// winching the relic home from the sinkhole takes less time than the serpent needs to come back after one lamp repel
+// (turn, flee to its lurk ring, cooldown, close in again), so one well-aimed repel brings a careful player home;
+// and a cut diver who drops the relic can swim home from the bottom of the hole on bailout air.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterLastAscentTest, "Deep.Sim.Monster.LastAscent", DEEP_MONSTER_TEST_FLAGS)
+bool FDeepMonsterLastAscentTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Game = UDeepTuningSettings::Get();
+	const int32 Stop = Game.Arena.RelicStop;
+	const FDeepMonsterTuning Serpent = UDeepMonsterSettings::Get().GetTuning(Stop);
+	const float LineM = static_cast<float>(UDeepRules::RelicOffsetCm(Game.Arena, Game.GetStop(Stop).SubDepthM,
+		UDeepRules::TetherLengthM(Stop, Game.Tether)).Size()) / UDeepRules::CmPerM;
+	const float RelicWinchMps = UDeepRules::WinchSpeedMps(true, Game.Tether);
+	const float WinchS = LineM / FMath::Max(0.1f, RelicWinchMps);
+	const float ApproachS = (Serpent.LurkRadiusM - Serpent.BiteReachM) / FMath::Max(0.1f, Serpent.StalkSpeedMps);
+	const float FleeS = FMath::Min(Serpent.RecoilMaxS, Serpent.RecoilTurnS + (Serpent.LurkRadiusM - Serpent.BiteReachM) / FMath::Max(0.1f, Serpent.RecoilSpeedMps));
+	const float BackS = FleeS + Serpent.RecoilCooldownS + ApproachS;
+	AddInfo(FString::Printf(TEXT("Relic line %.1f m, winch %.1f m/s = %.1f s; serpent bites %.1f s after stalking, back %.1f s after a repel"),
+		LineM, RelicWinchMps, WinchS, ApproachS, BackS));
+	TestTrue(TEXT("The relic winches slower than the serpent stalks (it can catch the line)"), RelicWinchMps < Serpent.StalkSpeedMps);
+	TestTrue(TEXT("A player who ignores the serpent is bitten and cut before the winch is home"), WinchS > ApproachS + Serpent.BiteAlarmS);
+	TestTrue(TEXT("Two lamp repels are enough: the winch is home before the serpent's third approach"), WinchS < 2.f * BackS);
+	TestTrue(TEXT("The bite alarm leaves time to turn and aim (at least 3 s)"), Serpent.BiteAlarmS >= 3.f);
+	// A cut diver with the relic is overloaded and cannot swim up; without it, a plain swim home beats the air.
+	FDeepSalvageKind RelicKind;
+	TestTrue(TEXT("The relic is a salvage kind"), Game.FindSalvageKind(EDeepSalvageSize::Relic, RelicKind));
+	TestTrue(TEXT("The relic overloads the diver (winch only)"), UDeepRules::SolveWeight(RelicKind.Kg, Game.Weight).bOverloaded);
+	const float SwimHomeS = LineM / FMath::Max(0.1f, Game.Swim.SwimSpeedMps);
+	TestTrue(TEXT("Dropped, a cut diver swims home from the hole on bailout air with 5 s to spare"), SwimHomeS + 5.f <= Game.Bailout.AirSeconds);
 	return true;
 }
 

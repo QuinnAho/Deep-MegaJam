@@ -93,6 +93,13 @@ struct FDeepTetherTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchSpeedMps = 7.f;
 
+	/**
+	 * Winch speed while the diver carries the relic (60 kg). Slower than WinchSpeedMps so the last ascent is long
+	 * enough for the serpent to reach the line: at 7 m/s the winch outran it and a player who never used the lamp won.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
+	float RelicWinchSpeedMps = 4.f;
+
 	/** The winch stops reeling at this distance from the anchor (the airlock). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchArriveM = 3.f;
@@ -450,9 +457,13 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
 	float RelicAngleDeg = 330.f;
 
-	/** Horizontal distance of the relic from the anchor. */
+	/**
+	 * Horizontal distance of the relic from the anchor. 0: the sinkhole is a shaft straight under the hatch, so the
+	 * winch line runs up the open shaft. At 8 m the straight line from the relic to the anchor ran through the shaft's
+	 * wall: the winch dragged the diver into the rock, and a diver cut there could never swim out.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
-	float RelicOutM = 8.f;
+	float RelicOutM = 0.f;
 
 	/** The relic stays this much inside the tether's reach, so a tethered diver can grab and winch it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
@@ -791,9 +802,14 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
 	float SeabedRestRadiusM = 6.f;
 
-	/** The relic's sinkhole: radius (m) of the level floor at its bottom. Keep it clear of every salvage spot by 2x. */
+	/**
+	 * The relic's sinkhole: radius (m) of the level floor at its bottom; the shaft is about this wide all the way up and
+	 * gone by 1.4x. 4.5, not 2.5: a 3.5 m shaft was too narrow to swim up (a cut diver drifting a few metres off its
+	 * axis ended up under the bed). Not more: the cut falls off as exp(-(d/R)^4), and at 6 it lowered the bed under the
+	 * salvage spot 8 m out by 2.7 m (Deep.World.Seabed failed); at 4.5 by about 3 mm.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
-	float SeabedPitRadiusM = 2.5f;
+	float SeabedPitRadiusM = 4.5f;
 
 	/** Gentle rolling (m of height), kept off the resting points. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")

@@ -14,6 +14,9 @@
 #include "Sim/DeepRules.h"
 #include "Diver/DeepRunComponent.h"
 #include "Harpoon/DeepHarpoonComponent.h"
+#include "Monster/DeepMonsterBrain.h"
+#include "Monster/DeepMonsterRules.h"
+#include "Monster/DeepSerpent.h"
 #include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
@@ -133,6 +136,26 @@ namespace DeepStateReport
 		Json->SetBoolField(TEXT("relic_in_world"), Relic != nullptr);
 		Json->SetNumberField(TEXT("relic_distance_m"), Relic && Diver ? FVector::Dist(Relic->GetActorLocation(), Diver->GetActorLocation()) / 100.0 : -1.0);
 		Json->SetBoolField(TEXT("carrying_relic"), Run && Run->CarriesRelic());
+
+		// The serpent, for scripted players that aim the lamp at it: state, head position, the bite alarm left.
+		if (const UDeepMonsterBrain* Brain = World ? World->GetSubsystem<UDeepMonsterBrain>() : nullptr)
+		{
+			if (const ADeepSerpent* Serpent = Brain->GetSerpent())
+			{
+				const TSharedRef<FJsonObject> SerpentJson = MakeShared<FJsonObject>();
+				SerpentJson->SetStringField(TEXT("state"), UDeepMonsterRules::StateName(Brain->GetState()));
+				const FVector Head = Serpent->GetHeadLocation();
+				SerpentJson->SetArrayField(TEXT("head_cm"), {
+					MakeShared<FJsonValueNumber>(FMath::RoundToDouble(Head.X)),
+					MakeShared<FJsonValueNumber>(FMath::RoundToDouble(Head.Y)),
+					MakeShared<FJsonValueNumber>(FMath::RoundToDouble(Head.Z)) });
+				SerpentJson->SetNumberField(TEXT("diver_distance_m"), Brain->GetDiverDistanceM());
+				SerpentJson->SetNumberField(TEXT("tether_distance_m"), Brain->GetTetherDistanceM());
+				SerpentJson->SetNumberField(TEXT("noise"), Brain->GetNoise());
+				SerpentJson->SetNumberField(TEXT("bite_alarm_s"), Run ? Run->GetBiteAlarmLeft() : 0.f);
+				Json->SetObjectField(TEXT("serpent"), SerpentJson);
+			}
+		}
 
 		int32 SalvageCount = 0;
 		if (World)

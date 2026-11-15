@@ -129,6 +129,13 @@ bool FDeepRulesWinchTest::RunTest(const FString& Parameters)
 	const FVector C = UDeepRules::WinchStep(FVector(100.f, 0, 0), Anchor, 1.f, T);
 	TestTrue(TEXT("Inside the arrive distance it does not push away"), C.Equals(FVector(100.f, 0, 0), 0.01));
 
+	T.RelicWinchSpeedMps = 4.f;
+	TestEqual(TEXT("Without the relic the winch runs at its speed"), UDeepRules::WinchSpeedMps(false, T), 7.f);
+	TestEqual(TEXT("With the relic aboard it runs at the relic speed"), UDeepRules::WinchSpeedMps(true, T), 4.f);
+	T.RelicWinchSpeedMps = -1.f;
+	TestEqual(TEXT("Never negative"), UDeepRules::WinchSpeedMps(true, T), 0.f);
+	T.RelicWinchSpeedMps = 4.f;
+
 	const FVector D = UDeepRules::WinchStep(FVector(0, 0, -3000.f), Anchor, 0.f, T);
 	TestTrue(TEXT("Zero dt does nothing"), D.Equals(FVector(0, 0, -3000.f), 0.01));
 

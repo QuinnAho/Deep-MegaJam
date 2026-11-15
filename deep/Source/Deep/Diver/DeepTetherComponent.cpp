@@ -99,8 +99,12 @@ void UDeepTetherComponent::UpdateTether(float DeltaSeconds)
 		const UCapsuleComponent* Capsule = Diver->GetCapsuleComponent();
 		const float Radius = Capsule ? Capsule->GetScaledCapsuleRadius() : 0.f;
 		const FBox Blocked = Sub->GetSolidBoundsLocal(false).ExpandBy(FVector(Radius, Radius, Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 0.f));
+		// The relic is heavy: the winch hauls it slower, which gives the serpent its chance at the last ascent.
+		FDeepTetherTuning WinchTuning = Tuning;
+		const UDeepRunComponent* WinchRun = Diver->GetRun();
+		WinchTuning.WinchSpeedMps = UDeepRules::WinchSpeedMps(WinchRun && WinchRun->CarriesRelic(), Tuning);
 		const FVector ReeledLocal = UDeepRules::WinchStepAroundHull(SubFrame.InverseTransformPosition(Diver->GetActorLocation()),
-			SubFrame.InverseTransformPosition(Anchor), Blocked, DeltaSeconds, Tuning);
+			SubFrame.InverseTransformPosition(Anchor), Blocked, DeltaSeconds, WinchTuning);
 		const FVector Reeled = SubFrame.TransformPosition(ReeledLocal);
 		Diver->SetActorLocation(Reeled, true);
 		// The winch always wins: if something else blocked the sweep, the cable drags the diver through.
