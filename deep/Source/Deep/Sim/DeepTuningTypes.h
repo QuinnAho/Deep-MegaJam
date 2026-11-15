@@ -28,7 +28,9 @@ enum class EDeepRunState : uint8
 	/** Banked at the airlock: the settlement screen is up. */
 	Settling,
 	/** Fade to the next dive (and the next stop, if the hull allows). */
-	Descending
+	Descending,
+	/** The relic is banked: the run is over and the performance review is up. */
+	Won
 };
 
 UENUM(BlueprintType)
@@ -271,6 +273,39 @@ struct FDeepRunTuning
 	/** Minimum gap between repeats of the same chatter event (taut, overweight, winch). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
 	float ChatterCooldownSeconds = 12.f;
+
+	/** The first dive of a run shows a large controls card this long (or until the first grab). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float ControlsCardSeconds = 15.f;
+
+	/** The win screen ignores keys this long, so a held winch or grab key cannot skip the review. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float ReviewMinSeconds = 1.5f;
+};
+
+/** The Captain's one-word performance review at the win. */
+USTRUCT(BlueprintType)
+struct FDeepReviewTuning
+{
+	GENERATED_BODY()
+
+	FDeepReviewTuning()
+	{
+		MaxDiversExpended = { 0, 2, 5 };
+		Words = { TEXT("ADEQUATE"), TEXT("TOLERABLE"), TEXT("WASTEFUL"), TEXT("CATASTROPHIC") };
+	}
+
+	/** Words[i] is earned with at most MaxDiversExpended[i] divers expended; past the last, the last word. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Review")
+	TArray<int32> MaxDiversExpended;
+
+	/** Best first. The Captain never says better than adequate. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Review")
+	TArray<FString> Words;
+
+	/** A run longer than this drops one word. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Review")
+	float SlowRunSeconds = 900.f;
 };
 
 /** How long the Captain's subtitles stay up. */
@@ -388,9 +423,43 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorBelowSubM = 120.f;
 
-	/** Displayed depth of the relic (stop 3). Not spawned yet. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	/** Wanted displayed depth of the relic. It is raised as far as needed to stay inside the tether at RelicStop. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
 	float RelicDepthM = 600.f;
+
+	/** The relic lies at this stop and deeper. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	int32 RelicStop = 3;
+
+	/** Compass angle of the relic around the anchor (0 = +X, ahead of the diver's start). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicAngleDeg = 0.f;
+
+	/** Horizontal distance of the relic from the anchor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicOutM = 8.f;
+
+	/** The relic stays this much inside the tether's reach, so a tethered diver can grab and winch it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicReachMarginM = 3.f;
+
+	/** The relic's own light: bright and wide, so it is the brightest thing in the trench. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicLightIntensity = 12000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicLightRadiusM = 25.f;
+
+	/** relic_seen: the diver is this close, or ... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicSeenNearM = 20.f;
+
+	/** ... looking within RelicSeenConeDeg of it from at most this far. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicSeenViewM = 50.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicSeenConeDeg = 25.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorSizeM = 600.f;
@@ -572,6 +641,35 @@ struct FDeepHullPurchase
 
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
 	bool bBought = false;
+};
+
+/** Everything the performance review (win screen) shows. Built by UDeepRules::BuildReview. */
+USTRUCT(BlueprintType)
+struct FDeepRunReview
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	int32 DiversExpended = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	int32 Gross = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	int32 DirectorCut = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	int32 Fees = 0;
+
+	/** Gross minus the cut minus every fee, never below zero. */
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	int32 Kept = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	float Seconds = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Review")
+	FString Rating;
 };
 
 /** Everything the settlement screen shows. Built by UDeepRunComponent::Bank from UDeepRules results. */

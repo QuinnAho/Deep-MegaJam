@@ -1,6 +1,7 @@
 #include "World/DeepArena.h"
 
 #include "Engine/World.h"
+#include "Game/DeepGameState.h"
 #include "EngineUtils.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -74,6 +75,56 @@ namespace DeepArena
 		return Spawned;
 	}
 
+	static int32 CurrentStop(const UWorld* World)
+	{
+		const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+		return State ? State->Stop : 1;
+	}
+
+	ADeepSalvage* FindRelic(const UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		for (TActorIterator<ADeepSalvage> It(const_cast<UWorld*>(World)); It; ++It)
+		{
+			if (IsValid(*It) && It->GetKind().Size == EDeepSalvageSize::Relic)
+			{
+				return *It;
+			}
+		}
+		return nullptr;
+	}
+
+	ADeepSalvage* EnsureRelic(UWorld* World, int32 Stop)
+	{
+		if (!World || World->GetNetMode() == NM_Client)
+		{
+			return nullptr;
+		}
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		ADeepSalvage* Relic = FindRelic(World);
+		if (Stop < Tuning.Arena.RelicStop)
+		{
+			if (Relic)
+			{
+				Relic->Destroy();
+			}
+			return nullptr;
+		}
+		const ADeepSubmarine* Sub = FindSubmarine(World);
+		FDeepSalvageKind Kind;
+		if (Relic || !Sub || !Tuning.FindSalvageKind(EDeepSalvageSize::Relic, Kind))
+		{
+			return Relic;
+		}
+		const FVector Offset = UDeepRules::RelicOffsetCm(Tuning.Arena, Tuning.GetStop(Stop).SubDepthM, UDeepRules::TetherLengthM(Stop, Tuning.Tether));
+		Relic = SpawnSalvage(World, Kind, Sub->GetAnchorLocation() + Offset);
+		UE_LOG(LogDeepArena, Log, TEXT("Relic placed %.1f m below the anchor at stop %d"), -Offset.Z / UDeepRules::CmPerM, Stop);
+		return Relic;
+	}
+
 	int32 RespawnSalvage(UWorld* World)
 	{
 		if (!World || World->GetNetMode() == NM_Client)
@@ -92,7 +143,8 @@ namespace DeepArena
 				It->Destroy();
 			}
 		}
-		return SpawnSalvageRing(World, Sub);
+		const int32 Spawned = SpawnSalvageRing(World, Sub);
+		return Spawned + (EnsureRelic(World, CurrentStop(World)) ? 1 : 0);
 	}
 
 	ADeepSubmarine* EnsureArena(UWorld* World, int32 Stop)
@@ -142,5 +194,6 @@ namespace DeepArena
 		{
 			Environment->SetStop(Stop);
 		}
+		EnsureRelic(World, Stop);
 	}
 }

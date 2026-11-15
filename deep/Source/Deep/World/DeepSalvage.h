@@ -50,4 +50,16 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> Glint;
+
+	/** The relic's extra shapes (hidden on other kinds): a gold double cone around a pale core, four shards circling. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USceneComponent> RelicPivot;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> RelicParts;
+
+	bool IsRelic() const { return Kind.Size == EDeepSalvageSize::Relic; }
+
+public:
+	virtual void Tick(float DeltaSeconds) override;
 };

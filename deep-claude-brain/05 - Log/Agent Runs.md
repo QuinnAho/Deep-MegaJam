@@ -28,8 +28,13 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 22 | 10:17 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: the sea serpent. Procedural body, five-state brain, tests, console commands, new files only. Redirected mid-run to use Unreal's AI controller and hearing perception. | 245k | 106 | 24 min | Green, commit `1ab0f29` on `dev/monster`, not merged. 20 of 20 tests. Not verified: nobody has seen it move. |
 
 | 24 | 10:38 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: take over run 20's uncommitted work, make the grey box plainly visible with no fog (D-020), fix the winch, HUD and tether findings, prove the loop at stops 1 and 2, merge `main` in. | 177k | 84 | 12 min | Green, merged as `12d026a`. Kept run 20's leftover fixes. 21 of 21 tests, including one that plays stops 1 and 2 start to finish. Verified again by the orchestrator before the merge. Not verified: keyboard play by a person. |
-| 25 | 10:52 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: merge `main`, connect the serpent to the loop, first look at the serpent. | | | | Running. |
+| 25 | 10:52 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: merge `main`, connect the serpent to the loop, first look at the serpent. | 245k | 129 | 15 min | Green, merged as `bf58444`. All wires connected. 27 of 27 tests, verified again by the orchestrator. The serpent reads as a serpent in the screenshot. Not verified: a real player being bitten or caught. |
+| 27 | 11:07 PM | systems-engineer | Opus 5.5, high | In `.wt\dev` on `dev/ending`: stop 3 and the relic, the win and performance review, title screen, pause and quit, restart. | | | | Running. |
 | 26 | 10:52 PM | build-sheriff | Sonnet 5.5, medium | In `.wt\pkg`: scripted playtests for the loop (S4 to S8), then package, smoke and zip. | | | | Running. |
+
+| 28 | 11:13 PM | systems-engineer | Opus 5.5, high | In `.wt\monster` on `dev/harpoon`: the harpoon (D-021), with hull damage and a repair fee. | | | | Running. |
+
+| 29 | 11:16 PM | writer | Sonnet 5.5, medium | 47 new Captain lines for the harpoon and for the inside of the submarine (14 new events). | 52k | 8 | 36 s | Done, commit `bac783f` on `main`. Checked by the orchestrator: 185 lines, 55 events, no duplicate ids, ASCII, no strong language. |
 
 ## What the numbers say so far
 

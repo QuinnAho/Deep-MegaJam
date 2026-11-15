@@ -40,8 +40,7 @@ void ADeepHUD::DrawHUD()
 {
 	Super::DrawHUD();
 
-	const ADeepDiver* Diver = Cast<ADeepDiver>(GetOwningPawn());
-	if (!Canvas || !Diver || !GEngine)
+	if (!Canvas || !GEngine)
 	{
 		return;
 	}
@@ -49,6 +48,18 @@ void ADeepHUD::DrawHUD()
 	BigFont = GEngine->GetLargeFont();
 	// Large on purpose: read at a glance at 1280x720 (playtest: the first HUD was too small).
 	S = FMath::Max(1.2f, 1.7f * Canvas->ClipY / 720.f);
+
+	const ADeepGameState* GameState = GetWorld()->GetGameState<ADeepGameState>();
+	if (GameState && GameState->bOnTitle)
+	{
+		DrawTitle(GetWorld()->GetRealTimeSeconds());
+		return;
+	}
+	const ADeepDiver* Diver = Cast<ADeepDiver>(GetOwningPawn());
+	if (!Diver)
+	{
+		return;
+	}
 	const float Now = GetWorld()->GetTimeSeconds();
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const EDeepRunState State = Run ? Run->GetState() : EDeepRunState::Tethered;
@@ -85,8 +96,190 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawDescending(*Run);
 	}
-	// Last, so the Captain is never hidden behind a panel.
-	DrawCaptain();
+	else if (State == EDeepRunState::Won)
+	{
+		DrawReview(*Run);
+	}
+
+	// The first dive of a run: a big controls card until the first grab (or for ControlsCardSeconds).
+	const float CardSeconds = UDeepTuningSettings::Get().Run.ControlsCardSeconds;
+	if (GameState && State == EDeepRunState::Tethered && GameState->DiverNumber == 1 && GameState->Stop == 1 && GameState->TotalGross == 0
+		&& Diver->GetCargo().IsEmpty() && GameState->RunSeconds < CardSeconds)
+	{
+		DrawControlsCard(FMath::Clamp((CardSeconds - GameState->RunSeconds) / 1.5f, 0.f, 1.f));
+	}
+	// Last, so the Captain is never hidden behind a panel. The review shows the Captain's win line itself.
+	if (State != EDeepRunState::Won)
+	{
+		DrawCaptain();
+	}
+
+	const ADeepPlayerController* Player = Cast<ADeepPlayerController>(GetOwningPlayerController());
+	if (Player && Player->IsPauseMenuOpen())
+	{
+		DrawPauseMenu();
+	}
+}
+
+float ADeepHUD::DrawMenu(const TArray<FString>& Items, int32 Selected, float Y, bool bEnabled)
+{
+	for (int32 Index = 0; Index < Items.Num(); ++Index)
+	{
+		const bool bOn = Index == Selected;
+		const FString Label = bOn ? FString::Printf(TEXT(">  %s  <"), *Items[Index]) : Items[Index];
+		const FLinearColor Color = !bEnabled ? DimColor : (bOn ? CaptainColor : TextColor);
+		Y += TextCentered(Label, Color, Y, BigFont, bOn ? 1.05f : 0.9f) + 8.f * S;
+	}
+	return Y;
+}
+
+void ADeepHUD::DrawTitle(float RealNow)
+{
+	DrawRect(FLinearColor(0.f, 0.015f, 0.03f, 1.f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	// A thin tether line down the middle of the screen, into the dark.
+	DrawRect(FLinearColor(0.45f, 0.36f, 0.08f, 0.8f), Canvas->ClipX * 0.5f - 1.f * S, 0.f, 2.f * S, Canvas->ClipY * 0.16f);
+
+	float W = 0.f, H = 0.f;
+	const float TitleScale = 4.2f;
+	GetTextSize(TEXT("DEEP"), W, H, BigFont, S * TitleScale);
+	DrawText(TEXT("DEEP"), TextColor, (Canvas->ClipX - W) * 0.5f, Canvas->ClipY * 0.17f, BigFont, S * TitleScale);
+	TextCentered(TEXT("The Director's Cut"), CaptainColor, Canvas->ClipY * 0.17f + H + 4.f * S, BigFont, 1.1f);
+
+	const UDeepCaptain* Captain = UDeepCaptain::Get(this);
+	FString Line = Captain ? Captain->GetLastText() : FString();
+	if (Line.IsEmpty())
+	{
+		Line = TEXT("Press any key. Any key.");
+	}
+	TextCentered(FString::Printf(TEXT("CAPTAIN: %s"), *Line), CaptainColor, Canvas->ClipY * 0.60f, nullptr, 1.f);
+
+	FLinearColor Prompt = TextColor;
+	Prompt.A = 0.8f + 0.2f * FMath::Sin(RealNow * 3.f);
+	TextCentered(TEXT("PRESS ANY KEY"), Prompt, Canvas->ClipY * 0.76f, BigFont, 1.2f);
+	TextCentered(TEXT("A jam game. Salvage, a tether, and a Captain who hates you."), DimColor, Canvas->ClipY * 0.90f, nullptr, 0.7f);
+}
+
+void ADeepHUD::DrawControlsCard(float Alpha)
+{
+	if (Alpha <= 0.f)
+	{
+		return;
+	}
+	auto Key = [](const TCHAR* Action) { return ADeepPlayerController::KeyHint(Action); };
+	const TArray<FString> Lines = {
+		TEXT("W A S D  swim        Mouse  look"),
+		FString::Printf(TEXT("%s / %s  up / down        %s  sprint"), *Key(TEXT("Up")), *Key(TEXT("Down")), *Key(TEXT("Sprint"))),
+		FString::Printf(TEXT("%s  grab        %s  drop        Left click  harpoon (1 per dive)"), *Key(TEXT("Grab")), *Key(TEXT("Drop"))),
+		FString::Printf(TEXT("Hold %s  winch home (loud)        %s  lamp"), *Key(TEXT("Winch")), *Key(TEXT("Lamp"))),
+		FString::Printf(TEXT("Hold %s  ask to be cut loose        %s  menu"), *Key(TEXT("Cut")), *Key(TEXT("Menu"))),
+	};
+	const FString GoalA = TEXT("Grab salvage below. Bring it back");
+	const FString GoalB = TEXT("to the airlock under the sub.");
+	const float Line = 21.f * S;
+	float Widest = 0.f;
+	for (const FString& Text : Lines)
+	{
+		float W = 0.f, H = 0.f;
+		GetTextSize(Text, W, H, Font, S * 0.85f);
+		Widest = FMath::Max(Widest, W);
+	}
+	for (const FString& Text : { GoalA, GoalB })
+	{
+		float W = 0.f, H = 0.f;
+		GetTextSize(Text, W, H, Font, S * 0.8f);
+		Widest = FMath::Max(Widest, W);
+	}
+	const float W = Widest + 48.f * S;
+	const float H = (Lines.Num() + 4.2f) * Line;
+	// On the right, so the salvage below the start view stays in sight.
+	const float X = Canvas->ClipX - W - 16.f * S;
+	const float Top = Canvas->ClipY * 0.2f;
+	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.88f * Alpha), X, Top, W, H);
+	DrawRect(FLinearColor(CaptainColor.R, CaptainColor.G, CaptainColor.B, Alpha), X, Top, W, 3.f * S);
+	float Y = Top + 10.f * S;
+	FLinearColor Head = CaptainColor;
+	Head.A = Alpha;
+	FLinearColor Body = TextColor;
+	Body.A = Alpha;
+	TextAt(TEXT("CONTROLS"), Head, X + 24.f * S, Y, nullptr, 0.95f);
+	Y += Line * 1.3f;
+	for (const FString& Text : Lines)
+	{
+		TextAt(Text, Body, X + 24.f * S, Y, nullptr, 0.85f);
+		Y += Line;
+	}
+	FLinearColor Goal = GoodColor;
+	Goal.A = Alpha;
+	TextAt(GoalA, Goal, X + 24.f * S, Y + 4.f * S, nullptr, 0.8f);
+	TextAt(GoalB, Goal, X + 24.f * S, Y + 4.f * S + Line, nullptr, 0.8f);
+}
+
+void ADeepHUD::DrawPauseMenu()
+{
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	float Y = Canvas->ClipY * 0.3f;
+	Y += TextCentered(TEXT("PAUSED"), CaptainColor, Y, BigFont, 1.6f) + 24.f * S;
+	TArray<FString> Labels;
+	for (const ADeepPlayerController::EMenuItem Item : ADeepPlayerController::PauseItems())
+	{
+		Labels.Add(ADeepPlayerController::MenuItemLabel(Item));
+	}
+	const ADeepPlayerController* Player = Cast<ADeepPlayerController>(GetOwningPlayerController());
+	Y = DrawMenu(Labels, Player ? Player->GetMenuIndex() : 0, Y);
+	TextCentered(TEXT("Up / Down to choose,  Enter to select,  Esc to resume"), DimColor, Y + 16.f * S, nullptr, 0.75f);
+}
+
+void ADeepHUD::DrawReview(const UDeepRunComponent& Run)
+{
+	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
+	if (!State)
+	{
+		return;
+	}
+	const FDeepRunReview Review = State->BuildReview();
+	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.94f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	const float W = FMath::Min(Canvas->ClipX * 0.7f, 640.f * S);
+	const float X = (Canvas->ClipX - W) * 0.5f;
+	const float Line = 21.f * S;
+	const float Pad = 22.f * S;
+	float Y = 14.f * S;
+	Y += TextCentered(TEXT("RELIC BANKED.  PERFORMANCE REVIEW"), CaptainColor, Y, BigFont, 1.25f) + 6.f * S;
+	if (const UDeepCaptain* Captain = UDeepCaptain::Get(this); Captain && !Captain->GetLastText().IsEmpty())
+	{
+		Y += TextCentered(FString::Printf(TEXT("CAPTAIN: %s"), *Captain->GetLastText()), CaptainColor, Y, nullptr, 0.75f) + 8.f * S;
+	}
+	DrawRect(CaptainColor, X, Y, W, 2.f * S);
+	Y += 10.f * S;
+	auto Row = [&](const FString& Label, const FString& Amount, const FLinearColor& Color)
+	{
+		TextAt(Label, Color, X + Pad, Y, nullptr, RowScale);
+		float AW = 0.f, AH = 0.f;
+		GetTextSize(Amount, AW, AH, Font, S * RowScale);
+		TextAt(Amount, Color, X + W - Pad - AW, Y, nullptr, RowScale);
+		Y += Line;
+	};
+	const int32 Minutes = FMath::FloorToInt(Review.Seconds / 60.f);
+	const int32 Seconds = FMath::FloorToInt(Review.Seconds) % 60;
+	Row(TEXT("Divers expended"), FString::Printf(TEXT("%d"), Review.DiversExpended), Review.DiversExpended > 0 ? WarnColor : TextColor);
+	Row(TEXT("Total gross"), Credits(Review.Gross), TextColor);
+	Row(TEXT("The Director's cut, in total"), FString::Printf(TEXT("-%d cr"), Review.DirectorCut), WarnColor);
+	Row(TEXT("Fees, in total"), FString::Printf(TEXT("-%d cr"), Review.Fees), DimColor);
+	DrawRect(DimColor, X + Pad, Y + 2.f * S, W - Pad * 2.f, 1.f * S);
+	Y += 8.f * S;
+	Row(TEXT("Kept by the diver"), Credits(Review.Kept), Review.Kept > 0 ? GoodColor : DangerColor);
+	Row(TEXT("Time taken"), FString::Printf(TEXT("%d:%02d"), Minutes, Seconds), TextColor);
+	Y += 10.f * S;
+	Y += TextCentered(TEXT("THE CAPTAIN'S RATING"), DimColor, Y, nullptr, 0.8f) + 2.f * S;
+	Y += TextCentered(Review.Rating, CaptainColor, Y, BigFont, 2.0f) + 14.f * S;
+
+	TArray<FString> Labels;
+	for (const ADeepPlayerController::EMenuItem Item : ADeepPlayerController::WinItems())
+	{
+		Labels.Add(ADeepPlayerController::MenuItemLabel(Item));
+	}
+	const ADeepPlayerController* Player = Cast<ADeepPlayerController>(GetOwningPlayerController());
+	Y = DrawMenu(Labels, Player ? Player->GetMenuIndex() : 0, Y, Run.CanLeaveReview());
+	TextCentered(TEXT("Up / Down to choose,  Enter to select"), DimColor, Y + 4.f * S, nullptr, 0.7f);
 }
 
 void ADeepHUD::TextAt(const FString& String, const FLinearColor& Color, float X, float Y, UFont* InFont, float TextScale)
@@ -225,6 +418,11 @@ void ADeepHUD::DrawBailout(const ADeepDiver* Diver)
 	DrawRect(PanelColor, X - 3.f * S, Y - 3.f * S, W + 6.f * S, H + 6.f * S);
 	DrawRect(DangerColor, X, Y, W * Fraction, H);
 
+	DrawAirlockMarker(Diver, 124.f * S);
+}
+
+void ADeepHUD::DrawAirlockMarker(const ADeepDiver* Diver, float HintY)
+{
 	// Where is home: a marker on the airlock, or an edge hint when it is off screen.
 	const UDeepTetherComponent* Tether = Diver->GetTether();
 	const APlayerController* Player = GetOwningPlayerController();
@@ -258,7 +456,7 @@ void ADeepHUD::DrawBailout(const ADeepDiver* Diver)
 		{
 			Hint = TEXT("BEHIND YOU");
 		}
-		TextCentered(FString::Printf(TEXT("%s  -  %s"), *Label, Hint), GoodColor, 124.f * S);
+		TextCentered(FString::Printf(TEXT("%s  -  %s"), *Label, Hint), GoodColor, HintY);
 	}
 }
 
@@ -288,6 +486,8 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 	if (bTethered && Diver->GetCargo().Num() > 0 && !Diver->IsWinching())
 	{
 		Prompts.Emplace(TEXT("Bring the cargo to the airlock to bank it"), DimColor);
+		// First-time players lose the sub: mark the airlock while carrying (below the Patience bar).
+		DrawAirlockMarker(Diver, 76.f * S);
 	}
 
 	float PromptY = Canvas->ClipY * 0.58f;
@@ -336,8 +536,13 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 	const FString ControlsA = FString::Printf(TEXT("WASD swim   Mouse look   %s/%s up/down   %s sprint   %s grab   %s drop"),
 		*ADeepPlayerController::KeyHint(TEXT("Up")), *ADeepPlayerController::KeyHint(TEXT("Down")), *ADeepPlayerController::KeyHint(TEXT("Sprint")),
 		*ADeepPlayerController::KeyHint(TEXT("Grab")), *ADeepPlayerController::KeyHint(TEXT("Drop")));
-	const FString ControlsB = FString::Printf(TEXT("hold %s winch home   %s lamp   hold %s be cut loose"),
-		*ADeepPlayerController::KeyHint(TEXT("Winch")), *ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Cut")));
+	// Only what is possible now: no winch and no cut once the tether is gone.
+	const FString ControlsB = bTethered
+		? FString::Printf(TEXT("hold %s winch home   %s lamp   hold %s be cut loose   %s menu"),
+			*ADeepPlayerController::KeyHint(TEXT("Winch")), *ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Cut")),
+			*ADeepPlayerController::KeyHint(TEXT("Menu")))
+		: FString::Printf(TEXT("no tether: swim to the airlock   %s lamp   %s menu"),
+			*ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Menu")));
 	constexpr float ControlsScale = 0.62f;
 	float WA = 0.f, WB = 0.f, HA = 0.f;
 	GetTextSize(ControlsA, WA, HA, Font, S * ControlsScale);

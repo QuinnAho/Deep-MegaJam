@@ -2,10 +2,15 @@
 
 #include "Debug/DeepShot.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
+#include "EngineUtils.h"
 #include "Game/DeepGameState.h"
 #include "Game/DeepHUD.h"
 #include "Game/DeepPlayerController.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
 #include "World/DeepSubmarine.h"
 
@@ -15,6 +20,12 @@ ADeepGameMode::ADeepGameMode()
 	PlayerControllerClass = ADeepPlayerController::StaticClass();
 	GameStateClass = ADeepGameState::StaticClass();
 	HUDClass = ADeepHUD::StaticClass();
+}
+
+void ADeepGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+	bStartOnTitle = !FParse::Param(FCommandLine::Get(), TEXT("DeepNoTitle"));
 }
 
 void ADeepGameMode::InitGameState()
@@ -35,7 +46,19 @@ ADeepSubmarine* ADeepGameMode::EnsureArena()
 void ADeepGameMode::StartPlay()
 {
 	EnsureArena();
+	// Before any actor begins play, so the divers' first dive waits for the title.
+	if (ADeepGameState* State = GetGameState<ADeepGameState>(); State && bStartOnTitle)
+	{
+		State->bOnTitle = true;
+	}
 	Super::StartPlay();
+	if (const ADeepGameState* State = GetGameState<ADeepGameState>(); State && State->bOnTitle)
+	{
+		if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+		{
+			Bus->Broadcast(DeepEvent::Title, FDeepEventPayload());
+		}
+	}
 	DeepShot::StartIfRequested(GetWorld());
 }
 
@@ -71,4 +94,61 @@ void ADeepGameMode::GotoStop(int32 Stop)
 	}
 	State->Stop = FMath::Clamp(Stop, 1, FMath::Max(1, UDeepTuningSettings::Get().NumStops()));
 	DeepArena::ApplyStop(GetWorld(), State->Stop);
+}
+
+void ADeepGameMode::EnterTitle()
+{
+	ADeepGameState* State = GetGameState<ADeepGameState>();
+	if (!State)
+	{
+		return;
+	}
+	State->ResetRun();
+	State->bOnTitle = true;
+	for (TActorIterator<ADeepDiver> It(GetWorld()); It; ++It)
+	{
+		if (UDeepRunComponent* Run = It->GetRun())
+		{
+			Run->ResetRun(true);
+		}
+	}
+	if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+	{
+		Bus->Broadcast(DeepEvent::Title, FDeepEventPayload());
+	}
+}
+
+void ADeepGameMode::StartRun()
+{
+	ADeepGameState* State = GetGameState<ADeepGameState>();
+	if (!State || !State->bOnTitle)
+	{
+		return;
+	}
+	State->bOnTitle = false;
+	State->RunSeconds = 0.f;
+	// Each diver's run component starts its first dive (dive_start) on its next step; do it now so it is immediate.
+	for (TActorIterator<ADeepDiver> It(GetWorld()); It; ++It)
+	{
+		if (UDeepRunComponent* Run = It->GetRun())
+		{
+			Run->StepRun(0.f);
+		}
+	}
+}
+
+void ADeepGameMode::RestartRun()
+{
+	if (ADeepGameState* State = GetGameState<ADeepGameState>())
+	{
+		State->ResetRun();
+		State->bOnTitle = false;
+	}
+	for (TActorIterator<ADeepDiver> It(GetWorld()); It; ++It)
+	{
+		if (UDeepRunComponent* Run = It->GetRun())
+		{
+			Run->ResetRun(false);
+		}
+	}
 }

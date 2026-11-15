@@ -14,6 +14,7 @@
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
+#include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepState, Log, All);
@@ -99,6 +100,25 @@ namespace DeepStateReport
 		{
 			Json->SetObjectField(TEXT("harpoon"), DeepHarpoon::BuildStateJson(*Harpoon));
 		}
+		Json->SetBoolField(TEXT("on_title"), State && State->bOnTitle);
+		Json->SetBoolField(TEXT("won"), State && State->bWon);
+		Json->SetNumberField(TEXT("run_s"), State ? State->RunSeconds : 0.f);
+		if (State)
+		{
+			const FDeepRunReview Review = State->BuildReview();
+			TSharedRef<FJsonObject> Totals = MakeShared<FJsonObject>();
+			Totals->SetNumberField(TEXT("divers_expended"), Review.DiversExpended);
+			Totals->SetNumberField(TEXT("gross"), Review.Gross);
+			Totals->SetNumberField(TEXT("cut"), Review.DirectorCut);
+			Totals->SetNumberField(TEXT("fees"), Review.Fees);
+			Totals->SetNumberField(TEXT("kept"), Review.Kept);
+			Totals->SetStringField(TEXT("rating"), Review.Rating);
+			Json->SetObjectField(TEXT("run_totals"), Totals);
+		}
+		const ADeepSalvage* Relic = DeepArena::FindRelic(World);
+		Json->SetBoolField(TEXT("relic_in_world"), Relic != nullptr);
+		Json->SetNumberField(TEXT("relic_distance_m"), Relic && Diver ? FVector::Dist(Relic->GetActorLocation(), Diver->GetActorLocation()) / 100.0 : -1.0);
+		Json->SetBoolField(TEXT("carrying_relic"), Run && Run->CarriesRelic());
 
 		int32 SalvageCount = 0;
 		if (World)

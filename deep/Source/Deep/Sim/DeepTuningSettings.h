@@ -63,4 +63,7 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepCaptainTuning Captain;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Director")
+	FDeepReviewTuning Review;
 };

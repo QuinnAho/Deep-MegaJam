@@ -301,3 +301,18 @@ void UDeepMonsterBrain::Step(float DeltaSeconds)
 		SpawnSerpent(false);
 	}
 }
+
+void UDeepMonsterBrain::ResetForRun()
+{
+	if (Serpent.IsValid())
+	{
+		if (AController* Mind = Serpent->GetController())
+		{
+			Mind->Destroy();
+		}
+		Serpent->Destroy();
+	}
+	Serpent.Reset();
+	CutDivers.Reset();
+	bForcedSpawn = false;
+}

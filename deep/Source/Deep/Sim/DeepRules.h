@@ -143,4 +143,25 @@ public:
 	/** World offset (cm) of a salvage spot from the sub's tether anchor. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Arena")
 	static FVector SalvageSpotOffsetCm(const FDeepSalvageSpot& Spot);
+
+	/**
+	 * World offset (cm) of the relic from the anchor at a stop whose anchor sits at StopDepthM: RelicDepthM deep if the
+	 * tether allows, else raised until it is RelicReachMarginM inside TetherLengthM.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Arena")
+	static FVector RelicOffsetCm(const FDeepArenaTuning& Arena, float StopDepthM, float TetherLengthM);
+
+	/** relic_seen: within RelicSeenNearM, or within RelicSeenViewM and RelicSeenConeDeg of the view direction. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Arena")
+	static bool IsRelicSeen(const FVector& EyeCm, const FVector& ViewDirection, const FVector& RelicCm, const FDeepArenaTuning& Arena);
+
+	// ---- The win ----
+
+	/** The Captain's one word for a run (see FDeepReviewTuning). Empty if no words are tuned. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Review")
+	static FString ReviewRating(int32 DiversExpended, float Seconds, const FDeepReviewTuning& Tuning);
+
+	/** The performance review: totals as given, Kept = Gross - Cut - Fees (never below zero), and the rating. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Review")
+	static FDeepRunReview BuildReview(int32 DiversExpended, int32 Gross, int32 DirectorCut, int32 Fees, float Seconds, const FDeepReviewTuning& Tuning);
 };
