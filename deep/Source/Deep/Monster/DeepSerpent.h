@@ -205,6 +205,12 @@ protected:
 	/** Head length behind and in front of the socket (cm). */
 	float HeadBackCm = 80.f;
 	float HeadFrontCm = 120.f;
+	/** The mesh head's mouth (between the tooth rows) in socket space at rest; the bite holds the line there. */
+	FVector MouthLocalCm = FVector::ZeroVector;
+	/** 0..1: how far the head has settled into holding the line by the mouth (eases in and out of the bite). */
+	float BiteHold01 = 0.f;
+	/** Mesh head biting: the extra yaw that turns it side-on to the diver (eases back to 0 after). */
+	float BiteFaceYaw = 0.f;
 
 	TArray<FVector> TubeVerts, TubeNormals, ShellVerts;
 	TArray<FVector2D> TubeUV0, TubeUV1;
