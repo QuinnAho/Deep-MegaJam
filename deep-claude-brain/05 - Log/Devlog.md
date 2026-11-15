@@ -686,6 +686,273 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Not seen yet: a real bite. `hull_hit` is not broadcast by any game code yet, and the bite state is known only on the server, so clients get the distance part alone.
 - Evidence: `Deep.Camera` 3 of 3. Frames in `.wt/camera/deep/Saved/Harness/shots/camera/`: `interf-helm-0.5`, `interf-helm-1.0a`, `interf-helm-1.0b`, `interf-water-0.6`.
 
+### 8:40 AM  The first build with the pack in it: 1.3 GB, grey rock, and a game that would not compile (orchestrator)
+- What happened: Both polish lanes reported within twenty minutes of each other, and the orchestrator looked at every frame. Rock and ruin: the sea floors at 100 m and 300 m work. Every frame of the 500 m site is faint or fails, and the bottom of the relic's shaft reads as a debug view: a white ring with 12,000 units of light in a yellow-green pit. The dragon's head: from the side in plain light it is one animal, and at 6 m in the lamp it is teeth and one eye where the old head was a small fish. The bite still cannot be read and the head burns white at arm's length. Both engineers went back with a written review (D-037 for the relic). Then the orchestrator cut a package, without waiting for the planned checkpoint.
+- Why it matters: The package found three faults that 71 green tests and two dozen good-looking editor frames could not.
+  1. The zip was 1,318 MB against the jam's 1 GB limit. The 42 placed meshes are 7 MB; the 37 textures they reference are 1.9 GB of source.
+  2. The packaged log said the rock's surface was "missing usage flag Nanite! Default Material will be used in game". The editor sets that flag on the fly and a cooked game cannot. The packaged frame still looked plausible, because the default material is grey, and so is silted rock in a lamp.
+  3. With the dragon merged the game did not compile at all. A debug line called `UStaticMesh::IsNaniteEnabled`, which exists only in editor builds, and the merge gate builds only the editor.
+- What was done: A texture limit in a new `deep/Config/DefaultDeviceProfiles.ini`. It took three tries, each measured with a real package. `MaxLODSize=2048` alone: 1,160 MB, because virtual textures ignore it. `MaxLODSize_VT=2048`: 530 MB, but the pack's big textures are grids of 4096 tiles (the dragon is 20480 by 8192), and a flat limit shrinks every tile to 256 pixels. `LODBias_VT=1`, which drops one mip from every virtual texture whatever its grid: 679 MB, and about 760 MB expected once the dragon's head is in. The answers came from reading `TextureLODSettings.cpp` in the installed engine and from a 60-line script that reads each texture's size and type out of its file header, not from memory of how the engine works. The flag and the compile error went to their engineers as first jobs, and the dragon merge is held back until the game builds. From now on a branch with C++, materials or pack content is packaged when it merges (`.claude/loop.md`).
+- Evidence: package logs `.wt\monster\deep\Saved\Harness\package-20261115-08*.log`; commits `71eaaa8` (rock merged, gate 71 of 71), `b3a184c` (texture limit, packaged and smoke-tested); frames `devlog/media/2026-11-15-dressing-*.png` and `2026-11-15-dragon-*.png` on the lane branches; D-037.
+
+### 9:00 AM  The well reads, the dragon's head is in, and the packaged game now matches the editor (orchestrator)
+- What happened: The compile fix for the dragon's head came back ten minutes after the fault was reported, and the head merged at 8:47 AM (`6746147`). The second pass on the 500 m site came back at 8:53 AM and merged at 8:56 AM (`5ae5f0b`). Each merge ran the full gate and a package, and the orchestrator took frames from the packaged game, not only from the editor: the dragon's head in plain light, a carved pillar at the mouth of the well, and the bottom of the well.
+- Why it matters: An hour ago the bottom of the relic's shaft was the worst frame in the project, and it is the one place every winning player reaches. Now the relic is a carved stone sphere among gold and bone, with its light rising up a well of cut stone, and from the hatch the glow is the beacon. The cause of the black pillars was not light at all: the surface had picked up the wrong textures. Asking "why is it dark" before adding a light saved a wrong fix.
+- What was done: Verdicts written for every frame and published on the frames page. A third lane started at 8:58 AM on the tether, which is the game's central object and is still a stretched cylinder: a rope that sags, goes taut and visibly parts when it is cut, with bubbles and silt. The dragon lane is on the bite and the skin at arm's length.
+- Numbers: zip 762 MB of 1,024 allowed. 71 of 71 tests. The rock costs about 0.5 ms a frame and the dragon's head about 0.8 ms. The second pass on the well cost 691k tokens in 42 minutes, because a resumed agent carries its whole history; the first pass cost 492k in 66.
+- Evidence: gate and package logs under `.wt\monster\deep\Saved\Harness\`; frames `devlog/media/2026-11-15-well-*.png` and `2026-11-15-dragon-*.png` on the integration branch; packaged frames in the session's scratch folder and on the frames page.
+
+### 10:40 AM  Five causes for one white disc, and three ways the agents got in each other's way (orchestrator)
+- What happened: The lamp lane came back at 10:11 AM with five causes for the burn, where the brief had guessed at one. The fifth was nobody's guess: the relic's pit was a funnel, so a diver standing at the relic had its slope in his face, and the lamp was lighting a wall half a metre away. The pit now has a flat floor and the lamp samples its whole cone. The hull lane came back at 9:56 AM with a submarine that reads as a machine from below. The rope merged at 9:52 AM. After each merge the orchestrator ran the gate and a package, and at 10:21 AM the whole scripted playtest set.
+- Why it matters: All 14 playthroughs pass, and one of them had never passed before. `S10-cutdrop`, a diver cut at the very bottom of the relic's shaft, failed 2 of 2 on Saturday's layout and was on Quinn's list as a question only he could answer by hand. The flat floor that fixed the lamp also let the diver swim out. A fix for how a place looks changed how it plays, for the better, and only the playtests showed it.
+- What went wrong, three times, all between agents and none in the game:
+  1. A package failed with "Unable to build while Live Coding is active". An editor starts Live Coding by itself, and UnrealBuildTool then refuses every build that uses the same installed engine, in every checkout. One lane's editor, open for asset work, had stopped every other lane's builds. The editor launch now passes `-LiveCoding=0`, read from the engine's own start-up code.
+  2. An engineer closed its editor, another took the same port, and the first sent its next batch of calls into the second's editor: it started and stopped Play there. It reported the mistake itself. Each lane now gets its own port.
+  3. The orchestrator left its playtest editor open on its merge checkout, and its own next merge failed half-way on two locked files. The build tool refused to run on the half-merged tree, so nothing wrong was built.
+- What was done: The bubbles were tried a second way, as mirror spheres, and rejected by the engineer who built them; a third engineer is building them as particles. The smear on the trench rock is accepted: the engineer proved the rock writes correct velocity, withdrew its own earlier reading, and stopped at a project-wide setting as the brief said. A new lane is walking the first five minutes frame by frame, because a judge sees the opening first.
+- Evidence: integration at `a942e1c` (gate 77 of 77, package at `5a5f8ab`, zip 762 MB); playtest log in the session's scratch folder (13 passed and 1 failed in 732 s, then `S3-serpent` alone, passed); frames `devlog/media/2026-11-15-ascent-*.png`, `-hull-*.png`, `-rope-*.png` on the integration branch.
+
+### 11:19 AM  The serpent was never in the well, and then the machine went down (orchestrator)
+- What happened: Three lanes reported within three minutes. The well lane found that during the last ascent the serpent had never once been in view: it did not know the well existed, so it circled 45 m out inside the solid rock of the sea bed, and the lamp test, which has no line of sight, was driving off a head nobody could see. The scripted ending had been passing against an invisible monster. Its steering now keeps it inside the shaft, coming up from below head first. The opening lane gave the bite in the dark its own light, a glow under the jaw in the colour of the serpent's spots, because the hatch light reaches only 3.8 m and a bite happens 8 m out. The effects lane built bubbles the right way this time (Niagara, a lit translucent rim) and still shipped nothing: a bubble breathed out at the mask is never inside the lamp's narrow cone, so no frame passed.
+- Then, at 11:19:45 AM, the PC reset without shutting down (Kernel-Power 41, no bugcheck). The orchestrator and all three engineers went with it. The well merge had just passed its gate (78 of 78), its package, smoke run and zip (762 MB); the orchestrator's playtest editor had started 27 s earlier while the effects engineer, already sent on a fourth try, had its own editor open. The cause is not proved. Two Unreal editors at once breaks the board's own rule for a 32 GB machine, so it is the rule again, for the orchestrator too.
+- Why it matters: Everything committed survived, which is the argument for committing at every green step. The green but unpushed merge was pushed by the next session at 11:31 AM. Lost: the three engineers' context, the ending playtests on the new build, and the effects engineer's half-built fourth try, which is on disk but uncommitted. A new session picked up the state from git, the board and the tail of the old session's log in about ten minutes.
+- Evidence: integration `b7755a1`; `.wt\monster\deep\Saved\Harness\package-20261115-111700.log`; frames `devlog/media/2026-11-15-wellserpent-*.png`, `-opening-*.png`, `-fx-try3-*.png` on the lane branches; Windows System log, Kernel-Power 41 and EventLog 6008 ("previous system shutdown at 11:19:45 AM was unexpected").
+
+### 12:02 PM  Quinn changes the game: drive the sub down caves by sonar (orchestrator)
+- What happened: At 11:44 AM the first-five-minutes pass merged cleanly (one conflict, in a notes file): verify 78 of 78, package and smoke green, zip 762 MB. Then Quinn rethought the game: "what makes this game fun and driving the sub with a radar mechanic or something is part of it really also i think we must do caverns because if your swimming in an open ocean it really lessens it". Hitting walls is what should damage the hull.
+- The orchestrator pushed back on part of it. Free driving through branching tunnels would rewrite how the sub, the tether, the stops and the ending work. Today the sub never moves; the whole world slides past it. It offered a version that keeps all of that: between stops the descent becomes a winding cave shaft that you steer through sideways; the sonar shows the walls around you and 20 m below; every stop becomes a cavern. Quinn also asked why features froze at 3 PM. They don't have to: that was our own buffer, and the jam's only deadline is 8:59 PM. The freeze moved to 5:30 PM (D-038, D-039).
+- Three Opus engineers started at 12:02 PM, one each for the shaft, the caverns and the sonar, in three checkouts. Before writing a line they agreed one contract: at every stop the passage is centred on the parked sub with a 14 m radius; every cave surface answers the sonar's traces; each part has a switch that gives back today's game. Whatever isn't solid by 5:30 PM ships switched off.
+- The machine crashed at 11:19 with two Unreal editors up, so four engineers and the orchestrator now take turns: every build, test and frame waits for one shared lock. At 11:47 AM a small sonnet fix (coming aboard, the view levels instead of staring at the ceiling) got its 10-second build and 23-second test into the gap between the orchestrator's package and its playthroughs.
+- Cut to make room: bubbles. The fourth try was half-built when the machine went down. It is committed, unfinished, on its own branch.
+- Why it matters: this is the biggest design change since the submarine room, made nine hours before the deadline. The switches are what make it a bet we can afford.
+- Evidence: integration `ad644df` (`.wt\monster\deep\Saved\Harness\package-20261115-114533.log`, 0 usage-flag lines); `polish/aboard` `2f27da3`; `polish/fx-wip4` `f7a3fce`; D-038 and D-039 in [[Decision Log]].
+
+
+### 12:40 PM  The Captain gets a radio and fewer lines, the sonar ships, the camera gets a body (orchestrator)
+- **What happened:**
+  - **Quinn's questions.** Just after noon Quinn asked two design questions. The first: "so what do you think we make the game fun look at game psychology ect how do we make this feel less hacky more professional and polished". The second: "the capitian feature doesnt really bring anything in here too how hsould we change that".
+  - **What reads as hacky.** The orchestrator named three things:
+    - every sound is synthesized in code;
+    - the Captain is subtitles with no pacing;
+    - the look still has leftovers.
+  - **Keep the Captain, change how he talks.** He carries the theme, so the orchestrator argued for keeping him and changing how he talks. Quinn said "Captain direction yes", and offered a Fab sound pack and his brother's music and sounds.
+  - **The Captain lane and the writer.** Two agents started at 12:17 PM: an Opus engineer for the Captain's radio, pacing, music and pack sounds (`polish/captain`), and a Sonnet writer.
+    - The writer took 2.4 minutes to cut 185 lines to 74 (calm 50, tense 19, scared 5), with jokes only where the player is safe.
+    - Its brief said 45 events. It counted 55 in the file, and it found that `{credits}` was never a token.
+    - At 12:26 PM it took every number out of the voiced lines in 36 seconds, rewriting 25 lines. The receipt, the depth readout and the diver number already show those numbers on screen.
+  - **The sonar landed first.** The sonar lane committed its first version at 12:14 PM and its last at 12:23 PM, an hour and a half before its first deadline. At the helm it draws a sweeping plan view of the walls round the sub, and it costs 0.069 ms a frame.
+    - It cannot show walls yet, because the trench has no collision. The shaft and cavern lanes add walls the sonar can see.
+    - It merged into integration at 12:26 PM. The gate then ran in five minutes: verify, a package with no usage-flag lines, smoke and a 799 MB zip.
+    - Four scripted playthroughs passed: `S0-title` (13 s), `S2-gate` (35 s), `S6-bank` (14 s) and `S7-run` (49 s).
+    - It was pushed at 12:33 PM.
+  - **Quinn's next ideas.** Around 12:20 PM Quinn sent more: lidar beams to see in the dark, a HUD that matches the theme, camera shakes, breathing, post-processing and a found-footage camera.
+    - The orchestrator folded the lidar into the sonar: the ping made visible in the world, not a second tool.
+    - At 12:25 PM it started an Opus camera engineer for the shakes, the footage look and the pulse. Every part is behind a switch, off until Quinn approves frames.
+    - The HUD pass waits until the sonar and shaft lanes merge, because both changed the HUD.
+    - When Quinn said he might own a camera-shake pack, the orchestrator said it wasn't needed: Unreal shakes are a few numbers on Epic's built-in patterns. The one exception would be recorded handheld motion.
+- **Why it matters:** Audio and Theme are two of the seven judged scores, and both were weak in the same place, the Captain. The camera idea makes the theme something the player sees: the Captain watches through your helmet camera and makes his cut.
+- **Evidence:**
+  - D-040 and D-041 in [[Decision Log]];
+  - [[Captain Script]] and [[Sound Brief]];
+  - integration `ea29122`, with the logs in `.wt\monster\deep\Saved\Harness\` (`test-20261115-122703`, `package-20261115-122726`, `smoke-20261115-122821` and `zip-20261115-122847`);
+  - sonar frames `devlog/media/2026-11-15-sonar-parked300.png` and `devlog/media/2026-11-15-sonar-driving.png` on `polish/sonar`.
+
+### 12:56 PM  The Captain lane finishes hours early, and the sound waits for real files (orchestrator)
+- **What happened:**
+  - **All four steps done.** The Captain-and-sound lane (Opus, high) reported at 12:43 PM, 26 minutes after it started. Its last step was due at 4:00 PM.
+    - The Captain talks over a radio, with squelch, a band-pass and ducking. He holds his tongue while the diver is in the water, and his tone follows the danger.
+    - Music has a slot for each depth, a tension layer while bailout air runs, a sting at the serpent's first sight, and title, settlement and win cues.
+    - Breathing follows the danger: calm, then fast, then panic over a heartbeat.
+    - A one-shot sound picks from up to three variations at ±3% pitch, and never plays the same one twice in a row.
+  - **Silent until the files come.** The lane wrote no generated music, so a slot with no file stays silent. The serpent's rows still point at the synth, pitched down to 0.55 to 0.7; each needs a file path and pitch 1.0 when the files arrive. It imported nothing, because Quinn has not said whether agents may.
+  - **The cook.** It takes `/Game/DeepAudio` whole, plus any pack sound `Sounds.csv` names. Today's package log says `DEEPCOOK added 0 pack sounds named by Sounds.csv`, which is right, since no pack is installed yet.
+  - **A clash between lanes.** The lane merged the sonar work in before it reported. The sonar lane and the new script had each written the Captain's line for a sonar contact, in different column formats. It kept the script's six-column line and dropped the sonar lane's row.
+  - **The merge.** The orchestrator merged the lane into integration with no conflicts (`6aeafc8`, 12:47 PM). The gate passed:
+    - build in 18 s and 94 tests;
+    - a package in 58 s with no usage-flag lines;
+    - smoke in 26 s and a 762.5 MB zip.
+  - **Playthroughs.** Four scripted playthroughs passed: `S0-title` (15 s), `S6-bank` (14 s), `S7-run` (49 s) and `S10-relic` (77 s). The merge was pushed at 12:56 PM, and the shaft, cavern and camera lanes were told to merge it before they report.
+  - **The HUD mockup starts early.** At 12:49 PM the orchestrator started a Sonnet agent on a HUD mockup with two directions on real frames. Direction A is the style guide's instrument HUD done properly; direction B is the diver's helmet-camera display, with a battery bar that is the Captain's patience. It uses no Unreal, so it does not wait for the slot.
+- **Why it matters:**
+  - Sound is a judged score, and its code is ready before the files exist. A missing file leaves a slot silent instead of breaking the build, so the brother's files can arrive right up to the freeze.
+  - The HUD mockup lets Quinn choose the HUD and the footage look together at 2:15 PM, instead of one decision after the other.
+- **Evidence:**
+  - integration `6aeafc8`, with logs in `.wt\monster\deep\Saved\Harness\` (`test-20261115-124837`, `package-20261115-124910`, `smoke-20261115-125008` and `zip-20261115-125034`);
+  - the lane's own three entries in this note on `polish/captain`;
+  - rows 79 and 82 in [[Agent Runs]].
+
+### 1:13 PM  Four lanes report in twelve minutes, each an hour or more early (orchestrator)
+- **What happened:**
+  - **Four reports.** Between 1:01 and 1:13 PM four lanes reported, each an hour or more before its first deadline:
+    - the cave shaft at 1:01 PM;
+    - the caverns, merged into integration at 1:04 PM;
+    - the HUD mockup at 1:11 PM;
+    - the camera at 1:13 PM.
+  - **The camera lane** built three looks, each behind its own switch. Only the shakes are on.
+    - **The found-footage lens:** a slight barrel, darker corners and soft edges, for about 0.2 ms a frame. On its own it is subtle. It reads as a camera only with the HUD's direction B, which carries the record dot and the timecode.
+    - **The sonar ping as light:** Quinn's lidar idea, folded into the sonar. An amber band runs out over the rock as the ping passes, for about 0.25 ms while a ping is out. In open water it shows nothing, because there is nothing to light.
+    - **Interference:** snow, a colour split and a tear as the serpent closes, and fully in a bite, for about 0.3 ms.
+    - **Two faults, both found in its own frames.**
+      - The first interference drew diagonal stripes. A noise function lost precision on the GPU, and a different noise fixed it.
+      - The ping lit the inside of the helm window before it reached the rock, so a brown frame flashed round the view. That fault went back to the engineer at 1:26 PM, along with a second job: hull hits must shake the view.
+    - **Motion blur:** stills at 0 and at 0.2 looked the same, so it stays at 0.2, and only inside the footage look.
+  - **The HUD mockup** drew two directions over four real frames:
+    - A, the style guide's instrument HUD done properly;
+    - B, the diver's helmet-camera display.
+    B costs about an hour more to build. Quinn picks one when he decides on the footage look.
+- **Why it matters:** the lanes ran in parallel, each behind its own switch, so four pieces were ready before the 2:15 PM decision point. Quinn can decide from frames instead of from descriptions.
+- **Evidence:**
+  - `polish/camera` `6be7d0b`, `3741010` and `36da416`, with the recipe and its sources in `03 - Research/Camera - Footage Look and Sonar Pulse Recipe.md` on that branch;
+  - [[HUD Mockup Spec]];
+  - rows 76, 77, 81 and 82 in [[Agent Runs]].
+
+### 1:38 PM  The serpent stays in the cavern, the orchestrator raises a false alarm, and the roof comes down (orchestrator)
+- **What happened:**
+  - **The serpent could swim through rock.** With walls round each stop, nothing kept its body off them. The cavern engineer clamped its lurk circle and body to keep 3 m off the rock, plus 1.5 m of body reach. In four-minute runs at stops 2 and 3, none of 32,160 sampled body spheres came within 3 m of the rock (`e50e11a`).
+  - **A false alarm.** Out of the hatch at stop 2 the frame was nearly black. At 1:28 PM the orchestrator told Quinn that "the sonar suggests the sea bed may be out of reach too". The engineer measured it instead:
+    - the bed is 8 m under the hatch;
+    - the farthest salvage is 44.6 m away on a 60 m tether;
+    - at stop 3, the relic is 77 m straight down on an 80 m tether.
+    The orchestrator corrected its message to Quinn and the frames page.
+  - **The real problem is the look.** From the hatch the nearest wall is 60 m or more away, and the lamp lights 35 m. So the dive still looks like open water, which is what the caverns were for.
+  - **The engineer stopped instead.** Asked to bring rock into view, it stopped without a commit, as its brief allowed, and explained why:
+    - the walls can't come nearer than 47.6 m: the farthest salvage spot plus its margin;
+    - a bell-shaped cave would pull the serpent's lurk circle into the lamp at the start of the dive;
+    - pillars from the dressing data have no collision, so the tether would pass through them.
+  - **The call:** a lower roof, so rock hangs about 15 m overhead from the hatch, while the serpent's first sighting stays in the dark (D-042). Building since 1:38 PM.
+- **Why it matters:**
+  - The engineer was told to stop if the change would break something, and it did, with numbers.
+  - The orchestrator's mistake came from reading a dark frame; the engineer settled it by measuring.
+- **Evidence:**
+  - `polish/cavern` `e50e11a`, `c5607fa` and `ef84d37` (26 of 26 tests), and `DeepCavernSerpentTests.cpp`;
+  - frames `devlog/media/2026-11-15-cavern-serpent-s2.png`, `devlog/media/2026-11-15-cavern-serpent-s3.png`, `devlog/media/2026-11-15-cave-join-hatch.png` and `devlog/media/2026-11-15-cavern-wall-s2-lamp.png`;
+  - D-042 in [[Decision Log]].
+
+### 1:41 PM  The shaft passes the gate, after an engine cache took the collision from its rock (orchestrator)
+- **What happened:**
+  - **The descent is now driving.** Between stops the sub follows a winding rock shaft. You steer sideways with WASD while the sonar reads the walls, and a run at the rock costs hull.
+    - The Captain hears the hull at the helm: below half he turns tense, and below a quarter scared.
+    - A plain hull bar sits above the sonar until the HUD pass.
+  - **The rock lost its collision when the caverns merged in.** The shaft engineer traced it to the engine. UE 5.9 caches the cooked collision of a procedural mesh by its simple geometry alone, and `UProceduralMeshComponent` has no mesh id, so every rock mesh shared one cook. In the engineer's words: "The shaft's lost collision was an engine cache: UE 5.9 caches procedural collision by simple geometry only, so every rock mesh shared one cook. A 1 cm keyed tetrahedron per mesh fixed the shaft, the sea bed and the caverns in one helper."
+  - **The gate.** The orchestrator fast-forwarded integration to the merged build (`59af289`) and ran the full gate. By 1:29 PM it had 107 of 107 tests, a package with no usage-flag lines, a smoke run and a 762.6 MB zip.
+  - **Seven scripted playthroughs** then all passed: `S2-gate` (38 s), `S7-run` (49 s), `S8-keys` (110 s), `S9-floor` (147 s), `S10-relic` (78 s), `S11-pass` (110 s) and `S12-sidehome` (59 s). The orchestrator pushed at 1:41 PM.
+  - **A size warning that is not a problem.** The harness warned that the packaged folder is 1,047 MB. The jam's limit is 1 GB zipped, and the zip is 762.6 MB.
+  - **Left for later:**
+    - Squeezes barely hurt. Steering into one closes at 0.9 m/s, under the 1.5 m/s that counts as a hit, so it scrapes one point every 2.5 s.
+    - The `Deep.Cave.Goto cavern` cheat stops at the 200 m limit.
+    - The SUB marker sits on the LIMIT 200 label. That is finish for the HUD pass.
+- **Why it matters:** Quinn said that driving by sonar is what makes the game fun, and it now passes the whole gate. Without the cook key, the sub would have passed straight through the shaft's walls.
+- **Evidence:**
+  - `polish/shaft` `9ffc342`, `2f283ee`, `02eff74`, `8ac8efc` and `59af289`;
+  - `deep/Source/Deep/World/DeepCookKey.h`;
+  - logs in `.wt\monster\deep\Saved\Harness\`: `package-20261115-132632` (0 usage-flag lines) and `smoke-20261115-132754`;
+  - frames `devlog/media/2026-11-15-cave-join-*.png` and `devlog/media/2026-11-15-shaft-*.png`.
+
+### 1:50 PM  The sonar ping stops lighting the sub, and a wall hit now shakes the view (orchestrator)
+- **What happened:**
+  - **The ping fix.** The camera engineer fixed the ping that lit the inside of the helm window. Each frame, the game now sends the pulse material a box round the sub's parts, 0.3 m larger than they are, and the material skips every pixel inside it. The cost is three dot products a pixel, with no extra pass.
+  - **The rejected fix.** The engineer turned down the usual fix, a stencil mask. It would have needed a depth pass over about 200 parts and would have clashed with the serpent's own mask. The pulse material now costs 0.030 ms a frame.
+  - **The ping starts closer.** It used to start 6 m out and now starts 0.5 m out, so rock right beside the hull still lights.
+  - **Hull hits shake the view.** Each hull hit now carries its impact speed, and the shake grows with it. A scrape gets a smaller judder.
+  - **The orchestrator's check.** It looked at the frames itself:
+    - at the shaft squeeze, an amber band runs along a rock ridge and the brown frame round the window is gone;
+    - from the water at stop 2, the hull stays dark 0.35 s after a ping.
+    The wall-hit frame is a still, which cannot show a shake, so that is checked by hand in play.
+  - **Merged locally.** The orchestrator merged the lane into integration as `340332f`. The one conflict was in the code map, `ARCHITECTURE.md`, where the cavern and the camera lanes had each added a line, and both were kept. It goes through one gate with the lower cavern roof.
+- **Why it matters:** the ping is how the player sees in the dark (Quinn's lidar idea), and it can now go on by default. The shake makes a hit cost something the player feels, not only a number on the hull bar.
+- **Evidence:**
+  - `polish/camera` `c19f142` and `325903e`, with tests Deep.Camera 6 of 6, Deep.World.Cave 10 of 10 and Deep.Sim.Cave 3 of 3;
+  - frames `devlog/media/2026-11-15-camera-pulse-0.4s.png`, `devlog/media/2026-11-15-camera-pulse-sub.png` and `devlog/media/2026-11-15-camera-wall-hit.png` on that branch;
+  - row 83 in [[Agent Runs]].
+
+### 1:54 PM  A lower cavern roof changes nothing on screen, so the diver gets the sonar ping (orchestrator)
+- **What happened:**
+  - **The roof result.** The cavern engineer lowered the roof (from 10 m to 8.5 m over the sub) and hung three times as much rock from it. The build and all 26 cavern and serpent tests passed, and the sub lost no hull on the way down. Then it took its own frames from the hatch at stops 2 and 3 and reported plainly that they show no difference:
+    - looking level, black, because the nearest rock is 73 m and 94 m away;
+    - looking up, the sub's belly fills the view;
+    - 12 m out, looking up, the aim finds rock 18 m away, but the lamp fades into the fog before it reaches it.
+  - **Its verdict:** "Moving rock won't fix this; the lamp's falloff and the fog will. Merge 0e14e21 or skip it." The orchestrator skipped it, and D-042 is dropped.
+  - **The new plan (D-043).** Quinn's own idea was lidar-like beams "to see whats in front of you when it gets dark". The camera lane already built a sonar pulse that draws a band across rock as the ping passes. So the same engineer now gives the diver a ping of their own, reaching about 90 m, which should outline the cavern walls for a moment. Frames are due by 3 PM.
+  - **Quinn's HUD note (D-044).** Mid-turn, Quinn wrote: "i dont like the use of color it doesnt match the theme please note that when we get to it". Both HUD mockups use cyan numbers with amber and red warnings. The HUD pass now starts with a new palette, which Quinn sees before anything is built. The diver-ping brief was changed to make the pulse colour a tuning value, so it can follow.
+  - **The gate.** The serpent clamp and the camera fix (`340332f`) went into a gate at 1:54 PM, without the roof: verify, package, smoke and seven scripted playthroughs, about 15 minutes.
+- **Why it matters:** this is the second time the caverns have failed the view from the hatch, and the second time an agent has said so itself instead of shipping a change that does nothing. Moving geometry has been tried twice. The next try changes what the player can see: a tool, not the set.
+- **Evidence:**
+  - `polish/cavern` `0e14e21` (tuning) and `ff0b0b5` (frames `devlog/media/2026-11-15-cavern-read-*.png`), pushed, not merged;
+  - frames page version 17, with the camera fix frames and this result;
+  - rows 77 and 84 in [[Agent Runs]]; D-042, D-043 and D-044 in [[Decision Log]].
+
+### 2:25 PM  S11 passed for the wrong reason, the diver's ping is in, and the orchestrator reads before it tests (orchestrator)
+- **What happened:**
+  - **The gate on `340332f`** (the serpent clamp and the camera fix): verify, package (0 usage-flag lines), smoke and zip passed, and six of seven playthroughs passed. S11-pass failed. At stop 2 the serpent made its first pass on its 20 s timer, went back to lurking, and then heard nothing (noise 0) while the script sprinted the diver for 20 s.
+  - **A rerun "passed", for the wrong reason.** The editor log shows the Captain's patience running out and cutting the line (`cut_patience`), and only then the serpent hunting. The script counts any state other than "tethered" as "hunted", so a cut line passes it. The 1:41 PM pass of S11 took 110 s, about as long as the patience lasts, so it was probably the same false pass.
+  - **The likely cause**, not yet proven: the diver's sprint makes no noise, perhaps because pushing into cavern rock keeps the speed under the sprint threshold. A fix agent (opus, high) is on it in `.wt\dev` on `fix/s11-noise`, to fix the cause and make S11 check the serpent itself; report by 3 PM. The integration branch is held, not pushed, until then.
+  - **The diver's sonar ping is done** (camera agent, `ccf1f22` and `42fbd47`). V in the water, a 3 s cooldown, about 100 m. At stop 2 it outlines the cavern rock in a moving band and leaves a field of lidar dots for a moment. At stop 3 the far wall, 94 m away, shows only as a thin line at 1 s. `Deep.Camera` 8 of 8, with a world test: refused aboard, one ping in the water, a second refused during the cooldown, and the helm's ping does not cut the diver's short.
+  - **The orchestrator's review, the first under D-045.** It looks like it works: the server checks the cooldown, then every machine draws the pulse, and the ping rides the event bus that already plays the ping sound. What it changes elsewhere: the pulse is now on in all play; the ping makes no noise for the serpent, because nothing listens for it (a design choice, not a bug); a second player's client was not checked; and the camera test that said "pulse off" now says "pulse on", which follows D-043 rather than weakening the test. Merged into integration as `bbeeb7e`, with one conflict in `ARCHITECTURE.md` (both sides kept). Its gate is running: verify, package, smoke, zip, S8-keys and S9-floor.
+  - **Quinn's new rule (D-045, about 2:12 PM).** Toward the end, the orchestrator reviews each diff itself, then runs `verify`, then only the playthroughs for that area. The full run-through waits for the freeze at 5:30 PM.
+  - **Quinn on the monster.** He resumed the camera agent from its transcript and told it the serpent "doesn't animate at all and looks like two models smooshed together; I think the older one was better". The agent's reading: the Dragon Cave head, a rigid mesh with no jaw, sits on our code-built body, and nothing bends the body from side to side. That fix is next.
+- **Why it matters:** a scripted playthrough can pass for a reason nobody meant. S11 used "the line is no longer tethered" to stand for "the serpent hunts", and the Captain's timer satisfied it. The exit code said pass; the log said otherwise.
+- **Evidence:**
+  - failing run, `.wt\monster\deep\Saved\Logs\Deep-backup-2026.11.15-19.05.38.log`: "Lurk -> Pass (noise 0, tether 37.9 m)", "Pass -> Lurk", nothing after;
+  - rerun, `Deep.log`: `DEEPEVENT cut_patience` at 2:11 PM, then "Lurk -> Hunt";
+  - the hunted check in `tools/playtest.ps1` (S11);
+  - frames `devlog/media/2026-11-15-camera-diverping-*.png` (10, on `polish/camera`);
+  - rows 84 and 85 in [[Agent Runs]]; D-045 in [[Decision Log]].
+
+### 2:50 PM  The diver's ping passes its gate, three HUD palettes, and the serpent's body is to move by physics (orchestrator)
+- **What happened:**
+  - **The gate on `bbeeb7e`** (the diver's ping on top of `340332f`) passed at 2:33 PM: build, 117 of 117 tests, verify, a 1047.5 MB package, smoke, a 762.7 MB zip and the S8-keys and S9-floor playthroughs. The zip step warned that the team name is still a placeholder. Integration stays unpushed until the S11 fix is in.
+  - **HUD A started at 2:24 PM**, six minutes before the 2:30 PM default the orchestrator had given Quinn for choosing A or B. Saying B still switches it.
+  - **Three palettes (D-044).** A sonnet agent drew them from the theme and put a palette switch on the HUD mockup page (version 2, 2:38 PM): Bone and oxide, the off-white and rust of a worn hull; Tonal water, cut from the water's own blue-grey, which it recommends; and Amber phosphor, the whole HUD as one console screen, which breaks the Style Guide's rule that amber never goes on HUD lines. It measured contrast over the real frames: all panel text clears 4.3, and danger red is never weaker than today's.
+  - **Two problems in every palette, today's included.** Warnings and the machine screens (sonar, helm, the Captain's tag) share one amber, so the sonar walls look like a permanent warning. And the reticle, aim brackets and hatch marker have no panel, so over the lamp glow they drop to about 1 to 2 contrast. At 2:39 PM the HUD A engineer was told to make the two ambers two roles, outline those marks, and build in Tonal water until Quinn picks.
+  - **A lane the orchestrator did not start.** Quinn resumed the camera agent himself with his note on the serpent. It made its own worktree, `.wt\swim` on `polish/serpent-look`, and the orchestrator found it with `git worktree list`. It went back to one model: the code-built head with its jaw is the default again, instead of the Dragon Cave head on a code-built body (`8b5b100`, frames `da36b1f`, pushed, not merged).
+  - **Quinn on the slither (D-046), about 2:36 PM:** "instad of a slither mechanic we need eah spline to have physics so that it moves like an actual snake in 3d space", with "the controller is the head". An Opus engineer started at 2:39 PM on the same branch. The body becomes a chain of points the head drags through the water, integrated the way Epic's CableComponent and Jakobsen's "Advanced Character Physics" (GDC 2001) do it, with fixed spacing, a bend limit, water drag and the cave clearance. The sine weave goes. A small stroke at the head starts a wave, and the chain carries it down the body. Report by 4:00 PM with frames in motion, or stop at 3:45 PM if it does not look right.
+- **Why it matters:** the serpent is the game's one creature, and Quinn has turned down two looks for it. The chain changes how it moves, not how it is drawn, so it costs no new art and keeps the harpoon hit segments. Quinn expects it to be easy, and the chain is. The work is keeping it stable at any frame rate and off the rock in a winding shaft, which is why the brief asks for the solver as a tested pure function. And the worktree list is how the orchestrator learns of work a human starts with an agent directly.
+- **Evidence:**
+  - integration `bbeeb7e` in `.wt\monster`, gate passed at 2:33 PM;
+  - the HUD mockup page, version 2, and [[HUD Palettes]];
+  - `polish/serpent-look` `8b5b100` and `da36b1f`, frames `devlog/media/2026-11-15-serpent-look-*.png` (4) on that branch;
+  - rows 86 to 89 in [[Agent Runs]]; D-046 in [[Decision Log]].
+
+### 3:00 PM  S11 is honest now, and HUD A is in the integration build (orchestrator)
+- **What happened:**
+  - **S11 was failing for the script's reasons, not the game's.** The S11 engineer (row 85) found that the old script's 1.5 s key holds never reached sprint speed (3.9 m/s against a 5.2 m/s threshold), and that its catch-up teleport put the diver at the end of the line, pinned and silent. The serpent never heard a thing. The earlier passes came from the Captain's patience cutting the line, which the old check counted as a hunt. The fix (`7eb79d8`) changes only the script: with the lamp off, the diver sprints in 5 s legs round four corners near the anchor, and the check passes only when the serpent reaches Stalk or bites. The engineer's first try at the fix failed and blamed itself correctly ("script at fault"): its holds were still too short.
+  - **The orchestrator reviewed the diff before testing it (D-045).** It touches S11 only, turns the lamp back on at the end, and no longer counts a patience cut. One comment says x1.6 where the report says x1.3; both give 5.2 m/s. Integration had not touched the file, so the merge was clean (`1bd4031`). The change is script-only and the build was the one verified at 2:33 PM, so the gate was S11 once: PASS in 104 s, the serpent from Lurk to Stalk in 55 s of sprinting, noise 60.2, heard +588. Integration was pushed at 2:53 PM, with the camera fix and the diver's ping that had waited under it since 2:20 PM.
+  - **A design finding for Quinn.** Sprinting alone never brings the serpent. Sprint noise counts only above 5.2 m/s and adds 15 a second against a decay of 10, so reaching Stalk at 60 takes about 12 s of unbroken sprinting, and a straight sprint reaches the end of a 60 m line in about 9.4 s, at about 43. Winching (30 a second) and grabs (30 each) do bring it. The orchestrator recommends keeping it: sprinting adds to the danger, and the core loop brings the serpent anyway.
+  - **HUD A reported at 2:50 PM, 85 minutes early.** Direction A, the instrument, in Tonal water. Every colour is now a role in one file, `UI/DeepHudStyle.h`, the old canvas HUD and the harpoon overlay included, so another palette is a one-file change. New: a hull bar over the sonar whose fill eases down on a hit and leaves a ghost of the lost part that fades over 0.6 s; SUB and LIMIT placed by a tested function so they never touch; a 1 px dark edge on the reticle, aim brackets and hatch marker. The engineer's own calls: the harpoon's state rides on the aim brackets, the lamp's ON and OFF row is gone because the beam shows it, the water hint gains a V row for the ping, and the hint gives way to the bite band.
+  - **Review, then the gate.** The orchestrator looked at all five frames and read the logic diff. The ping hint maps to V, nothing the scripted playthroughs read changed, and the fonts are the ones the 2:33 PM package already cooked, so no package is needed before the freeze. Merged as `f0b7fd0`; verify passed, 121 of 121 tests, in 80 s; pushed at 2:55 PM. The frames are on the frames page, version 19, beside the old cyan helm with SUB on top of LIMIT.
+- **Why it matters:** a playthrough that passes for the wrong reason is worse than one that fails, because it hides the thing it was written to catch. S11 now fails if the serpent stops hearing. And the HUD was the last thing across the whole screen still in the old cyan, which Quinn said does not match the theme.
+- **Evidence:**
+  - `fix/s11-noise` `7eb79d8`; integration `1bd4031`; S11 on integration: PASS (104 s), Lurk > Stalk, noise max 60.2, heard +588.0, 6.1 m/s mean;
+  - `polish/hud-a` `e11eca0`; integration `f0b7fd0`: PASS build (43.9 s), PASS test (35.6 s), 121 tests, PASS verify (79.5 s);
+  - frames `devlog/media/2026-11-15-hud-a-{swim300,helm-limit,serpent-bite,aboard-bank,settlement}.png` on `polish/hud-a`; the frames page, version 19;
+  - rows 85 and 86 in [[Agent Runs]].
+
+### 3:10 PM  The submission text is rewritten for today's game, and review catches two shots that cannot be filmed (orchestrator)
+- **What happened:**
+  - **The itch page was eight hours old.** The draft from 7:05 AM described the game before the cave shaft: a trench, no submarine to drive, a Captain who mocks you the whole way down. The submission window, 6 to 7:30 PM, has room for the video and the form, not for writing. So at 3:03 PM a Sonnet writer (row 90) was sent to rewrite it from the integration code, write a shot list for the 30 to 60 s video Quinn records at about 6:15 PM, and update the checklist. It finished in about 2 minutes.
+  - **It checked the old draft against the code** and fixed what the code disproved: 185 Captain lines (the data has 74), the 66-test count, a helm that only dives (W, A, S and D steer it in the shaft), the vague overload rule (you sink past 10 kg; at 15 kg you cannot swim up), and the missing ping and camera shake.
+  - **The orchestrator then checked the writer against the code (D-045) and found three faults.**
+    - It stamped its files 3:30, 3:40 and 3:45 PM when it was 3:03, probably from its 3:45 PM deadline.
+    - The video's first shot was a sonar ping at the helm. The ping is the diver's and works only in the water (`DeepCameraRules::CanDiverPing` takes `IsInWater()`), so Quinn would have pressed V at the helm on camera and seen nothing. The ping moved to the shot where the diver swims out.
+    - The lamp shots need the flashlight, which the first settlement sells (`HasFlashlight()` is `GatesBought() >= 1`, and `ToggleLamp` does nothing without it). The writer also thought the cheats would not work in the package. `tools/ue.ps1` packages a Development build, so the console should work: the shot list now says to try `Deep.BuyGate free` and `Deep.GotoStop 2` once before recording.
+  - **What the orchestrator confirmed in code:** the 40 percent cut (`DirectorCutPercent`, an internal name the player never sees), the death fee, the 5 s bite alarm, a full-length bite that severs the line (`bSevered`), the lamp that always breaks a bite at once, the hull breach that drowns the diver at the helm, 30 s of bailout air, depth limits of 200, 400 and 600 m with the relic at 600, and the 3 s ping cooldown. The Dragon Cave seller's name comes from `Credits.csv` on integration.
+- **Why it matters:** a video plan that opens on a key that does nothing would have cost a retake in the busiest hour of the jam. A writer that checks claims against code still needs the same check on its own work, and here the review cost six greps.
+- **Evidence:** `devlog/itch-page.md`, [[Video Shot List]], [[Submission Checklist]]; row 90 in [[Agent Runs]]; the code read is integration `f0b7fd0` (`Diver/DeepDiver.cpp`, `Monster/DeepMonsterRules.cpp`, `Sim/DeepTuningTypes.h`, `Diver/DeepRunComponent.cpp`).
+
+### 3:20 PM  The serpent's body moves by physics now, and it is in the integration build (orchestrator)
+- **What happened:**
+  - **The ask.** At 2:36 PM Quinn said the slither was not realistic: each part of the body should have physics, so that it moves like a real snake in 3D, with the controller as the head (D-046). At 2:39 PM an Opus engineer (row 89) started on `polish/serpent-look`, with a recipe from Epic's CableComponent and Jakobsen's GDC 2001 paper on Verlet physics, a report due at 4:00 PM, and an order to stop at 3:45 if it was not right. It reported at about 3:10 PM.
+  - **What it built** (`f4ef2b0`). The body is a chain of points pinned behind the head, with no gravity. Each step moves every point by its own velocity, slowed by water drag: 1.2 a second along the body and 10 more across it, because water resists a snake moving sideways far more than along its length. The steps are fixed at 1/120 s, and a slow frame is clamped to 0.1 s so that a hitch cannot throw the body. Then a pass from head to tail puts every link back at its length and bends no joint more than 28 degrees, then each point is kept inside the cave. The sine weave is gone. The tube is drawn on a smooth curve through the points and banks into its turns. When the lamp drives the head back, a kick runs down the chain.
+  - **Then it took the stroke out** (`35ddef2`). The first version kept a small swim stroke at the head. The agent reports that Quinn asked it for a plain zero-gravity rope, so the stroke is off: the body moves only where the head's path and the physics take it.
+  - **The orchestrator reviewed the diff before testing it (D-045).** The AI's path, the bite's reach, the lamp and the cave clearance all read the head, and the head's motion did not change, so the scripted playthroughs test the same game. The cave check holds a weak pointer to the cavern and is cleared outside a cave stop. A NaN resets the chain straight. Nothing else on integration used the removed weave settings. Keeping each point inside the cave is arithmetic on the cave's radius, not a trace, so it costs little at 120 steps a second. The five new tests cover a straight swim, a turn in which the tail follows the head's path round the corner, the bend limit, hitches of 0 and 0.5 s, and the shipped settings.
+  - **The gate.** Merged as `964c66e`. Verify passed with 126 of 126 tests in 66 s. S3 passed in 12 s. S11 passed in 101 s: after 55 s of sprinting the serpent went from Lurk to Stalk. Pushed at 3:17 PM.
+  - **How it looks** (frames page, version 20). In the game's own dark it works, because the lamp shows only a band of wet scales sliding through the beam. In the agents' bright test light it reads as a hose: an even, glossy tube, and on a sharp turn the neck folds into a tight hook. The head, built in code with a jaw and a tooth row, reads as a predator. Quinn has three choices: keep it (the default), go back to `8b5b100`, or one tuning pass before the freeze: a body that tapers and a neck that bends more softly.
+- **Why it matters:** the body now moves the way Quinn asked, by physics, and the gameplay could not change with it, because everything the player fights reads the head. A look change that touches no rule can merge on a short gate.
+- **Evidence:**
+  - `polish/serpent-look` `f4ef2b0`, `35ddef2`; integration `964c66e`: PASS build (29.6 s), PASS test (36.0 s), 126 tests, PASS verify (65.7 s); PASS S3-serpent (12 s); PASS S11-pass (101 s), Lurk > Stalk, noise max 60.3, heard +588.2;
+  - frames `devlog/media/2026-11-15-serpent-physics-{side-0.0s,side-0.4s,side-0.8s,cavern,face}.png` on `polish/serpent-look`; the frames page, version 20;
+  - row 89 in [[Agent Runs]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

@@ -14,6 +14,8 @@ You are the orchestrator for DEEP. You plan, dispatch, check evidence and keep t
 
 Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on merge"). Run what the change can break, once. The full suite runs once per branch, at merge, by the orchestrator.
 
+**Toward the end (D-045, Quinn, about 2:12 PM Nov 15).** At each merge the orchestrator first reviews the diff itself: does it look like it works, and what does it change elsewhere (a state machine, a tuning number another system reads, a scripted playthrough's assumptions)? Then `verify`, then only the scripted playthroughs that drive the area the diff touches (the serpent: `S3-serpent`, `S11-pass`; the sub: `S2-gate`, `S7-run`, `S12-sidehome`; the dive: `S9-floor`, `S10-relic`). The package rule in the table below still holds for new materials and pack content. The full run-through (every scripted playthrough, package, smoke, zip, a play by hand) waits for the feature lock at 5:30 PM.
+
 **Agents, while working**
 
 - Build as often as needed: `tools\ue.ps1 build`.
@@ -29,6 +31,9 @@ Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on 
 | Only scripts in `tools/` | The agent's own run of the changed script is enough. `verify` only if build or test logic in `ue.ps1` changed. |
 | Text data in `deep/Content/Data`, or any C++ in `deep/Source` | `verify`: build plus all tests, about a minute. |
 | Cooking: `deep/Config`, `Deep.uproject`, `*.Build.cs`, `*.Target.cs`, plugins, a new content folder | `verify` at merge. Package and smoke before the next checkpoint. |
+| Anything a cooked game cannot fix up by itself: new C++, a new material, pack meshes or textures, a cook hook | `verify`, then **package at once**, not at the next checkpoint. Read the packaged log for `missing usage flag`, and check the zip against 1 GB. |
+
+**What the gate cannot see.** `verify` builds the editor target and runs the tests in the editor. On Nov 15 a branch passed it with 71 of 71 and three faults: the game target did not compile (a debug line called a function that exists only in editor builds), the rock's surface was missing the Nanite usage flag (the editor sets it on the fly, a cooked game falls back to the default material), and the zip was 1,318 MB against the 1 GB limit (the editor loads only what a frame needs). Every editor frame looked right. So a branch with C++, materials or pack content is packaged when it merges, and one frame is taken from the packaged game.
 
 **How to run the gate when other agents may be running Unreal.** Take the machine-wide slot, keep the exit code, and also require the `PASS verify` line. On Nov 15 a wrapper without `exit $code` swallowed a failed build and a red merge was pushed to the integration branch.
 
@@ -36,6 +41,8 @@ Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$m = New-Object System.Threading.Mutex($false, 'Global\DeepUnrealSlot'); try { [void]$m.WaitOne() } catch [System.Threading.AbandonedMutexException] { }; $code = 1; try { & '.\tools\ue.ps1' verify; $code = $LASTEXITCODE } finally { $m.ReleaseMutex() }; exit $code" > verify.txt 2>&1
 # merge and push only if the exit code is 0 AND verify.txt has a line starting "PASS verify"
 ```
+
+**An open editor blocks every build.** An Unreal editor starts Live Coding by itself, and UnrealBuildTool then refuses every build that uses the same installed engine, in every checkout: "Unable to build while Live Coding is active". `tools/ue.ps1 editor` passes `-LiveCoding=0` so agent editors do not do this. If a build fails with that message, list the `UnrealEditor.exe` processes and their command lines, wait for the one without `-LiveCoding=0`, or ask its owner; never stop a process you did not start. Quinn's own editor on the main checkout has the same effect.
 
 After merging two code branches, always build before pushing, even when git reports no conflict: two files can each define a helper with the same name and only collide once compiled together.
 

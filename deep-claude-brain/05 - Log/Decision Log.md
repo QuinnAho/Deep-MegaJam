@@ -45,6 +45,16 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-034 | The monster is built on the dragon from Quinn's Dragon Cave pack; any Megascans asset may be used | Decided (Quinn, about 2:56 AM Nov 15) |
 | D-035 | The last ascent: the winch is slower with the relic, and the relic's shaft is straight under the hatch | In the integration branch (engineer, 6:45 AM Nov 15); Quinn can overrule |
 | D-036 | Packs stay where they are installed, agents link to them, and the cook takes only what is used | Decided (orchestrator, 6:55 AM Nov 15) |
+| D-037 | The relic becomes a real object, and the well holds its light | In the integration branch (8:56 AM Nov 15); Quinn can overrule |
+| D-038 | Feature freeze moves from 3 PM to 5:30 PM | Quinn, 11:58 AM Nov 15 |
+| D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; the shaft and caverns gated and pushed at 1:41 PM |
+| D-040 | The Captain becomes a voice on the radio who says less; real sound replaces the synth | Quinn, about 12:15 PM Nov 15; built, waiting on sound files |
+| D-041 | Camera feel: shakes, a found-footage look, and the sonar made visible | Shakes decided; the rest behind switches until Quinn approves frames |
+| D-042 | The cavern reads from the hatch by a lower roof, not nearer walls | Orchestrator, 1:38 PM Nov 15; built, made no visible difference, dropped at 1:54 PM for D-043 |
+| D-043 | The diver sends the sonar ping, so the cavern walls show from the water | Orchestrator, 1:54 PM Nov 15; replaces D-042; Quinn can overrule |
+| D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
+| D-045 | Toward the end: review each diff, test only what it touches; the full run-through at the freeze | Quinn, about 2:12 PM Nov 15; in `.claude/loop.md` |
+| D-046 | The serpent is one model again, and its body moves by physics, dragged by the head | Quinn, about 2:36 PM Nov 15; being built on `polish/serpent-look` |
 
 ## Open
 
@@ -58,6 +68,132 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-046 The serpent is one model again, and its body moves by physics, dragged by the head
+- **Status:** Quinn's direction, about 2:36 PM Nov 15. Being built on `polish/serpent-look` (row 89 in [[Agent Runs]]); frames before any merge.
+- **Date:** 2026-11-15, about 2:36 PM EST
+- **Who:** Quinn.
+- **His words:** first, to the camera agent before 2:25 PM, as it relayed them: the serpent "doesn't animate at all and looks like two models smooshed together; I think the older one was better". Then to the orchestrator: "so instad of a slither mechanic we need eah spline to have physics so that it moves like an actual snake in 3d space undesrand the slither is not realistic, i feel like this hsoul dbe pretty easy the controller is the head"
+- **What it changes:** the serpent is one model again: the code-built head with its jaw on the code-built body (`8b5b100`), not the Dragon Cave head on our body. Its body stops being laid along the head's path with a sine swing added on top. It becomes a chain of points the head drags through the water: Verlet integration with fixed spacing, a bend limit, water drag and the cave clearance. A small stroke at the head starts the wave, and the chain carries it down the body. The harpoon hit segments and the tube are built from the chain, so the AI, the bite and the harpoon do not change.
+- **Why:** the weave was a formula, a sine wave added to the path, so the body swung without being pulled, and Quinn calls it not realistic. A chain that lags and follows gives an eel's motion with no new art.
+- **His "pretty easy":** the chain itself is short. The work is keeping it stable at any frame rate and off the rock in a winding shaft, so the brief asks for the solver as a pure function with tests.
+- **Fallback:** if the chain is not right by 3:45 PM, merge only the one-model fix (`8b5b100`).
+
+### D-045 Toward the end: the orchestrator reviews each diff, then tests only what it touches
+- **Status:** Quinn's direction, about 2:12 PM Nov 15. In force; `.claude/loop.md` ("What to run") says how.
+- **Date:** 2026-11-15, about 2:12 PM EST
+- **Who:** Quinn.
+- **His words:** "i do think as we move twoards nearing the end we should move twoards more orchestrator code review (does it look like it works implications) then e2e tests. and we should wait until the feature lock to really run through"
+- **What it changes:** at each merge the orchestrator reads the diff first. Does it look like it works? What does it change elsewhere: a state machine, a tuning number another system reads, an assumption a scripted playthrough makes? Then `verify`, then only the scripted playthroughs for the area the diff touches. New materials and pack content are still packaged at once. Every playthrough, the package, smoke, zip and a play by hand wait for the feature freeze at 5:30 PM.
+- **Why it fits:** the same hour, a scripted playthrough (S11) passed for a reason nobody meant, and only reading its log showed it.
+
+### D-044 The HUD palette changes: the colours do not match the theme
+- **Status:** Quinn's direction, 1:54 PM Nov 15. For the HUD pass; nothing is built yet.
+- **Date:** 2026-11-15, 1:54 PM EST
+- **Who:** Quinn.
+- **His words:** "not in the hud i dont like the use of color it doesnt match the theme please note that when we get to it"
+- **What it changes:** both mockups use the style guide's HUD colours: cyan `#58E1D6` for numbers and hairlines, amber `#FFB45A` for warnings and red `#E5484D` for danger. The HUD pass reworks that palette whichever layout Quinn picks, and Quinn sees the new palette on frames before it goes in. [[Style Guide]] section 3 changes with it.
+- **Open:** whether "not in the hud" also means no found-footage marks (a recording dot, a timecode) on the HUD. Asked at about 2 PM.
+
+### D-043 The diver sends the sonar ping, so the cavern walls show from the water
+- **Status:** Decided by the orchestrator at 1:54 PM Nov 15. Replaces D-042. Quinn can overrule. Building on `polish/camera`.
+- **Date:** 2026-11-15, 1:54 PM EST
+- **Who:** the orchestrator.
+- **Why:** the lower roof (D-042) was built and measured, and it made no visible difference. From the hatch at stops 2 and 3, a level view is black (rock 73 m and 94 m away) and an upward view is the sub's belly. From 12 m out, looking up, the reticle finds rock at 18 m, but the lamp fades into the fog before it gets there. The cavern engineer's verdict: moving rock won't fix it; only the lamp's falloff and the fog will. Quinn asked for lidar-like beams "to see whats in front of you when it gets dark" (D-041), and the camera lane already has a sonar pulse that draws a band on rock as the ping passes.
+- **Decision:** the diver gets a ping of their own: a key, a cooldown of about 3 s and a reach of about 90 m. For a moment it outlines the cavern. `Deep.Sonar.Pulse` goes on by default (Quinn was told at 1:46 PM that it would unless he said no). The pulse colour becomes a tuning value, because of D-044.
+- **Not merged:** `0e14e21` (the roof tuning) and `ff0b0b5` (its frames) stay on `polish/cavern`.
+- **Risk:** if the pulse cannot read through the fog at 60 to 95 m without a big change, the engineer stops and says why.
+
+### D-042 The cavern reads from the hatch by a lower roof, not nearer walls
+- **Status:** Dropped at 1:54 PM Nov 15: built (`0e14e21`) and measured, it made no visible difference. Replaced by D-043. It was decided by the orchestrator at 1:38 PM, on the cavern engineer's measurements.
+- **Date:** 2026-11-15, 1:38 PM EST
+- **Who:** the orchestrator.
+- **The problem:** from the hatch at stops 2 and 3 the nearest wall is 60 m or more away, and the lamp lights to 35 m (`FDeepLampTuning.RangeM`) through heavy fog. So the dive still looks like open water, which is what Quinn added caverns to avoid ("if your swimming in an open ocean it really lessens it"). Reach is not the problem: the bed is 8 m under the hatch, and the farthest salvage spot is 44.6 m away on a 60 m tether.
+- **What the engineer measured:**
+  - **Nearer walls by tuning:** not possible. The farthest salvage spot plus its 3 m margin holds the wall at 47.6 m or more, and level rock shows only within about 15 to 20 m.
+  - **A bell-shaped cave** (walls 15 to 18 m out from level upward, opening out below -30°) keeps every spot inside. But the serpent's containment would pull its 75 m lurk circle to 15 to 25 m from the hatch, so it would circle inside the lamp at the start of the dive. It would also break three tests in `DeepCavernTests.cpp`.
+  - **Pillars from the dressing data:** they have no collision, so the tether would pass through them.
+  - **A lower roof:** `RoofAboveAnchorM` 10 to 7.5, `HangTipClearM` 7 to 4 and `HangMinOutM` 19 to 15 put hanging rock about 15 m away looking up. Tuning only.
+- **Decision:** the lower roof. The serpent's first sighting in the dark is the game's best horror beat, and it is worth more than nearer walls.
+- **Checks:**
+  - the sub's descent through the roof opening costs no hull;
+  - the tether never passes through rock;
+  - everything stays in reach;
+  - the cavern and serpent tests stay green.
+
+### D-041 Camera feel: shakes, a found-footage look, and the sonar made visible
+- **Status:** Shakes are decided; Quinn asked for them. The footage look, the sonar pulse and the interference are built behind switches and stay off until Quinn approves frames. The HUD pass waits for the sonar and shaft merges. Lane `polish/camera` started 12:25 PM.
+- **Date:** 2026-11-15, about 12:20 PM EST
+- **Who:** The ideas are Quinn's; the orchestrator shaped them.
+- **Quinn's words:** "i thinking of having a mechanic where you send out almost lidar tye beams to see whats in front of you when it gets dark, not sure if thats too much something diffrent, als not that the HUD doesnt match the theme and we need to do a pass there too, also we should add like camera shakes, your right more audio breathing ect any post porcessing motion blur ect, also had the idea like your looing through a camera and we have camera elements to it to give it that found footage look, but idk". Then, at 12:34 PM: "i might have camera shake in my library".
+- **Decision:**
+  - **The lidar:** not a second tool. The sonar ping becomes visible in the world. A shell expands from the sub over the sonar's range and outlines the walls for about 1.5 s in the sonar's amber, leaving lidar dots that fade. It is one mechanic, seen on the panel and in the world. It is a sensor overlay and lights nothing.
+  - **Camera shakes** on hull hits, bites, the cut, the harpoon, the hatch, the descents and the serpent's approach. All of them are tuning values in C++. Quinn's shake pack is not needed: Unreal shakes are a few numbers on Epic's built-in patterns. It is worth adding only if it has recorded handheld motion, which would beat a noise sway for the footage look.
+  - **The footage look:** the player sees through the diver's helmet camera, which the Captain watches from the sub. He cuts the footage as well as the line, which is the theme.
+    - Grain rises with depth, like a camera pushing its gain.
+    - Vignette, fringe at the edges, a slight lens distortion and a handheld sway.
+    - Static before shape: the feed breaks up as the serpent closes.
+  - **Motion blur:** frames with it off and at 0.2 decide it. The cave has to stay readable while driving.
+  - **Breathing** follows the danger tier: calm, then fast, then panic with a heartbeat. The Captain-and-sound lane builds it.
+  - **HUD:** one planned pass (D-028), after the sonar and shaft merges, since both change the HUD. It uses whichever look Quinn approves, and a mockup comes first.
+- **Pushback:** a separate lidar tool would compete with the sonar panel for the player's attention and double the work. Five lanes already share one Unreal slot.
+- **Safety:** `Deep.Camera.Shake` is on. `Deep.Look.Footage`, `Deep.Sonar.Pulse` and `Deep.Look.Interference` are off until approved. With all of them at 0, the game is today's.
+
+### D-040 The Captain becomes a voice on the radio who says less; real sound replaces the synth
+- **Status:** Decided by Quinn at about 12:15 PM, Nov 15. Lane `polish/captain` and a writer started at 12:17 PM. The lines were revised at 12:26 PM.
+- **Date:** 2026-11-15, about 12:15 PM EST
+- **Who:** Quinn, on the orchestrator's proposal.
+- **Quinn's words:** "the capitian feature doesnt really bring anything in here too how hsould we change that", then "Captain direction yes, I'll add a Fab pack  - tell me what you are looking ffor my brother can make sounds or music too".
+- **Decision:**
+  - **Keep the Captain.** He carries the theme: he takes a cut of every haul and holds the tether cutter.
+  - **Change how he talks.** He is a voice on the sub's radio. In the water, and while the sub is being driven, he says only what the diver needs:
+    - chatter is silent;
+    - a notable line waits at least 30 s after the last one;
+    - when the serpent is close, only life-or-death lines get through.
+    That silence is designed.
+  - **His tone follows the danger:** smug when calm, clipped when tense, cracking when scared. His jokes move to the safe moments: the title, aboard, death and the settlement.
+  - **Fewer lines:** 185 lines on 55 events become 74 on 59, each with a tone ([[Captain Script]]). The voice never says a number. Numbers stay on screen: the receipt, the depth readout and the diver number.
+  - **The radio:** squelch on and off, and a voice file per line id when one exists. The other buses duck under him (Style Guide section 9).
+  - **Real sound where we have it.** A Fab pack from Quinn covers the world. Quinn's brother makes the music and the serpent's voice, and perhaps the Captain's voice. What to get and how is in [[Sound Brief]].
+  - **Fixed names, so his files drop in:**
+    - music events `music_depth1`, `music_depth2`, `music_depth3`, `music_sting_serpent`, `music_tension`, `music_title`, `music_win` and `music_settlement`;
+    - our own audio under `/Game/DeepAudio/`: `Captain/<line id>`, `Music/<event>`, and `Serpent/<event>_01` to `_03`.
+- **Open:**
+  - Who voices the Captain: Quinn's brother, OpenAI text to speech, or text only.
+  - Whether an agent may import the brother's files headless into `deep/Content/DeepAudio/`. That would be a new exception to the binary-asset rule.
+- **Safety:** with `Deep.Captain.Radio` and `Deep.Music` at 0, the game is today's.
+
+### D-039 Drive the sub down a winding cave shaft with a sonar; every stop is a cavern
+- **Status:** Decided by Quinn (11:55 AM Nov 15). Three lanes building: `polish/shaft`, `polish/cavern`, `polish/sonar`.
+- **Date:** 2026-11-15, 11:55 AM EST
+- **Who:** Quinn. The orchestrator challenged the full version and offered a scoped one.
+- **Quinn's words:** "what makes this game fun and driving the sub with a radar mechanic or something is part of it really also i think we must do caverns because if your swimming in an open ocean it really lessens it". And earlier: bumping into walls is what damages the hull.
+- **Decision:**
+  - Between stops the helm descent becomes a cave shaft that bends, opens into caverns and pinches into squeezes. The player steers sideways to follow it. A wall hit jolts the view, scrapes, makes the Captain sneer and damages the hull. A breach kills the diver aboard, through the existing death and respawn path.
+  - A sonar at the helm shows the walls round the sub and 20 m below, plus salvage and the serpent.
+  - Every stop's arena is enclosed: rock walls and a roof, the sea bed as the floor, and a 14 m opening over the sub where the shaft comes in.
+  - This un-cuts **Sonar** from the GDD's Cut list. It is Quinn's call.
+- **Not done:** free driving through branching tunnels. The sub is the fixed point that the tether, hatch, stops, serpent and ending hang from (the world slides past it), so free driving would mean rewriting them under freeze. The shaft keeps that: at every stop the passage is centred on the parked sub.
+- **Safety:** each part is behind its own switch (`Deep.Cave.Shaft`, `Deep.Cave.Cavern`, `Deep.Sonar`). Set to 0, a switch gives back today's game exactly, so any part that is not solid by 5:30 PM ships switched off.
+- **Cost:** the fourth bubbles try (FX lane, half-built at the 11:19 crash) is parked on `polish/fx-wip4`, unfinished.
+
+### D-038 Feature freeze moves from 3 PM to 5:30 PM
+- **Status:** Decided by Quinn (11:58 AM Nov 15).
+- **Why:** the 3 PM freeze was the team's own buffer, set on the Board; the jam only requires the entry by 8:59 PM EST. The new plan is: features until 5:30 PM, the final scripted playthroughs and package at 6 PM, the video, itch page and form from 6 to 7:30 PM, and submission by 8 PM. That still leaves an hour for a crash or a bad merge (the machine went down at 11:19 AM).
+
+### D-037 The relic becomes a real object, and the well holds its light
+- **Status:** Built, in the integration branch (`5ae5f0b`, 8:56 AM Nov 15). Quinn can overrule.
+- **Date:** 2026-11-15, 8:10 AM EST
+- **Who:** The orchestrator, after looking at the dressing lane's frames of the 500 m site.
+- **What was wrong:** The relic is a white glowing ring with a light of 12,000 units and a reach of 25 m (`Arena.RelicLightIntensity`, `RelicLightRadiusM`). Those numbers were set on Saturday night so that a player could find it across the sea floor. Since D-035 it lies in a shaft straight under the hatch. Two metres from it the light burns the pit to yellow-green and the frame reads as a debug view (`devlog/media/2026-11-15-dressing-500-bottom.png`). Every winning player comes here.
+- **Decision:**
+  - The relic becomes a real object from the Dragon Cave pack.
+  - The shaft holds its light. The light rises out of the mouth as a glow, and that glow is the beacon.
+  - At the bottom the relic is the brightest thing and does not burn the frame. The locked exposure stays.
+  - How the relic plays does not change: its weight, its grab range, its place under the hatch and a clear winch path up the shaft.
+- **Why:** D-029 puts looks level with gameplay, and this is the climax frame. The old job of the light, finding the relic across the floor, ended with D-035.
+- **What follows:** For its second pass the dressing lane owns the whole 500 m site, including the relic's light numbers, its mesh and the pit's surface.
+- **As built:** The relic is the pack's carved stone sphere (`SM_StoneworksSphere01`). Its light is 1,200 units over 7 m, amber, down from 12,000 over 25 m. A narrow shadowed spot sends a beam up the shaft, which is lined with cut stone. Weight, grab and winch path are unchanged; `Deep.Sim.Monster` (with `LastAscent`) and `Deep.Sim.Rules.ReviewAndRelic` pass. Frames: `devlog/media/2026-11-15-well-*.png`.
 
 ### D-035 The last ascent: a slower winch with the relic, and a shaft under the hatch
 - **Status:** In the integration branch. Quinn has not seen it and can overrule any number.

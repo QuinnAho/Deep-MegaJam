@@ -42,3 +42,5 @@ deep/Content/DragonCave
 
 # Written by packaging (the order files were opened in); rebuilt on every package
 deep/Build/Windows/FileOpenOrder/
+# Sound files from Quinn's brother, waiting to be imported (D-040). The imported assets go in deep/Content/DeepAudio.
+audio-drop/

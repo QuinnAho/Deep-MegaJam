@@ -1,0 +1,183 @@
+# Captain Script
+
+Revised 12:26 PM: no numbers in voiced lines
+
+Rewrite to D-040 (Quinn, Nov 15, 12:15 PM). Replaces the 185-line `CaptainLines.csv`. Not yet copied into the game: Quinn or the orchestrator copies the block below over the CSV.
+
+## The direction in five lines
+
+1. The Captain is a voice on the sub's radio. He says much less: 74 lines, down from 185.
+2. In the water he speaks only when the diver needs something: what is happening or what to do, eight words or fewer.
+3. His tone follows the danger: calm is smug, bored contempt; tense is clipped orders; scared is the bully cracking ("Lamp. LAMP.").
+4. His jokes live in the safe moments where the punchline lands: title, aboard, settlement, death and respawn.
+5. He carries the jam theme: he takes his cut of every haul, holds the tether cutter and blames "the company" or "head office". The word "Director" is never used (D-025).
+
+## CaptainLines.csv
+
+No line uses a token. The Captain never says a number: the diver number, depth and the gross, cut and net all show on screen (the settlement receipt, the depth readout, the credits and diver line, the written-off card). The code still fills `{n}`, `{gross}`, `{cut}`, `{net}`, `{depth}` if a later line needs one.
+
+```csv
+"id","event","variant","text","voice_note","tone"
+"title_01","title",1,"Press any key. Even you can manage that.","bored, flat","calm"
+"enter_sub_01","enter_sub",1,"Dripping on my deck. Wipe your everything.","disgusted, bored","calm"
+"helm_take_01","helm_take",1,"Hands on the helm. Touch nothing else.","bored, warning","calm"
+"helm_descend_01","helm_descend",1,"Going down. Try not to enjoy it. Billable.","smug, deadpan","calm"
+"helm_depth_limit_01","helm_depth_limit",1,"No deeper. Below this, the hull folds like your resume.","flat, final","calm"
+"helm_arrive_01","helm_arrive",1,"Parked. Nothing out there but money and teeth.","bored, ominous","calm"
+"descend_stop2_01","descend_stop2",1,"Twilight zone. Sunlight is not included.","bored, dry","calm"
+"descend_stop3_01","descend_stop3",1,"Midnight zone. If the lamp dies, so do you.","flat, ominous","calm"
+"idle_inside_01","idle_inside",1,"Standing around? The console exists. Use it.","bored, nagging","calm"
+"idle_inside_02","idle_inside",2,"Dry, warm, and still unprofitable. Impressive.","smug, deadpan","calm"
+"idle_01","idle",1,"Still alive? Blink if somehow yes.","mocking, bored","calm"
+"hull_bought_01","hull_bought",1,"Hull upgraded. We go deeper. You go first.","gleeful, smug","calm"
+"hull_damage_01","hull_damage",1,"Hull damage. Add it to your tab.","bored, flat","calm"
+"leak_patched_01","leak_patched",1,"Dry again. First useful thing you have done.","grudging, dry","calm"
+"controls_move_01","controls_move",1,"Swim with the stick. Try not to drown.","bored, flat","calm"
+"controls_grab_01","controls_grab",1,"Point and click to grab. Toddlers manage.","mocking, bored","calm"
+"controls_winch_01","controls_winch",1,"Hold the winch key. It is loud. Deal.","bored, curt","calm"
+"controls_lamp_01","controls_lamp",1,"Lamp follows the mouse. Monsters hate it.","bored, flat","calm"
+"controls_cut_01","controls_cut",1,"Hold cut to be cut loose. Pearls await.","gleeful, low","calm"
+"dive_start_01","dive_start",1,"Tether secured. Try to be worth the rope.","smug, bored","calm"
+"first_salvage_01","first_salvage",1,"First piece. I take my cut. Always.","smug, matter-of-fact","calm"
+"salvage_small_01","salvage_small",1,"Pocket change. Retire early, champ.","bored, mocking","calm"
+"salvage_small_02","salvage_small",2,"A bottle cap. Truly, a visionary.","deadpan, flat","calm"
+"salvage_medium_01","salvage_medium",1,"Fine. Barely useful. Progress.","grudging, dry","calm"
+"salvage_large_01","salvage_large",1,"Big one. Head office hears my name.","gleeful, greedy","calm"
+"pearl_spotted_01","pearl_spotted",1,"A pearl. Past the tether. Ask nicely.","smug, tempting","calm"
+"overweight_01","overweight",1,"Greed is heavy. Winch, genius.","smug, flat","calm"
+"overweight_02","overweight",2,"Too heavy. Drop it or winch. Now.","clipped, urgent","tense"
+"tether_taut_01","tether_taut",1,"End of the rope. Turn around.","bored, flat","calm"
+"winch_start_01","winch_start",1,"Winching. Look like cargo.","bored, flat","calm"
+"patience_50_01","patience_50",1,"My patience is thinning. Find something shiny.","bored, dry","calm"
+"patience_25_01","patience_25",1,"Patience is nearly gone. Move it, diver.","clipped, impatient","tense"
+"patience_10_01","patience_10",1,"Almost out. Salvage. Now.","clipped, hard","tense"
+"patience_10_02","patience_10",2,"Hand on the cutter. Hurry.","tight, low","tense"
+"cut_patience_01","cut_patience",1,"Snip. Head office sends regards.","gleeful, cold","tense"
+"cut_patience_02","cut_patience",2,"Company policy. Swim, moron.","cold, curt","tense"
+"cut_requested_01","cut_requested",1,"Finally, a request I can grant.","gleeful, quick","tense"
+"cut_requested_02","cut_requested",2,"Cutting you loose. Your idea, remember.","smug, quick","tense"
+"cut_bite_01","cut_bite",1,"Cut it. The hull costs more.","curt, breathless","tense"
+"bailout_10s_01","bailout_10s",1,"Air is almost gone. Move.","clipped, urgent","tense"
+"bailout_10s_02","bailout_10s",2,"Almost out of air. SWIM, you idiot.","cracking, shouted","scared"
+"retether_01","retether",1,"Made it. I lost a bet.","sour, flat","calm"
+"death_air_01","death_air",1,"Out of air. Written off. Invoice to the estate.","bored, deadpan","calm"
+"death_monster_01","death_monster",1,"Not personal. It was hungry. You were there.","bored, shrug","calm"
+"death_monster_02","death_monster",2,"Diver eaten. Logged as wear and tear.","flat, clerical","calm"
+"respawn_01","respawn",1,"Replacement diver. Same idiot, new lungs.","bored, flat","calm"
+"respawn_02","respawn",2,"New diver. Do not get attached. I never do.","dry, smug","calm"
+"bank_good_01","bank_good",1,"Read the receipt. My cut is the big one. Not my fault.","smug, cheerful","calm"
+"bank_good_02","bank_good",2,"Strong dive. I took my cut. You are welcome.","smug, flat","calm"
+"bank_poor_01","bank_poor",1,"That is what is left after my cut. Congratulations on being poor.","mocking, bored","calm"
+"bank_empty_01","bank_empty",1,"My cut of nothing. Taken on principle.","bored, dry","calm"
+"monster_first_heard_01","monster_first_heard",1,"It heard you. Stay quiet.","low, tight","tense"
+"monster_near_01","monster_near",1,"It is close. Lamp up.","clipped, tight","tense"
+"monster_near_02","monster_near",2,"Closing in. Lamp, idiot.","sharp, tense","tense"
+"monster_near_03","monster_near",3,"Lamp. LAMP.","cracking, breathless","scared"
+"monster_repelled_01","monster_repelled",1,"It backed off. Do not get comfortable.","relieved, covering","calm"
+"bite_alarm_01","bite_alarm",1,"It has the tether! Lamp! LAMP!","panicked, shouted","scared"
+"bite_alarm_02","bite_alarm",2,"It is chewing the tether. Lamp on it.","tense, clipped","tense"
+"bite_alarm_03","bite_alarm",3,"Lamp. Now. Or I cut.","hard, clipped","tense"
+"relic_seen_01","relic_seen",1,"There. The relic. I have already spent it.","greedy, hushed","calm"
+"relic_grabbed_01","relic_grabbed",1,"You got it. Almost impressed. Almost.","grudging, smug","calm"
+"relic_winch_01","relic_winch",1,"Winch it. Everything down here hears.","tight, low","tense"
+"win_01","win",1,"Relic banked. My cut of priceless is priceless.","gleeful, greedy","calm"
+"harpoon_fired_01","harpoon_fired",1,"Your only shot. Statistically, you will waste it.","mocking, flat","calm"
+"harpoon_hit_sub_01","harpoon_hit_sub",1,"You shot the sub. Your tab.","bored, annoyed","calm"
+"harpoon_hit_terrain_01","harpoon_hit_terrain",1,"Rock. Well done.","bored, dry","calm"
+"harpoon_hit_monster_01","harpoon_hit_monster",1,"It flinched. Do not get used to it.","grudging, flat","calm"
+"harpoon_missed_01","harpoon_missed",1,"Missed. The ocean is big. Even you.","mocking, flat","calm"
+"harpoon_empty_01","harpoon_empty",1,"Click. Nothing loaded. Genius.","mocking, bored","calm"
+"hull_hit_01","hull_hit",1,"Wall! The hull is not free, genius.","sharp, annoyed","tense"
+"hull_hit_02","hull_hit",2,"Easy! That is my hull.","sharp, wincing","tense"
+"hull_critical_01","hull_critical",1,"Hull is cracking. Any more and we die.","tight, afraid","scared"
+"hull_breach_01","hull_breach",1,"Breach. Hull gone. You are a write-off, diver.","shaken, then cold","scared"
+"sonar_contact_01","sonar_contact",1,"Sonar contact. Something big. Moving.","low, clipped","tense"
+```
+
+## Recording script
+
+Delivery spec:
+- One WAV per line, named `<id>.wav` (for example `title_01.wav`).
+- 48 kHz, mono, peaking at -1 dBFS.
+- A dry take. If he can, also a radio-filtered copy named `<id>_radio.wav`: high-pass 450 Hz, low-pass 3200 Hz, light distortion.
+- No line contains a number or a token, so every line records whole.
+- The direction column is the voice note, with the tone in brackets. Calm is bored and smug. Tense is clipped and low. Scared is a bully losing control.
+
+Play order (aboard first, then the dive, then danger):
+
+| id | line | direction |
+|---|---|---|
+| title_01 | Press any key. Even you can manage that. | bored, flat (calm) |
+| enter_sub_01 | Dripping on my deck. Wipe your everything. | disgusted, bored (calm) |
+| helm_take_01 | Hands on the helm. Touch nothing else. | bored, warning (calm) |
+| helm_descend_01 | Going down. Try not to enjoy it. Billable. | smug, deadpan (calm) |
+| helm_depth_limit_01 | No deeper. Below this, the hull folds like your resume. | flat, final (calm) |
+| helm_arrive_01 | Parked. Nothing out there but money and teeth. | bored, ominous (calm) |
+| descend_stop2_01 | Twilight zone. Sunlight is not included. | bored, dry (calm) |
+| descend_stop3_01 | Midnight zone. If the lamp dies, so do you. | flat, ominous (calm) |
+| idle_inside_01 | Standing around? The console exists. Use it. | bored, nagging (calm) |
+| idle_inside_02 | Dry, warm, and still unprofitable. Impressive. | smug, deadpan (calm) |
+| idle_01 | Still alive? Blink if somehow yes. | mocking, bored (calm) |
+| hull_bought_01 | Hull upgraded. We go deeper. You go first. | gleeful, smug (calm) |
+| hull_damage_01 | Hull damage. Add it to your tab. | bored, flat (calm) |
+| leak_patched_01 | Dry again. First useful thing you have done. | grudging, dry (calm) |
+| controls_move_01 | Swim with the stick. Try not to drown. | bored, flat (calm) |
+| controls_grab_01 | Point and click to grab. Toddlers manage. | mocking, bored (calm) |
+| controls_winch_01 | Hold the winch key. It is loud. Deal. | bored, curt (calm) |
+| controls_lamp_01 | Lamp follows the mouse. Monsters hate it. | bored, flat (calm) |
+| controls_cut_01 | Hold cut to be cut loose. Pearls await. | gleeful, low (calm) |
+| dive_start_01 | Tether secured. Try to be worth the rope. | smug, bored (calm) |
+| first_salvage_01 | First piece. I take my cut. Always. | smug, matter-of-fact (calm) |
+| salvage_small_01 | Pocket change. Retire early, champ. | bored, mocking (calm) |
+| salvage_small_02 | A bottle cap. Truly, a visionary. | deadpan, flat (calm) |
+| salvage_medium_01 | Fine. Barely useful. Progress. | grudging, dry (calm) |
+| salvage_large_01 | Big one. Head office hears my name. | gleeful, greedy (calm) |
+| pearl_spotted_01 | A pearl. Past the tether. Ask nicely. | smug, tempting (calm) |
+| overweight_01 | Greed is heavy. Winch, genius. | smug, flat (calm) |
+| overweight_02 | Too heavy. Drop it or winch. Now. | clipped, urgent (tense) |
+| tether_taut_01 | End of the rope. Turn around. | bored, flat (calm) |
+| winch_start_01 | Winching. Look like cargo. | bored, flat (calm) |
+| patience_50_01 | My patience is thinning. Find something shiny. | bored, dry (calm) |
+| patience_25_01 | Patience is nearly gone. Move it, diver. | clipped, impatient (tense) |
+| patience_10_01 | Almost out. Salvage. Now. | clipped, hard (tense) |
+| patience_10_02 | Hand on the cutter. Hurry. | tight, low (tense) |
+| cut_patience_01 | Snip. Head office sends regards. | gleeful, cold (tense) |
+| cut_patience_02 | Company policy. Swim, moron. | cold, curt (tense) |
+| cut_requested_01 | Finally, a request I can grant. | gleeful, quick (tense) |
+| cut_requested_02 | Cutting you loose. Your idea, remember. | smug, quick (tense) |
+| cut_bite_01 | Cut it. The hull costs more. | curt, breathless (tense) |
+| bailout_10s_01 | Air is almost gone. Move. | clipped, urgent (tense) |
+| bailout_10s_02 | Almost out of air. SWIM, you idiot. | cracking, shouted (scared) |
+| retether_01 | Made it. I lost a bet. | sour, flat (calm) |
+| death_air_01 | Out of air. Written off. Invoice to the estate. | bored, deadpan (calm) |
+| death_monster_01 | Not personal. It was hungry. You were there. | bored, shrug (calm) |
+| death_monster_02 | Diver eaten. Logged as wear and tear. | flat, clerical (calm) |
+| respawn_01 | Replacement diver. Same idiot, new lungs. | bored, flat (calm) |
+| respawn_02 | New diver. Do not get attached. I never do. | dry, smug (calm) |
+| bank_good_01 | Read the receipt. My cut is the big one. Not my fault. | smug, cheerful (calm) |
+| bank_good_02 | Strong dive. I took my cut. You are welcome. | smug, flat (calm) |
+| bank_poor_01 | That is what is left after my cut. Congratulations on being poor. | mocking, bored (calm) |
+| bank_empty_01 | My cut of nothing. Taken on principle. | bored, dry (calm) |
+| monster_first_heard_01 | It heard you. Stay quiet. | low, tight (tense) |
+| monster_near_01 | It is close. Lamp up. | clipped, tight (tense) |
+| monster_near_02 | Closing in. Lamp, idiot. | sharp, tense (tense) |
+| monster_near_03 | Lamp. LAMP. | cracking, breathless (scared) |
+| monster_repelled_01 | It backed off. Do not get comfortable. | relieved, covering (calm) |
+| bite_alarm_01 | It has the tether! Lamp! LAMP! | panicked, shouted (scared) |
+| bite_alarm_02 | It is chewing the tether. Lamp on it. | tense, clipped (tense) |
+| bite_alarm_03 | Lamp. Now. Or I cut. | hard, clipped (tense) |
+| relic_seen_01 | There. The relic. I have already spent it. | greedy, hushed (calm) |
+| relic_grabbed_01 | You got it. Almost impressed. Almost. | grudging, smug (calm) |
+| relic_winch_01 | Winch it. Everything down here hears. | tight, low (tense) |
+| win_01 | Relic banked. My cut of priceless is priceless. | gleeful, greedy (calm) |
+| harpoon_fired_01 | Your only shot. Statistically, you will waste it. | mocking, flat (calm) |
+| harpoon_hit_sub_01 | You shot the sub. Your tab. | bored, annoyed (calm) |
+| harpoon_hit_terrain_01 | Rock. Well done. | bored, dry (calm) |
+| harpoon_hit_monster_01 | It flinched. Do not get used to it. | grudging, flat (calm) |
+| harpoon_missed_01 | Missed. The ocean is big. Even you. | mocking, flat (calm) |
+| harpoon_empty_01 | Click. Nothing loaded. Genius. | mocking, bored (calm) |
+| hull_hit_01 | Wall! The hull is not free, genius. | sharp, annoyed (tense) |
+| hull_hit_02 | Easy! That is my hull. | sharp, wincing (tense) |
+| hull_critical_01 | Hull is cracking. Any more and we die. | tight, afraid (scared) |
+| hull_breach_01 | Breach. Hull gone. You are a write-off, diver. | shaken, then cold (scared) |
+| sonar_contact_01 | Sonar contact. Something big. Moving. | low, clipped (tense) |
