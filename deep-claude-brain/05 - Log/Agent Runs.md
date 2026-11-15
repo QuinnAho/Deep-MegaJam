@@ -38,7 +38,7 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 
 | 29 | 11:16 PM | writer | Sonnet 5.5, medium | 47 new Captain lines for the harpoon and for the inside of the submarine (14 new events). | 52k | 8 | 36 s | Done, commit `bac783f` on `main`. Checked by the orchestrator: 185 lines, 55 events, no duplicate ids, ASCII, no strong language. |
 
-| 32 | 11:50 PM | research agent | Sonnet 5.5, medium | Read Quinn's Fab library through the editor's Fab toolset on port 8000 (read-only, no installs) and write a shortlist of what DEEP could use. | | | | Running. |
+| 32 | 11:50 PM | research agent | Sonnet 5.5, medium | Read Quinn's Fab library through the editor's Fab toolset on port 8000 (read-only, no installs) and write a shortlist of what DEEP could use. | 95k | 19 | 4 min | Done, note committed as `f3f7f54`. 1,694 items owned, mostly Megascans. Gaps: no audio, no UI, no creature that fits. Nothing installed. |
 
 ## What the numbers say so far
 
