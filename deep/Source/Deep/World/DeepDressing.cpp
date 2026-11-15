@@ -4,8 +4,14 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/PlayerCameraManager.h"
+#include "HAL/FileManager.h"
+#include "Components/StaticMeshComponent.h"
 #include "Game/DeepGameState.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 #include "Math/RandomStream.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
@@ -23,6 +29,9 @@
 #endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepDressing, Log, All);
+
+// Hides every piece without unloading it: an A/B of the frame time in one run (Deep.Dressing.Hide 1, then 0).
+static TAutoConsoleVariable<int32> CVarDeepDressingHide(TEXT("Deep.Dressing.Hide"), 0, TEXT("1 hides all dressing (for a frame-time A/B); 0 shows it."));
 
 namespace
 {
@@ -171,6 +180,7 @@ TArray<FDeepDressRow> DeepDressing::ParseRows(const FString& Csv, TArray<FString
 		Row.ScaleMin = Num(Cells, TEXT("scale_min"), 1.f);
 		Row.ScaleMax = FMath::Max(Row.ScaleMin, Num(Cells, TEXT("scale_max"), Row.ScaleMin));
 		Row.Seed = FMath::RoundToInt(Num(Cells, TEXT("seed"), 0.f));
+		Row.Silt = Num(Cells, TEXT("silt"), -1.f);
 		Out.Add(MoveTemp(Row));
 	}
 	return Out;
@@ -181,15 +191,37 @@ double DeepDressing::DepthToRootZCm(float DepthM, float StopDepthM)
 	return (double(StopDepthM) - double(DepthM)) * UDeepRules::CmPerM;
 }
 
+// The last refusal, for the log line that reports it.
+static FString GDeepDressLastBlock;
+
 bool DeepDressing::Blocks(const FTransform& Piece, const FBox& MeshBox, const TArray<FDeepDressClear>& Clear)
 {
+	// Distance from the path to the piece's own (rotated, scaled) box, not to a sphere round it: a bounding sphere refused
+	// every flat slab and column near the well (first 500 m frames). The path is sampled every 25 cm.
 	const FVector Centre = Piece.TransformPosition(MeshBox.GetCenter());
-	const double Radius = MeshBox.GetExtent().Size() * Piece.GetMaximumAxisScale();
-	for (const FDeepDressClear& C : Clear)
+	const double Scale = FMath::Max(UE_KINDA_SMALL_NUMBER, Piece.GetMaximumAxisScale());
+	const double Reach = MeshBox.GetExtent().Size() * Scale;
+	for (int32 Index = 0; Index < Clear.Num(); ++Index)
 	{
-		if (FMath::PointDistToSegment(Centre, C.StartCm, C.EndCm) < C.RadiusCm + Radius)
+		const FDeepDressClear& C = Clear[Index];
+		// Cheap reject: the bounding sphere does not reach the capsule.
+		if (FMath::PointDistToSegment(Centre, C.StartCm, C.EndCm) >= C.RadiusCm + Reach)
 		{
-			return true;
+			continue;
+		}
+		const double Length = FVector::Dist(C.StartCm, C.EndCm);
+		const int32 Steps = FMath::Clamp(FMath::CeilToInt(Length / 25.0), 1, 2000);
+		for (int32 Step = 0; Step <= Steps; ++Step)
+		{
+			const FVector P = FMath::Lerp(C.StartCm, C.EndCm, double(Step) / Steps);
+			const FVector Local = Piece.InverseTransformPosition(P);
+			const double Dist = FMath::Sqrt(MeshBox.ComputeSquaredDistanceToPoint(Local)) * Scale;
+			if (Dist < C.RadiusCm)
+			{
+				GDeepDressLastBlock = FString::Printf(TEXT("centre %s m, path %d to %s m, box %.1f m off it, needs %.1f"),
+					*(Centre / 100.0).ToCompactString(), Index, *(C.EndCm / 100.0).ToCompactString(), Dist / 100.0, C.RadiusCm / 100.0);
+				return true;
+			}
 		}
 	}
 	return false;
@@ -200,9 +232,12 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 	TArray<FTransform> Out;
 	int32 Rejected = 0;
 	const double Cm = UDeepRules::CmPerM;
+	// Low pieces lie against the bed, which collides: a diver passing over them cannot pass through them.
+	bool bLow = false;
 
 	auto MakeRoot = [&](float X, float Y, float Z, const FRotator& Rot, float Scale) -> FTransform
 	{
+		bLow = false;
 		const FQuat Q = Rot.Quaternion();
 		FVector Loc = Context.AnchorCm + FVector(X * Cm, Y * Cm, 0.0);
 		switch (Row.Ref)
@@ -214,6 +249,7 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 			double MaxZ = 0.0;
 			RotatedZRange(Context.MeshBox, Q, Scale, MinZ, MaxZ);
 			Loc.Z = Surface + Z * Cm - MinZ - Row.Sink * (MaxZ - MinZ);
+			bLow = Z * Cm + (MaxZ - MinZ) * (1.0 - Row.Sink) <= Context.LowCm;
 			break;
 		}
 		case EDeepDressRef::Depth:
@@ -237,7 +273,7 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 	{
 		const FRotator Rot(Row.Pitch, Row.Yaw, Row.Roll);
 		const FTransform T = bWall ? MakeWall(Row.XM, Row.YM, Row.ZM, Rot, Row.Scale) : MakeRoot(Row.XM, Row.YM, Row.ZM, Rot, Row.Scale);
-		if (!bWall && Blocks(T, Context.MeshBox, Context.Clear))
+		if (!bWall && !bLow && Blocks(T, Context.MeshBox, Context.Clear))
 		{
 			++Rejected;
 		}
@@ -271,7 +307,7 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 					const float Angle = Rng.FRandRange(0.f, 2.f * PI);
 					const float R = FMath::Sqrt(FMath::Lerp(FMath::Square(Row.RadiusMinM), FMath::Square(Row.RadiusMaxM), Rng.FRand()));
 					T = MakeRoot(Row.XM + R * FMath::Cos(Angle), Row.YM + R * FMath::Sin(Angle), Z, Rot, Scale);
-					bPlaced = !Blocks(T, Context.MeshBox, Context.Clear);
+					bPlaced = bLow || !Blocks(T, Context.MeshBox, Context.Clear);
 				}
 				if (bPlaced)
 				{
@@ -286,6 +322,109 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 		*OutRejected = Rejected;
 	}
 	return Out;
+}
+
+namespace
+{
+	/** Which sampler a texture needs: 0 colour (sRGB), 1 linear colour, 2 masks, 3 normal; +4 when virtual. */
+	int32 SamplerClass(const UTexture* Tex)
+	{
+		int32 Class = 0;
+		if (Tex->CompressionSettings == TC_Normalmap)
+		{
+			Class = 3;
+		}
+		else if (Tex->CompressionSettings == TC_Masks)
+		{
+			Class = 2;
+		}
+		else if (!Tex->SRGB)
+		{
+			Class = 1;
+		}
+		return Class + (Tex->IsCurrentlyVirtualTextured() ? 4 : 0);
+	}
+}
+
+UMaterialInterface* DeepDressing::Skin(UMaterialInterface* Master, UMaterialInterface* Original, float Silt, UObject* Outer)
+{
+	UTexture* Probe = nullptr;
+	if (!Master || !Master->GetTextureParameterValue(FHashedMaterialParameterInfo(FName(TEXT("BaseColorMap"))), Probe))
+	{
+		// A plain override: the mesh wears it as it is.
+		return Master;
+	}
+	// Some pack textures stream virtually and need the master's VT twin (<master>VT): pick by the slot's base colour.
+	if (Original && Probe)
+	{
+		TArray<FMaterialParameterInfo> Infos;
+		TArray<FGuid> Ids;
+		Original->GetAllTextureParameterInfo(Infos, Ids);
+		for (const FMaterialParameterInfo& Info : Infos)
+		{
+			UTexture* Tex = nullptr;
+			if (Original->GetTextureParameterValue(Info, Tex) && Tex && Tex->GetName().EndsWith(TEXT("_BC")))
+			{
+				if (Tex->IsCurrentlyVirtualTextured() != Probe->IsCurrentlyVirtualTextured())
+				{
+					const FString Package = FPackageName::ObjectPathToPackageName(Master->GetPathName());
+					const FString Name = FPackageName::GetShortName(Package);
+					const FString TwinName = Name.EndsWith(TEXT("VT")) ? Name.LeftChop(2) : Name + TEXT("VT");
+					const FString Twin = FPackageName::GetLongPackagePath(Package) / TwinName + TEXT(".") + TwinName;
+					if (UMaterialInterface* Other = LoadObject<UMaterialInterface>(nullptr, *Twin, nullptr, LOAD_NoWarn | LOAD_Quiet))
+					{
+						Master = Other;
+					}
+				}
+				break;
+			}
+		}
+	}
+	UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Master, Outer);
+	if (Silt >= 0.f)
+	{
+		Dynamic->SetScalarParameterValue(TEXT("SiltAmount"), Silt);
+	}
+	if (!Original)
+	{
+		return Dynamic;
+	}
+	// The pack's own textures go into the skin, matched by the pack's names (_BC, _N, _ORM).
+	TArray<FMaterialParameterInfo> Infos;
+	TArray<FGuid> Ids;
+	Original->GetAllTextureParameterInfo(Infos, Ids);
+	for (const FMaterialParameterInfo& Info : Infos)
+	{
+		UTexture* Tex = nullptr;
+		if (!Original->GetTextureParameterValue(Info, Tex) || !Tex)
+		{
+			continue;
+		}
+		const FString Name = Tex->GetName();
+		const FName Slot = Name.EndsWith(TEXT("_BC")) ? FName(TEXT("BaseColorMap"))
+			: Name.EndsWith(TEXT("_N")) ? FName(TEXT("NormalMap"))
+			: Name.EndsWith(TEXT("_ORM")) ? FName(TEXT("ORMMap"))
+			: NAME_None;
+		if (Slot.IsNone())
+		{
+			continue;
+		}
+		UTexture* Default = nullptr;
+		Master->GetTextureParameterValue(FHashedMaterialParameterInfo(Slot), Default);
+		if (Default && SamplerClass(Default) != SamplerClass(Tex))
+		{
+			// A texture of another kind would sample wrong: keep the default and say so once.
+			static TSet<FString> Warned;
+			if (!Warned.Contains(Name))
+			{
+				Warned.Add(Name);
+				UE_LOG(LogDeepDressing, Warning, TEXT("DEEPDRESS %s does not fit %s's sampler (%d, wants %d): left out"), *Name, *Slot.ToString(), SamplerClass(Tex), SamplerClass(Default));
+			}
+			continue;
+		}
+		Dynamic->SetTextureParameterValue(Slot, Tex);
+	}
+	return Dynamic;
 }
 
 TArray<FName> DeepDressing::PackagesToCook(const FString& DressingCsv, const FString& PackAssetsCsv)
@@ -414,6 +553,7 @@ FDeepDressContext ADeepDressing::MakeContext(int32 Stop) const
 	}
 	const int32 RelicStop = Tuning.Arena.RelicStop;
 	const FVector Relic = UDeepRules::RelicOffsetCm(Tuning.Arena, Tuning.GetStop(RelicStop).SubDepthM, UDeepRules::TetherLengthM(RelicStop, Tuning.Tether));
+	Context.LowCm = FMath::Max(0.f, Look.DressingLowM) * UDeepRules::CmPerM;
 	Context.Clear.Add({ Context.AnchorCm, Context.AnchorCm + Relic, FMath::Max(ClearCm, Look.SeabedPitRadiusM * float(UDeepRules::CmPerM)) });
 	return Context;
 }
@@ -443,7 +583,7 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 	for (int32 RowIndex = 0; RowIndex < Rows.Num(); ++RowIndex)
 	{
 		const FDeepDressRow& Row = Rows[RowIndex];
-		const FString Key = FString::Printf(TEXT("%s|%s|%d|%d|%d"), *Row.Mesh, *Row.Material, int32(Row.Parent), Row.Stop, Row.HidesBelowStop() ? 1 : 0);
+		const FString Key = FString::Printf(TEXT("%s|%s|%.3f|%d|%d|%d"), *Row.Mesh, *Row.Material, Row.Silt, int32(Row.Parent), Row.Stop, Row.HidesBelowStop() ? 1 : 0);
 		if (const int32* Existing = GroupByKey.Find(Key))
 		{
 			Groups[*Existing].RowIndices.Add(RowIndex);
@@ -479,7 +619,7 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 		{
 			for (int32 Slot = 0; Slot < C->GetNumMaterials(); ++Slot)
 			{
-				C->SetMaterial(Slot, Material);
+				C->SetMaterial(Slot, DeepDressing::Skin(Material, Mesh->GetMaterial(Slot), Row.Silt, C));
 			}
 		}
 		C->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
@@ -529,7 +669,7 @@ void ADeepDressing::Build(int32 Stop)
 			const TArray<FTransform> Pieces = DeepDressing::Expand(Rows[RowIndex], Context, &Rejected);
 			if (Rejected > 0)
 			{
-				UE_LOG(LogDeepDressing, Log, TEXT("DEEPDRESS %s: %d pieces kept out of a diver's path"), *Rows[RowIndex].Id, Rejected);
+				UE_LOG(LogDeepDressing, Log, TEXT("DEEPDRESS %s: %d pieces kept out of a diver's path (last: %s)"), *Rows[RowIndex].Id, Rejected, *GDeepDressLastBlock);
 			}
 			All.Append(Pieces);
 		}
@@ -569,6 +709,7 @@ void ADeepDressing::Refresh()
 		bool bVisible = Group.Stop == 0 || Group.Stop == Stop;
 		bVisible &= !(Group.bHideBelow && bBelowStop);
 		bVisible &= Group.Parent != EDeepDressParent::Trench || bHelmView;
+		bVisible &= CVarDeepDressingHide.GetValueOnGameThread() == 0;
 		if (Group.Component->IsVisible() != bVisible)
 		{
 			Group.Component->SetVisibility(bVisible);
@@ -597,3 +738,69 @@ UHierarchicalInstancedStaticMeshComponent* ADeepDressing::FindComponentForRow(co
 	const int32* Index = RowGroup.Find(Id);
 	return Index && Groups.IsValidIndex(*Index) ? Groups[*Index].Component.Get() : nullptr;
 }
+
+// Deep.Dressing.Sheet <first> <count> [cols]: a contact sheet of the pack's meshes (Content/DragonCave/Meshes, by name),
+// each scaled to fit a 1.1 m cell, in a grid 7 m in front of the view. Logs each mesh's real size. For choosing meshes.
+static FAutoConsoleCommandWithWorldAndArgs GDeepDressingSheet(
+	TEXT("Deep.Dressing.Sheet"),
+	TEXT("Deep.Dressing.Sheet <first> <count> [cols]: lays pack meshes out in a grid in front of the view and logs their sizes."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		static TWeakObjectPtr<AActor> Sheet;
+		if (Sheet.IsValid())
+		{
+			Sheet->Destroy();
+		}
+		APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+		if (!PC || !PC->PlayerCameraManager)
+		{
+			return;
+		}
+		const int32 First = Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 0;
+		const int32 Count = Args.Num() > 1 ? FCString::Atoi(*Args[1]) : 30;
+		const int32 Cols = Args.Num() > 2 ? FMath::Max(1, FCString::Atoi(*Args[2])) : 6;
+		TArray<FString> Files;
+		IFileManager::Get().FindFiles(Files, *(FPaths::ProjectContentDir() / TEXT("DragonCave/Meshes/*.uasset")), true, false);
+		Files.Sort();
+		const FVector Cam = PC->PlayerCameraManager->GetCameraLocation();
+		const FRotator Rot = PC->PlayerCameraManager->GetCameraRotation();
+		const FVector Fwd = Rot.Vector();
+		const FVector Right = FRotationMatrix(Rot).GetUnitAxis(EAxis::Y);
+		const FVector Up = FRotationMatrix(Rot).GetUnitAxis(EAxis::Z);
+		AActor* Actor = World->SpawnActor<AActor>(Cam, FRotator::ZeroRotator);
+		USceneComponent* SheetRoot = NewObject<USceneComponent>(Actor, TEXT("SheetRoot"));
+		Actor->SetRootComponent(SheetRoot);
+		SheetRoot->RegisterComponent();
+		Sheet = Actor;
+		const int32 Last = FMath::Min(Files.Num(), First + Count);
+		const int32 Rows = FMath::DivideAndRoundUp(Last - First, Cols);
+		const double Cell = 130.0;
+		for (int32 Index = First; Index < Last; ++Index)
+		{
+			const FString Name = FPaths::GetBaseFilename(Files[Index]);
+			const FString Path = FString::Printf(TEXT("/Game/DragonCave/Meshes/%s.%s"), *Name, *Name);
+			UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path);
+			if (!Mesh)
+			{
+				continue;
+			}
+			const FBox Box = Mesh->GetBoundingBox();
+			const double Fit = 110.0 / FMath::Max(1.0, Box.GetSize().GetMax());
+			const int32 N = Index - First;
+			const double Col = (N % Cols) - (Cols - 1) * 0.5;
+			const double Row = (Rows - 1) * 0.5 - (N / Cols);
+			const FVector At = Cam + Fwd * 700.0 + Right * (Col * Cell) + Up * (Row * Cell);
+			UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(Actor);
+			C->SetStaticMesh(Mesh);
+			C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			C->SetupAttachment(SheetRoot);
+			C->SetWorldScale3D(FVector(Fit));
+			// Face the camera: the mesh's +X toward it, centred in its cell.
+			const FRotator Face = (-Fwd).Rotation() + FRotator(0.0, 30.0, 0.0);
+			C->SetWorldRotation(Face);
+			C->SetWorldLocation(At - Face.RotateVector(Box.GetCenter() * Fit));
+			C->RegisterComponent();
+			UE_LOG(LogDeepDressing, Display, TEXT("DEEPSHEET %d %s size_m %.2f x %.2f x %.2f pivot_to_bottom_m %.2f mats %d"), Index, *Name,
+				Box.GetSize().X / 100.0, Box.GetSize().Y / 100.0, Box.GetSize().Z / 100.0, -Box.Min.Z / 100.0, Mesh->GetStaticMaterials().Num());
+		}
+	}));

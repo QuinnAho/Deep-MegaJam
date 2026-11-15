@@ -158,6 +158,20 @@ bool FDeepDressingScatterTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("A piece placed in the path draws nothing"), DeepDressing::Expand(Place, Context, &Dropped).Num(), 0);
 	TestEqual(TEXT("... and is counted"), Dropped, 1);
 
+	// A low piece lying in the silt under the path stays: the bed under it collides anyway.
+	FDeepDressRow Low;
+	Low.Id = TEXT("bones");
+	Low.Ref = EDeepDressRef::Bed;
+	Low.XM = 7.5f;
+	Low.Scale = 0.4f;
+	Low.Sink = 0.5f;
+	FDeepDressContext LowContext = Context;
+	LowContext.BedBelowM = [](const FVector2D&) { return 5.5f; };
+	LowContext.LowCm = 60.f;
+	TestEqual(TEXT("A low piece on the bed under a path is kept"), DeepDressing::Expand(Low, LowContext).Num(), 1);
+	LowContext.LowCm = 0.f;
+	TestEqual(TEXT("... but not if low pieces are not allowed"), DeepDressing::Expand(Low, LowContext).Num(), 0);
+
 	// Depth rows: wherever the root stands for a stop, a point lands at (sub depth - depth) above the sub.
 	for (const float SubDepth : { 199.f, 201.f, 450.f })
 	{

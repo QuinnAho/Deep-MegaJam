@@ -6,7 +6,8 @@
 //
 // Columns (by header name; empty cells take the defaults in FDeepDressRow):
 //   id, stop (0 = every stop), kind (place|scatter), parent (root|trench), ref (bed|anchor|depth|wall), mesh, material,
-//   x_m, y_m, z_m, z_to_m, yaw, pitch, roll, scale, sink, count, radius_min_m, radius_max_m, scale_min, scale_max, seed
+//   x_m, y_m, z_m, z_to_m, yaw, pitch, roll, scale, sink, count, radius_min_m, radius_max_m, scale_min, scale_max, seed,
+//   silt (SiltAmount for a skin material such as /Game/Deep/Dressing/M_DressSilt: see DeepDressing::Skin)
 // Position by ref:
 //   bed    x, y from the hatch anchor; the mesh's lowest point sits z_m above the silt there, then sinks by `sink` of its
 //          height (0.3 = a third buried). Hidden while the sub is below the loaded stop, like the bed itself.
@@ -17,8 +18,8 @@
 //          (negative = sunk into it). Shown only in the helm view, with the trench wall.
 // Scatter: `count` pieces, seeded. Root: in the ring radius_min_m..radius_max_m round (x, y), z (or depth) between z_m and
 // z_to_m, full random yaw, pitch and roll jittered by up to the row's pitch and roll. Trench: along y +- radius_max_m.
-// Every root piece is kept clear of the diver's paths (FDeepLookTuning::DressingClearM); a placed piece in a path is
-// dropped with a warning.
+// Every root piece is kept clear of the diver's paths (FDeepLookTuning::DressingClearM), except low pieces lying in the
+// silt (DressingLowM); a placed piece in a path is dropped (logged).
 
 #pragma once
 
@@ -58,6 +59,8 @@ struct DEEP_API FDeepDressRow
 	float ScaleMin = 1.f;
 	float ScaleMax = 1.f;
 	int32 Seed = 0;
+	/** SiltAmount for a skin material (0 none .. 1 thick); negative keeps the material's own. */
+	float Silt = -1.f;
 
 	/** Hidden with the bed while the sub is below the loaded stop. */
 	bool HidesBelowStop() const { return Parent == EDeepDressParent::Root && Ref != EDeepDressRef::Depth; }
@@ -85,6 +88,8 @@ struct DEEP_API FDeepDressContext
 	/** The mesh's local bounds (cm). */
 	FBox MeshBox = FBox(FVector(-50.f), FVector(50.f));
 	TArray<FDeepDressClear> Clear;
+	/** A bed piece whose top is at most this high above the silt lies against the floor and may sit under a path (cm). */
+	float LowCm = 0.f;
 };
 
 namespace DeepDressing
@@ -110,6 +115,13 @@ namespace DeepDressing
 	 * cook cannot see, and it is 4.8 GB, so only these go in.
 	 */
 	DEEP_API TArray<FName> PackagesToCook(const FString& DressingCsv, const FString& PackAssetsCsv);
+
+	/**
+	 * The material a mesh slot wears for a row. A skin master (a material with a BaseColorMap texture parameter, such as
+	 * /Game/Deep/Dressing/M_DressSilt) becomes a dynamic instance carrying the slot's own pack textures (_BC, _N, _ORM)
+	 * and SiltAmount (if Silt >= 0); any other material is used as it is.
+	 */
+	DEEP_API UMaterialInterface* Skin(UMaterialInterface* Master, UMaterialInterface* Original, float Silt, UObject* Outer);
 }
 
 UCLASS()
