@@ -24,6 +24,7 @@ Orchestrator session: plan, dispatch, check evidence
 ```
 
 Claude's memory is an Obsidian vault in the repo, so every session reads the same notes.
+
 ## Timeline
 
 - **8:38 PM:** Quinn creates `Deep.uproject`. At 8:55 he adds a C++ module, because agents write C++ more reliably than Blueprint graphs.
@@ -78,7 +79,6 @@ Claude's memory is an Obsidian vault in the repo, so every session reads the sam
 
 ![The helm view with a depth gauge and a limit line](media/2026-11-14-sub-helm-descent.png)
 *The helm at 172 m. The HUD makes it readable, but the view is flat grey, so driving does not yet feel like moving. This is the first item for the feel pass.*
-
 
 ## Agent runs
 
