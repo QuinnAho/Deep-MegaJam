@@ -474,3 +474,9 @@ w_020_12,3,place,root,shaft,/Game/DragonCave/Meshes/SM_BridgeStone06.SM_BridgeSt
 w_throat_a,0,scatter,root,shaft,/Game/DragonCave/Meshes/SM_CaveRock02.SM_CaveRock02,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,-0.6,0,38,66,60,25,35,1,,70,,,0.45,0.8,301,,
 w_throat_b,0,scatter,root,shaft,/Game/DragonCave/Meshes/SM_LargeRock03.SM_LargeRock03,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,-0.4,0,30,64,60,30,40,1,,60,,,0.6,1.0,302,,
 w_throat_c,0,scatter,root,shaft,/Game/DragonCave/Meshes/SM_CaveRock04.SM_CaveRock04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,-0.7,0,18,40,60,25,30,1,,45,,,0.45,0.75,303,,
+t_gate_100_a,0,place,trench,wall,/Game/DragonCave/Meshes/SM_StoneworksPillar04.SM_StoneworksPillar04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,0.2,-3.5,108,,0,0,2,1,,,,,,,,,,/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01
+t_gate_100_b,0,place,trench,wall,/Game/DragonCave/Meshes/SM_StoneworksPillar04.SM_StoneworksPillar04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,0.2,3.5,108,,180,0,-3,1,,,,,,,,,,/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01
+t_gate_300_a,0,place,trench,wall,/Game/DragonCave/Meshes/SM_StoneworksPillar04.SM_StoneworksPillar04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,0.2,-3.5,308,,0,0,2,1,,,,,,,,,,/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01
+t_gate_300_b,0,place,trench,wall,/Game/DragonCave/Meshes/SM_StoneworksPillar04.SM_StoneworksPillar04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,0.2,3.5,308,,180,0,-3,1,,,,,,,,,,/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01
+t_gate_500_a,0,place,trench,wall,/Game/DragonCave/Meshes/SM_StoneworksPillar04.SM_StoneworksPillar04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,0.2,-3.5,508,,0,0,2,1,,,,,,,,,,/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01
+t_gate_500_b,0,place,trench,wall,/Game/DragonCave/Meshes/SM_StoneworksPillar04.SM_StoneworksPillar04,/Game/Deep/Dressing/M_DressSilt.M_DressSilt,0.2,3.5,508,,180,0,-3,1,,,,,,,,,,/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01

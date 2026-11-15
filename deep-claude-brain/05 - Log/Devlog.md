@@ -463,6 +463,10 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Not done: D (a feature rising into the bow lights on arrival). The beacon does not light the lip pillars' inner faces: the shaft is too narrow for direct light to reach them.
 - Evidence: `polish/dressing`; frames `devlog/media/2026-11-15-well-*.png` (hatch lamp off and on, mouth, halfway down the shaft lit and unlit, bottom lamp on and off, trench mid-descent and approach), taken after merging the texture limits; `Deep.World` 30 of 30, `Deep.Sim.Monster` 6 of 6 (with `LastAscent`), `Deep.Sim.Rules.ReviewAndRelic` 1 of 1; skins read back `used_with_instanced_static_meshes=True, used_with_nanite=True`. Frame time at 1080p with ray tracing, dressing hidden -> shown (the relic and its beacon stay on in both): GPU 6.24 -> 6.58 ms at 100 m, 6.45 -> 6.93 at 300 m, 5.97 -> 6.47 at 500 m; 1328 pieces.
 
+### 8:51 AM  A gate in the cliff at every stop
+- What happened: D from the review: two carved Stoneworks pillars set into the trench wall 2 to 14 m below each stop, either side of the view, so they rise into the bow lights over the last metres of the descent and frame the ledge when the sub parks. Seen in the helm view at 100 m and 300 m; not checked at 500 m.
+- Evidence: `devlog/media/2026-11-15-well-arrive-300.png`, `-well-arrive-100.png`; rows `t_gate_*` in `Dressing.csv`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
