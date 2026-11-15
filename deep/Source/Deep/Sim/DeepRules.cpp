@@ -571,3 +571,14 @@ bool UDeepRules::InHatchColumn(const FVector& LocalCm, const FDeepSubTuning& Tun
 	const double Half = Tuning.HatchHalfSizeM * CmPerM;
 	return FMath::Abs(LocalCm.X) <= Half && FMath::Abs(LocalCm.Y) <= Half;
 }
+
+float UDeepRules::LampNearScale(float DistM, const FDeepLampTuning& Tuning)
+{
+	if (DistM < 0.f || Tuning.NearFullM <= 0.f || DistM >= Tuning.NearFullM)
+	{
+		return 1.f;
+	}
+	const float R = DistM / Tuning.NearFullM;
+	return FMath::Clamp(R * R, FMath::Clamp(Tuning.NearMinScale, 0.f, 1.f), 1.f);
+}
+

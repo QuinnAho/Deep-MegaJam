@@ -1,4 +1,4 @@
-﻿#include "World/DeepSalvage.h"
+#include "World/DeepSalvage.h"
 
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -92,7 +92,19 @@ void ADeepSalvage::ApplyKind()
 	Shown->SetRelativeScale3D(bOrb ? FVector(Scale) : FVector(Scale * 1.3f, Scale, Scale * 0.6f));
 	Shown->SetRelativeRotation(bOrb ? FRotator::ZeroRotator : FRotator(12.f, 30.f, -8.f));
 
-	DeepShapes::Tint(Shown, IsRelic() ? FLinearColor(0.85f, 0.95f, 1.f) : Kind.Color);
+	if (IsRelic() || Kind.Size == EDeepSalvageSize::Pearl)
+	{
+		// The relic's core and pearls keep their pale tint: the one thing down here that is not metal.
+		DeepShapes::Tint(Shown, IsRelic() ? FLinearColor(0.55f, 0.6f, 0.62f) : Kind.Color);
+	}
+	else
+	{
+		// Scrap: the kind's colour graded to style guide 4 (saturation and value capped), rusted and dull, so the lamp
+		// lands on it without glare.
+		const FLinearColor Hsv = Kind.Color.LinearRGBToHSV();
+		const FLinearColor Paint = FLinearColor(Hsv.R, FMath::Min(Hsv.G, 0.3f), FMath::Min(Hsv.B, 1.f) * 0.14f + 0.02f).HSVToLinearRGB();
+		DeepShapes::Steel(Shown, Paint, 0.45f, 0.6f, 0.7f, 0.f);
+	}
 
 	// The relic: two gold cones point to point form a tall crystal around the core; four shards circle it.
 	const float Size = Kind.SizeM * UDeepRules::CmPerM / DeepShapes::ShapeSizeCm;
@@ -120,7 +132,8 @@ void ADeepSalvage::ApplyKind()
 			Part->SetRelativeRotation(FRotator(45.f, Angle, 45.f));
 			Part->SetRelativeScale3D(FVector(Size * 0.16f));
 		}
-		DeepShapes::Tint(Part, Index < 2 ? Kind.Color : FLinearColor(0.2f, 0.9f, 0.85f));
+		// Old dark bronze, polished where it was handled, little rust: metal that was made, among metal that was thrown away.
+		DeepShapes::Steel(Part, Index < 2 ? FLinearColor(0.22f, 0.15f, 0.07f) : FLinearColor(0.16f, 0.12f, 0.07f), 0.12f, 0.08f, 0.32f, 1.f);
 	}
 	SetActorTickEnabled(IsRelic());
 

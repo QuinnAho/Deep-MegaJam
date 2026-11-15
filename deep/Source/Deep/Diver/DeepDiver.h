@@ -155,6 +155,9 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_Lamp, VisibleAnywhere, Category = "Deep")
 	bool bLampOn = true;
 
+	/** Close-range dimming of the lamp, followed smoothly (UDeepRules::LampNearScale). Local look only. */
+	float LampNearScale = 1.f;
+
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	float VerticalInput = 0.f;
 	bool bSprinting = false;

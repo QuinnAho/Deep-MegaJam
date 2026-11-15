@@ -253,6 +253,15 @@ bool FDeepWorldLookBlendTest::RunTest(const FString& Parameters)
 	// At 500 m the sub's lights stop lighting the water, so it stays black with the lamp off.
 	TestEqual(TEXT("500 m: sub lights do not light the fog"), ADeepEnvironment::BlendLook(Look, 500.f).SubLightFog, 0.f);
 	TestTrue(TEXT("Sub lights dim with depth"), Look.Presets[0].SubLightScale > Look.Presets[1].SubLightScale && Look.Presets[1].SubLightScale > Look.Presets[2].SubLightScale);
+
+	// The lamp up close: full in open water and past NearFullM; inverse-square compensation below it, with a floor.
+	FDeepLampTuning Lamp;
+	Lamp.NearFullM = 6.f;
+	Lamp.NearMinScale = 0.05f;
+	TestEqual(TEXT("Lamp: nothing ahead, full"), UDeepRules::LampNearScale(-1.f, Lamp), 1.f);
+	TestEqual(TEXT("Lamp: 10 m, full"), UDeepRules::LampNearScale(10.f, Lamp), 1.f);
+	TestTrue(TEXT("Lamp: 3 m, a quarter"), FMath::IsNearlyEqual(UDeepRules::LampNearScale(3.f, Lamp), 0.25f, 1e-4f));
+	TestEqual(TEXT("Lamp: touching, the floor"), UDeepRules::LampNearScale(0.1f, Lamp), 0.05f);
 	return true;
 }
 

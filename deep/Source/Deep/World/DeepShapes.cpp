@@ -4,6 +4,7 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Sim/DeepTuningSettings.h"
 
 namespace DeepShapes
 {
@@ -37,6 +38,23 @@ namespace DeepShapes
 		}
 		UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Base, Component);
 		Instance->SetVectorParameterValue(TEXT("Color"), Color);
+		Component->SetMaterial(0, Instance);
+	}
+
+	void Steel(UStaticMeshComponent* Component, const FLinearColor& Paint, float Wear, float Rust, float PaintRough, float PaintMetal)
+	{
+		UMaterialInterface* Base = Component ? Cast<UMaterialInterface>(UDeepTuningSettings::Get().Look.SteelMaterial.TryLoad()) : nullptr;
+		if (!Base)
+		{
+			Tint(Component, Paint);
+			return;
+		}
+		UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Base, Component);
+		Instance->SetVectorParameterValue(TEXT("PaintColor"), Paint);
+		Instance->SetScalarParameterValue(TEXT("Wear"), Wear);
+		Instance->SetScalarParameterValue(TEXT("Rust"), Rust);
+		Instance->SetScalarParameterValue(TEXT("PaintRoughness"), PaintRough);
+		Instance->SetScalarParameterValue(TEXT("PaintMetal"), PaintMetal);
 		Component->SetMaterial(0, Instance);
 	}
 }

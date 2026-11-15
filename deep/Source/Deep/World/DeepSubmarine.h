@@ -13,6 +13,9 @@ class UStaticMeshComponent;
 class UPointLightComponent;
 class USpotLightComponent;
 class UCameraComponent;
+class URectLightComponent;
+class UBoxComponent;
+class UPostProcessComponent;
 
 UCLASS()
 class DEEP_API ADeepSubmarine : public AActor
@@ -71,6 +74,12 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** Room and hull surfaces, lights and screens (FDeepLookTuning, Look|Room). */
+	void ApplyLook();
+
+	float OutsideScale = 1.f;
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 	/** Places and sizes every shape from the tuning. */
@@ -136,6 +145,41 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UCameraComponent> HelmCamera;
+
+	/** The helm's own screen, on the panel's face toward the seat. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UStaticMeshComponent> HelmScreen;
+
+	/** Thin fixtures for the ceiling strips (they carry the strips' glow, so the light has a source). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> StripFixtures;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<URectLightComponent>> Strips;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<URectLightComponent> ConsoleLight;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<URectLightComponent> HelmLight;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UPointLightComponent> HatchRed;
+
+	/** Ahead and down from under the nose: what the helm camera sees the sea move in. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<USpotLightComponent>> BowLights;
+
+	/** Red port, green starboard, blinking. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UPointLightComponent>> Markers;
+
+	/** The room's box: inside it the room keeps its own exposure. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UBoxComponent> RoomVolume;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UPostProcessComponent> RoomGrade;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Hatch)
 	bool bHatchOpen = true;

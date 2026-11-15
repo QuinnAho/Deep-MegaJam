@@ -583,6 +583,21 @@ struct FDeepLampTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float WobbleHz = 0.3f;
+
+	/**
+	 * Close-range dimming: inverse-square makes a surface 3 m away 136x brighter than at 35 m, so the lamp dims when the
+	 * beam's centre meets a surface nearer than NearFullM (intensity times (d / NearFullM)^2, never below NearMinScale),
+	 * keeping the lit spot at about its NearFullM brightness. Reach is unchanged: in open water it runs at full.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float NearFullM = 7.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float NearMinScale = 0.06f;
+
+	/** How fast the dimming follows (1/s), so a sweep past an edge does not pop. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float NearFollowRate = 8.f;
 };
 
 /** The sea at one depth (style guide 5). ADeepEnvironment blends between presets by the sub's depth. */
@@ -803,6 +818,76 @@ struct FDeepLookTuning
 	/** How far below the deck's top the pool lies (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float HatchWaterBelowDeckCm = 6.f;
+
+	/**
+	 * Room and hull surfaces (style guide 4). Each works on any mesh: worked out from position, no UVs, so a pack mesh can
+	 * take the same material or replace it by path. Missing assets fall back to the old tints.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	FSoftObjectPath SteelMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/M_WornSteel.M_WornSteel"));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	FSoftObjectPath ScreenMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/M_Screen.M_Screen"));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	FSoftObjectPath GlassMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/M_Glass.M_Glass"));
+
+	/** Exposure inside the room at every depth: the room keeps its own dim look while the sea outside darkens. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float RoomExposureBias = 0.f;
+
+	/** The old ceiling light, kept as a soft fill at this fraction of Sub.RoomLightIntensity. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float RoomFillScale = 0.2f;
+
+	/** Cool ceiling strips (#BFE3EA), kept low (rect lights along the ceiling, aimed down). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	FLinearColor StripColor = FLinearColor(FColor(0xBF, 0xE3, 0xEA));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float StripIntensity = 5000.f;
+
+	/** Amber practicals at the console and the helm (#FFB45A): the only warm room light, from the screens. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	FLinearColor PracticalColor = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float PracticalIntensity = 1600.f;
+
+	/** Emergency red at the hatch rim (#D8271C). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	FLinearColor EmergencyColor = FLinearColor(FColor(0xD8, 0x27, 0x1C));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float EmergencyIntensity = 700.f;
+
+	/** Screen brightness (material Glow). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float ScreenGlow = 1.6f;
+
+	/** Two bow lights under the nose, aimed ahead and down: what the helm camera sees the sea move in. Scaled by depth. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BowLightIntensity = 5000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BowLightConeDeg = 28.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BowLightRangeM = 18.f;
+
+	/** Hull marker lights, red port and green starboard (style guide 3), blinking at this rate. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float MarkerIntensity = 120.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float MarkerHz = 1.f;
+
+	/** Helm sway while driving (degrees of roll and pitch, Hz): the hull camera rides the sub. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HelmSwayDeg = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HelmSwayHz = 0.2f;
 };
 
 // ---- Rule inputs and results ----

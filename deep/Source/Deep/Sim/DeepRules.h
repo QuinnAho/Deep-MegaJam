@@ -1,4 +1,4 @@
-// DEEP's rules as pure static functions. No world, no actors, no globals: every input is a parameter.
+﻿// DEEP's rules as pure static functions. No world, no actors, no globals: every input is a parameter.
 // Actors gather inputs, call one of these, and apply the result. Each rule has an automation test in
 // Private/Tests/DeepRulesTests.cpp.
 
@@ -35,6 +35,9 @@ public:
 	/** Tether length at a 1-based stop. Stops below 1 count as 1. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static float TetherLengthM(int32 Stop, const FDeepTetherTuning& Tuning);
+
+	/** Lamp intensity scale for a surface DistM ahead of it (negative = nothing ahead): (d / NearFullM)^2 clamped to [NearMinScale, 1]. */
+	static float LampNearScale(float DistM, const FDeepLampTuning& Tuning);
 
 	/** Where the diver may be if it wants to be at WantedCm on a line of LengthM from AnchorCm. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
