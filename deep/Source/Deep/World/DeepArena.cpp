@@ -203,10 +203,9 @@ namespace DeepArena
 
 		if (!FindFirst<ADeepAbyssFloor>(World))
 		{
-			const FVector FloorAt = Sub->GetActorLocation() - FVector(0.f, 0.f, Tuning.Arena.FloorBelowSubM * UDeepRules::CmPerM);
-			if (ADeepAbyssFloor* Floor = World->SpawnActor<ADeepAbyssFloor>(FloorAt, FRotator::ZeroRotator, SpawnParams()))
+			// The sea bed is built around the anchor, through every salvage spot's resting point (ADeepAbyssFloor).
+			if (ADeepAbyssFloor* Floor = World->SpawnActor<ADeepAbyssFloor>(ArenaAnchor(World), FRotator::ZeroRotator, SpawnParams()))
 			{
-				Floor->SetSizeM(Tuning.Arena.FloorSizeM);
 				HangFromRoot(World, Floor);
 			}
 		}

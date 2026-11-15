@@ -6,6 +6,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Engine/World.h"
+#include "Materials/MaterialInterface.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
@@ -106,6 +107,11 @@ ADeepEnvironment::ADeepEnvironment()
 	Snow->SetMobility(EComponentMobility::Movable);
 	Snow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Snow->SetCastShadow(false);
+	// Specks are seen only where a light reaches them: no part in GI, distance fields or ray-traced reflections
+	// (also spares the ray tracing scene 9,000 instances).
+	Snow->bAffectDynamicIndirectLighting = false;
+	Snow->bAffectDistanceFieldLighting = false;
+	Snow->bVisibleInRayTracing = false;
 	Snow->SetStaticMesh(DeepShapes::LoadMesh(DeepShapes::Cube));
 	Snow->bNeverDistanceCull = true;
 }
@@ -180,6 +186,8 @@ FDeepLookPreset ADeepEnvironment::BlendLook(const FDeepLookTuning& Look, float D
 		O.Contrast = FMath::Lerp(A.Contrast, B.Contrast, T);
 		O.Fringe = FMath::Lerp(A.Fringe, B.Fringe, T);
 		O.GlintScale = FMath::Lerp(A.GlintScale, B.GlintScale, T);
+		O.SubLightScale = FMath::Lerp(A.SubLightScale, B.SubLightScale, T);
+		O.SubLightFog = FMath::Lerp(A.SubLightFog, B.SubLightFog, T);
 		return O;
 	}
 	return P.Last();
@@ -259,7 +267,23 @@ void ADeepEnvironment::ApplyLook(const FDeepLookPreset& L, const FDeepLookTuning
 	Downlight->SetLightColor(Look.DownlightColor);
 	Downlight->SetVolumetricScatteringIntensity(L.DownlightVolumetric);
 	Downlight->SetRelativeRotation(Look.DownlightRotation);
+	// Shafts: the surface pattern far above, as a light function. It cuts the downlight in the fog too (the light
+	// function atlas feeds volumetric fog: Epic, "Volumetric Fog"). Set once; light-space UVs in metres.
+	if (!Downlight->LightFunctionMaterial && !Look.ShaftLightFunction.IsNull())
+	{
+		if (UMaterialInterface* Shafts = Cast<UMaterialInterface>(Look.ShaftLightFunction.TryLoad()))
+		{
+			Downlight->SetLightFunctionMaterial(Shafts);
+			Downlight->SetLightFunctionScale(FVector(Look.ShaftScaleCm));
+		}
+	}
 	Fill->SetVisibility(false);
+
+	// The sub's outside lights fade with depth, and stop lighting the water before the water turns black.
+	for (TActorIterator<ADeepSubmarine> It(GetWorld()); It; ++It)
+	{
+		It->SetOutsideLights(L.SubLightScale, L.SubLightFog);
+	}
 
 	Fog->SetFogDensity(L.FogDensity);
 	Fog->SetFogHeightFalloff(Look.FogHeightFalloff);
@@ -269,6 +293,7 @@ void ADeepEnvironment::ApplyLook(const FDeepLookPreset& L, const FDeepLookTuning
 	Fog->SetDirectionalInscatteringColor(FLinearColor::Black);
 	Fog->SetVolumetricFog(true);
 	Fog->SetVolumetricFogAlbedo(Look.FogAlbedo);
+	Fog->SetVolumetricFogScatteringDistribution(Look.FogScatteringDistribution);
 	Fog->SetVolumetricFogExtinctionScale(L.ExtinctionScale);
 	Fog->SetVolumetricFogDistance(L.VolumetricDistanceM * UDeepRules::CmPerM);
 	Fog->SetVolumetricFogStartDistance(Look.VolumetricStartM * UDeepRules::CmPerM);

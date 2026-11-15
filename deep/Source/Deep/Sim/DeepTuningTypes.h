@@ -443,9 +443,12 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
 	int32 RelicStop = 3;
 
-	/** Compass angle of the relic around the anchor (0 = +X, ahead of the diver's start). */
+	/**
+	 * Compass angle of the relic around the anchor (0 = +X, ahead of the diver's start). 330, not 0: the relic lies in a
+	 * sinkhole in the sea bed, and at 0 it was 2 m from the 0-degree scrap 66 m above it (no bed can hold both).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
-	float RelicAngleDeg = 0.f;
+	float RelicAngleDeg = 330.f;
 
 	/** Horizontal distance of the relic from the anchor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
@@ -538,10 +541,10 @@ struct FDeepLampTuning
 	float Intensity = 40000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float InnerConeDeg = 12.f;
+	float InnerConeDeg = 7.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float OuterConeDeg = 24.f;
+	float OuterConeDeg = 21.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float RangeM = 35.f;
@@ -555,18 +558,24 @@ struct FDeepLampTuning
 
 	/** How strongly the beam lights the volumetric fog (the visible cone in the murk). 0 = no beam. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float VolumetricScattering = 2.f;
+	float VolumetricScattering = 1.2f;
 
 	/** The lamp's shadows cut the fog too (the beam is blocked by what it hits). About 3x a plain light's fog cost. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	bool bVolumetricShadow = true;
 
-	/** Offset from the eye: off-axis, so shadows and the beam's edge show. Style guide 5: 25 cm right, 15 cm up. */
+	/**
+	 * Offset from the eye: a torch held low and to the right, so the beam's upper edge crosses the view as a directed cone
+	 * and the shadows it throws fall visibly away from the eye (at the eye, the beam is a disc).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float OffsetRightCm = 25.f;
+	float OffsetRightCm = 35.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float OffsetUpCm = 15.f;
+	float OffsetUpCm = -30.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float OffsetForwardCm = 20.f;
 
 	/** A slow, small intensity wobble (fraction) and its rate. No flicker. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
@@ -632,6 +641,14 @@ struct FDeepLookPreset
 	/** Salvage glint as a fraction of its full intensity: where something is, not what it is. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
 	float GlintScale = 1.f;
+
+	/** The sub's outside lights (airlock light, belly flood) as a fraction of full: the sub goes dark as it goes deep. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float SubLightScale = 1.f;
+
+	/** How much the sub's outside lights light the fog. 0 = they light only what they touch (black water at 500 m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float SubLightFog = 1.f;
 };
 
 /** The underwater look (style guide 5): presets by depth plus what every depth shares. */
@@ -655,9 +672,24 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
 	FColor FogAlbedo = FColor(0x40, 0xA6, 0xBF);
 
+	/**
+	 * Volumetric fog phase (Henyey-Greenstein g). Sea water scatters strongly forward: the fog glows when looking toward a
+	 * light (shafts from above) and barely glows back at a viewer holding the lamp, so lit surfaces and specks carry the beam.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float FogScatteringDistribution = 0.5f;
+
+	/** Light function on the downlight: the moving pattern of the surface far above, cut into the fog as shafts. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	FSoftObjectPath ShaftLightFunction = FSoftObjectPath(TEXT("/Game/Deep/Look/M_SurfaceShafts.M_SurfaceShafts"));
+
+	/** Light-function scale (cm per pattern unit): 100 = the material works in metres across the light. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float ShaftScaleCm = 100.f;
+
 	/** Volumetric fog starts this far from the eye, or the helmet lamp lights a blob on the visor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
-	float VolumetricStartM = 1.5f;
+	float VolumetricStartM = 0.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
 	float FogHeightFalloff = 0.001f;
@@ -671,18 +703,18 @@ struct FDeepLookTuning
 
 	/** Marine snow: specks hung around the view that only local lights reveal. 0 turns it off. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
-	int32 SnowCount = 3000;
+	int32 SnowCount = 9000;
 
 	/** Edge of the box of specks kept around the view (wrapped). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
-	float SnowBoxM = 14.f;
+	float SnowBoxM = 12.f;
 
 	/** Speck size range (m). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
-	float SnowMinSizeM = 0.01f;
+	float SnowMinSizeM = 0.002f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
-	float SnowMaxSizeM = 0.015f;
+	float SnowMaxSizeM = 0.0045f;
 
 	/** Slow drift (m/s): a slight sink plus a random wander per speck. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
@@ -697,7 +729,7 @@ struct FDeepLookTuning
 
 	/** Pale, dull grey: lit only where a light reaches. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
-	FLinearColor SnowColor = FLinearColor(0.18f, 0.2f, 0.2f);
+	FLinearColor SnowColor = FLinearColor(0.12f, 0.13f, 0.12f);
 
 	/**
 	 * The sub's belly flood: what shows near the sub at 300 and 500 m when the lamp looks away. The guide's 100,000 lit a
@@ -715,6 +747,54 @@ struct FDeepLookTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float BellyFloodVolumetric = 0.f;
+
+	/**
+	 * The sea bed: one surface of silt generated in code under the sub, through the resting point of every salvage spot
+	 * (and the relic's), so salvage lies on it. Material by path: swap in a scanned sand or silt material instance here
+	 * (it gets UV0 in tiles of SeabedUvTileM metres). Falls back to a dark tint.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	FSoftObjectPath SeabedMaterial = FSoftObjectPath(TEXT("/Game/Deep/Look/M_Silt.M_Silt"));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedUvTileM = 2.f;
+
+	/** The bed's base shape below the anchor: BaseBelowM under the sub, falling SlopeNear per metre out to SlopeBreakM, then SlopeFar. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedBaseBelowM = 8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedSlopeNear = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedSlopeBreakM = 45.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedSlopeFar = 0.25f;
+
+	/** How far (m) a resting point pulls the bed to its own height before the base shape takes over. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedRestRadiusM = 6.f;
+
+	/** The relic's sinkhole: radius (m) of the level floor at its bottom. Keep it clear of every salvage spot by 2x. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedPitRadiusM = 2.5f;
+
+	/** Gentle rolling (m of height), kept off the resting points. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedRollM = 0.8f;
+
+	/** Half the bed's width (m): far past where fog ends at any depth, so its edge is never seen. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedHalfWidthM = 260.f;
+
+	/** Grid cells across; cells are about 0.5 m near the sub and grow toward the edge. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	int32 SeabedCells = 240;
+
+	/** Salvage sinks into the silt by this fraction of its size. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedSinkFraction = 0.12f;
 
 	/** The one water surface: the near-mirror pool in the hatch (style guide 4). Falls back to a black tint. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")

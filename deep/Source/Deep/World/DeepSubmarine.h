@@ -20,6 +20,9 @@ class DEEP_API ADeepSubmarine : public AActor
 	GENERATED_BODY()
 
 public:
+	/** Water look: the outside lights (airlock light, belly flood) at a fraction of full, and how much they light the fog. */
+	void SetOutsideLights(float Scale, float Fog);
+
 	ADeepSubmarine();
 
 	/** World position the tether is tied to: just under the hatch. */
