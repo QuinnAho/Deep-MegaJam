@@ -32,7 +32,7 @@ Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on 
 
 **Long checks, at checkpoints, not per merge**
 
-- Scripted playtests (`tools\playtest.ps1`, about 5 minutes for all): after a gameplay merge, only the scenarios that cover what changed. The whole set once per checkpoint.
+- Scripted playtests (`tools\playtest.ps1`): none between checkpoints (Quinn, Nov 15, D-031: they take too long). Run the set once before a package is cut, and at Sunday's freeze and final. Do not dispatch playtest work in between unless Quinn asks.
 - Package, smoke and zip (5 to 8 minutes): when a cooking change has merged, when a human needs a build, and at Sunday's freeze and final.
 - Never ask for the same check twice in one brief.
 
