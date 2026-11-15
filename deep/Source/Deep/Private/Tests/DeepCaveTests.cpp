@@ -380,8 +380,8 @@ bool FDeepCaveAutopilotTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("It followed the bends (off the axis by metres)"), FarOff > 3.f);
 	TestEqual(TEXT("Never in the rock"), Touches, 0);
 	TestEqual(TEXT("No dents"), W.State->HullDamage, 0);
-	TestEqual(TEXT("No helm_hit"), W.Bus->CountOf(DeepEvent::HelmHit), 0);
-	TestEqual(TEXT("No helm_scrape"), W.Bus->CountOf(DeepEvent::HelmScrape), 0);
+	TestEqual(TEXT("No hull_hit"), W.Bus->CountOf(DeepEvent::HullHit), 0);
+	TestEqual(TEXT("No hull_damage"), W.Bus->CountOf(DeepEvent::HullDamage), 0);
 	TestEqual(TEXT("Parked at stop 2"), W.State->ParkedStop(), 2);
 	TestTrue(TEXT("On the stop's centre"), W.State->SubOffsetM.IsNearlyZero(0.01f));
 	TestTrue(TEXT("Hatch open"), W.Sub->IsHatchOpen());
@@ -407,9 +407,9 @@ bool FDeepCaveHitTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("With inertia, not at once"), W.Run->GetSteerVelocityMps().Y > 0.f && W.Run->GetSteerVelocityMps().Y <= Cave.SteerSpeedMps);
 
 	// Held into the rock: a knock, a dent by speed, the Captain's line, the bill.
-	const float Took = W.SteerUntil(FVector2D(0.f, 1.f), DeepEvent::HelmHit, 30.f);
+	const float Took = W.SteerUntil(FVector2D(0.f, 1.f), DeepEvent::HullHit, 30.f);
 	AddInfo(FString::Printf(TEXT("Hit the wall after %.1f s more"), Took));
-	TestEqual(TEXT("helm_hit fired"), W.Bus->CountOf(DeepEvent::HelmHit), 1);
+	TestEqual(TEXT("hull_hit fired"), W.Bus->CountOf(DeepEvent::HullHit), 1);
 	TestTrue(TEXT("Dented by impact speed"), W.State->HullDamage >= 1 && W.State->HullDamage <= Cave.MaxHitDamage);
 	TestEqual(TEXT("Billed at the console"), W.State->HullRepairsOwed, W.State->HullDamage);
 	TestTrue(TEXT("Integrity below whole"), W.State->GetHullIntegrity01() < 1.f);

@@ -154,6 +154,47 @@ namespace
 		return X;
 	}
 
+	/** The helm sonar's sweep ping (Sonar lane): a clean transmit tone, then a long reverberant tail and two returns. */
+	TArray<float> SonarPing()
+	{
+		TArray<float> X = Make(2.4f);
+		float Phase = 0.f;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float F = 1480.f - 40.f * FMath::Min(T, 1.f);
+			Phase += TwoPi * F / SampleRate;
+			// A held 60 ms transmit, then the ring of the transducer dying away.
+			const float Body = Ramp(T, 0.f, 0.006f) * (T < 0.06f ? 1.f : FMath::Exp(-(T - 0.06f) / 0.45f));
+			X[I] = Body * (FMath::Sin(Phase) + 0.08f * FMath::Sin(3.f * Phase));
+		}
+		// Returns off the walls: later and softer.
+		const int32 First = Samples(0.42f);
+		const int32 Second = Samples(0.95f);
+		for (int32 I = X.Num() - 1; I >= Second; --I)
+		{
+			X[I] += 0.32f * X[I - First] + 0.16f * X[I - Second];
+		}
+		for (int32 I = Second - 1; I >= First; --I)
+		{
+			X[I] += 0.32f * X[I - First];
+		}
+		return X;
+	}
+
+	/** The sonar's proximity beep: short and dry so it can repeat fast. */
+	TArray<float> SonarTick()
+	{
+		TArray<float> X = Make(0.11f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Env = Ramp(T, 0.f, 0.004f) * (1.f - Ramp(T, 0.05f, 0.05f));
+			X[I] = Env * (FMath::Sin(TwoPi * 1150.f * T) + 0.2f * FMath::Sin(TwoPi * 2300.f * T));
+		}
+		return X;
+	}
+
 	TArray<float> Harpoon()
 	{
 		TArray<float> X = Make(0.6f);
@@ -195,6 +236,61 @@ namespace
 				}
 			}
 			X[I] = V;
+		}
+		return X;
+	}
+
+	/** The radio chain on noise: band 450..3200 Hz (style guide 9) and a light crush (hold at 8 kHz, 6 bits). */
+	struct FRadioBand
+	{
+		FLowPass Low{ 450.f };
+		FLowPass High{ 3200.f };
+		float Held = 0.f;
+		int32 Hold = 0;
+
+		float Step(float X)
+		{
+			const float Band = High.Step(X) - Low.Step(X);
+			if (Hold-- <= 0)
+			{
+				Hold = SampleRate / 8000 - 1;
+				Held = FMath::RoundToFloat(Band * 32.f) / 32.f;
+			}
+			return Held;
+		}
+	};
+
+	/** The Captain keys his mic: a click, a burst of squelch, a short hiss. */
+	TArray<float> SquelchOn()
+	{
+		TArray<float> X = Make(0.45f);
+		FRandomStream Rng(71);
+		FRadioBand Band;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Band.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Burst = T < 0.09f ? 1.f - Ramp(T, 0.06f, 0.03f) : 0.f;
+			const float Hiss = 0.22f * (1.f - Ramp(T, 0.12f, 0.33f));
+			const float Click = Decay(T, 0.006f, 0.0005f) * FMath::Sin(TwoPi * 1400.f * T);
+			X[I] = 2.5f * (Burst + Hiss) * Noise + 0.6f * Click;
+		}
+		return X;
+	}
+
+	/** He lets go: a short burst and the click of the key. */
+	TArray<float> SquelchOff()
+	{
+		TArray<float> X = Make(0.22f);
+		FRandomStream Rng(73);
+		FRadioBand Band;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Band.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Burst = Ramp(T, 0.f, 0.01f) * (1.f - Ramp(T, 0.07f, 0.05f));
+			const float Click = Decay(T - 0.12f, 0.005f, 0.0005f) * FMath::Sin(TwoPi * 1100.f * (T - 0.12f));
+			X[I] = 2.5f * Burst * Noise + 0.5f * Click;
 		}
 		return X;
 	}
@@ -261,6 +357,32 @@ namespace
 				V = FMath::Square(FMath::Sin(PI * (Ph - 0.45f) / 0.45f)) * 5.f * Gurgle;
 			}
 			X[I] = V;
+		}
+		return X;
+	}
+
+	/** Scared (Deep.Music): a panicked heart at 120 bpm, lub-dub, each beat a falling low thump with a little body noise. */
+	TArray<float> Heartbeat()
+	{
+		const float PeriodS = 0.5f;
+		TArray<float> X = MakeLoop(3.f);
+		FRandomStream Rng(73);
+		FLowPass Body(140.f);
+		auto Thump = [](float Dt, float Amp) -> float
+		{
+			if (Dt < 0.f || Dt > 0.2f)
+			{
+				return 0.f;
+			}
+			const float F = 58.f - 18.f * Dt / 0.2f;
+			return Amp * FMath::Sin(TwoPi * F * Dt) * FMath::Exp(-Dt / 0.05f);
+		};
+		auto Env = [](float Dt) { return Dt < 0.f || Dt > 0.2f ? 0.f : FMath::Exp(-Dt / 0.04f); };
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float Ph = FMath::Fmod(TimeOf(I), PeriodS);
+			const float Noise = Body.Step(Rng.FRandRange(-1.f, 1.f));
+			X[I] = Thump(Ph, 1.f) + Thump(Ph - 0.16f, 0.7f) + 3.f * Noise * (Env(Ph) + 0.7f * Env(Ph - 0.16f));
 		}
 		return X;
 	}
@@ -350,6 +472,10 @@ namespace
 			{ TEXT("click"), false, 0.06f, &Click },
 			{ TEXT("harpoon"), false, 0.6f, &Harpoon },
 			{ TEXT("chime"), false, 1.4f, &Chime },
+			{ TEXT("squelch_on"), false, 0.45f, &SquelchOn },
+			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
+			{ TEXT("sonar_ping"), false, 2.4f, &SonarPing },
+			{ TEXT("sonar_tick"), false, 0.11f, &SonarTick },
 			{ TEXT("drone_out"), true, 8.f, &DroneOut },
 			{ TEXT("drone_in"), true, 6.f, &DroneIn },
 			{ TEXT("breath"), true, 8.f, [] { return Breath(4.f, 8.f, 61); } },
@@ -357,6 +483,8 @@ namespace
 			{ TEXT("winch"), true, 2.f, &Winch },
 			{ TEXT("serpent"), true, 8.f, &Serpent },
 			{ TEXT("hum"), true, 4.f, &Hum },
+			{ TEXT("breath_panic"), true, 4.8f, [] { return Breath(1.2f, 4.8f, 71); } },
+			{ TEXT("heartbeat"), true, 3.f, &Heartbeat },
 		};
 		return Builtins;
 	}

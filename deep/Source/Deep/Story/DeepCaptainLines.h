@@ -29,12 +29,14 @@ struct DEEP_API FDeepCaptainLine
 	FName Event;
 	int32 Variant = 0;
 	FString Text;
+	/** The `tone` column: calm, tense or scared. NAME_None = any (also a missing column or an empty cell). */
+	FName Tone;
 };
 
 class DEEP_API FDeepCaptainLines
 {
 public:
-	/** Replaces all lines from CSV text with columns id, event, variant, text. Returns the number of lines. */
+	/** Replaces all lines from CSV text with columns id, event, variant, text and optional tone. Returns the number of lines. */
 	int32 LoadFromString(const FString& Csv);
 
 	/** Loads Content/Data/CaptainLines.csv. */
@@ -44,8 +46,14 @@ public:
 	bool HasEvent(FName Event) const { return ByEvent.Contains(Event); }
 	int32 NumVariants(FName Event) const;
 
-	/** Picks a line for the event, never the variant picked last time for it when there are two or more. */
-	bool Pick(FName Event, FRandomStream& Rng, FDeepCaptainLine& Out);
+	/**
+	 * Picks a line for the event, never the variant picked last time for it when there are two or more. With a Tone,
+	 * only rows of that tone, else rows of any tone, else every row. NAME_None: every row (the old picker).
+	 */
+	bool Pick(FName Event, FRandomStream& Rng, FDeepCaptainLine& Out, FName Tone = NAME_None);
+
+	/** Lower-case tone name; `any`, empty and unknown words are NAME_None. */
+	static FName ParseTone(const FString& Cell);
 
 	/** Replaces {n}, {gross}, {cut}, {net} and {depth}. */
 	static FString FillTokens(const FString& Text, const FDeepEventPayload& Payload);

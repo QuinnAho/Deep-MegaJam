@@ -417,6 +417,24 @@ struct FDeepCaptainTuning
 	/** A line waiting behind a more urgent one is dropped if it waited longer than this. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain")
 	float PendingMaxAgeSeconds = 6.f;
+
+	// The radio (Deep.Captain.Radio 1, D-040): in the water he speaks only when the diver needs it.
+
+	/** In the water, an urgency-1 line shows only this long after the last line shown. Urgency 0 never shows there. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0"))
+	float WaterNotableGapSeconds = 30.f;
+
+	/** Scared while the serpent closes on this diver (stalk, hunt or bite) within this many metres. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0"))
+	float ScaredSerpentM = 25.f;
+
+	/** Tense while Patience is under this fraction (tethered). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "1"))
+	float TensePatienceFraction = 0.25f;
+
+	/** Scared and in the water: only lines at or above this urgency show (the planned near-silence). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 ScaredMinUrgency = 3;
 };
 
 USTRUCT(BlueprintType)
@@ -518,6 +536,10 @@ struct FDeepArenaTuning
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float HatchDropPitchDeg = -45.f;
+
+	/** Look only: coming back aboard (hatch, winch, harpoon) the view is set to this pitch, yaw kept, so the room reads, not the ceiling. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float AboardPitchDeg = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorBelowSubM = 120.f;
@@ -1626,4 +1648,92 @@ struct FDeepHelmStep
 
 	UPROPERTY(BlueprintReadOnly, Category = "Sub")
 	bool bAtTop = false;
+};
+
+/** The helm's sonar (Sonar lane, Nov 15): a sweeping plan view round the sub, two slices, contacts and a proximity tone. */
+USTRUCT(BlueprintType)
+struct FDeepSonarTuning
+{
+	GENERATED_BODY()
+
+	/** The scope's edge: returns and contacts beyond this (horizontal metres from the sub's centre) are not shown. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float RangeM = 60.f;
+
+	/** A range ring every this many metres. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float RingStepM = 20.f;
+
+	/** Beams per turn (each beam = one trace per slice). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	int32 Beams = 90;
+
+	/** One turn of the sweep, and one ping, every this many seconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float SweepPeriodS = 2.5f;
+
+	/** The dim slice runs this far under the sub's centre, so a bend shows before the sub reaches it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float SliceBelowM = 20.f;
+
+	/** When the bottom is nearer than the dim slice, the slice rides this far above the bottom instead. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float BedClearanceM = 2.f;
+
+	/** How far down the bottom probe reaches (the BED readout). Longer than RangeM: over a shaft the bottom is far. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float BedProbeM = 150.f;
+
+	/** A return glows this long after its beam passes, fading (a little longer than a turn, so the picture never blanks). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float PersistS = 3.2f;
+
+	/** The farthest returns are this much dimmer than the nearest (0 = no range falloff). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float RangeFalloff = 0.35f;
+
+	/** Two neighbouring returns closer than this in range are joined into one wall line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float JoinM = 6.f;
+
+	/** At most this many traces in one frame; beams the sweep passed beyond it are traced on the next frames. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	int32 MaxTracesPerFrame = 24;
+
+	/** Salvage shows when it is within this height of the sub's centre, up or down. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ContactHeightM = 40.f;
+
+	/** The serpent shows within this height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float SerpentHeightM = 60.f;
+
+	/** The proximity tone starts when the nearest wall at the sub's depth is this close (metres from the hull's side). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ToneStartM = 12.f;
+
+	/** ...and is at its fastest and highest this close. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ToneFullM = 2.f;
+
+	/** Seconds between tone beeps at the start and at full. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ToneSlowS = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ToneFastS = 0.12f;
+
+	/** Pitch of the tone at the start and at full. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float TonePitchLow = 0.85f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float TonePitchHigh = 1.6f;
+
+	/** Volume scale of the tone at the start and at full. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ToneVolumeLow = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float ToneVolumeHigh = 1.f;
 };

@@ -19,7 +19,7 @@ TArray<FName> DeepEvent::AllFired()
 		MonsterFirstHeard, MonsterNear, MonsterRepelled, BiteAlarm, CutBite, DeathMonster,
 		Title, RelicSeen, RelicGrabbed, RelicWinch, Win,
 		EnterSub, HelmTake, HelmDescend, HelmDepthLimit, HelmArrive, IdleInside,
-		HelmScrape, HelmHit, HullCritical, HullBreach,
+		HullDamage, HullHit, HullCritical, HullBreach,
 	};
 }
 

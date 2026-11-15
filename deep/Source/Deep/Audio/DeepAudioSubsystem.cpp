@@ -16,11 +16,19 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "Monster/DeepMonsterBrain.h"
+#include "Monster/DeepSerpent.h"
+#include "Monster/DeepSerpentController.h"
+#include "Sim/DeepRules.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Sound/SoundBase.h"
+#include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
+
+#if WITH_EDITOR
+#include "GameDelegates.h"
+#endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepAudio, Log, All);
 
@@ -99,6 +107,7 @@ void UDeepAudioSubsystem::Deinitialize()
 	LoopComponents.Reset();
 	OneShotComponents.Reset();
 	OneShotStopAt.Reset();
+	StopVoice();
 	Super::Deinitialize();
 }
 
@@ -123,25 +132,44 @@ void UDeepAudioSubsystem::Reload()
 {
 	Table.LoadDefault();
 	Assets.Reset();
+	VariantSounds.Reset();
+	VariantIndex.Reset();
+	LastVariant.Reset();
+	const int32 MaxVariants = UDeepAudioSettings::Get().MaxVariants;
 	for (const FDeepSoundRow& Row : Table.GetRows())
 	{
 		if (Row.Asset.IsEmpty())
 		{
 			continue;
 		}
-		FString Path = Row.Asset;
-		if (!Path.Contains(TEXT(".")))
+		bool bExists = false;
+		USoundBase* Sound = LoadSoundIfPresent(Row.Asset, bExists);
+		// Variations "<asset>_01" .. sit beside the base; with no base file the first variation stands in for it.
+		if (!Row.bLoop)
 		{
-			Path = Path + TEXT(".") + FPackageName::GetShortName(Path);
-		}
-		USoundBase* Sound = nullptr;
-		if (FPackageName::IsValidObjectPath(Path) && FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Path)))
-		{
-			Sound = LoadObject<USoundBase>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			for (const FString& Variant : DeepAudioRules::VariantPackages(Row.Asset, MaxVariants))
+			{
+				bool bVariantExists = false;
+				if (USoundBase* VariantSound = LoadSoundIfPresent(Variant, bVariantExists))
+				{
+					VariantIndex.FindOrAdd(Row.Event).Add(VariantSounds.Add(VariantSound));
+				}
+			}
+			if (!Sound && VariantIndex.Contains(Row.Event))
+			{
+				Sound = VariantSounds[VariantIndex[Row.Event][0]];
+				bExists = true;
+			}
 		}
 		if (Sound)
 		{
 			Assets.Add(Row.Event, Sound);
+		}
+		else if (!bExists)
+		{
+			// Not delivered yet (music and pack rows name their file before it arrives): not a fault.
+			UE_LOG(LogDeepAudio, Log, TEXT("Sounds.csv: %s: no file at %s yet; using built-in '%s'"),
+				*Row.Event.ToString(), *Row.Asset, *Row.Builtin.ToString());
 		}
 		else
 		{
@@ -158,6 +186,30 @@ void UDeepAudioSubsystem::Reload()
 		}
 	}
 	LoopComponents.Reset();
+}
+
+USoundBase* UDeepAudioSubsystem::LoadSoundIfPresent(const FString& Asset, bool& bExists)
+{
+	const FString Path = DeepAudioRules::AssetObjectPath(Asset);
+	bExists = !Path.IsEmpty() && FPackageName::IsValidObjectPath(Path)
+		&& FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Path));
+	return bExists ? LoadObject<USoundBase>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr;
+}
+
+USoundBase* UDeepAudioSubsystem::PickAsset(FName Event)
+{
+	const TArray<int32>* Slots = VariantIndex.Find(Event);
+	if (!Slots || Slots->IsEmpty())
+	{
+		return Assets.FindRef(Event);
+	}
+	// The base file, when there is one, is one more choice beside its variations.
+	USoundBase* Base = Assets.FindRef(Event);
+	const bool bBaseIsOwn = Base && !Slots->ContainsByPredicate([this, Base](int32 Slot) { return VariantSounds[Slot] == Base; });
+	const int32 Count = Slots->Num() + (bBaseIsOwn ? 1 : 0);
+	const int32 Pick = DeepAudioRules::PickVariant(Count, LastVariant.Contains(Event) ? LastVariant[Event] : INDEX_NONE, VariantRandom.FRand());
+	LastVariant.Add(Event, Pick);
+	return Pick < Slots->Num() ? VariantSounds[(*Slots)[Pick]].Get() : Base;
 }
 
 EDeepSoundSource UDeepAudioSubsystem::Resolve(const FDeepSoundRow& Row) const
@@ -180,7 +232,8 @@ float UDeepAudioSubsystem::RowVolume(const FDeepSoundRow& Row) const
 		return 0.f;
 	}
 	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
-	return FMath::Clamp(Row.Volume * Settings.GroupVolume(Row.Group) * Settings.MasterVolume, 0.f, 1.f);
+	const float Duck = DeepAudioRules::DuckGain(Row.Group, Duck01, Settings);
+	return FMath::Clamp(Row.Volume * Settings.GroupVolume(Row.Group) * Settings.MasterVolume * Duck, 0.f, 1.f);
 }
 
 bool UDeepAudioSubsystem::CanPlayAudio() const
@@ -202,7 +255,7 @@ TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> UDeepAudioSubsystem::GetPcm
 	return Pcm;
 }
 
-UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch)
+UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride)
 {
 	if (Source == EDeepSoundSource::None || !CanPlayAudio())
 	{
@@ -211,7 +264,7 @@ UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeep
 	USoundBase* Sound = nullptr;
 	if (Source == EDeepSoundSource::Asset)
 	{
-		Sound = Assets.FindRef(Row.Event);
+		Sound = AssetOverride ? AssetOverride : Assets.FindRef(Row.Event).Get();
 	}
 	else
 	{
@@ -268,6 +321,11 @@ void UDeepAudioSubsystem::HandleEvent(FName Event, const FDeepEventPayload& Payl
 
 bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 {
+	return PlayEventScaled(Event, 1.f, 1.f, bForce);
+}
+
+bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce)
+{
 	const FDeepSoundRow* Row = Table.Find(Event);
 	if (!Row || Row->bLoop)
 	{
@@ -284,13 +342,21 @@ bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 	LastPlayed.Add(Event, Clock);
 
 	const EDeepSoundSource Source = Resolve(*Row);
-	const float Volume = RowVolume(*Row);
+	const float Volume = FMath::Clamp(RowVolume(*Row) * FMath::Max(0.f, VolumeScale), 0.f, 1.f);
+	float Pitch = Row->Pitch * FMath::Clamp(PitchScale, 0.25f, 4.f);
+	// A file plays one of its variations at a slightly different pitch each time, so repeats do not sound canned.
+	USoundBase* AssetSound = nullptr;
+	if (Source == EDeepSoundSource::Asset)
+	{
+		AssetSound = PickAsset(Event);
+		Pitch = DeepAudioRules::JitterPitch(Pitch, Row->Group, VariantRandom.FRand(), Settings);
+	}
 	if (History.Num() >= MaxAudioHistory)
 	{
 		History.RemoveAt(0);
 	}
 	History.Add({ Event, Source, Volume });
-	LogSound(Event, *Row, Source, Volume, Row->Pitch, TEXT("start"));
+	LogSound(Event, *Row, Source, Volume, Pitch, TEXT("start"));
 
 	// Prune finished one-shots before counting.
 	for (int32 I = OneShotComponents.Num() - 1; I >= 0; --I)
@@ -305,12 +371,12 @@ bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 	{
 		return true;
 	}
-	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Row->Pitch))
+	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Pitch, AssetSound))
 	{
 		double StopAt = TNumericLimits<double>::Max();
 		if (Source == EDeepSoundSource::Generated)
 		{
-			StopAt = Clock + DeepSynth::ExpectedSamples(Row->Builtin) / double(DeepSynth::SampleRate) / FMath::Max(Row->Pitch, 0.1f) + 0.1;
+			StopAt = Clock + DeepSynth::ExpectedSamples(Row->Builtin) / double(DeepSynth::SampleRate) / FMath::Max(Pitch, 0.1f) + 0.1;
 		}
 		OneShotComponents.Add(Comp);
 		OneShotStopAt.Add(StopAt);
@@ -332,6 +398,8 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 	ADeepDiver* Diver = DeepStateReport::FindDiver(World);
 	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
 	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	In.bMusic = IsMusicOn();
+	In.bOnTitle = State && State->bOnTitle;
 	if (!Diver || !Run)
 	{
 		return In;
@@ -345,6 +413,30 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 	In.bWinching = Diver->IsWinching();
 	const UDeepMonsterBrain* Brain = World->GetSubsystem<UDeepMonsterBrain>();
 	In.Threat01 = Brain && World->GetNetMode() != NM_Client ? Brain->GetThreat01() : Run->GetMonsterThreat01();
+
+	// Deep.Music (set above with the title): the danger tier (the Captain's own read), the screens, the serpent for the sting.
+	In.bSettling = Run->GetState() == EDeepRunState::Settling;
+	In.bWon = Run->GetState() == EDeepRunState::Won;
+	if (In.bMusic)
+	{
+		if (const UDeepCaptain* Captain = UDeepCaptain::Get(this))
+		{
+			In.Danger = static_cast<int32>(Captain->GatherDanger());
+		}
+	}
+	SerpentDistanceM = -1.f;
+	bFirstSightDone = false;
+	if (Brain)
+	{
+		if (const ADeepSerpent* Serpent = Brain->GetSerpent())
+		{
+			SerpentDistanceM = static_cast<float>(FVector::Dist(Serpent->GetHeadLocation(), Diver->GetActorLocation())) / UDeepRules::CmPerM;
+		}
+		if (const ADeepSerpentController* Mind = Brain->GetSerpentController())
+		{
+			bFirstSightDone = Mind->IsFirstSightDone();
+		}
+	}
 
 	if (State)
 	{
@@ -369,7 +461,9 @@ void UDeepAudioSubsystem::StepLoop(FName Loop, const FDeepLoopTarget& Target, fl
 	const FDeepSoundRow* Row = Table.Find(Loop);
 	FLoopVoice& Voice = Loops.FindOrAdd(Loop);
 	const float Wanted = Row ? Target.Volume01 : 0.f;
-	Voice.Volume = DeepAudioRules::FadeToward(Voice.Volume, Wanted, DeltaSeconds, Settings.FadeInSeconds, Settings.FadeOutSeconds);
+	const float FadeIn = Target.FadeInS > 0.f ? Target.FadeInS : Settings.FadeInSeconds;
+	const float FadeOut = Target.FadeOutS > 0.f ? Target.FadeOutS : Settings.FadeOutSeconds;
+	Voice.Volume = DeepAudioRules::FadeToward(Voice.Volume, Wanted, DeltaSeconds, FadeIn, FadeOut);
 	const bool bWasOn = Voice.bOn;
 	Voice.bOn = Voice.Volume > SilentLoop;
 
@@ -418,12 +512,14 @@ void UDeepAudioSubsystem::StepLoop(FName Loop, const FDeepLoopTarget& Target, fl
 void UDeepAudioSubsystem::StepAudio(float DeltaSeconds)
 {
 	Clock += DeltaSeconds;
+	StepRadio(DeltaSeconds);
 	const FDeepAudioMixInputs Inputs = GatherInputs(DeltaSeconds);
 	const TMap<FName, FDeepLoopTarget> Targets = DeepAudioRules::LoopTargets(Inputs, UDeepAudioSettings::Get());
 	for (const FName& Loop : DeepAudioLoop::All())
 	{
 		StepLoop(Loop, Targets.FindRef(Loop), DeltaSeconds);
 	}
+	StepMusic(DeltaSeconds, Inputs);
 	for (int32 I = OneShotComponents.Num() - 1; I >= 0; --I)
 	{
 		UAudioComponent* Comp = OneShotComponents[I];
@@ -480,6 +576,9 @@ TSharedRef<FJsonObject> UDeepAudioSubsystem::BuildStateJson() const
 	}
 	Json->SetArrayField(TEXT("loops"), LoopValues);
 	Json->SetBoolField(TEXT("muted"), bMuted);
+	Json->SetBoolField(TEXT("radio"), bRadioKeyed);
+	Json->SetNumberField(TEXT("duck"), Round2(Duck01));
+	Json->SetStringField(TEXT("music"), GetMusicBed().IsNone() ? FString() : GetMusicBed().ToString());
 	Json->SetStringField(TEXT("last"), History.IsEmpty() ? FString() : History.Last().Event.ToString());
 	return Json;
 }
@@ -493,6 +592,182 @@ void UDeepAudioSubsystem::LogRows() const
 			Row.Volume, Row.Pitch, Row.bLoop ? 1 : 0);
 	}
 	UE_LOG(LogDeepAudio, Display, TEXT("DEEPAUDIO_ROW total=%d device=%d muted=%d"), Table.GetRows().Num(), CanPlayAudio() ? 1 : 0, bMuted ? 1 : 0);
+}
+
+// ---------------------------------------------------------------- music and the danger mix (Deep.Music)
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarMusic(
+		TEXT("Deep.Music"),
+		1,
+		TEXT("1: music beds by depth, the tension layer, the serpent sting, title and win cues, breathing by danger. 0: the mix before D-040."),
+		ECVF_Default);
+}
+
+bool UDeepAudioSubsystem::IsMusicOn()
+{
+	return CVarMusic.GetValueOnGameThread() != 0;
+}
+
+FName UDeepAudioSubsystem::GetMusicBed() const
+{
+	FName Best;
+	float BestVolume = 0.f;
+	for (const FName& Bed : DeepAudioMusic::Beds())
+	{
+		const FLoopVoice* Voice = Loops.Find(Bed);
+		if (Voice && Voice->bOn && Voice->Volume > BestVolume)
+		{
+			Best = Bed;
+			BestVolume = Voice->Volume;
+		}
+	}
+	return Best;
+}
+
+void UDeepAudioSubsystem::StepMusic(float DeltaSeconds, const FDeepAudioMixInputs& Inputs)
+{
+	// Beds fade like loops (silent without music: MusicTargets is all 0), so turning music off fades it out.
+	const TMap<FName, FDeepLoopTarget> Targets = DeepAudioRules::MusicTargets(Inputs, UDeepAudioSettings::Get());
+	for (const FName& Bed : DeepAudioMusic::Beds())
+	{
+		StepLoop(Bed, Targets.FindRef(Bed), DeltaSeconds);
+	}
+	const bool bWonEdge = Inputs.bWon && !bWasWon;
+	bWasWon = Inputs.bWon;
+	if (!Inputs.bMusic)
+	{
+		return;
+	}
+	if (bWonEdge)
+	{
+		PlayEvent(DeepAudioMusic::Win, true);
+	}
+	if (Inputs.bHasDiver && !Inputs.bInside && DeepAudioRules::ShouldSting(bStingPlayed, bFirstSightDone, SerpentDistanceM, UDeepAudioSettings::Get()))
+	{
+		bStingPlayed = true;
+		PlayEvent(DeepAudioMusic::StingSerpent, true);
+	}
+}
+
+// ---------------------------------------------------------------- the Captain's radio
+
+USoundBase* UDeepAudioSubsystem::FindVoice(const FString& LineId)
+{
+	if (LineId.IsEmpty())
+	{
+		return nullptr;
+	}
+	if (const TObjectPtr<USoundBase>* Found = VoiceCache.Find(LineId))
+	{
+		return Found->Get();
+	}
+	FString Root = UDeepAudioSettings::Get().VoiceRoot;
+	while (Root.EndsWith(TEXT("/")))
+	{
+		Root.LeftChopInline(1);
+	}
+	const FString Package = Root / LineId;
+	const FString ObjectPath = Package + TEXT(".") + LineId;
+	USoundBase* Sound = nullptr;
+	if (FPackageName::IsValidObjectPath(ObjectPath) && FPackageName::DoesPackageExist(Package))
+	{
+		Sound = LoadObject<USoundBase>(nullptr, *ObjectPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!Sound)
+		{
+			UE_LOG(LogDeepAudio, Warning, TEXT("Voice %s exists but is not a sound"), *ObjectPath);
+		}
+	}
+	VoiceCache.Add(LineId, Sound);
+	return Sound;
+}
+
+namespace
+{
+	/** A looping or endless sound in the voice folder is a mistake; cap it like a long line. */
+	float VoiceSeconds(const USoundBase* Voice) { return Voice ? FMath::Clamp(Voice->GetDuration(), 0.f, 30.f) : 0.f; }
+}
+
+float UDeepAudioSubsystem::GetVoiceHoldSeconds(const FString& LineId)
+{
+	const USoundBase* Voice = FindVoice(LineId);
+	if (!Voice)
+	{
+		return 0.f;
+	}
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	return Settings.VoiceDelaySeconds + VoiceSeconds(Voice) + Settings.VoiceTailSeconds;
+}
+
+bool UDeepAudioSubsystem::IsVoiceSpeaking() const
+{
+	return bRadioKeyed && VoiceEndAt > VoiceStartAt && Clock >= VoiceStartAt && Clock < VoiceEndAt;
+}
+
+void UDeepAudioSubsystem::StopVoice()
+{
+	if (IsValid(VoiceComponent))
+	{
+		// A short fade, never a click.
+		VoiceComponent->FadeOut(0.05f, 0.f);
+	}
+	VoiceComponent = nullptr;
+	PendingVoice = nullptr;
+	VoiceEndAt = FMath::Min(VoiceEndAt, Clock);
+}
+
+void UDeepAudioSubsystem::KeyRadio(const FString& LineId, float HoldSeconds)
+{
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	StopVoice();
+	const bool bWasKeyed = bRadioKeyed;
+	if (!bWasKeyed)
+	{
+		PlayEvent(FName(DeepAudioRadio::On), true);
+		bRadioKeyed = true;
+	}
+	USoundBase* Voice = FindVoice(LineId);
+	VoiceStartAt = Clock + (bWasKeyed ? 0.0 : double(Settings.VoiceDelaySeconds));
+	VoiceEndAt = VoiceStartAt + VoiceSeconds(Voice);
+	PendingVoice = Voice;
+	RadioCloseAt = FMath::Max(Clock + FMath::Max(HoldSeconds, 0.f), Voice ? VoiceEndAt + Settings.VoiceTailSeconds : 0.0);
+	UE_LOG(LogDeepAudio, Display, TEXT("DEEPAUDIO {\"action\":\"radio\",\"line\":\"%s\",\"voice\":%s,\"hold\":%.2f}"),
+		*LineId, Voice ? TEXT("true") : TEXT("false"), RadioCloseAt - Clock);
+}
+
+void UDeepAudioSubsystem::StepRadio(float DeltaSeconds)
+{
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	if (bRadioKeyed)
+	{
+		if (PendingVoice && Clock >= VoiceStartAt)
+		{
+			USoundBase* Voice = PendingVoice;
+			PendingVoice = nullptr;
+			if (CanPlayAudio())
+			{
+				const float Volume = bMuted ? 0.f : FMath::Clamp(Settings.VoiceVolume * Settings.MasterVolume, 0.f, 1.f);
+				VoiceComponent = UGameplayStatics::CreateSound2D(this, Voice, Volume, 1.f, 0.f, nullptr, false, true);
+				if (VoiceComponent)
+				{
+					// The radio band (style guide 9). The crush has to be in the file.
+					VoiceComponent->SetHighPassFilterEnabled(Settings.RadioHighPassHz > 0.f);
+					VoiceComponent->SetHighPassFilterFrequency(Settings.RadioHighPassHz);
+					VoiceComponent->SetLowPassFilterEnabled(Settings.RadioLowPassHz > 0.f);
+					VoiceComponent->SetLowPassFilterFrequency(Settings.RadioLowPassHz);
+					VoiceComponent->Play();
+				}
+			}
+		}
+		if (Clock >= RadioCloseAt)
+		{
+			StopVoice();
+			bRadioKeyed = false;
+			PlayEvent(FName(DeepAudioRadio::Off), true);
+		}
+	}
+	Duck01 = DeepAudioRules::FadeToward(Duck01, IsVoiceSpeaking() ? 1.f : 0.f, DeltaSeconds, Settings.DuckAttackSeconds, Settings.DuckReleaseSeconds);
 }
 
 // ---------------------------------------------------------------- console commands
@@ -561,3 +836,32 @@ namespace
 			}
 		}));
 }
+
+#if WITH_EDITOR
+namespace
+{
+	// /Game/DeepAudio/ is cooked whole (DefaultGame.ini). Pack sounds are loaded by path, which the cook cannot follow,
+	// and a pack folder is too big to cook whole: add exactly the files (and variations) Sounds.csv names.
+	void AddSoundsToCook(TConstArrayView<const ITargetPlatform*> /*Platforms*/, TArray<FName>& PackagesToCook, TArray<FName>& /*NeverCook*/)
+	{
+		FDeepSoundTable Sounds;
+		Sounds.LoadDefault();
+		const TArray<FName> Packages = DeepAudioRules::PackagesToCook(Sounds, UDeepAudioSettings::Get().MaxVariants,
+			[](const FString& Package) { return FPackageName::DoesPackageExist(Package); });
+		for (const FName& Package : Packages)
+		{
+			PackagesToCook.AddUnique(Package);
+			UE_LOG(LogDeepAudio, Display, TEXT("DEEPCOOK add %s"), *Package.ToString());
+		}
+		UE_LOG(LogDeepAudio, Display, TEXT("DEEPCOOK added %d pack sounds named by Sounds.csv"), Packages.Num());
+	}
+
+	struct FRegisterSoundsCook
+	{
+		FRegisterSoundsCook()
+		{
+			FGameDelegates::Get().GetModifyCookDelegate().AddStatic(&AddSoundsToCook);
+		}
+	} GRegisterSoundsCook;
+}
+#endif
