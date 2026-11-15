@@ -1553,12 +1553,19 @@ struct FDeepCaveTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float RoofReliefM = 3.f;
 
-	/** Mesh resolution: columns round the cave, rows from the collar's top to the wall's foot. */
+	/** Crags: sharp ridged relief at lamp scale, CragM deep and CragScaleM across, so a wall 10 m off in the lamp shows facets, not a flat grey. Outward only. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
-	int32 Columns = 256;
+	float CragM = 1.4f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
-	int32 Rows = 120;
+	float CragScaleM = 3.5f;
+
+	/** Mesh resolution: columns round the cave, rows from the collar's top to the wall's foot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Columns = 384;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Rows = 180;
 
 	/** Overhangs: rock spurs hanging from the roof. Their tips stay at least TipClearM above the clear space. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")

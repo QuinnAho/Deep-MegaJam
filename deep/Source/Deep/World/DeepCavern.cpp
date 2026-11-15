@@ -182,8 +182,12 @@ float ADeepCavern::SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeep
 		? Cave.StrataM * (0.5 + 0.5 * FMath::Sin(2.0 * PI * P.Z / Cave.StrataEveryM + 1.5 * N1)) * Wall
 		: 0.0;
 	const double Roof = Cave.RoofReliefM * FMath::Clamp(0.5 + 0.7 * N3, 0.0, 1.0) * Up;
+	// Crags: ridged noise (1 - |n|, squared) makes sharp creases at lamp scale, which the lamp reads as facets.
+	const double CragScale = FMath::Max(0.5, double(Cave.CragScaleM));
+	const double Ridge = 1.0 - FMath::Min(1.0, 1.4 * FMath::Abs(FMath::PerlinNoise3D(P / CragScale + NoiseOffset(Cave.Seed, 4))));
+	const double Crag = Cave.CragM * Ridge * Ridge;
 	// Every term is >= 0: rock only ever moves away from the anchor, so the clear space is never entered.
-	return float(Base + Lump + Alcove + Strata + Roof);
+	return float(Base + Lump + Alcove + Strata + Roof + Crag);
 }
 
 FDeepCaveMesh ADeepCavern::MakeMesh(int32 Stop, const TArray<FVector4>& RestM, const UDeepTuningSettings& Tuning)
