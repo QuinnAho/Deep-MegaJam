@@ -41,6 +41,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-030 | One style for everything the player sees and hears | Decided (Quinn, about 1:45 AM Nov 15); the direction itself is still open |
 | D-031 | Scripted playtests wait until a checkpoint; none run in between | Decided (Quinn, about 2:30 AM Nov 15) |
 | D-032 | The style: dark, worn, realistic, led by light and reflection, built on Megascans | Quinn leaning (about 2:40 AM Nov 15); he confirms by approving frames |
+| D-033 | Go for the polish pass: water and the monster first; agents may create materials and particle systems; look it up before building | Decided (Quinn, about 2:47 AM Nov 15) |
 
 ## Open
 
@@ -145,6 +146,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-033 Go for the polish pass
+- **Status:** Decided.
+- **Date:** 2026-11-15, about 2:47 AM EST
+- **Who:** Quinn: "yes go, look at any monsters that we might have like a dragon or somethign that could be used idk yet, and do number 2 yes when you create particle effects since the feedback loop is slow rather tahn infer i would like you to look onliune for things or tutrials then do it, rember i want the bets possiblenviroment AAA horror game feel".
+- **Decision:** The pass starts now, seven hours earlier than planned, with the water look and the monster. Agents may create materials and particle systems through the editor, each only in its own folder under `deep/Content/Deep/`, never a map. Before building an effect or a material an agent looks up how it is done and writes the recipe down.
+- **How it is run:** each lane works on its own branch and nothing merges until Quinn has seen its frames. Two lanes at first, because the machine has 32 GB of RAM and Quinn's own editor is open. `*.uasset` is marked binary in git; packs stay outside git in `deep/Content/Packs/`.
+- **Monsters he owns:** a title search of his 208 non-Megascans packs found no realistic sea creature. The dragons he owns are stylised and would break the one-style rule (D-030).
+- **Supersedes:** the 10 AM start in the plan, and the blanket rule that agents create no binary assets.
 
 ### D-032 The style: dark realism, led by light
 - **Status:** Quinn is leaning this way. He confirms it by approving frames.

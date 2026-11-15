@@ -33,3 +33,6 @@ deep-claude-brain/.obsidian/workspace-mobile.json
 .env
 .env.*
 *.key
+
+# Third-party packs are installed outside git and linked in (D-033)
+deep/Content/Packs/

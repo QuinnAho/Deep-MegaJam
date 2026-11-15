@@ -1,2 +1,4 @@
 # Append-only log: when two branches both add entries, keep both sides.
 "deep-claude-brain/05 - Log/Devlog.md" merge=union
+*.uasset binary
+*.umap binary
