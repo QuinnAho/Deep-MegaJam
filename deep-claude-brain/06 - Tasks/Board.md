@@ -1,18 +1,18 @@
 ---
-updated: 2026-11-15 02:10 EST
+updated: 2026-11-15 02:13 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (written 1:45 AM Nov 15)
+## Handoff for a fresh orchestrator session (written 2:13 AM Nov 15)
 
-A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polish research is finished and merged, and the pass is waiting on Quinn's choices (item 1). One agent is running (item 4). Its report goes to the session that started it, so a new session checks its branch instead:
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polish research is finished and merged, and the pass is waiting on Quinn's choices (item 1). Two agents are running on function work (item 4). Their reports go to the session that started them, so a new session checks their branches instead:
 
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
 3. **Still unconfirmed in the research:** the Official Rules PDF, seven sound needs with no candidate, most Freesound licences, the download size of every pack, and how long the first cook with pack materials takes.
-4. **Real-input playthrough** (`tools/regress`, in `.wt\pkg`, Sonnet at medium, started 1:39 AM, editor on port 8012). It adds scenario `S8-keys` and reports every step of the loop that fails on simulated keyboard and mouse input. Scripts and notes only, so merge without a gate. What fails is function and goes to an Opus engineer as fix batch two.
+4. **Two function agents, started 2:12 AM.** (a) Fix batch two (`dev/fix2`, `.wt\dev`, Opus at high): the stall on returning to the hatch from the side, the hatch on the console-to-helm walk, a check of the mouse look scale. C++, so the gate is `.wt\dev\tools\ue.ps1 verify`; then merge, push, and run `tools\playtest.ps1 S8-keys` once from a free checkout to see the return work. (b) Fast playtests (`tools/regress`, `.wt\pkg`, Sonnet at medium, editor on port 8012): MCP calls in-process, one reused editor, polling for readiness, then a `-Speed` option with a check that every scenario gives the same result as at normal speed. Scripts and notes only: merge without a gate.
 5. One Unreal editor at a time: the machine has 32 GB of RAM and about 6 GB free with no editor open.
 6. **Polish is one planned pass (D-028), and a priority equal to gameplay (D-029).** Research and planning now. No HUD, look, effect or sound-finish work is dispatched until Quinn has chosen from the research and given the pass a start time.
 7. The three later research notes (engine skills, outside tools, polish craft) are merged and folded into `Polish - Start Here.md`.
@@ -38,10 +38,13 @@ Function, fixed in batch one (merged 1:29 AM as `6f2e259`):
 - The title: a real key press already worked through the viewport; the playtest tool's simulated key took another path. Both now start the run, the text says PRESS ANY KEY OR CLICK TO START, and a test presses seven keys and buttons. Still unverified: a physical keyboard.
 - `tether_distance_m` is right after a cut.
 
-Function, not yet looked at:
+Function, from the playthrough on simulated keyboard and mouse (merged 2:10 AM as `b8b4037`):
 
-- Never verified: real keyboard and mouse anywhere, walking into the hatch with real physics, pressing E at the console and helm, aiming the harpoon by hand, anything in multiplayer.
-- E is bound to both Use and Continue, so E on the settlement screen may also use the console. Unconfirmed.
+- **Returning to the hatch from the side stalls against the hull about 5 m out.** The Captain cuts the line and the diver dies. In fix batch two.
+- **The open hatch lies on the straight walk from the console to the helm**, so a player drops into the sea by accident. In fix batch two.
+- Works on simulated input (scenario `S8-keys`): the title key, walking to and through the hatch, E to grab, the return from below, E at the console, the settlement screen, E at the helm, holding the dive key and parking at 300 m, the lamp, the winch, the cut, the harpoon.
+- Still needs a human: mouse look (the input tool turned the view only 0 to 14 degrees for a delta of 40), the Esc pause menu (the tool cannot reach it), and anything in multiplayer.
+- E on the settlement screen does not use the console twice (checked on simulated input).
 - No gamepad support. In the editor the game window may need a click before keys arrive.
 - Every number is a guess: room size, walk speed, hatch size, harpoon speed and pull, serpent values.
 - `Deep.Teleport` sometimes lands in the wrong place.
@@ -60,7 +63,9 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | Assets | Sonnet, medium, `.wt\monster` on `research/assets` | **Done 1:39 AM**, merged as `2e3eed5`. 61 picks, 25 owned and 36 free. | 1:32 AM |
 | Sound, voice, fonts, references | Sonnet, medium, `.wt\text` on `research/polish-web` | **Done 1:36 AM**, merged as `c019cfb`. | 1:32 AM |
 | The polish plan | Opus, high, `.wt\dev` on `research/polish-plan` | **Done 1:40 AM**, merged as `6ff4a2a`. Ten work packages in three lanes. | 1:32 AM |
-| Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | Scenario `S8-keys`: the first stop on simulated keyboard and mouse input, and a list of what fails. Editor on port 8012. | 1:39 AM |
+| Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | **Done 2:10 AM**, merged as `b8b4037`. `S8-keys` passes; two game problems found. | 1:39 AM |
+| Fix batch two | Opus, high, `.wt\dev` on `dev/fix2` | The return to the hatch from the side, the hatch on the console-to-helm walk, a mouse look check. Function only. | 2:12 AM |
+| Fast playtests | Sonnet, medium, `.wt\pkg` on `tools/regress` | In-process MCP calls, one reused editor, polling, then faster than real time with an equivalence check. | 2:12 AM |
 | Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | **Done 2:07 AM**, merged as `7256f6c`. | 2:01 AM |
 | Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | **Done 2:04 AM**, merged as `7c15b45`. | 2:01 AM |
 | Polish craft | Sonnet, medium, `.wt\monster` on `research/polish-craft` | **Done 2:03 AM**, merged as `e58a6e1`. | 2:01 AM |
@@ -71,9 +76,9 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | # | Item | Owner | Status |
 |---|---|---|---|
 | 1 | Play the whole run by hand and say what is wrong with how it plays. | Quinn | todo |
-| 1a | Prove the loop with simulated key and mouse input, and list where real input fails. | Sonnet agent, `.wt\pkg` | doing |
-| 1b | **Scripted playtests faster than real time** (Quinn asked at about 2:03 AM). Verified in the 5.9 source: `-UseFixedTimeStep` with `-FPS=`, `-BENCHMARK`, the `slomo` cheat, and the editor setting `bThrottleCPUWhenNotForeground`, which slows an editor in the background. Also cut the fixed sleeps in `playtest.ps1` (40 s after start-up) and keep one editor for the whole set. Gate: each scenario gives the same result at speed as at normal speed. Separate idea for an agent playing live: freeze the game while the agent thinks and advance a fixed slice per action. | Sonnet agent, `.wt\pkg` | queued behind 1a (same checkout, one editor) |
-| 2 | Fix batch two: Quinn's notes and what 1a finds, in one engineer run. Function only. | Opus engineer, `.wt\dev` | waiting on 1 and 1a |
+| 1a | Prove the loop with simulated key and mouse input, and list where real input fails. | Sonnet agent | done, `b8b4037` |
+| 1b | **Fast scripted playtests** (Quinn asked at about 2:03 AM). Most of the time is the script, not the game: about 200 of 303 s is a new process per MCP call. So: in-process calls, one reused editor, polling, then a `-Speed` option (fixed time step or `slomo`), with every scenario giving the same result as at normal speed. | Sonnet agent, `.wt\pkg` | doing |
+| 2 | Fix batch two: what the playthrough found. Function only. Quinn's own play notes go in batch three. | Opus engineer, `.wt\dev` | doing |
 | 3 | Real sound files replace the generated ones: import under `/Game/Audio/`, put the path in that row of `Sounds.csv`, run `Deep.Audio.Reload`. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
 | 4 | The Captain's voice. | writer | blocked on Quinn's choice |
 | 5 | **The polish pass (D-028, D-029):** look, HUD, effects, sound and voice, in one planned pass to a professional standard. A priority equal to gameplay. The research and the plan are done ([[Polish - Plan and Techniques]]). | Quinn chooses, agents build | waiting on Quinn's choices |
@@ -97,7 +102,7 @@ Models: submarine first, then salvage pieces, relic, serpent head. Sounds: breat
 
 ## Checkouts
 
-The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\dev`, `.wt\monster`, `.wt\text`. One Unreal editor at a time: the machine has 32 GB of RAM and had 1.5 GB free at 1:55 AM.
+The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\monster`, `.wt\text`. One Unreal editor at a time: the machine has 32 GB of RAM.
 
 ## Done
 
@@ -125,3 +130,4 @@ The main checkout is Quinn's and he may keep the editor open on it (port 8000: n
 | The title starts on any key or click; tether distance fixed | 1:29 AM | `6f2e259` |
 | Polish research: assets, sound and voice, the plan; a visual board for Quinn | 1:44 AM | `6ff4a2a` |
 | Six research notes for the polish pass, with one index note | 2:10 AM | `7256f6c` |
+| The first stop played on simulated keyboard and mouse (`S8-keys`) | 2:10 AM | `b8b4037` |
