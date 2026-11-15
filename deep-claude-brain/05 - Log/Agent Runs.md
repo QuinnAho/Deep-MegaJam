@@ -58,6 +58,9 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 43 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\text`: other Unreal MCP servers and generation tools for the serpent, sound, voice and textures; a shortlist of what to add today. | 91k | 31 | 2.2 min | Done, merged as `7c15b45`. Shortlist: Meshy MCP for props, OpenAI text-to-speech for the Captain, one fal key for sounds and images, Rodin for the relic (a jam partner), Blender MCP only as a last resort for the serpent. No third-party Unreal MCP server is confirmed for 5.9, so none is recommended. Several prices and licences are unconfirmed. |
 | 44 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\monster`: a polish checklist from recognised sources, existing agent skills for game work, and an outline for our own polish skill. | 68k | 17 | 1.6 min | Done, merged as `e58a6e1`. A checkable polish checklist in nine groups, ten tells of an amateur jam game, and an outline for our own skill. Found no existing skill aimed at polish. Some sources confirmed by search only. |
 
+| 47 | 2:42 AM Nov 15 | writer | Sonnet 5.5, medium | In `.wt\text` on `design/style-guide`: the style guide for the realistic direction (D-032), with every colour, type size, timing and volume as a number. Told at 2:44 AM to make it light-led, with ray-traced reflections. | | | | Running. |
+| - | 2:42 AM Nov 15 | (not started) | Opus 5.5, high | A 35 minute test of NVIDIA's DLSS plugin on 5.9, for award eligibility. | | | | **Refused by the session's permission system before it started.** It would have downloaded NVIDIA's plugin into the project. Needs Quinn's say. |
+
 ## What the numbers say so far
 
 - Runs 9 to 11 cost about 1.41 million tokens for ten notes, because a fork carries the whole conversation. Runs 14 and 15 cost 222k for a working pipeline and the game's entire script. Fresh agents with tight briefs are about six times cheaper per run.

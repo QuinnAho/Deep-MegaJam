@@ -40,6 +40,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-029 | Looks are as important as gameplay: research and plan the polish pass now | Decided (Quinn, about 1:25 AM Nov 15) |
 | D-030 | One style for everything the player sees and hears | Decided (Quinn, about 1:45 AM Nov 15); the direction itself is still open |
 | D-031 | Scripted playtests wait until a checkpoint; none run in between | Decided (Quinn, about 2:30 AM Nov 15) |
+| D-032 | The style: dark, worn, realistic, led by light and reflection, built on Megascans | Quinn leaning (about 2:40 AM Nov 15); he confirms by approving frames |
 
 ## Open
 
@@ -144,6 +145,16 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-032 The style: dark realism, led by light
+- **Status:** Quinn is leaning this way. He confirms it by approving frames.
+- **Date:** 2026-11-15, about 2:40 AM EST
+- **Who:** Quinn: "im leaning twoard realism wtih all the quixel assets, we really jsut need good water effects and a good monster", and a few minutes later: "this is horror after all maybe we could do some nice path tracing some reflective things off teh water falashlight".
+- **Decision:** Dark, worn and realistic, built on Quixel Megascans. The look is led by light and reflection, not by the number of assets: the diver's lamp, wet reflective surfaces, the black water in the hatch, eyes that shine back in the beam. Water effects and the monster come first.
+- **What the engine allows:** the project already has Lumen with hardware ray tracing on (DX12, `r.RayTracing=True`), so ray-traced reflections and shadows are available in the game now. Unreal's Path Tracer is an offline renderer and is not for gameplay; real-time path tracing exists only in NVIDIA's engine fork.
+- **Still open:** the player's character (Quinn is thinking of a simplified one); the route to the monster; NVIDIA award eligibility, which needs DLSS, an NvRTX feature or ACE in the build. Ray tracing in stock Unreal does not make an entry eligible by itself. The engine ships only NVIDIA Reflex.
+- **What Claude saw in the pack pictures:** the Sci-Fi Creatures Research Lab is clean, bright and teal and does not read as a cheap worn submarine; Modular Ship Interior and Industrial Infrastructure fit better; Atlantis Ruins could serve the 500 m site if graded dark.
+- **Blocked:** a time-boxed test of NVIDIA's DLSS plugin on 5.9 was refused by this session's permission system at 2:42 AM, before it started. It needs Quinn: either he downloads the plugin himself, or he allows the test.
 
 ### D-031 Scripted playtests wait until a checkpoint
 - **Status:** Decided.
