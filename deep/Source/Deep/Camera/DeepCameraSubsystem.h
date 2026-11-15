@@ -40,8 +40,18 @@ public:
 	float GetInterference() const { return Interference; }
 	void SetInterferenceOverride(float Strength) { InterferenceOverride = Strength; }
 
-	/** Plays an event's shake on the local camera (if it has one and shakes are on). Returns true if one started. */
-	bool PlayEventShake(FName Event);
+	/**
+	 * Plays an event's shake on the local camera (if it has one and shakes are on), sized by ImpactMps for hull hits
+	 * (DeepCameraRules::ShakeForHit). Returns true if one started. The chosen spec is kept even with no camera.
+	 */
+	bool PlayEventShake(FName Event, float ImpactMps = 0.f);
+
+	/** The last event shake chosen (played or not: a headless world has no camera), for tests and DEEPSTATE. */
+	FName GetLastEventShake() const { return LastEventShake; }
+	const FDeepShakeSpec& GetLastEventSpec() const { return LastEventSpec; }
+
+	/** The box round the sub's static-mesh parts in the sub's space (cm): what the pulse must never light. */
+	static FBox SubPartsLocal(const AActor* Sub);
 
 	/** Plays a shake spec on the local camera. */
 	bool PlayShake(const FDeepShakeSpec& Spec, FName Label);
@@ -75,6 +85,8 @@ private:
 	FDelegateHandle EventHandle;
 	int32 ShakesPlayed = 0;
 	FName LastShake;
+	FName LastEventShake;
+	FDeepShakeSpec LastEventSpec;
 	TWeakObjectPtr<UCameraShakeBase> Sway;
 	TWeakObjectPtr<APlayerCameraManager> SwayCamera;
 
@@ -91,6 +103,9 @@ private:
 	float PulseAgeS = -1.f;
 	float PulseRangeM = 0.f;
 	FVector PulseOrigin = FVector::ZeroVector;
+	/** The sub the pulse left from and its parts' box (sub space, cm): the material skips everything inside it. */
+	TWeakObjectPtr<AActor> PulseSub;
+	FBox PulseSubParts = FBox(ForceInit);
 	int32 Pulses = 0;
 
 	UPROPERTY(Transient)

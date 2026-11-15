@@ -1731,6 +1731,14 @@ struct FDeepCameraTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Shake")
 	float ShakeScale = 1.f;
 
+	/** A wall hit at this speed (m/s, payload ImpactMps) plays its row as written; slower is smaller, faster bigger. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Shake")
+	float HitShakeRefMps = 3.f;
+
+	/** The hit's size factor (impact / HitShakeRefMps) is clamped to this: a graze still reads, a ram is not a blur. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Shake")
+	FVector2D HitShakeScaleRange = FVector2D(0.6f, 1.8f);
+
 	// ---- Footage look (the diver's helmet camera, watched from the sub)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
@@ -1816,9 +1824,14 @@ struct FDeepCameraTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	FSoftObjectPath PulseMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_SonarPulse.M_SonarPulse"));
 
-	/** No pulse inside this radius from the sub (metres): the room and hull are not scanned. */
+	/** No pulse inside this radius from the sub (metres). The hull box below keeps the sub itself dark, so this is
+	 * small: rock a metre off the hull in the shaft still lights. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseStartM = 6.f;
+	float PulseStartM = 0.5f;
+
+	/** The pulse never lights the sub: pixels inside the box round the sub's drawn parts, grown by this (metres), are skipped. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseHullMarginM = 0.3f;
 
 	/** Lidar dots fade out between half this distance from the eye and this (metres): far dots would shimmer. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")

@@ -29,6 +29,8 @@ FDeepCameraTuning::FDeepCameraTuning()
 {
 	//                                     loc cm, rot deg, Hz,  dur s, in s,  out s
 	// The hull: a knock, a groan, a breach (shaft lane events, matched by name).
+	// A scrape along the rock: a short grinding judder, well under a knock. Hits and scrapes scale by the impact.
+	Add(EventShakes, TEXT("hull_damage"),    Spec(1.5f, 0.5f, 18.f, 0.50f, 0.05f, 0.35f));
 	Add(EventShakes, TEXT("hull_hit"),       Spec(4.f,  1.4f, 13.f, 0.45f, 0.02f, 0.30f));
 	Add(EventShakes, TEXT("hull_critical"),  Spec(6.f,  2.2f, 10.f, 0.80f, 0.03f, 0.50f));
 	Add(EventShakes, TEXT("hull_breach"),    Spec(10.f, 3.5f,  9.f, 1.40f, 0.03f, 0.90f));
@@ -64,6 +66,49 @@ FDeepShakeSpec DeepCameraRules::ShakeForEvent(FName Event, const FDeepCameraTuni
 		}
 	}
 	return FDeepShakeSpec();
+}
+
+FDeepShakeSpec DeepCameraRules::ShakeForHit(FName Event, float ImpactMps, const FDeepCameraTuning& Tuning)
+{
+	FDeepShakeSpec Out = ShakeForEvent(Event, Tuning);
+	if (Out.IsNone() || ImpactMps <= 0.f || Tuning.HitShakeRefMps <= 0.f)
+	{
+		return Out;
+	}
+	const float Low = FMath::Max(0.f, Tuning.HitShakeScaleRange.X);
+	const float High = FMath::Max(Low, Tuning.HitShakeScaleRange.Y);
+	const float Scale = FMath::Clamp(ImpactMps / Tuning.HitShakeRefMps, Low, High);
+	Out.LocationCm *= Scale;
+	Out.RotationDeg *= Scale;
+	return Out;
+}
+
+void DeepCameraRules::PulseHullBox(const FBox& PartsLocal, const FTransform& SubToWorld, float MarginM,
+	FVector& OutCentre, FVector& OutAxisX, FVector& OutAxisY, FVector& OutAxisZ)
+{
+	if (!PartsLocal.IsValid)
+	{
+		// No sub: a 1 cm box at the transform's origin, so nothing in view is skipped.
+		OutCentre = SubToWorld.GetLocation();
+		OutAxisX = FVector::ForwardVector;
+		OutAxisY = FVector::RightVector;
+		OutAxisZ = FVector::UpVector;
+		return;
+	}
+	const FBox Grown = PartsLocal.ExpandBy(FMath::Max(0.f, MarginM) * UDeepRules::CmPerM);
+	const FVector Half = Grown.GetExtent().ComponentMax(FVector(1.0));
+	const FVector Scale = SubToWorld.GetScale3D().GetAbs().ComponentMax(FVector(KINDA_SMALL_NUMBER));
+	OutCentre = SubToWorld.TransformPosition(Grown.GetCenter());
+	OutAxisX = SubToWorld.GetUnitAxis(EAxis::X) / (Half.X * Scale.X);
+	OutAxisY = SubToWorld.GetUnitAxis(EAxis::Y) / (Half.Y * Scale.Y);
+	OutAxisZ = SubToWorld.GetUnitAxis(EAxis::Z) / (Half.Z * Scale.Z);
+}
+
+bool DeepCameraRules::IsInPulseHull(const FVector& WorldCm, const FVector& Centre, const FVector& AxisX, const FVector& AxisY, const FVector& AxisZ)
+{
+	const FVector Rel = WorldCm - Centre;
+	return FMath::Abs(FVector::DotProduct(Rel, AxisX)) < 1.0 && FMath::Abs(FVector::DotProduct(Rel, AxisY)) < 1.0
+		&& FMath::Abs(FVector::DotProduct(Rel, AxisZ)) < 1.0;
 }
 
 float DeepCameraRules::Ease01(float X)

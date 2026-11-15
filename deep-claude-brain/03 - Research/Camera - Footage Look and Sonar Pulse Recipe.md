@@ -24,7 +24,7 @@ How the camera lane builds its post-process effects, and the sources each step c
 ## Sonar pulse (`Deep.Sonar.Pulse`, default 0)
 - Each `sonar_ping` on the bus (the sonar broadcasts it, with Source as the sub and DepthM as the range) starts a pulse. `UDeepCameraSubsystem` drives a dynamic instance of `M_SonarPulse` and hangs it on the environment's unbound volume through `SetCameraBlendable`. The weight is 0 between pings.
 - In the material, after the tonemapper, priority 0, one Custom node:
-  - `d = |WorldPosition - Origin|`. Sky (depth over 1e6), beyond the range, or within `PulseStartM` 6 m of the sub (the room itself) is returned untouched.
+  - `d = |WorldPosition - Origin|`. Sky (depth over 1e6), beyond the range, or within `PulseStartM` 0.5 m of the origin is returned untouched. The sub itself is left out by the hull box below, not by distance.
   - Band: in front of the radius, a hard edge over 0.35 × band. Behind it, `exp(ahead/BandCm)` with a 0.6 m band. It fades out over 0.3 s once the shell reaches range at `PulseSeconds` 1.5 s.
   - Dots: a world grid at 0.35 m on the surface's dominant axis (triplanar from WorldNormal). The dot radius grows with depth so the dots stay about a pixel wide far away. Each dot lights as the shell passes, fades over `PulseDotFadeS` 2 s, and fades with distance from half of `PulseDotFarM` 40 m to all of it.
   - Serpent: the camera sets Render CustomDepth on `ADeepSerpent`'s primitives. Where custom depth is the nearest surface the dots are masked, so only the band crosses it.
@@ -33,6 +33,11 @@ How the camera lane builds its post-process effects, and the sources each step c
 - Cheat: `Deep.Camera.TestPing [rangeM]` draws a pulse from the sub even with the switch off.
 - Cost: at the helm at 300 m (1707x1067), GPU 8.23 ms with the pulse off and 8.47 ms with a pulse every 2.5 s. About 0.25 ms while a pulse is live, 0 between pulses (weight 0).
 - Seen in frames: the cavern wall around the sub lights as one ring when the shell meets it, because the wall is about the same distance away all round. Dots on a flat floor at a grazing angle make faint moire lines; a larger `PulseDotSpacingM` or a smaller `PulseDotFarM` thins them.
+- Never the sub (fix, Nov 15 afternoon). The old guard was distance only (6 m from the origin), so a sub part or the bridle further out than 6 m could catch the band. Now C++ sends the sub's box every frame: `HullCentre` and `HullX/Y/Z`, the box's world axes divided by its half extents (`DeepCameraRules::PulseHullBox`). The box is the union of the local bounds of every `UStaticMeshComponent` on the `ADeepSubmarine` nearest the pulse origin (`UDeepCameraSubsystem::SubPartsLocal`, cached at `StartPulse`), plus `PulseHullMarginM` 0.3 m. The shader skips a pixel when `max(|dot(wp - C, Axis)|) < 1`: the standard point-in-oriented-box test (Ericson, Real-Time Collision Detection, 5.1.4, closest point on an OBB). It follows the sub as it drives and covers any part added later.
+  - Why not custom stencil: it needs `r.CustomDepth 3` ("stencil writes are enabled", engine `Runtime/Engine/Private/SceneUtils.cpp`) in config, an extra depth pass over the sub's ~200 primitives, and it would clash with the serpent's custom-depth dot mask. The box costs three dot products and a compare per pixel, no pass, no texture read.
+  - Cost: ProfileGPU in the shaft at the helm (1707x1067, pulse live) puts `M_SonarPulse` at 0.030 ms with the mask. ALU only.
+  - Side effect: rock that pokes inside the box (close under the bridle or beside the bow dress) stays unlit. Accepted.
+  - Test: `Deep.Camera.PulseBox` (pure) and `Deep.Camera.HullHit` (every part's bounds lie inside the box; a point 1.5 m out is outside).
 
 ## Feed interference (`Deep.Look.Interference`, default 0)
 Sources:
@@ -52,11 +57,11 @@ Recipe:
 - Hash: Hoskins (`frac(p*0.1031)`, `dot` with `yzx+33.33`). The `frac(sin(dot))` hash streaked diagonally across the snow at large inputs (seen in the first frames).
 - Weight 1 only while S > 0.001, and 0 otherwise.
 - Cost: at the helm at 300 m (1707x1067), GPU 8.15 ms idle and 8.45 ms at S = 1, about 0.3 ms while live.
-- Not covered: the Monster Brain runs on the server, so a client sees only the distance part, never the bite maximum. `hull_hit` is not broadcast by game code yet.
+- Not covered: the Monster Brain runs on the server, so a client sees only the distance part, never the bite maximum. `hull_hit` is broadcast by `UDeepRunComponent::DentHull` since the cave shaft (with `ImpactMps`).
 
 ## Rebuild
 `deep/Content/Deep/Camera/build_camera_materials.py`, run headless inside the slot:
-`UnrealEditor-Cmd.exe deep\Deep.uproject -run=pythonscript -Script=<abs path> -unattended -nopause -nosplash`.
+`UnrealEditor-Cmd.exe deep\Deep.uproject -run=pythonscript -Script=<abs path> -EnablePlugins=PythonScriptPlugin -unattended -nopause -nosplash -AllowCommandletRendering`. Set `DEEPCAMMAT_ONLY=M_SonarPulse` to rebuild one material.
 The log prefix is `DEEPCAMMAT`. The first build gave M_SonarPulse 21 expressions and M_FootageLens 4, with 0 compile errors.
 
 ## Risks

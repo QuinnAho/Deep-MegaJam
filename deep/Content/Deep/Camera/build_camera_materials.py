@@ -10,7 +10,9 @@
 #                   bright leading band with a short trail, and behind it a lidar dot grid (world aligned, projected on
 #                   the surface's dominant axis) that fades DotFadeS after the shell passed. Added on top of the scene
 #                   colour, so it lights nothing. The serpent writes custom depth (Camera/ sets it): no dots on it, only
-#                   the band. Driven by a dynamic material instance from UDeepCameraSubsystem.
+#                   the band. Every pixel inside the box round the sub's parts (HullCentre, HullX/Y/Z = the box's axes
+#                   over its half extents) is skipped, so the shell never lights the sub it leaves from. Driven by a
+#                   dynamic material instance from UDeepCameraSubsystem.
 #   M_FootageLens : slight barrel distortion for the footage look (Deep.Look.Footage). Post-process, after the
 #                   tonemapper, priority above the pulse so the overlay bends with the picture. Samples PostProcessInput0
 #                   at a radially pushed UV, normalised so the corners stay on the corners (no black edge).
@@ -26,10 +28,18 @@ mel = unreal.MaterialEditingLibrary
 PULSE_HLSL = r"""
 float3 wp = WP;
 float depth = Depth.r;
-float d = length(wp - Origin);
+float d = length(wp - Origin.xyz);
 float3 scene = Scene.rgb;
-// Sky and anything past the range or inside the hull: untouched.
+// Sky and anything past the range: untouched.
 if (d > MaxRadiusCm + BandCm || d < StartCm || depth > 1.0e6)
+{
+    return scene;
+}
+// The sub itself: a box round its parts (axes pre-divided by the half extents, so inside = all three |q| < 1). The
+// shell starts inside the hull and would otherwise light the bow, skids and window frame as it leaves.
+float3 rel = wp - HullCentre.xyz;
+float3 q = abs(float3(dot(rel, HullX.xyz), dot(rel, HullY.xyz), dot(rel, HullZ.xyz)));
+if (max(q.x, max(q.y, q.z)) < 1.0)
 {
     return scene;
 }
@@ -144,7 +154,7 @@ def build_pulse():
     post_process(mat, 0)
     inputs = ["WP", "Depth", "CustomDepth", "Normal", "Scene", "Origin", "RadiusCm", "MaxRadiusCm", "StartCm", "BandCm",
               "AgeS", "ShellS", "SpeedCmPerS", "DotFadeS", "SpacingCm", "DotFarCm", "BandIntensity", "DotIntensity",
-              "Intensity", "Color"]
+              "Intensity", "Color", "HullCentre", "HullX", "HullY", "HullZ"]
     pulse = custom(mat, PULSE_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, inputs, "SonarPulse", -400, 0)
     wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1400, -600)
     link(wp, "", pulse, "WP")
@@ -161,6 +171,12 @@ def build_pulse():
         link(scalar(mat, name, value, -1100, y), "", pulse, name)
         y += 80
     link(vector(mat, "Color", (1.0, 180.0 / 255.0, 90.0 / 255.0, 1.0), -1100, y), "", pulse, "Color")
+    # The hull mask (C++ fills them from the sub each frame). Defaults: a 1 cm box at the world origin, masking nothing.
+    y += 80
+    for name, value in [("HullCentre", (0.0, 0.0, 0.0, 0.0)), ("HullX", (1.0, 0.0, 0.0, 0.0)),
+                        ("HullY", (0.0, 1.0, 0.0, 0.0)), ("HullZ", (0.0, 0.0, 1.0, 0.0))]:
+        link(vector(mat, name, value, -1100, y), "", pulse, name)
+        y += 80
     mel.connect_material_property(pulse, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     finish(mat)
 

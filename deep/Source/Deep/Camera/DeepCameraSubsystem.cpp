@@ -14,6 +14,8 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "World/DeepSubmarine.h"
 #include "Monster/DeepSerpent.h"
 #include "Monster/DeepMonsterBrain.h"
 #include "Monster/DeepMonsterTypes.h"
@@ -137,17 +139,45 @@ void UDeepCameraSubsystem::HandleEvent(FName Event, const FDeepEventPayload& Pay
 			return;
 		}
 	}
-	PlayEventShake(Event);
+	PlayEventShake(Event, Payload.ImpactMps);
 }
 
-bool UDeepCameraSubsystem::PlayEventShake(FName Event)
+bool UDeepCameraSubsystem::PlayEventShake(FName Event, float ImpactMps)
 {
 	if (!IsShakeOn())
 	{
 		return false;
 	}
-	const FDeepShakeSpec Spec = DeepCameraRules::ShakeForEvent(Event, UDeepTuningSettings::Get().Camera);
-	return !Spec.IsNone() && PlayShake(Spec, Event);
+	// Hull hits and scrapes carry the impact speed: a graze nudges the view, a ram throws it.
+	const FDeepShakeSpec Spec = DeepCameraRules::ShakeForHit(Event, ImpactMps, UDeepTuningSettings::Get().Camera);
+	if (Spec.IsNone())
+	{
+		return false;
+	}
+	LastEventShake = Event;
+	LastEventSpec = Spec;
+	return PlayShake(Spec, Event);
+}
+
+FBox UDeepCameraSubsystem::SubPartsLocal(const AActor* Sub)
+{
+	FBox Box(ForceInit);
+	if (!Sub)
+	{
+		return Box;
+	}
+	// Every static-mesh part, drawn or hidden: a part added to the sub later is covered without a change here.
+	const FTransform SubToWorld = Sub->GetActorTransform();
+	TArray<UStaticMeshComponent*> Parts;
+	Sub->GetComponents<UStaticMeshComponent>(Parts);
+	for (const UStaticMeshComponent* Part : Parts)
+	{
+		if (Part && Part->GetStaticMesh())
+		{
+			Box += Part->CalcBounds(Part->GetComponentTransform().GetRelativeTransform(SubToWorld)).GetBox();
+		}
+	}
+	return Box;
 }
 
 bool UDeepCameraSubsystem::PlayShake(const FDeepShakeSpec& Spec, FName Label)
@@ -299,7 +329,21 @@ bool UDeepCameraSubsystem::StartPulse(const FVector& Origin, float RangeM)
 	PulseRangeM = RangeM;
 	PulseAgeS = 0.f;
 	++Pulses;
-	UE_LOG(LogDeepCamera, Display, TEXT("DEEPCAMERA pulse=%d origin=%s range=%.0fm"), Pulses, *Origin.ToCompactString(), RangeM);
+	// The sub nearest the origin (the one that pinged): its parts' box is masked out of the pulse.
+	PulseSub.Reset();
+	double Best = TNumericLimits<double>::Max();
+	for (TActorIterator<ADeepSubmarine> It(GetWorld()); It; ++It)
+	{
+		const double D = FVector::DistSquared(It->GetActorLocation(), Origin);
+		if (D < Best)
+		{
+			Best = D;
+			PulseSub = *It;
+		}
+	}
+	PulseSubParts = SubPartsLocal(PulseSub.Get());
+	UE_LOG(LogDeepCamera, Display, TEXT("DEEPCAMERA pulse=%d origin=%s range=%.0fm hull=%s"), Pulses, *Origin.ToCompactString(), RangeM,
+		PulseSubParts.IsValid ? *PulseSubParts.GetSize().ToCompactString() : TEXT("none"));
 	return true;
 }
 
@@ -359,6 +403,15 @@ void UDeepCameraSubsystem::UpdatePulse(float DeltaTime)
 		PulseMID->SetScalarParameterValue(TEXT("BandIntensity"), T.PulseBandIntensity);
 		PulseMID->SetScalarParameterValue(TEXT("DotIntensity"), T.PulseDotIntensity);
 		PulseMID->SetScalarParameterValue(TEXT("Intensity"), 1.f);
+		// The hull mask follows the sub as it moves; with no sub the box is 1 cm at the origin.
+		const AActor* Sub = PulseSub.Get();
+		FVector Centre, AxisX, AxisY, AxisZ;
+		DeepCameraRules::PulseHullBox(Sub ? PulseSubParts : FBox(ForceInit), Sub ? Sub->GetActorTransform() : FTransform(PulseOrigin),
+			T.PulseHullMarginM, Centre, AxisX, AxisY, AxisZ);
+		PulseMID->SetVectorParameterValue(TEXT("HullCentre"), FLinearColor(Centre.X, Centre.Y, Centre.Z, 0.f));
+		PulseMID->SetVectorParameterValue(TEXT("HullX"), FLinearColor(AxisX.X, AxisX.Y, AxisX.Z, 0.f));
+		PulseMID->SetVectorParameterValue(TEXT("HullY"), FLinearColor(AxisY.X, AxisY.Y, AxisY.Z, 0.f));
+		PulseMID->SetVectorParameterValue(TEXT("HullZ"), FLinearColor(AxisZ.X, AxisZ.Y, AxisZ.Z, 0.f));
 	}
 	// Weight 0 between pings: the material costs nothing when it is not drawn.
 	if (bShow || bPulseShown)

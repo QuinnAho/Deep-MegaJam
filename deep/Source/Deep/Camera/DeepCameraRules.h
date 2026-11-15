@@ -11,6 +11,23 @@ namespace DeepCameraRules
 	/** The shake an event plays (scaled by ShakeScale), or a none spec (IsNone) for events that do not shake. */
 	DEEP_API FDeepShakeSpec ShakeForEvent(FName Event, const FDeepCameraTuning& Tuning);
 
+	/**
+	 * The shake for a hull event sized by the hit: ShakeForEvent scaled by clamp(ImpactMps / HitShakeRefMps,
+	 * HitShakeScaleRange). ImpactMps <= 0 (a breach, an event with no impact) plays the row as written.
+	 */
+	DEEP_API FDeepShakeSpec ShakeForHit(FName Event, float ImpactMps, const FDeepCameraTuning& Tuning);
+
+	/**
+	 * The sonar pulse's hull mask. PartsLocal is the box round the sub's drawn parts in the sub's space (cm). Out: the
+	 * box centre in world space and its three axes divided by their half extents (grown by PulseHullMarginM), so a world
+	 * point p is inside when every |dot(p - Centre, Axis)| < 1. This is the test M_SonarPulse runs per pixel.
+	 */
+	DEEP_API void PulseHullBox(const FBox& PartsLocal, const FTransform& SubToWorld, float MarginM,
+		FVector& OutCentre, FVector& OutAxisX, FVector& OutAxisY, FVector& OutAxisZ);
+
+	/** The same inside test the material runs (for tests and debugging). */
+	DEEP_API bool IsInPulseHull(const FVector& WorldCm, const FVector& Centre, const FVector& AxisX, const FVector& AxisY, const FVector& AxisZ);
+
 	/** Smoothstep 0..1: eases in and out, no overshoot. */
 	DEEP_API float Ease01(float X);
 
