@@ -14,6 +14,8 @@ You are the orchestrator for DEEP. You plan, dispatch, check evidence and keep t
 
 Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on merge"). Run what the change can break, once. The full suite runs once per branch, at merge, by the orchestrator.
 
+**Toward the end (D-045, Quinn, about 2:12 PM Nov 15).** At each merge the orchestrator first reviews the diff itself: does it look like it works, and what does it change elsewhere (a state machine, a tuning number another system reads, a scripted playthrough's assumptions)? Then `verify`, then only the scripted playthroughs that drive the area the diff touches (the serpent: `S3-serpent`, `S11-pass`; the sub: `S2-gate`, `S7-run`, `S12-sidehome`; the dive: `S9-floor`, `S10-relic`). The package rule in the table below still holds for new materials and pack content. The full run-through (every scripted playthrough, package, smoke, zip, a play by hand) waits for the feature lock at 5:30 PM.
+
 **Agents, while working**
 
 - Build as often as needed: `tools\ue.ps1 build`.

@@ -460,6 +460,23 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - frames page version 17, with the camera fix frames and this result;
   - rows 77 and 84 in [[Agent Runs]]; D-042, D-043 and D-044 in [[Decision Log]].
 
+### 2:25 PM  S11 passed for the wrong reason, the diver's ping is in, and the orchestrator reads before it tests (orchestrator)
+- **What happened:**
+  - **The gate on `340332f`** (the serpent clamp and the camera fix): verify, package (0 usage-flag lines), smoke and zip passed, and six of seven playthroughs passed. S11-pass failed. At stop 2 the serpent made its first pass on its 20 s timer, went back to lurking, and then heard nothing (noise 0) while the script sprinted the diver for 20 s.
+  - **A rerun "passed", for the wrong reason.** The editor log shows the Captain's patience running out and cutting the line (`cut_patience`), and only then the serpent hunting. The script counts any state other than "tethered" as "hunted", so a cut line passes it. The 1:41 PM pass of S11 took 110 s, about as long as the patience lasts, so it was probably the same false pass.
+  - **The likely cause**, not yet proven: the diver's sprint makes no noise, perhaps because pushing into cavern rock keeps the speed under the sprint threshold. A fix agent (opus, high) is on it in `.wt\dev` on `fix/s11-noise`, to fix the cause and make S11 check the serpent itself; report by 3 PM. The integration branch is held, not pushed, until then.
+  - **The diver's sonar ping is done** (camera agent, `ccf1f22` and `42fbd47`). V in the water, a 3 s cooldown, about 100 m. At stop 2 it outlines the cavern rock in a moving band and leaves a field of lidar dots for a moment. At stop 3 the far wall, 94 m away, shows only as a thin line at 1 s. `Deep.Camera` 8 of 8, with a world test: refused aboard, one ping in the water, a second refused during the cooldown, and the helm's ping does not cut the diver's short.
+  - **The orchestrator's review, the first under D-045.** It looks like it works: the server checks the cooldown, then every machine draws the pulse, and the ping rides the event bus that already plays the ping sound. What it changes elsewhere: the pulse is now on in all play; the ping makes no noise for the serpent, because nothing listens for it (a design choice, not a bug); a second player's client was not checked; and the camera test that said "pulse off" now says "pulse on", which follows D-043 rather than weakening the test. Merged into integration as `bbeeb7e`, with one conflict in `ARCHITECTURE.md` (both sides kept). Its gate is running: verify, package, smoke, zip, S8-keys and S9-floor.
+  - **Quinn's new rule (D-045, about 2:12 PM).** Toward the end, the orchestrator reviews each diff itself, then runs `verify`, then only the playthroughs for that area. The full run-through waits for the freeze at 5:30 PM.
+  - **Quinn on the monster.** He resumed the camera agent from its transcript and told it the serpent "doesn't animate at all and looks like two models smooshed together; I think the older one was better". The agent's reading: the Dragon Cave head, a rigid mesh with no jaw, sits on our code-built body, and nothing bends the body from side to side. That fix is next.
+- **Why it matters:** a scripted playthrough can pass for a reason nobody meant. S11 used "the line is no longer tethered" to stand for "the serpent hunts", and the Captain's timer satisfied it. The exit code said pass; the log said otherwise.
+- **Evidence:**
+  - failing run, `.wt\monster\deep\Saved\Logs\Deep-backup-2026.11.15-19.05.38.log`: "Lurk -> Pass (noise 0, tether 37.9 m)", "Pass -> Lurk", nothing after;
+  - rerun, `Deep.log`: `DEEPEVENT cut_patience` at 2:11 PM, then "Lurk -> Hunt";
+  - the hunted check in `tools/playtest.ps1` (S11);
+  - frames `devlog/media/2026-11-15-camera-diverping-*.png` (10, on `polish/camera`);
+  - rows 84 and 85 in [[Agent Runs]]; D-045 in [[Decision Log]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

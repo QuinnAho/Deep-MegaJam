@@ -53,6 +53,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-042 | The cavern reads from the hatch by a lower roof, not nearer walls | Orchestrator, 1:38 PM Nov 15; built, made no visible difference, dropped at 1:54 PM for D-043 |
 | D-043 | The diver sends the sonar ping, so the cavern walls show from the water | Orchestrator, 1:54 PM Nov 15; replaces D-042; Quinn can overrule |
 | D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
+| D-045 | Toward the end: review each diff, test only what it touches; the full run-through at the freeze | Quinn, about 2:12 PM Nov 15; in `.claude/loop.md` |
 
 ## Open
 
@@ -66,6 +67,14 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-045 Toward the end: the orchestrator reviews each diff, then tests only what it touches
+- **Status:** Quinn's direction, about 2:12 PM Nov 15. In force; `.claude/loop.md` ("What to run") says how.
+- **Date:** 2026-11-15, about 2:12 PM EST
+- **Who:** Quinn.
+- **His words:** "i do think as we move twoards nearing the end we should move twoards more orchestrator code review (does it look like it works implications) then e2e tests. and we should wait until the feature lock to really run through"
+- **What it changes:** at each merge the orchestrator reads the diff first. Does it look like it works? What does it change elsewhere: a state machine, a tuning number another system reads, an assumption a scripted playthrough makes? Then `verify`, then only the scripted playthroughs for the area the diff touches. New materials and pack content are still packaged at once. Every playthrough, the package, smoke, zip and a play by hand wait for the feature freeze at 5:30 PM.
+- **Why it fits:** the same hour, a scripted playthrough (S11) passed for a reason nobody meant, and only reading its log showed it.
 
 ### D-044 The HUD palette changes: the colours do not match the theme
 - **Status:** Quinn's direction, 1:54 PM Nov 15. For the HUD pass; nothing is built yet.
