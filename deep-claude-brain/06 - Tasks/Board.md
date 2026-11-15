@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 12:40 EST
+updated: 2026-11-15 12:50 EST
 ---
 # Board
 
@@ -12,7 +12,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` on origin at `a2e696d` (12:06 PM: the first-five-minutes pass and the level view aboard merged; verify 79 of 79, package and smoke green, zip 762 MB, 0 usage-flag lines; all 14 scripted playthroughs passed on `ad644df` in 745 s, and S1, S4, S5, S6, S7 again on `a2e696d`): everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit, rebuilt silt, and the serpent kept inside the well on the last ascent. Full suite 78 of 78; packaged and smoke-tested at `b7755a1` (11:18 AM), zip 762 MB, no usage-flag lines. All 14 scripted playthroughs passed at `a942e1c`; the ending set has not run on `b7755a1`, because the machine went down as it started. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
+- `polish/integration` on origin at `6aeafc8` (12:56 PM: the Captain lane, 94 tests; before it `ea29122` at 12:33 PM, the sonar; and `a2e696d` at 12:06 PM: the first-five-minutes pass and the level view aboard merged; verify 79 of 79, package and smoke green, zip 762 MB, 0 usage-flag lines; all 14 scripted playthroughs passed on `ad644df` in 745 s, and S1, S4, S5, S6, S7 again on `a2e696d`): everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit, rebuilt silt, and the serpent kept inside the well on the last ascent. Full suite 78 of 78; packaged and smoke-tested at `b7755a1` (11:18 AM), zip 762 MB, no usage-flag lines. All 14 scripted playthroughs passed at `a942e1c`; the ending set has not run on `b7755a1`, because the machine went down as it started. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
@@ -26,9 +26,12 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
   - Every `tools\ue.ps1` call by an engineer holds the `Global\DeepUnrealSlot` mutex. The orchestrator's playtest script also waits for any other `UnrealEditor.exe` to close. One Unreal process at a time, since the 11:19 crash had two editors up.
   - When they report, expect conflicts in `DeepArena.cpp` (shaft: `ApplySubDepth`; cavern: `EnsureArena`), `Sim/DeepTuningTypes.h` (three new tuning structs) and the CSVs (rows appended at the end). After each merge, run the scripted playthroughs that drive or swim (`S2-gate`, `S7-run`, `S9-floor`, `S10-relic`, `S11-pass`, `S12-sidehome`). Quinn sees frames before any part is called done.
 - **Started after the scope change (D-040, D-041):**
-  - `polish/captain` in `.wt\voice`: the Captain as a radio voice that says less, with voice files, ducking, music and pack sounds. Steps 1 and 2 are due at 2:30 PM, steps 3 and 4 at 4:00 PM. The names and paths in D-040 are fixed, because Quinn's brother records to them ([[Sound Brief]]).
+  - `polish/captain` in `.wt\voice`: **done** at about 12:43 PM, all four steps (`0063051`). It covers the radio voice with squelch and ducking, the pacing, the danger tone, music slots by depth, breathing that follows the danger, and up to three variations per sound. Merged into integration as `6aeafc8` and pushed at 12:56 PM. The gate is green (94 tests, a package with no usage-flag lines, smoke, a 762.5 MB zip), and S0, S6, S7 and S10 passed. The names and paths in D-040 are fixed, because Quinn's brother records to them ([[Sound Brief]]). Waiting on files:
+    - point the six serpent rows in `Sounds.csv` at the files, with pitch back to 1.0;
+    - map the Fab pack's rows;
+    - import `audio-drop/`, if Quinn allows it.
   - `polish/camera` in `.wt\camera`: shakes, the footage look, the sonar pulse and interference. First frames are due at 2:15 PM.
-  - Both were told at 12:35 PM to merge `origin/polish/integration` (`ea29122`, with sonar).
+  - Both were told at 12:35 PM to merge `origin/polish/integration` (`ea29122`, with sonar). At 12:57 PM the shaft, cavern and camera lanes were told to merge `6aeafc8` before they report.
   - The new lines are in [[Captain Script]]: 74 of them, with no numbers in the voice. The Captain lane copies the CSV block.
   - The HUD pass comes after the sonar and shaft merges: one planned pass (D-028), in the look Quinn approves, with a mockup first.
   - The brother's files land in `C:\Repositories\Deep-MegaJam\audio-drop\`, which git ignores. When the Fab pack lands, add its folder to `.gitignore` and link it into `.wt\monster`, `.wt\voice` and `.wt\camera`, the way DragonCave is linked.
@@ -170,9 +173,10 @@ The overnight runs are in [[Agent Runs]].
 | Cave shaft | Opus, high, `.wt\pkg` on `polish/shaft` | Steering down a winding shaft; wall hits damage the hull, up to a breach. First version due 2:15 PM, final 3:30 PM. | 12:02 PM |
 | Caverns | Opus, high, `.wt\dev` on `polish/cavern` | Rock walls and a roof round each stop. First version due 2:15 PM, final 3:30 PM. | 12:02 PM |
 | Sonar | Opus, high, `.wt\text` on `polish/sonar` | **Done**, `d8c2f53`. Merged as `ea29122` and pushed at 12:33 PM. | 12:02 PM |
-| Captain and sound | Opus, high, `.wt\voice` on `polish/captain` | A radio voice, pacing, danger tone, music and pack sounds. Steps 1 and 2 by 2:30 PM, 3 and 4 by 4:00 PM. | 12:17 PM |
+| Captain and sound | Opus, high, `.wt\voice` on `polish/captain` | **Done** at about 12:43 PM (`0063051`): radio voice, pacing, danger tone, music slots, breathing by danger, variations. Merged as `6aeafc8`, gate green, pushed at 12:56 PM. Waits for sound files. | 12:17 PM |
 | Captain lines | Sonnet, medium (writer) | **Done**: 74 lines, no numbers in the voice. [[Captain Script]] | 12:17 PM |
 | Camera | Opus, high, `.wt\camera` on `polish/camera` | Shakes, the footage look, the sonar pulse and interference. First frames by 2:15 PM. | 12:25 PM |
+| HUD mockup | Sonnet, high, scratchpad only | Two directions on real frames, instrument and diver cam, for Quinn to pick at 2:15 PM. The HUD pass then builds the chosen one after the shaft merges. | 12:49 PM |
 
 ## Next, in order
 

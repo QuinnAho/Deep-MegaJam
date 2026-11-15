@@ -336,6 +336,30 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - integration `ea29122`, with the logs in `.wt\monster\deep\Saved\Harness\` (`test-20261115-122703`, `package-20261115-122726`, `smoke-20261115-122821` and `zip-20261115-122847`);
   - sonar frames `devlog/media/2026-11-15-sonar-parked300.png` and `devlog/media/2026-11-15-sonar-driving.png` on `polish/sonar`.
 
+### 12:56 PM  The Captain lane finishes hours early, and the sound waits for real files (orchestrator)
+- **What happened:**
+  - **All four steps done.** The Captain-and-sound lane (Opus, high) reported at 12:43 PM, 26 minutes after it started. Its last step was due at 4:00 PM.
+    - The Captain talks over a radio, with squelch, a band-pass and ducking. He holds his tongue while the diver is in the water, and his tone follows the danger.
+    - Music has a slot for each depth, a tension layer while bailout air runs, a sting at the serpent's first sight, and title, settlement and win cues.
+    - Breathing follows the danger: calm, then fast, then panic over a heartbeat.
+    - A one-shot sound picks from up to three variations at ±3% pitch, and never plays the same one twice in a row.
+  - **Silent until the files come.** The lane wrote no generated music, so a slot with no file stays silent. The serpent's rows still point at the synth, pitched down to 0.55 to 0.7; each needs a file path and pitch 1.0 when the files arrive. It imported nothing, because Quinn has not said whether agents may.
+  - **The cook.** It takes `/Game/DeepAudio` whole, plus any pack sound `Sounds.csv` names. Today's package log says `DEEPCOOK added 0 pack sounds named by Sounds.csv`, which is right, since no pack is installed yet.
+  - **A clash between lanes.** The lane merged the sonar work in before it reported. The sonar lane and the new script had each written the Captain's line for a sonar contact, in different column formats. It kept the script's six-column line and dropped the sonar lane's row.
+  - **The merge.** The orchestrator merged the lane into integration with no conflicts (`6aeafc8`, 12:47 PM). The gate passed:
+    - build in 18 s and 94 tests;
+    - a package in 58 s with no usage-flag lines;
+    - smoke in 26 s and a 762.5 MB zip.
+  - **Playthroughs.** Four scripted playthroughs passed: `S0-title` (15 s), `S6-bank` (14 s), `S7-run` (49 s) and `S10-relic` (77 s). The merge was pushed at 12:56 PM, and the shaft, cavern and camera lanes were told to merge it before they report.
+  - **The HUD mockup starts early.** At 12:49 PM the orchestrator started a Sonnet agent on a HUD mockup with two directions on real frames. Direction A is the style guide's instrument HUD done properly; direction B is the diver's helmet-camera display, with a battery bar that is the Captain's patience. It uses no Unreal, so it does not wait for the slot.
+- **Why it matters:**
+  - Sound is a judged score, and its code is ready before the files exist. A missing file leaves a slot silent instead of breaking the build, so the brother's files can arrive right up to the freeze.
+  - The HUD mockup lets Quinn choose the HUD and the footage look together at 2:15 PM, instead of one decision after the other.
+- **Evidence:**
+  - integration `6aeafc8`, with logs in `.wt\monster\deep\Saved\Harness\` (`test-20261115-124837`, `package-20261115-124910`, `smoke-20261115-125008` and `zip-20261115-125034`);
+  - the lane's own three entries in this note on `polish/captain`;
+  - rows 79 and 82 in [[Agent Runs]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
