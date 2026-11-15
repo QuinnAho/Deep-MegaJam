@@ -11,6 +11,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Diver/DeepRunComponent.h"
+#include "Harpoon/DeepHarpoonComponent.h"
 #include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
@@ -93,6 +94,12 @@ namespace DeepStateReport
 		Json->SetNumberField(TEXT("hull_rating"), State ? State->HullRating : 1);
 		Json->SetNumberField(TEXT("stop"), State ? State->Stop : 1);
 		Json->SetNumberField(TEXT("diver_number"), State ? State->DiverNumber : 1);
+		Json->SetNumberField(TEXT("hull_damage"), State ? State->HullDamage : 0);
+		Json->SetNumberField(TEXT("hull_repairs_owed"), State ? State->HullRepairsOwed : 0);
+		if (const UDeepHarpoonComponent* Harpoon = Diver ? Diver->GetHarpoon() : nullptr)
+		{
+			Json->SetObjectField(TEXT("harpoon"), DeepHarpoon::BuildStateJson(*Harpoon));
+		}
 		Json->SetBoolField(TEXT("on_title"), State && State->bOnTitle);
 		Json->SetBoolField(TEXT("won"), State && State->bWon);
 		Json->SetNumberField(TEXT("run_s"), State ? State->RunSeconds : 0.f);

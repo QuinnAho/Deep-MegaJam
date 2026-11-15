@@ -11,6 +11,7 @@
 #include "Misc/ScopeExit.h"
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
+#include "Harpoon/DeepHarpoonHUD.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptain.h"
@@ -76,6 +77,7 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawThreat(*Run, GetWorld()->GetRealTimeSeconds());
 		DrawPrompts(Diver);
+		DeepHarpoonHUD::Draw(this, Canvas, Diver, S, Font, BigFont);
 		if (Run->IsBiteAlarmOn())
 		{
 			DrawBiteAlarm(*Run, GetWorld()->GetRealTimeSeconds());
@@ -166,7 +168,7 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 	const TArray<FString> Lines = {
 		TEXT("W A S D  swim        Mouse  look"),
 		FString::Printf(TEXT("%s / %s  up / down        %s  sprint"), *Key(TEXT("Up")), *Key(TEXT("Down")), *Key(TEXT("Sprint"))),
-		FString::Printf(TEXT("%s or left click  grab        %s  drop"), *Key(TEXT("Grab")), *Key(TEXT("Drop"))),
+		FString::Printf(TEXT("%s  grab        %s  drop        Left click  harpoon (1 per dive)"), *Key(TEXT("Grab")), *Key(TEXT("Drop"))),
 		FString::Printf(TEXT("Hold %s  winch home (loud)        %s  lamp"), *Key(TEXT("Winch")), *Key(TEXT("Lamp"))),
 		FString::Printf(TEXT("Hold %s  ask to be cut loose        %s  menu"), *Key(TEXT("Cut")), *Key(TEXT("Menu"))),
 	};
