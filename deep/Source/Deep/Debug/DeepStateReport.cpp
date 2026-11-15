@@ -11,6 +11,7 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Sim/DeepRules.h"
 #include "Diver/DeepRunComponent.h"
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "Story/DeepCaptain.h"
@@ -61,7 +62,10 @@ namespace DeepStateReport
 		Json->SetNumberField(TEXT("cargo_items"), Diver ? Diver->GetCargo().Num() : 0);
 		Json->SetBoolField(TEXT("overloaded"), Weight.bOverloaded);
 		Json->SetNumberField(TEXT("tether_length_m"), Solve.LengthM);
-		Json->SetNumberField(TEXT("tether_distance_m"), Solve.DistanceM);
+		// The distance to the anchor is measured, not taken from the solve: after a cut the solve stops updating.
+		const bool bMeasure = Diver && Tether && Tether->GetSubmarine();
+		const float AnchorM = bMeasure ? FVector::Dist(Diver->GetActorLocation(), Tether->GetAnchorLocation()) / UDeepRules::CmPerM : Solve.DistanceM;
+		Json->SetNumberField(TEXT("tether_distance_m"), AnchorM);
 		Json->SetNumberField(TEXT("tether_left_m"), Solve.LeftM);
 		Json->SetNumberField(TEXT("tether_strain"), Solve.Strain);
 		Json->SetBoolField(TEXT("tether_taut"), Solve.bTaut);

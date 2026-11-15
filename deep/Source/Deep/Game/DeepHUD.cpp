@@ -170,7 +170,7 @@ void ADeepHUD::DrawTitle(float RealNow)
 
 	FLinearColor Prompt = TextColor;
 	Prompt.A = 0.8f + 0.2f * FMath::Sin(RealNow * 3.f);
-	TextCentered(TEXT("PRESS ANY KEY"), Prompt, Canvas->ClipY * 0.76f, BigFont, 1.2f);
+	TextCentered(TEXT("PRESS ANY KEY OR CLICK TO START"), Prompt, Canvas->ClipY * 0.76f, BigFont, 1.2f);
 	TextCentered(TEXT("A jam game. Salvage, a tether, and a Captain who hates you."), DimColor, Canvas->ClipY * 0.90f, nullptr, 0.7f);
 }
 
