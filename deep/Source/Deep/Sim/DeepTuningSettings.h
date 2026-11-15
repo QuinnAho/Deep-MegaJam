@@ -57,4 +57,10 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Arena")
 	FDeepArenaTuning Arena;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Run")
+	FDeepRunTuning Run;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Director")
+	FDeepCaptainTuning Captain;
 };

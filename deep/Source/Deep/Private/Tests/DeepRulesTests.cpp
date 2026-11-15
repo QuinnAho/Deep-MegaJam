@@ -410,6 +410,12 @@ bool FDeepTuningInvariantsTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(FString::Printf(TEXT("Stop %d is deeper than stop %d"), Stop, Stop - 1), S.GetStop(Stop).SubDepthM > S.GetStop(Stop - 1).SubDepthM);
 	}
+	// GDD: stops at 100, 300 and 500 m, one per zone; the relic at 600 m, below the last stop.
+	for (int32 Stop = 1; Stop <= S.NumStops(); ++Stop)
+	{
+		TestEqual(FString::Printf(TEXT("Stop %d sits in zone %d"), Stop, Stop), UDeepRules::ZoneIndex(S.GetStop(Stop).SubDepthM, S.Zones), FMath::Min(Stop - 1, S.Zones.Num() - 1));
+	}
+	TestTrue(TEXT("The relic is below the last stop"), S.Arena.RelicDepthM > S.GetStop(S.NumStops()).SubDepthM);
 	for (int32 Index = 1; Index < S.Economy.HullPrices.Num(); ++Index)
 	{
 		TestTrue(TEXT("Hull prices rise"), S.Economy.HullPrices[Index] > S.Economy.HullPrices[Index - 1]);

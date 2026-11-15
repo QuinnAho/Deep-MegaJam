@@ -48,20 +48,18 @@ UDeepTuningSettings::UDeepTuningSettings()
 	CategoryName = TEXT("Game");
 	SectionName = TEXT("DEEP Tuning");
 
-	// Real ocean zones: the Director names them on the depth counter.
+	// GDD zones, compressed for the game: Sunlight 0-200 m, Twilight 200-400 m, Midnight 400-600 m.
 	Zones = {
 		MakeZone(TEXT("Sunlight"), 0.f),
 		MakeZone(TEXT("Twilight"), 200.f),
-		MakeZone(TEXT("Midnight"), 1000.f),
-		MakeZone(TEXT("Abyss"), 4000.f),
-		MakeZone(TEXT("Hadal"), 6000.f),
+		MakeZone(TEXT("Midnight"), 400.f),
 	};
 
-	// One arena, three light and fog settings.
+	// One arena, three light and fog settings. One stop per zone: 100 m, 300 m and 500 m of displayed depth.
 	Stops = {
-		MakeStop(300.f, 0.25f, FLinearColor(0.02f, 0.09f, 0.11f), 3.f),
-		MakeStop(1200.f, 0.4f, FLinearColor(0.01f, 0.04f, 0.06f), 0.8f),
-		MakeStop(4200.f, 0.6f, FLinearColor(0.004f, 0.01f, 0.02f), 0.1f),
+		MakeStop(100.f, 0.25f, FLinearColor(0.02f, 0.09f, 0.11f), 3.f),
+		MakeStop(300.f, 0.4f, FLinearColor(0.01f, 0.04f, 0.06f), 0.8f),
+		MakeStop(500.f, 0.6f, FLinearColor(0.004f, 0.01f, 0.02f), 0.1f),
 	};
 
 	SalvageKinds = {

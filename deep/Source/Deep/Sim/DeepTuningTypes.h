@@ -16,6 +16,29 @@ enum class EDeepSalvageSize : uint8
 	Relic
 };
 
+/** Where a diver is in the run loop. Only Tethered and Cut can swim. */
+UENUM(BlueprintType)
+enum class EDeepRunState : uint8
+{
+	Tethered,
+	/** Tether cut: bailout air counts down; reach the airlock to re-tether. */
+	Cut,
+	/** Bailout air ran out: a short written-off screen, then the next diver. */
+	Dead,
+	/** Banked at the airlock: the settlement screen is up. */
+	Settling,
+	/** Fade to the next dive (and the next stop, if the hull allows). */
+	Descending
+};
+
+UENUM(BlueprintType)
+enum class EDeepBankMood : uint8
+{
+	Empty,
+	Poor,
+	Good
+};
+
 /** A named depth band. The zone at a depth is the one with the greatest MinDepthM not deeper than it. */
 USTRUCT(BlueprintType)
 struct FDeepZone
@@ -37,7 +60,7 @@ struct FDeepStopTuning
 
 	/** Depth of the submarine's tether anchor at this stop, shown on the depth counter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stop")
-	float SubDepthM = 300.f;
+	float SubDepthM = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stop")
 	float FogDensity = 0.02f;
@@ -72,8 +95,13 @@ struct FDeepTetherTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchArriveM = 3.f;
 
+	/** The winch pulls toward this far below the airlock (kept inside WinchArriveM), so it passes under the hull. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
-	float LineThicknessCm = 3.f;
+	float WinchApproachBelowM = 2.f;
+
+	/** A cable, not a rod. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
+	float LineThicknessCm = 1.5f;
 };
 
 USTRUCT(BlueprintType)
@@ -199,6 +227,70 @@ struct FDeepEconomyTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Economy")
 	int32 StartingCredits = 0;
+
+	/** Settlement fees: FeePercent of gross (rounded up) plus FeeFlat, itemised over FeeLinesMin..FeeLinesMax joke lines. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Economy")
+	int32 FeePercent = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Economy")
+	int32 FeeFlat = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Economy")
+	int32 FeeLinesMin = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Economy")
+	int32 FeeLinesMax = 3;
+
+	/** A bank with at least this net is a good one (the Captain's tone). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Economy")
+	int32 GoodBankNet = 50;
+};
+
+/** Timings of the run loop around the rules. */
+USTRUCT(BlueprintType)
+struct FDeepRunTuning
+{
+	GENERATED_BODY()
+
+	/** Hold the cut key this long to be cut loose. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float CutHoldSeconds = 1.5f;
+
+	/** The written-off screen before the replacement diver appears. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float DeathScreenSeconds = 3.f;
+
+	/** The settlement screen ignores the continue key this long, so a held key cannot skip it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float SettlementMinSeconds = 1.f;
+
+	/** Fade out, swap stop, fade in. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float DescendSeconds = 2.5f;
+
+	/** Minimum gap between repeats of the same chatter event (taut, overweight, winch). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float ChatterCooldownSeconds = 12.f;
+};
+
+/** How long the Captain's subtitles stay up. */
+USTRUCT(BlueprintType)
+struct FDeepCaptainTuning
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain")
+	float LineMinSeconds = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain")
+	float SecondsPerWord = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain")
+	float LineMaxSeconds = 7.f;
+
+	/** A line waiting behind a more urgent one is dropped if it waited longer than this. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain")
+	float PendingMaxAgeSeconds = 6.f;
 };
 
 USTRUCT(BlueprintType)
@@ -216,6 +308,10 @@ struct FDeepBailoutTuning
 	/** Air drain rate inside the slow window, relative to real time. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bailout")
 	float SlowDrainScale = 0.5f;
+
+	/** The Captain's "ten seconds" warning fires when air falls to this. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bailout")
+	float WarnSeconds = 10.f;
 };
 
 USTRUCT(BlueprintType)
@@ -292,6 +388,10 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorBelowSubM = 120.f;
 
+	/** Displayed depth of the relic (stop 3). Not spawned yet. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float RelicDepthM = 600.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorSizeM = 600.f;
 
@@ -316,6 +416,36 @@ struct FDeepArenaTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float ExposureMaxEV = 2.f;
+
+	/**
+	 * Grey box (Quinn: "no environment yet, just raw gameplay"): no fog shafts, fixed exposure, even key + fill light.
+	 * The stop's fog and sun settings are ignored; the stop's fog colour only tints the light a little.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	bool bGreyBox = true;
+
+	/** Key light from above (lux). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxKeyLux = 3.f;
+
+	/** Fill light from below and the other side (lux), so no face is black. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxFillLux = 1.2f;
+
+	/** Fixed manual exposure compensation (EV). 0 = EV100 0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxExposureEV = 0.f;
+
+	/** 0..1: how far the light leans toward the stop's water colour. Keep it mild. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxTintStrength = 0.15f;
+
+	/** A near-zero fog that only colours the empty background, so dark shapes stand out against it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxBackdropFogDensity = 0.0004f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	FLinearColor GreyBoxBackdropColor = FLinearColor(0.05f, 0.09f, 0.12f);
 };
 
 USTRUCT(BlueprintType)
@@ -442,4 +572,55 @@ struct FDeepHullPurchase
 
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
 	bool bBought = false;
+};
+
+/** Everything the settlement screen shows. Built by UDeepRunComponent::Bank from UDeepRules results. */
+USTRUCT(BlueprintType)
+struct FDeepSettlementReport
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bValid = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 Gross = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 DirectorCut = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	TArray<FString> FeeLabels;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	TArray<int32> FeeAmounts;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 Fees = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 Net = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	EDeepBankMood Mood = EDeepBankMood::Empty;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	bool bHullBought = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 HullSpent = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 HullRating = 1;
+
+	/** Price of the hull rating after this one, -1 when maxed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 NextHullPrice = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 CreditsAfter = 0;
+
+	/** The stop the continue key leads to. */
+	UPROPERTY(BlueprintReadOnly, Category = "Economy")
+	int32 NextStop = 1;
 };

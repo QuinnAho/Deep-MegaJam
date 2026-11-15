@@ -52,6 +52,49 @@ namespace DeepArena
 		return Salvage;
 	}
 
+	static int32 SpawnSalvageRing(UWorld* World, const ADeepSubmarine* Sub)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		const FVector Anchor = Sub->GetAnchorLocation();
+		int32 Spawned = 0;
+		for (const FDeepSalvageSpot& Spot : Tuning.Arena.SalvageSpots)
+		{
+			FDeepSalvageKind Kind;
+			if (!Tuning.FindSalvageKind(Spot.Size, Kind))
+			{
+				UE_LOG(LogDeepArena, Warning, TEXT("No salvage kind for size %d; spot skipped"), static_cast<int32>(Spot.Size));
+				continue;
+			}
+			if (SpawnSalvage(World, Kind, Anchor + UDeepRules::SalvageSpotOffsetCm(Spot)))
+			{
+				++Spawned;
+			}
+		}
+		UE_LOG(LogDeepArena, Log, TEXT("Spawned %d salvage pieces"), Spawned);
+		return Spawned;
+	}
+
+	int32 RespawnSalvage(UWorld* World)
+	{
+		if (!World || World->GetNetMode() == NM_Client)
+		{
+			return 0;
+		}
+		const ADeepSubmarine* Sub = FindSubmarine(World);
+		if (!Sub)
+		{
+			return 0;
+		}
+		for (TActorIterator<ADeepSalvage> It(World); It; ++It)
+		{
+			if (IsValid(*It))
+			{
+				It->Destroy();
+			}
+		}
+		return SpawnSalvageRing(World, Sub);
+	}
+
 	ADeepSubmarine* EnsureArena(UWorld* World, int32 Stop)
 	{
 		if (!World || World->GetNetMode() == NM_Client)
@@ -73,22 +116,7 @@ namespace DeepArena
 
 		if (!FindFirst<ADeepSalvage>(World))
 		{
-			const FVector Anchor = Sub->GetAnchorLocation();
-			int32 Spawned = 0;
-			for (const FDeepSalvageSpot& Spot : Tuning.Arena.SalvageSpots)
-			{
-				FDeepSalvageKind Kind;
-				if (!Tuning.FindSalvageKind(Spot.Size, Kind))
-				{
-					UE_LOG(LogDeepArena, Warning, TEXT("No salvage kind for size %d; spot skipped"), static_cast<int32>(Spot.Size));
-					continue;
-				}
-				if (SpawnSalvage(World, Kind, Anchor + UDeepRules::SalvageSpotOffsetCm(Spot)))
-				{
-					++Spawned;
-				}
-			}
-			UE_LOG(LogDeepArena, Log, TEXT("Spawned %d salvage pieces"), Spawned);
+			SpawnSalvageRing(World, Sub);
 		}
 
 		if (!FindFirst<ADeepAbyssFloor>(World))

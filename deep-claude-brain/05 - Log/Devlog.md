@@ -157,6 +157,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The loop (build, play, assert, look) now runs with no human and no model tokens, so every later task can be gated on it. It also found a likely game bug: winching from beside the sub at anchor height stalls 7.4 m out instead of reaching 3 m; from below it arrives in 8 s. Gotchas: PowerShell 5.1 strips quotes passing JSON to a child process, and the state JSON has no world positions, hence `GetArena`.
 - Evidence: branch `tools/playtest`; screenshots `devlog\media\2026-11-14-greybox-S0-boot.png` and the four siblings; notes [[Validation Loop]] and [[Unreal MCP Live Catalog]].
 
+### 10:47 PM  Lights on: the grey box you can actually see
+- What happened: The engineer fixing the playtest findings on `dev/loop` was stopped by accident mid-task. A fresh one found its work uncommitted but finished in the working tree: a winch that reels to a point just under the airlock (and drags through the hull if a sweep is blocked), a HUD 1.7x bigger on dark panels with a flashing warning banner, and a thinner, darker tether. It built and passed, so it was kept and committed as is. Then, on Quinn's "no environment yet, just raw gameplay": fog shafts off, fixed manual exposure, a key light from above plus a fill from below, a mid-grey floor, motion blur off, and only a mild light tint per stop. The old water look stays behind one switch (`Arena.bGreyBox`). New cheat `Deep.Look <pitch> [yaw]` aims the camera for scripted shots.
+- Why it matters: Every salvage piece, the sub, the tether and the floor now read at a glance, so the loop can be judged on play, not on haze. The run-loop test now also winches home from alongside the hull and from above the sub, and plays a whole dive at stop 2 (grab, cut, home with cargo, settle, dive again, die, next diver stays at stop 2). Gotcha: `FLinearColor::GetMax` counts alpha, which silently turned the per-stop tint into black until a test caught it.
+- Evidence: commits `8cae423` (leftover fixes), `8cb383b` (grey box); `verify` 21/21 tests; shots in `deep\Saved\Harness\shots\` (`down-20261114-224245.png`, `up-20261114-224305.png`, `settle-…`, `cut-…`).
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
