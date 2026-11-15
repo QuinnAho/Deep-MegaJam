@@ -21,6 +21,146 @@ namespace
 		const float W = UE_TWO_PI / FMath::Max(1.f, WavelengthM);
 		return 0.8f * FMath::Sin(W * DepthM + PhaseA) + 0.2f * FMath::Sin(W * 2.3f * DepthM + PhaseB);
 	}
+
+	/** Integer hash of a lattice cell (murmur-style mixing): fixed for all time, unlike any engine random stream. */
+	uint32 HashCell(int32 X, int32 Y, int32 Z, uint32 Seed)
+	{
+		uint32 H = Seed * 0x9E3779B1u + 0x7F4A7C15u;
+		H = (H ^ uint32(X)) * 0x85EBCA6Bu;
+		H ^= H >> 15;
+		H = (H ^ uint32(Y)) * 0xC2B2AE35u;
+		H ^= H >> 13;
+		H = (H ^ uint32(Z)) * 0x27D4EB2Fu;
+		H ^= H >> 16;
+		H *= 0x85EBCA6Bu;
+		H ^= H >> 13;
+		H *= 0xC2B2AE35u;
+		H ^= H >> 16;
+		return H;
+	}
+
+	/** Perlin's 12 edge gradients (16 with repeats) dotted with the offset. */
+	float GradDot(uint32 H, float X, float Y, float Z)
+	{
+		const uint32 G = H & 15u;
+		const float U = G < 8u ? X : Y;
+		const float V = G < 4u ? Y : (G == 12u || G == 14u ? X : Z);
+		return ((G & 1u) ? -U : U) + ((G & 2u) ? -V : V);
+	}
+
+	float Fade(float T)
+	{
+		return T * T * T * (T * (T * 6.f - 15.f) + 10.f);
+	}
+
+	/** Smooth maximum (polynomial, width K): never below either input, so a floor stays a floor without a crease. */
+	float SmoothMax(float A, float B, float K)
+	{
+		const float H = FMath::Max(K - FMath::Abs(A - B), 0.f) / FMath::Max(K, 1e-4f);
+		return FMath::Max(A, B) + H * H * K * 0.25f;
+	}
+}
+
+float UDeepCaveRules::Noise3(const FVector& P, int32 Seed)
+{
+	const double Fx = FMath::FloorToDouble(P.X);
+	const double Fy = FMath::FloorToDouble(P.Y);
+	const double Fz = FMath::FloorToDouble(P.Z);
+	const int32 X0 = int32(Fx);
+	const int32 Y0 = int32(Fy);
+	const int32 Z0 = int32(Fz);
+	const float X = float(P.X - Fx);
+	const float Y = float(P.Y - Fy);
+	const float Z = float(P.Z - Fz);
+	const uint32 S = uint32(Seed);
+	const float N000 = GradDot(HashCell(X0, Y0, Z0, S), X, Y, Z);
+	const float N100 = GradDot(HashCell(X0 + 1, Y0, Z0, S), X - 1.f, Y, Z);
+	const float N010 = GradDot(HashCell(X0, Y0 + 1, Z0, S), X, Y - 1.f, Z);
+	const float N110 = GradDot(HashCell(X0 + 1, Y0 + 1, Z0, S), X - 1.f, Y - 1.f, Z);
+	const float N001 = GradDot(HashCell(X0, Y0, Z0 + 1, S), X, Y, Z - 1.f);
+	const float N101 = GradDot(HashCell(X0 + 1, Y0, Z0 + 1, S), X - 1.f, Y, Z - 1.f);
+	const float N011 = GradDot(HashCell(X0, Y0 + 1, Z0 + 1, S), X, Y - 1.f, Z - 1.f);
+	const float N111 = GradDot(HashCell(X0 + 1, Y0 + 1, Z0 + 1, S), X - 1.f, Y - 1.f, Z - 1.f);
+	const float U = Fade(X);
+	const float V = Fade(Y);
+	const float W = Fade(Z);
+	const float A = FMath::Lerp(FMath::Lerp(N000, N100, U), FMath::Lerp(N010, N110, U), V);
+	const float B = FMath::Lerp(FMath::Lerp(N001, N101, U), FMath::Lerp(N011, N111, U), V);
+	return FMath::Clamp(FMath::Lerp(A, B, W), -1.f, 1.f);
+}
+
+float UDeepCaveRules::RockFbm(const FVector& P, const FDeepCaveTuning& Cave)
+{
+	const int32 Octaves = FMath::Clamp(Cave.RockOctaves, 1, 8);
+	const float Ridge = FMath::Clamp(Cave.RockRidge, 0.f, 1.f);
+	const float Lacunarity = FMath::Clamp(Cave.RockLacunarity, 1.1f, 4.f);
+	const float Gain = FMath::Clamp(Cave.RockGain, 0.05f, 0.95f);
+	float Sum = 0.f;
+	float Norm = 0.f;
+	float Amp = 1.f;
+	FVector Q = P;
+	for (int32 O = 0; O < Octaves; ++O)
+	{
+		const float N = Noise3(Q, Cave.RockSeed + O * 1013);
+		// Ridged: 1 - |n| squared peaks in a sharp crease where n crosses 0 (a rib), flat troughs between.
+		float R = 1.f - FMath::Abs(N);
+		R *= R;
+		Sum += Amp * FMath::Lerp(N, 2.f * R - 1.f, Ridge);
+		Norm += Amp;
+		Amp *= Gain;
+		// Offset each octave so the lattices do not line up at the origin.
+		Q = Q * Lacunarity + FVector(17.13, -31.7, 9.41);
+	}
+	return Norm > 0.f ? Sum / Norm : 0.f;
+}
+
+float UDeepCaveRules::RockWeight(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave)
+{
+	if (!Cave.bRock || Segment(DepthM, StopsM) < 0)
+	{
+		return 0.f;
+	}
+	return FMath::Lerp(FMath::Clamp(Cave.MouthCalm01, 0.f, 1.f), 1.f, Envelope(DepthM, StopsM, Cave));
+}
+
+float UDeepCaveRules::WallFloorM(float MinRadiusM, const FDeepCaveTuning& Cave)
+{
+	return MinRadiusM + FMath::Max(0.f, Cave.RockFloorMarginM);
+}
+
+float UDeepCaveRules::WallRadiusM(float DepthM, float AngleRad, const TArray<float>& StopsM, float MinRadiusM, const FDeepCaveTuning& Cave)
+{
+	const float Base = RadiusM(DepthM, StopsM, MinRadiusM, Cave);
+	const float Weight = RockWeight(DepthM, StopsM, Cave);
+	if (Weight <= 0.f)
+	{
+		return Base;
+	}
+	// Sampled on the cylinder of the local radius: seamless round the wall, true metres at any width.
+	const float Scale = FMath::Max(0.5f, Cave.RockScaleM);
+	const float Cx = FMath::Cos(AngleRad) * Base;
+	const float Cy = FMath::Sin(AngleRad) * Base;
+	const FVector P(Cx / Scale, Cy / Scale, DepthM * FMath::Max(0.05f, Cave.RockStretchZ) / Scale);
+	// A crest of the ridged noise stands into the passage: a rib or a bulge; a trough is a recess.
+	const float Lumps = -FMath::Max(0.f, Cave.RockAmplitudeM) * RockFbm(P, Cave);
+
+	float Ledge = 0.f;
+	if (Cave.StrataSpacingM > 0.1f && Cave.StrataDepthM > 0.f)
+	{
+		const FVector Wide(Cx / (Scale * 2.5f), Cy / (Scale * 2.5f), DepthM / (Scale * 4.f));
+		// Warped bands: the bedding tilts and wanders a little instead of running in perfect rings.
+		const float Band = DepthM / Cave.StrataSpacingM + 0.3f * Noise3(Wide, Cave.RockSeed + 77);
+		const float S = Band - FMath::FloorToFloat(Band);
+		// A shelf lip at the top of each band (up-facing: the silt collects there), the undercut receding below it.
+		float Profile = FMath::Pow(1.f - S, 2.5f);
+		Profile = FMath::Lerp(Profile, 1.f, FMath::SmoothStep(0.86f, 1.f, S));
+		const float Present = FMath::Clamp(0.5f + 1.3f * Noise3(Wide * 1.6f, Cave.RockSeed + 99), 0.f, 1.f);
+		const float Breakup = FMath::Lerp(1.f, Present, FMath::Clamp(Cave.StrataBreakup, 0.f, 1.f));
+		// Centred round zero so the passage keeps its width on average.
+		Ledge = Cave.StrataDepthM * (0.35f - Breakup * Profile);
+	}
+	const float R = Base + Weight * (Lumps + Ledge);
+	return SmoothMax(R, WallFloorM(MinRadiusM, Cave), 1.f);
 }
 
 int32 UDeepCaveRules::Segment(float DepthM, const TArray<float>& StopsM)
@@ -100,27 +240,52 @@ FDeepCaveContact UDeepCaveRules::Contact(const FVector2D& OffsetM, float SubDept
 	FDeepCaveContact Out;
 	Out.PenetrationM = -UE_BIG_NUMBER;
 	const float Pad = FMath::Max(0.f, Cave.HullPadM);
-	const float Xs[2] = { float(BoxMinM.X) - Pad, float(BoxMaxM.X) + Pad };
-	const float Ys[2] = { float(BoxMinM.Y) - Pad, float(BoxMaxM.Y) + Pad };
-	// Box Z is up (sub-local); depth grows down.
-	const float Zs[3] = { float(BoxMinM.Z) - Pad, float(BoxMinM.Z + BoxMaxM.Z) * 0.5f, float(BoxMaxM.Z) + Pad };
-	for (const float Z : Zs)
+	const float X0 = float(BoxMinM.X) - Pad;
+	const float X1 = float(BoxMaxM.X) + Pad;
+	const float Y0 = float(BoxMinM.Y) - Pad;
+	const float Y1 = float(BoxMaxM.Y) + Pad;
+	const float Z0 = float(BoxMinM.Z) - Pad;
+	const float Z1 = float(BoxMaxM.Z) + Pad;
+	const float Step = FMath::Clamp(Cave.ContactStepM, 0.25f, 10.f);
+	const int32 Nx = FMath::Clamp(FMath::CeilToInt((X1 - X0) / Step), 1, 64);
+	const int32 Ny = FMath::Clamp(FMath::CeilToInt((Y1 - Y0) / Step), 1, 64);
+	const int32 Nz = FMath::Clamp(FMath::CeilToInt((Z1 - Z0) / Step), 2, 32);
+	// The box's outline: corners first (the worst points against a round wall), then the points along each side.
+	TArray<FVector2D, TInlineAllocator<160>> Outline;
+	Outline.Add(FVector2D(X0, Y0));
+	Outline.Add(FVector2D(X0, Y1));
+	Outline.Add(FVector2D(X1, Y0));
+	Outline.Add(FVector2D(X1, Y1));
+	for (int32 I = 1; I < Nx; ++I)
 	{
+		const float X = FMath::Lerp(X0, X1, float(I) / Nx);
+		Outline.Add(FVector2D(X, Y0));
+		Outline.Add(FVector2D(X, Y1));
+	}
+	for (int32 I = 1; I < Ny; ++I)
+	{
+		const float Y = FMath::Lerp(Y0, Y1, float(I) / Ny);
+		Outline.Add(FVector2D(X0, Y));
+		Outline.Add(FVector2D(X1, Y));
+	}
+	// Box Z is up (sub-local); depth grows down.
+	for (int32 K = 0; K <= Nz; ++K)
+	{
+		const float Z = FMath::Lerp(Z0, Z1, float(K) / Nz);
 		const float D = SubDepthM - Z;
 		const FVector2D C = CentreM(D, StopsM, Cave);
-		const float R = RadiusM(D, StopsM, MinRadiusM, Cave);
-		for (const float X : Xs)
+		const float Base = RadiusM(D, StopsM, MinRadiusM, Cave);
+		const bool bRound = RockWeight(D, StopsM, Cave) <= 0.f;
+		for (const FVector2D& Point : Outline)
 		{
-			for (const float Y : Ys)
+			const FVector2D Rel = OffsetM + Point - C;
+			const float Dist = Rel.Size();
+			const float R = bRound ? Base : WallRadiusM(D, FMath::Atan2(Rel.Y, Rel.X), StopsM, MinRadiusM, Cave);
+			const float Pen = Dist - R;
+			if (Pen > Out.PenetrationM)
 			{
-				const FVector2D Rel = OffsetM + FVector2D(X, Y) - C;
-				const float Dist = Rel.Size();
-				const float Pen = Dist - R;
-				if (Pen > Out.PenetrationM)
-				{
-					Out.PenetrationM = Pen;
-					Out.Normal = Dist > UE_KINDA_SMALL_NUMBER ? Rel / Dist : FVector2D(1.f, 0.f);
-				}
+				Out.PenetrationM = Pen;
+				Out.Normal = Dist > UE_KINDA_SMALL_NUMBER ? Rel / Dist : FVector2D(1.f, 0.f);
 			}
 		}
 	}

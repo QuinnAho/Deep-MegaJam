@@ -1619,10 +1619,10 @@ struct FDeepCaveTuning
 
 	/** The rock wall's mesh: rows this tall and this many points round. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
-	float WallRowM = 0.75f;
+	float WallRowM = 0.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
-	int32 WallSides = 72;
+	int32 WallSides = 128;
 
 	/**
 	 * The drawn wall stands this much outside the rule's radius on average, its relief (Look.TrenchLedge*) scaled by
@@ -1640,6 +1640,86 @@ struct FDeepCaveTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
 	FLinearColor WallColor = FLinearColor(0.035f, 0.036f, 0.034f);
+
+	// --- The generated rock (UDeepCaveRules::WallRadiusM): one shape for the mesh, Contact and the sonar. ---
+	// Tweak while playing: change a number here, then `Deep.Cave.Rebuild` (or leave Deep.Cave.AutoRebuild 1 on).
+
+	/** Off = the smooth round tube (RadiusM only), as before the generated cave. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	bool bRock = true;
+
+	/** The rock's own seed (its own integer hash, no engine random): same seed, same cave, on every machine. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	int32 RockSeed = 1337;
+
+	/** Layers of noise, each Lacunarity times finer and Gain times weaker. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock", meta = (ClampMin = "1", ClampMax = "8"))
+	int32 RockOctaves = 5;
+
+	/** How far (m) the rock bulges in or recedes, at most, mid-shaft. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float RockAmplitudeM = 3.2f;
+
+	/** Size (m) of the biggest lumps. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float RockScaleM = 11.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float RockLacunarity = 2.1f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float RockGain = 0.5f;
+
+	/** 0 = soft round lumps, 1 = sharp ridges (ribs that stand into the passage). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock", meta = (ClampMin = "0", ClampMax = "1"))
+	float RockRidge = 0.6f;
+
+	/** Below 1 the lumps stretch up and down into ribs and flutes (vertical scale of the noise). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float RockStretchZ = 0.55f;
+
+	/** A ledge (bedding plane) every this many metres of depth; 0 = none. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float StrataSpacingM = 4.5f;
+
+	/** How far (m) a ledge stands into the passage. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float StrataDepthM = 1.8f;
+
+	/** 0 = every ledge runs all the way round; 1 = ledges come and go round the wall. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock", meta = (ClampMin = "0", ClampMax = "1"))
+	float StrataBreakup = 0.7f;
+
+	/** The share of the relief left at a cavern mouth (where the stops' straight ends are): calmer, so the mouth reads. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock", meta = (ClampMin = "0", ClampMax = "1"))
+	float MouthCalm01 = 0.3f;
+
+	/** The rock never comes nearer the passage's centre than the sub's minimum radius plus this (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float RockFloorMarginM = 0.6f;
+
+	/** Contact samples the sub's box outline and height at least this often (m), so a rib between two corners still hits. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float ContactStepM = 1.f;
+
+	/** The rock's surface for the shaft and the caverns; falls back to WallMaterial (shaft) or the cavern's own when missing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	FSoftObjectPath RockMaterial = FSoftObjectPath(TEXT("/Game/Deep/Cave/M_CaveRock.M_CaveRock"));
+
+	/** Pack rocks half-buried in the shaft walls (look only, no collision): this many per 100 m of shaft. 0 = none. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float ScatterPer100M = 70.f;
+
+	/** Scatter rock size (m across) range. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	FVector2D ScatterSizeM = FVector2D(2.f, 6.f);
+
+	/**
+	 * How far (m) a scattered rock may stand out of the wall, measured from the wall's deepest point over the rock's
+	 * span. Keep it under HullPadM: Contact keeps the sub's box that far off the rock, so the hull never meets one.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Rock")
+	float ScatterProtrudeM = 0.45f;
 };
 
 /** One helm step: the new depth, and whether the control pushed against the limit or the top. */

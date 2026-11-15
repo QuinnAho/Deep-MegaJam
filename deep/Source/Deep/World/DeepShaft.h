@@ -11,6 +11,8 @@
 
 class UProceduralMeshComponent;
 class ADeepSubmarine;
+class UMaterialInterface;
+class UWorld;
 
 namespace DeepShaft
 {
@@ -19,6 +21,12 @@ namespace DeepShaft
 
 	/** The sub's solid box in its own frame, m. False (and the room's tuned size) when there is no sub. */
 	DEEP_API bool SubBoxM(const ADeepSubmarine* Sub, FVector& OutMinM, FVector& OutMaxM);
+
+	/** Deep.Cave.AutoRebuild (1 = rebuild the rock when the Cave tuning changes; World/DeepCaveCheats.cpp). */
+	DEEP_API bool AutoRebuild();
+
+	/** Rebuilds every shaft and cavern in the world from the current tuning (Deep.Cave.Rebuild). Milliseconds taken. */
+	DEEP_API double RebuildAll(UWorld* World, bool bSyncCook = false);
 }
 
 UCLASS()
@@ -47,6 +55,15 @@ public:
 	/** Where the drawn rock stands (m from the passage's centre) for a rule radius and the rock's relief there. */
 	static float DrawRadiusM(float RuleRadiusM, float ReliefM, float ReliefOutM, float ReliefScale);
 
+	/** Builds the rock again from the current tuning (Deep.Cave.Rebuild, Deep.Cave.AutoRebuild), then places it. */
+	void Rebuild();
+
+	/** Pack rocks scattered half-buried in the walls (look only), over every instanced mesh. */
+	int32 GetScatterCount() const;
+
+	/** A fingerprint of the tuning the build reads: when it changes, Deep.Cave.AutoRebuild rebuilds. */
+	static uint32 TuningFingerprint();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -60,6 +77,17 @@ protected:
 	TArray<TObjectPtr<UProceduralMeshComponent>> Tubes;
 
 	TArray<int32> TubeStretches;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<class UInstancedStaticMeshComponent>> Scatter;
+
+	/** Which stretch each scatter component's rocks are in (hidden with that stretch). */
+	TArray<int32> ScatterStretches;
+
+	void BuildScatter(const TArray<float>& Stops, float MinRadiusM, UMaterialInterface* Rock);
+
+	uint32 BuiltFingerprint = 0;
+	float FingerprintCheckS = 0.f;
 
 	double BuildSeconds = 0.0;
 	int32 Triangles = 0;

@@ -97,6 +97,11 @@ namespace
 	UMaterialInterface* RockMaterial(UObject* Outer)
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		// The generated cave's rock first (Cave.RockMaterial, Content/Deep/Cave/M_CaveRock), shared with the shaft.
+		if (UMaterialInterface* CaveRock = Tuning.Cave.RockMaterial.IsNull() ? nullptr : Cast<UMaterialInterface>(Tuning.Cave.RockMaterial.TryLoad()))
+		{
+			return CaveRock;
+		}
 		const FSoftObjectPath& Path = Tuning.Cavern.Material.IsNull() ? Tuning.Look.SeabedMaterial : Tuning.Cavern.Material;
 		if (UMaterialInterface* Found = Path.IsNull() ? nullptr : Cast<UMaterialInterface>(Path.TryLoad()))
 		{
@@ -485,7 +490,7 @@ void ADeepCavern::Build(bool bAsyncCook)
 	{
 		const double Start = FPlatformTime::Seconds();
 		const FDeepCaveMesh Mesh = MakeMesh(Stop, RestM, Tuning);
-		UProceduralMeshComponent* Shell = NewObject<UProceduralMeshComponent>(this, FName(*FString::Printf(TEXT("CaveShell%d"), Stop)));
+		UProceduralMeshComponent* Shell = NewObject<UProceduralMeshComponent>(this, MakeUniqueObjectName(this, UProceduralMeshComponent::StaticClass(), FName(*FString::Printf(TEXT("CaveShell%d"), Stop))));
 		Shell->SetMobility(EComponentMobility::Movable);
 		Shell->bUseAsyncCooking = bAsyncCook;
 		Shell->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
