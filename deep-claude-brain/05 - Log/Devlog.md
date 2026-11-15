@@ -128,6 +128,16 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: From here every green checkpoint is a commit, so there is always a working build to fall back to, Colby can clone, and the history becomes part of this dev log.
 - Evidence: commit `487d2da` on `main`.
 
+### 9:43 PM  The rules exist and are tested
+- What happened: The systems engineer writes every GDD rule as a pure static function in `Sim/DeepRules` (depth and zones, tether solve and winch, weight and swim, Patience, settlement, fees, hull rating, bailout air) with every number in one `UDeepTuningSettings` config class. Twelve new automation tests cover them, including edge cases: 40% of 1 credit rounds up to 1, settlement never goes below zero, a step that straddles the bailout slow window, a zero-length tether. One test checks the shipped tuning against the design itself: pearls must sit just out of reach on the stop-1 tether, one heavy piece must overload the diver, the winch must beat the sink speed. The first build and test run passed with no fixes.
+- Why it matters: The numbers will change all weekend. A change is now a config edit, and the design invariants test catches a tuning change that breaks the first 90 seconds.
+- Evidence: `.\tools\ue.ps1 verify` gives `PASS verify (51.5s)`, 13 of 13 tests passed. Report in `deep\Saved\Harness\test-20261114-214329-report\index.json`.
+
+### 9:50 PM  The Director becomes the Captain, and gets nasty
+- What happened: Quinn renamed the submarine AI from "the Director" to "the Captain": "sarcastic, kind of an asshole". The writer agent renamed DirectorLines.csv to CaptainLines.csv and rewrote all 138 lines and half of the 24 settlement fee labels. Ids, events and variant counts are unchanged.
+- Why it matters: The phrase "Director's cut" stays in the game as the Captain's excuse: the Director is the unseen boss who takes the 40 percent and orders the tether cut, and the Captain blames him while plainly enjoying it. That keeps the jam theme audible in first salvage, bank, cut and win lines.
+- Evidence: Best new lines. "Orders from the Director. Direct quote: Cut it. I am just following them. Happily." / "The pressure crushes lesser divers. Let us see which you are." / "Net is empty. Much like your skull." Commit in git log for CaptainLines.csv.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
