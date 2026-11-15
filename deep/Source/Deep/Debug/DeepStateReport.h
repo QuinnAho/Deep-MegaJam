@@ -18,7 +18,7 @@ namespace DeepStateReport
 	 * run_state (tethered/cut/dead/settling/aboard/won), inside, seated, sub_depth_m, depth_limit_m, has_flashlight, hull_upgraded, parked_stop (0 driving), near_console, near_helm, patience (0..1), patience_s, bailout_air_s, last_bank {gross,cut,fees,net,hull_bought} (after a bank),
 	 * last_event, captain_line, credits, hull_rating, stop, diver_number, on_title, won, run_s, run_totals {divers_expended,gross,cut,fees,kept,rating}, relic_in_world, relic_distance_m, carrying_relic,
 	 * hull_damage, hull_repairs_owed, harpoon {shots, phase (idle/flying/latched), latch (none/sub/terrain), last (result), latch_cm [x,y,z]},
-	 * salvage_in_world, pos_cm [x,y,z]. Positions are Unreal units (cm).
+	 * audio {loops [playing loop names], muted, last (event)}, salvage_in_world, pos_cm [x,y,z]. Positions are Unreal units (cm).
 	 */
 	DEEP_API FString BuildJson(UWorld* World);
 
