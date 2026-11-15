@@ -104,6 +104,13 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	UDeepMonsterSettings* Settings = GetMutableDefault<UDeepMonsterSettings>();
 	const FDeepSerpentBodyTuning Saved = Settings->Body;
 	ON_SCOPE_EXIT { Settings->Body = Saved; };
+	// No pack: a mesh path that does not load gives the code-built head (the shipped game without Dragon Cave).
+	Settings->Body.MeshHead.Mesh = FSoftObjectPath(TEXT("/Game/DragonCave/Meshes/SM_NotInstalled.SM_NotInstalled"));
+	ADeepSerpent* NoPack = World->SpawnActor<ADeepSerpent>(FVector(0.f, 0.f, -120000.f), FRotator::ZeroRotator);
+	UTEST_NOT_NULL(TEXT("Serpent without the pack spawned"), NoPack);
+	TestFalse(TEXT("Missing pack mesh: the code-built head"), NoPack->HasMeshHead());
+	TestEqual(TEXT("Missing pack mesh: the body is whole"), NoPack->GetTubeVertexCount(), FMath::Max(4, Body.TubeRings) * (Sides + 1));
+
 	// The cone (100 cm, base at Z -50, tip at +50) points along +Z: forward +Z, eyes level across Y.
 	FDeepSerpentMeshHead& Cone = Settings->Body.MeshHead;
 	Cone.Mesh = FSoftObjectPath(TEXT("/Engine/BasicShapes/Cone.Cone"));

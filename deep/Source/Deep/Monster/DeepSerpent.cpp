@@ -423,6 +423,14 @@ void ADeepSerpent::SetupLook()
 		MouthMID = UMaterialInstanceDynamic::Create(SkinBase, this);
 		MouthMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.SkinColor * 0.25f);
 		MouthMID->SetScalarParameterValue(TEXT("WetCoat"), 0.3f);
+		// Dorsal spikes (mesh head): horn, matte and dark, so their flat faces never flash white in the lamp.
+		SpikeMID = UMaterialInstanceDynamic::Create(SkinBase, this);
+		SpikeMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.SkinColor * 0.6f);
+		SpikeMID->SetScalarParameterValue(TEXT("ScaleDepth"), 0.f);
+		SpikeMID->SetScalarParameterValue(TEXT("WetCoat"), 0.1f);
+		SpikeMID->SetScalarParameterValue(TEXT("Roughness"), 0.7f);
+		SpikeMID->SetScalarParameterValue(TEXT("GrooveRoughness"), 0.75f);
+		SpikeMID->SetScalarParameterValue(TEXT("Specular"), 0.15f);
 	}
 	if (UMaterialInterface* MarksBase = Cast<UMaterialInterface>(Tuning.MarksMaterial.TryLoad()))
 	{
@@ -1126,8 +1134,7 @@ void ADeepSerpent::BuildTube()
 		if (SpikeV.Num() > 0)
 		{
 			Tube->CreateMeshSection_LinearColor(2, SpikeV, SpikeTri, SpikeN, SpikeUV, SpikeUV, None, None, SpikeC, SpikeT, false, false);
-			// The spikes: the darker, less glossy mouth skin, so their flat faces do not flash white in the light.
-			if (UMaterialInstanceDynamic* SpikeSkin = MouthMID ? MouthMID.Get() : SkinMID.Get())
+			if (UMaterialInstanceDynamic* SpikeSkin = SpikeMID ? SpikeMID.Get() : SkinMID.Get())
 			{
 				Tube->SetMaterial(2, SpikeSkin);
 			}

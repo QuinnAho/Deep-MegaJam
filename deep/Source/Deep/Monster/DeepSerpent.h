@@ -159,6 +159,10 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> EyeMIDs;
 
+	/** The dorsal spikes: dark matte horn. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SpikeMID;
+
 	/** The mesh head's clip and grade (M_DragonHead). */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> HeadMeshMID;
