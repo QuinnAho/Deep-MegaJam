@@ -29,6 +29,10 @@ private:
 	void DrawBailout(const ADeepDiver* Diver);
 	void DrawPrompts(const ADeepDiver* Diver);
 	void DrawCaptain();
+	/** The serpent: a red edge pulse that quickens as it closes, plus a small proximity bar. */
+	void DrawThreat(const UDeepRunComponent& Run, float RealNow);
+	/** The serpent has the tether: full-width flashing banner and a countdown. */
+	void DrawBiteAlarm(const UDeepRunComponent& Run, float RealNow);
 	void DrawDead(const UDeepRunComponent& Run);
 	void DrawSettlement(const UDeepRunComponent& Run);
 	void DrawDescending(const UDeepRunComponent& Run);

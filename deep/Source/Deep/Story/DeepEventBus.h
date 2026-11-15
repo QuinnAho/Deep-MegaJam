@@ -36,6 +36,12 @@ namespace DeepEvent
 	inline const TCHAR* HullBought = TEXT("hull_bought");
 	inline const TCHAR* DescendStop2 = TEXT("descend_stop2");
 	inline const TCHAR* DescendStop3 = TEXT("descend_stop3");
+	inline const TCHAR* MonsterFirstHeard = TEXT("monster_first_heard");
+	inline const TCHAR* MonsterNear = TEXT("monster_near");
+	inline const TCHAR* MonsterRepelled = TEXT("monster_repelled");
+	inline const TCHAR* BiteAlarm = TEXT("bite_alarm");
+	inline const TCHAR* CutBite = TEXT("cut_bite");
+	inline const TCHAR* DeathMonster = TEXT("death_monster");
 
 	/** Every event the game fires today. */
 	DEEP_API TArray<FName> AllFired();

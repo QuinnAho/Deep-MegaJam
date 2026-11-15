@@ -2,23 +2,27 @@
 
 Folders (include from the module root, e.g. `#include "Sim/DeepRules.h"`):
 - `Sim/` pure rules. `UDeepRules` = static functions (depth, zones, tether solve, winch, weight, swim, grab pick, Patience, settlement, fees, hull, bailout, salvage spots). `DeepTuningTypes.h` = USTRUCT tuning + result types. `UDeepTuningSettings` = every design number (Project Settings > Game > DEEP Tuning, `Config/DefaultGame.ini`). Defaults are in its constructor and the struct initialisers.
-- `Game/` framework. `ADeepGameMode` (builds arena, spawns divers under the airlock, `GotoStop`), `ADeepGameState` (Stop, Credits, HullRating, DiverNumber; replicated), `ADeepPlayerController` (Enhanced Input built with NewObject, forwards to the diver; `KeyHint` for HUD text), `ADeepHUD` (canvas text).
-- `Diver/` `ADeepDiver` (ACharacter in MOVE_Flying; cargo, lamp, grab/drop, winch flag; server RPCs) and `UDeepTetherComponent` (TG_PostPhysics: winch step, length clamp, line mesh).
+- `Game/` framework. `ADeepGameMode` (builds arena, spawns divers under the airlock, `GotoStop`), `ADeepGameState` (Stop, Credits, HullRating, DiverNumber; replicated), `ADeepPlayerController` (Enhanced Input built with NewObject, forwards to the diver; `KeyHint` for HUD text), `ADeepHUD` (canvas text, threat edge pulse, bite alarm band).
+- `Diver/` `ADeepDiver` (ACharacter in MOVE_Flying; cargo, lamp, grab/drop, winch flag; server RPCs), `UDeepTetherComponent` (TG_PostPhysics: winch step, length clamp, line mesh), `UDeepRunComponent` (the run state machine, below).
+- `Story/` `UDeepEventBus` (world subsystem: `Broadcast(name, payload)`; names in `DeepEvent::` = `event` column of `Content/Data/CaptainLines.csv`), `UDeepCaptain` (listens, picks a line, subtitle queue by urgency).
+- `Monster/` the sea serpent (see `Monster/README.md`). `UDeepMonsterRules` pure (noise, beam, `NextState`, threat, steering), `UDeepMonsterSettings` (DEEP Monster settings), `UDeepMonsterBrain` (world subsystem: spawns at stop >= 2, owns the events), `ADeepSerpent` (pawn, sphere body), `ADeepSerpentController` (AIController, hearing perception, one decision step).
 - `World/` `DeepArena::EnsureArena` spawns whatever the map lacks: `ADeepSubmarine` (anchor = airlock), `ADeepSalvage` ring (kinds from tuning), `ADeepAbyssFloor`, `ADeepEnvironment` (per stop; `Arena.bGreyBox` on = even key + fill light, fixed exposure, no fog). `DeepShapes` = engine basic shapes + tint.
-- `Debug/` `DeepCheats.cpp` console commands, `DeepStateReport` builds the `DEEPSTATE {json}` line.
-- `Private/Tests/` automation tests (`Deep.Sim.*` rules, `Deep.World.*` world). `DeepModule.cpp` registers the module. `Deep.h/.cpp` are Quinn's wizard class: leave alone.
+- `Debug/` `DeepCheats.cpp` console commands, `DeepStateReport` builds the `DEEPSTATE {json}` line, `DeepShot` (`-DeepShot=<png> -DeepShotDelay=<s> -DeepShotCmds="a;wait 2;b"`).
+- `Private/Tests/` automation tests (`Deep.Sim.*` rules, `Deep.World.*` world, `Deep.Story.*`). `DeepModule.cpp` registers the module. `Deep.h/.cpp` are Quinn's wizard class: leave alone.
 
 Units: names ending `M` are metres, `Cm` are Unreal units. Rules take metres for lengths and cm for world positions.
 
-How a dive flows (stop-1 slice built so far):
+How a dive flows:
 1. Play on any map (default `/Engine/Maps/Entry`). `ADeepGameMode::RestartPlayer` calls `EnsureArena`, then spawns the diver at `ADeepSubmarine::GetDiverStartTransform`.
 2. Controller input -> `ADeepDiver::SetMoveInput/SetVerticalInput/...`. Diver Tick: `SolveWeight(cargo kg)` -> `SwimVelocityMps` -> `AddMovementInput` (MaxFlySpeed covers the fastest swim, so scale = m/s).
 3. `UDeepTetherComponent` after physics: if winching `WinchStep`; then `SolveTether` with `TetherLengthM(GameState.Stop)`; clamps position and outward velocity; positions the cylinder line.
-4. Grab: `FindGrabTarget` -> `PickGrabTarget` over salvage actors -> cargo += `ADeepSalvage::ToCargo`, actor destroyed. Drop respawns it.
-5. HUD reads diver depth (`DepthM` from stop depth + anchor Z), zone, cargo, tether solve.
-6. `UDeepRunComponent` runs Patience, cut, bailout, death/respawn, bank, settlement and descent; `UDeepCaptain` shows subtitles. Not built yet: monster.
+4. Grab: `FindGrabTarget` -> `PickGrabTarget` over salvage actors -> cargo += `ADeepSalvage::ToCargo`, actor destroyed, `Run->NotifyPickup`. Drop respawns it.
+5. `UDeepRunComponent::StepRun` (server, replicated): states Tethered -> Cut -> Dead -> (respawn) Tethered, and Settling -> Descending. Patience drains (x2 while the serpent stalks or bites this diver) and cuts at zero; `CutTetherFor(event)` is the one Cut path (Patience, request, bite); bailout air, re-tether at the airlock, death fee, respawn with DiverNumber+1, bank, settlement, descent. Every transition fires a `DeepEvent` on the bus; `SetState` tells the serpent brain about every cut and restore.
+6. The serpent (stop 2+): the run component reports noise (winch, sprint, grabs) via `UDeepMonsterRules::ReportDiverNoise` into Unreal's hearing sense; the controller hears, decides and steers. Brain events, bound by each diver's run component: `OnStalkStarted` -> `monster_first_heard`/`monster_near`, `OnBiteStarted` -> 5 s HUD alarm + `bite_alarm`, `OnRepelled` -> `monster_repelled`, `OnTetherSevered` -> Cut (`cut_bite`, only if the alarm was up), `OnDiverCaught` -> Dead (`death_monster`). HUD reads `GetBiteAlarmLeft`, `GetMonsterThreat01`.
+7. HUD reads diver depth, zone, cargo, tether solve and the run component.
 
 Add a rule: declare a `static` UFUNCTION(BlueprintPure) in `UDeepRules`, numbers in a tuning struct (add a field + default), test in `Private/Tests/DeepRulesTests.cpp` with a locally built tuning struct. Design-wide checks go in `Deep.Sim.Tuning.DesignInvariants`.
+Add an event: a constant in `DeepEvent::` + `AllFired()`, rows in `CaptainLines.csv` (`Deep.Story.CaptainLines` checks), urgency in `UDeepCaptain::Urgency`, fire it from the run component with `Fire`/`FireChatter`.
 Add a cheat: another `FAutoConsoleCommandWithWorldAndArgs` in `Debug/DeepCheats.cpp`, name `Deep.<Verb>`, finish with `DeepStateReport::LogState(World)`. Add a key to `DeepStateReport::BuildJson` (and its header comment) for new state.
-Cheats: `Deep.State`, `Deep.GiveSalvage <kg> <value>`, `Deep.GotoStop <n>`, `Deep.Teleport <x> <y> <z>` (cm), `Deep.Look <pitch> [yaw]`, `Deep.SetPatience`, `Deep.ForceCut`, `Deep.Bank`, `Deep.Continue`, `Deep.ResetRun`.
+Cheats: `Deep.State`, `Deep.GiveSalvage <kg> <value>`, `Deep.GotoStop <n>`, `Deep.Teleport <x> <y> <z>` (cm), `Deep.Look <pitch> [yaw]`, `Deep.Lamp <0|1>`, `Deep.SetPatience`, `Deep.ForceCut`, `Deep.Bank`, `Deep.Continue`, `Deep.ResetRun`; serpent: `Deep.Monster.State|Spawn|Place <m> [deg]|Noise <n>|Lit <s>`.
 Gate: `.\tools\ue.ps1 verify` (editor closed). Tests must start with `Deep.`.

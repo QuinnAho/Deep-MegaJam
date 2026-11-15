@@ -20,7 +20,7 @@ namespace DeepShot
 	{
 		constexpr float QuitTimeoutSeconds = 30.f;
 
-		enum class EStep : uint8 { Waiting, Requested, Done };
+		enum class EStep : uint8 { Waiting, Running, Requested, Done };
 
 		struct FShotState
 		{
@@ -30,6 +30,9 @@ namespace DeepShot
 			float Delay = 6.f;
 			float Elapsed = 0.f;
 			float SinceRequest = 0.f;
+			/** Next command to run, and seconds left on a `wait <s>` pseudo-command. */
+			int32 NextCommand = 0;
+			float WaitLeft = 0.f;
 			EStep Step = EStep::Waiting;
 		};
 
@@ -54,11 +57,29 @@ namespace DeepShot
 			case EStep::Waiting:
 				if (Shot.Elapsed >= Shot.Delay)
 				{
-					UWorld* World = Shot.World.Get();
-					for (const FString& Command : Shot.Commands)
+					Shot.Step = EStep::Running;
+				}
+				return true;
+			case EStep::Running:
+			{
+				// Commands run in order; `wait <seconds>` lets the game play on before the next one (or the shot).
+				UWorld* World = Shot.World.Get();
+				Shot.WaitLeft -= DeltaSeconds;
+				while (Shot.WaitLeft <= 0.f && Shot.Commands.IsValidIndex(Shot.NextCommand))
+				{
+					const FString& Command = Shot.Commands[Shot.NextCommand++];
+					if (Command.StartsWith(TEXT("wait "), ESearchCase::IgnoreCase))
+					{
+						Shot.WaitLeft = FMath::Max(0.f, FCString::Atof(*Command.Mid(5)));
+						UE_LOG(LogDeepShot, Display, TEXT("DeepShot: waiting %.1f s"), Shot.WaitLeft);
+					}
+					else
 					{
 						RunCommand(World, Command);
 					}
+				}
+				if (Shot.WaitLeft <= 0.f && !Shot.Commands.IsValidIndex(Shot.NextCommand))
+				{
 					DeepStateReport::LogState(World);
 					// Commands may change the HUD; the request is served on the next rendered frame.
 					FScreenshotRequest::RequestScreenshot(Shot.Path, true, false);
@@ -66,6 +87,7 @@ namespace DeepShot
 					Shot.Step = EStep::Requested;
 				}
 				return true;
+			}
 			case EStep::Requested:
 				Shot.SinceRequest += DeltaSeconds;
 				if (IFileManager::Get().FileSize(*Shot.Path) > 0 || Shot.SinceRequest > QuitTimeoutSeconds)
