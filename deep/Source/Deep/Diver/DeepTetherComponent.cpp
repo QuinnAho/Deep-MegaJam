@@ -1,5 +1,6 @@
 #include "Diver/DeepTetherComponent.h"
 
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
@@ -91,9 +92,18 @@ void UDeepTetherComponent::UpdateTether(float DeltaSeconds)
 
 	if (bMovesDiver && Diver->IsWinching())
 	{
-		const FVector Reeled = UDeepRules::WinchStepToAirlock(Diver->GetActorLocation(), Anchor, DeltaSeconds, Tuning);
+		// The winch routes round and under the hull (in the sub's frame) toward a point below the hatch, never
+		// through it: the hull's collision box grown by the diver's capsule is the space the route stays out of.
+		const ADeepSubmarine* Sub = GetSubmarine();
+		const FTransform SubFrame = Sub->GetActorTransform();
+		const UCapsuleComponent* Capsule = Diver->GetCapsuleComponent();
+		const float Radius = Capsule ? Capsule->GetScaledCapsuleRadius() : 0.f;
+		const FBox Blocked = Sub->GetSolidBoundsLocal(false).ExpandBy(FVector(Radius, Radius, Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 0.f));
+		const FVector ReeledLocal = UDeepRules::WinchStepAroundHull(SubFrame.InverseTransformPosition(Diver->GetActorLocation()),
+			SubFrame.InverseTransformPosition(Anchor), Blocked, DeltaSeconds, Tuning);
+		const FVector Reeled = SubFrame.TransformPosition(ReeledLocal);
 		Diver->SetActorLocation(Reeled, true);
-		// The winch always wins: if the hull (or anything) blocked the sweep, the cable drags the diver through.
+		// The winch always wins: if something else blocked the sweep, the cable drags the diver through.
 		if (FVector::DistSquared(Diver->GetActorLocation(), Reeled) > 1.0)
 		{
 			Diver->SetActorLocation(Reeled, false, nullptr, ETeleportType::TeleportPhysics);
