@@ -21,6 +21,17 @@ namespace DeepAudioLoop
 	DEEP_API TArray<FName> All();
 }
 
+/** The Captain's radio (D-040): rows the subsystem plays itself, not from a bus event, and their group. */
+namespace DeepAudioRadio
+{
+	inline const TCHAR* On = TEXT("radio_on");
+	inline const TCHAR* Off = TEXT("radio_off");
+	/** Voice files and the squelch; never ducked. */
+	inline const TCHAR* Group = TEXT("voice");
+
+	DEEP_API TArray<FName> Rows();
+}
+
 /** One row of Content/Data/Sounds.csv. */
 struct DEEP_API FDeepSoundRow
 {
@@ -80,4 +91,10 @@ namespace DeepAudioRules
 
 	/** Moves Current toward Target: up at 1/FadeInS per second, down at 1/FadeOutS per second. */
 	DEEP_API float FadeToward(float Current, float Target, float DeltaS, float FadeInS, float FadeOutS);
+
+	/** How far a group drops while the Captain speaks (dB <= 0): music, ambience, voice 0, everything else = effects. */
+	DEEP_API float DuckDb(FName Group, const UDeepAudioSettings& Settings);
+
+	/** Linear gain for a group at Duck01 (0 = no duck, 1 = full duck; faded by the subsystem). */
+	DEEP_API float DuckGain(FName Group, float Duck01, const UDeepAudioSettings& Settings);
 }

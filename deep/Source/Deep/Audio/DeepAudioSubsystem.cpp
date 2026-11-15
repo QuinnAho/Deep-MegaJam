@@ -99,6 +99,7 @@ void UDeepAudioSubsystem::Deinitialize()
 	LoopComponents.Reset();
 	OneShotComponents.Reset();
 	OneShotStopAt.Reset();
+	StopVoice();
 	Super::Deinitialize();
 }
 
@@ -180,7 +181,8 @@ float UDeepAudioSubsystem::RowVolume(const FDeepSoundRow& Row) const
 		return 0.f;
 	}
 	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
-	return FMath::Clamp(Row.Volume * Settings.GroupVolume(Row.Group) * Settings.MasterVolume, 0.f, 1.f);
+	const float Duck = DeepAudioRules::DuckGain(Row.Group, Duck01, Settings);
+	return FMath::Clamp(Row.Volume * Settings.GroupVolume(Row.Group) * Settings.MasterVolume * Duck, 0.f, 1.f);
 }
 
 bool UDeepAudioSubsystem::CanPlayAudio() const
@@ -418,6 +420,7 @@ void UDeepAudioSubsystem::StepLoop(FName Loop, const FDeepLoopTarget& Target, fl
 void UDeepAudioSubsystem::StepAudio(float DeltaSeconds)
 {
 	Clock += DeltaSeconds;
+	StepRadio(DeltaSeconds);
 	const FDeepAudioMixInputs Inputs = GatherInputs(DeltaSeconds);
 	const TMap<FName, FDeepLoopTarget> Targets = DeepAudioRules::LoopTargets(Inputs, UDeepAudioSettings::Get());
 	for (const FName& Loop : DeepAudioLoop::All())
@@ -480,6 +483,8 @@ TSharedRef<FJsonObject> UDeepAudioSubsystem::BuildStateJson() const
 	}
 	Json->SetArrayField(TEXT("loops"), LoopValues);
 	Json->SetBoolField(TEXT("muted"), bMuted);
+	Json->SetBoolField(TEXT("radio"), bRadioKeyed);
+	Json->SetNumberField(TEXT("duck"), Round2(Duck01));
 	Json->SetStringField(TEXT("last"), History.IsEmpty() ? FString() : History.Last().Event.ToString());
 	return Json;
 }
@@ -493,6 +498,125 @@ void UDeepAudioSubsystem::LogRows() const
 			Row.Volume, Row.Pitch, Row.bLoop ? 1 : 0);
 	}
 	UE_LOG(LogDeepAudio, Display, TEXT("DEEPAUDIO_ROW total=%d device=%d muted=%d"), Table.GetRows().Num(), CanPlayAudio() ? 1 : 0, bMuted ? 1 : 0);
+}
+
+// ---------------------------------------------------------------- the Captain's radio
+
+USoundBase* UDeepAudioSubsystem::FindVoice(const FString& LineId)
+{
+	if (LineId.IsEmpty())
+	{
+		return nullptr;
+	}
+	if (const TObjectPtr<USoundBase>* Found = VoiceCache.Find(LineId))
+	{
+		return Found->Get();
+	}
+	FString Root = UDeepAudioSettings::Get().VoiceRoot;
+	while (Root.EndsWith(TEXT("/")))
+	{
+		Root.LeftChopInline(1);
+	}
+	const FString Package = Root / LineId;
+	const FString ObjectPath = Package + TEXT(".") + LineId;
+	USoundBase* Sound = nullptr;
+	if (FPackageName::IsValidObjectPath(ObjectPath) && FPackageName::DoesPackageExist(Package))
+	{
+		Sound = LoadObject<USoundBase>(nullptr, *ObjectPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!Sound)
+		{
+			UE_LOG(LogDeepAudio, Warning, TEXT("Voice %s exists but is not a sound"), *ObjectPath);
+		}
+	}
+	VoiceCache.Add(LineId, Sound);
+	return Sound;
+}
+
+namespace
+{
+	/** A looping or endless sound in the voice folder is a mistake; cap it like a long line. */
+	float VoiceSeconds(const USoundBase* Voice) { return Voice ? FMath::Clamp(Voice->GetDuration(), 0.f, 30.f) : 0.f; }
+}
+
+float UDeepAudioSubsystem::GetVoiceHoldSeconds(const FString& LineId)
+{
+	const USoundBase* Voice = FindVoice(LineId);
+	if (!Voice)
+	{
+		return 0.f;
+	}
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	return Settings.VoiceDelaySeconds + VoiceSeconds(Voice) + Settings.VoiceTailSeconds;
+}
+
+bool UDeepAudioSubsystem::IsVoiceSpeaking() const
+{
+	return bRadioKeyed && VoiceEndAt > VoiceStartAt && Clock >= VoiceStartAt && Clock < VoiceEndAt;
+}
+
+void UDeepAudioSubsystem::StopVoice()
+{
+	if (IsValid(VoiceComponent))
+	{
+		// A short fade, never a click.
+		VoiceComponent->FadeOut(0.05f, 0.f);
+	}
+	VoiceComponent = nullptr;
+	PendingVoice = nullptr;
+	VoiceEndAt = FMath::Min(VoiceEndAt, Clock);
+}
+
+void UDeepAudioSubsystem::KeyRadio(const FString& LineId, float HoldSeconds)
+{
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	StopVoice();
+	const bool bWasKeyed = bRadioKeyed;
+	if (!bWasKeyed)
+	{
+		PlayEvent(FName(DeepAudioRadio::On), true);
+		bRadioKeyed = true;
+	}
+	USoundBase* Voice = FindVoice(LineId);
+	VoiceStartAt = Clock + (bWasKeyed ? 0.0 : double(Settings.VoiceDelaySeconds));
+	VoiceEndAt = VoiceStartAt + VoiceSeconds(Voice);
+	PendingVoice = Voice;
+	RadioCloseAt = FMath::Max(Clock + FMath::Max(HoldSeconds, 0.f), Voice ? VoiceEndAt + Settings.VoiceTailSeconds : 0.0);
+	UE_LOG(LogDeepAudio, Display, TEXT("DEEPAUDIO {\"action\":\"radio\",\"line\":\"%s\",\"voice\":%s,\"hold\":%.2f}"),
+		*LineId, Voice ? TEXT("true") : TEXT("false"), RadioCloseAt - Clock);
+}
+
+void UDeepAudioSubsystem::StepRadio(float DeltaSeconds)
+{
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	if (bRadioKeyed)
+	{
+		if (PendingVoice && Clock >= VoiceStartAt)
+		{
+			USoundBase* Voice = PendingVoice;
+			PendingVoice = nullptr;
+			if (CanPlayAudio())
+			{
+				const float Volume = bMuted ? 0.f : FMath::Clamp(Settings.VoiceVolume * Settings.MasterVolume, 0.f, 1.f);
+				VoiceComponent = UGameplayStatics::CreateSound2D(this, Voice, Volume, 1.f, 0.f, nullptr, false, true);
+				if (VoiceComponent)
+				{
+					// The radio band (style guide 9). The crush has to be in the file.
+					VoiceComponent->SetHighPassFilterEnabled(Settings.RadioHighPassHz > 0.f);
+					VoiceComponent->SetHighPassFilterFrequency(Settings.RadioHighPassHz);
+					VoiceComponent->SetLowPassFilterEnabled(Settings.RadioLowPassHz > 0.f);
+					VoiceComponent->SetLowPassFilterFrequency(Settings.RadioLowPassHz);
+					VoiceComponent->Play();
+				}
+			}
+		}
+		if (Clock >= RadioCloseAt)
+		{
+			StopVoice();
+			bRadioKeyed = false;
+			PlayEvent(FName(DeepAudioRadio::Off), true);
+		}
+	}
+	Duck01 = DeepAudioRules::FadeToward(Duck01, IsVoiceSpeaking() ? 1.f : 0.f, DeltaSeconds, Settings.DuckAttackSeconds, Settings.DuckReleaseSeconds);
 }
 
 // ---------------------------------------------------------------- console commands

@@ -647,6 +647,18 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Coming aboard: you keep the pitch you swam up with, so the first frame aboard is the ceiling (`...-05c-aboard.png`); levelled, the room reads (`...-05d-aboard-level.png`). The fix belongs in the run component or the diver, outside this lane.
 - Capture mistakes, for the next lane: the hatch drop leaves the diver 60 cm under the hatch, so frames "at the stop" must move the diver; `Deep.Monster.FirstSight` aims by the lamp, which lags the view, so wait a second after `Deep.Look`; `Deep.Grab` from `Deep.Hover` missed twice: the grab picks by angle and range from the eye, and the hover stopped at the bed.
 
+### 12:30 PM  The Captain learns to shut up (polish/captain, D-040)
+- What happened: Quinn said the Captain "doesn't really bring anything". He now talks less, and only when it matters. In the water he never chats. A notable line waits 30 s after the last one he said. When the serpent closes within 25 m, or a bite alarm sounds, only life-or-death lines get through. A new `tone` column (calm, tense, scared) lets the writer give each danger tier its own lines. Aboard and at settlement he still jokes as before. Driving the sub counts as the water, otherwise every wall hit would get a line. `Deep.Captain.Radio 0` brings back the old Captain exactly.
+- Why it matters: Silence makes a voice worth hearing. The design is a pure rule (`Story/DeepCaptainPacing`) with every number in tuning, so the writer and Quinn can retune him without code.
+- Interpretation flagged: "the serpent hunts" is read as Stalk, Hunt or Bite on this diver, because Hunt alone only happens after a cut. On a client, which cannot see the brain's state, a serpent within 25 m counts.
+- Evidence: commit `c4bcb1a`; Deep.Story 4 of 4 passed (Deep.Story.CaptainPacing and Deep.Story.CaptainRadio are new).
+
+### 12:50 PM  The Captain is on the radio (polish/captain)
+- What happened: Every Captain line now keys a radio. It opens with a click, a burst of squelch and a short hiss, and closes with a squelch and the key's click. Both are synthesized, like every other sound so far: band-passed noise from 450 to 3,200 Hz, sample-held to 8 kHz and crushed to 6 bits. If a voice file named after the line id exists under `/Game/DeepAudio/Captain/`, it plays through the same band on a new `voice` group. The subtitle then stays up for as long as he speaks. While he speaks, music drops 9 dB, ambience 6 dB and effects 3 dB, with a 50 ms attack and a 500 ms release.
+- Found: the radio band can be set at runtime on the audio component (high-pass and low-pass), but the crush cannot be added without a source-effect asset. Voice files have to arrive already crushed.
+- Also: the revised Captain script (74 lines, no numbers in voiced lines) replaces the 185-line CaptainLines.csv. Every event the game fires still has a line.
+- Evidence: build green; Deep.Story, Deep.Sim.Audio and Deep.World.Audio 10 of 10 passed. Deep.Sim.Audio.Duck is new, and Deep.Story.CaptainRadio now also checks the squelch count and the duck release.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

@@ -76,6 +76,27 @@ public:
 	/** Logs one `DEEPAUDIO_ROW` line per row: event, source (asset/generated/none), builtin, asset. */
 	void LogRows() const;
 
+	// ---------------------------------------------------------------- the Captain's radio (D-040)
+
+	/** The voice file for a CaptainLines.csv id (`<VoiceRoot>/<id>`), loaded once; null when there is none. */
+	USoundBase* FindVoice(const FString& LineId);
+
+	/** How long the radio must stay keyed for this line's voice (delay + voice + tail); 0 without a voice file. */
+	float GetVoiceHoldSeconds(const FString& LineId);
+
+	/**
+	 * The Captain keys the radio for a line: squelch and hiss (`radio_on`) unless already keyed, the voice file if there
+	 * is one (on the `voice` group, radio band filtered, ducking the rest), then `radio_off` after HoldSeconds.
+	 * A new line while keyed cuts the old voice.
+	 */
+	void KeyRadio(const FString& LineId, float HoldSeconds);
+
+	bool IsRadioKeyed() const { return bRadioKeyed; }
+	/** True from the voice's start to its end (also with no audio device, from the file's length). */
+	bool IsVoiceSpeaking() const;
+	/** 0..1, the duck envelope now. */
+	float GetDuck01() const { return Duck01; }
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -120,4 +141,23 @@ private:
 	float LastSubDepthM = -1.f;
 	float HelmHoldS = 0.f;
 	FDelegateHandle EventHandle;
+
+	void StepRadio(float DeltaSeconds);
+	void StopVoice();
+
+	/** Voice files by line id; a null value = looked for and absent. */
+	UPROPERTY(Transient)
+	TMap<FString, TObjectPtr<USoundBase>> VoiceCache;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> PendingVoice;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> VoiceComponent;
+
+	bool bRadioKeyed = false;
+	double RadioCloseAt = 0.0;
+	double VoiceStartAt = 0.0;
+	double VoiceEndAt = 0.0;
+	float Duck01 = 0.f;
 };

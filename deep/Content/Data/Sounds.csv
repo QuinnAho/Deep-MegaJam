@@ -49,3 +49,5 @@
 "loop_winch","sfx","","winch",0.4,1.0,1,"While the winch runs"
 "loop_serpent","creature","","serpent",0.6,1.0,1,"Follows the serpent threat"
 "loop_helm","ambience","","hum",0.45,1.0,1,"While the helm moves the sub"
+"radio_on","voice","","squelch_on",0.5,1.0,0,"The Captain keys the radio: squelch and a short hiss (D-040)"
+"radio_off","voice","","squelch_off",0.45,1.0,0,"He lets go of the key"

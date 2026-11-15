@@ -114,4 +114,32 @@ namespace DeepAudioRules
 		}
 		return FMath::Max(Target, Current - DeltaS / FMath::Max(FadeOutS, 1e-3f));
 	}
+
+	float DuckDb(FName Group, const UDeepAudioSettings& Settings)
+	{
+		if (Group == FName(TEXT("music")))
+		{
+			return Settings.DuckMusicDb;
+		}
+		if (Group == FName(TEXT("ambience")))
+		{
+			return Settings.DuckAmbienceDb;
+		}
+		if (Group == FName(DeepAudioRadio::Group))
+		{
+			return 0.f;
+		}
+		return Settings.DuckEffectsDb;
+	}
+
+	float DuckGain(FName Group, float Duck01, const UDeepAudioSettings& Settings)
+	{
+		const float Db = FMath::Min(0.f, DuckDb(Group, Settings)) * FMath::Clamp(Duck01, 0.f, 1.f);
+		return FMath::Pow(10.f, Db / 20.f);
+	}
+}
+
+TArray<FName> DeepAudioRadio::Rows()
+{
+	return { On, Off };
 }

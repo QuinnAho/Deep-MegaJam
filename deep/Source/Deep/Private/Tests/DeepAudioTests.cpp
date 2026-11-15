@@ -141,7 +141,8 @@ bool FDeepAudioTableTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: asset under /Game/Audio/ or empty"), *N), Row.Asset.IsEmpty() || Row.Asset.StartsWith(TEXT("/Game/Audio/")));
 		TestTrue(FString::Printf(TEXT("%s: volume 0..1"), *N), Row.Volume >= 0.f && Row.Volume <= 1.f);
 		TestTrue(FString::Printf(TEXT("%s: known group"), *N), UDeepAudioSettings::Get().GroupVolume(Row.Group) >= 0.f
-			&& (Row.Group == TEXT("sfx") || Row.Group == TEXT("ui") || Row.Group == TEXT("ambience") || Row.Group == TEXT("creature")));
+			&& (Row.Group == TEXT("sfx") || Row.Group == TEXT("ui") || Row.Group == TEXT("ambience") || Row.Group == TEXT("creature")
+				|| Row.Group == DeepAudioRadio::Group));
 		TestEqual(FString::Printf(TEXT("%s: a loop row uses a loop built-in"), *N), Row.bLoop, DeepSynth::IsLoopBuiltin(Row.Builtin));
 	}
 	for (const FName& Loop : DeepAudioLoop::All())
@@ -165,11 +166,18 @@ bool FDeepAudioCoverageTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: has a one-shot row or is deliberately silent"), *Event.ToString()),
 			(Row && !Row->bLoop) || Silent.Contains(Event));
 	}
-	// Every row belongs to something that exists: a fired event or a loop state (catches typos in the CSV).
+	// Every row belongs to something that exists: a fired event, a loop state or the radio (catches typos in the CSV).
 	const TArray<FName> Loops = DeepAudioLoop::All();
+	const TArray<FName> Radio = DeepAudioRadio::Rows();
 	for (const FDeepSoundRow& Row : Shipped.GetRows())
 	{
-		TestTrue(FString::Printf(TEXT("%s: is a game event or a loop state"), *Row.Event.ToString()), Events.Contains(Row.Event) || Loops.Contains(Row.Event));
+		TestTrue(FString::Printf(TEXT("%s: is a game event, a loop state or the radio"), *Row.Event.ToString()),
+			Events.Contains(Row.Event) || Loops.Contains(Row.Event) || Radio.Contains(Row.Event));
+	}
+	for (const FName& Row : Radio)
+	{
+		const FDeepSoundRow* Found = Shipped.Find(Row);
+		TestTrue(FString::Printf(TEXT("%s: a one-shot row with a built-in fallback"), *Row.ToString()), Found && !Found->bLoop && DeepSynth::IsBuiltin(Found->Builtin));
 	}
 	return true;
 }
@@ -239,6 +247,29 @@ bool FDeepAudioMixTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Fade out step"), DeepAudioRules::FadeToward(1.f, 0.f, 0.1f, 0.8f, 1.2f), 1.f - 0.1f / 1.2f, 1e-4f);
 	TestEqual(TEXT("Fade in step"), DeepAudioRules::FadeToward(0.f, 1.f, 0.1f, 0.8f, 1.2f), 0.1f / 0.8f, 1e-4f);
 	TestEqual(TEXT("Fade stops at the target"), DeepAudioRules::FadeToward(0.95f, 1.f, 1.f, 0.8f, 1.2f), 1.f, 1e-4f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepAudioDuckTest, "Deep.Sim.Audio.Duck", DEEP_AUDIO_TEST_FLAGS)
+bool FDeepAudioDuckTest::RunTest(const FString& Parameters)
+{
+	UDeepAudioSettings* Settings = NewObject<UDeepAudioSettings>();
+	Settings->DuckMusicDb = -9.f;
+	Settings->DuckAmbienceDb = -6.f;
+	Settings->DuckEffectsDb = -3.f;
+	auto Gain = [Settings](const TCHAR* Group, float Duck01) { return DeepAudioRules::DuckGain(FName(Group), Duck01, *Settings); };
+	TestEqual(TEXT("No duck: unity"), Gain(TEXT("music"), 0.f), 1.f, 1e-4f);
+	TestEqual(TEXT("Music -9 dB"), Gain(TEXT("music"), 1.f), FMath::Pow(10.f, -9.f / 20.f), 1e-4f);
+	TestEqual(TEXT("Ambience -6 dB"), Gain(TEXT("ambience"), 1.f), FMath::Pow(10.f, -6.f / 20.f), 1e-4f);
+	TestEqual(TEXT("Effects (sfx) -3 dB"), Gain(TEXT("sfx"), 1.f), FMath::Pow(10.f, -3.f / 20.f), 1e-4f);
+	TestEqual(TEXT("Effects (creature) -3 dB"), Gain(TEXT("creature"), 1.f), FMath::Pow(10.f, -3.f / 20.f), 1e-4f);
+	TestEqual(TEXT("The voice is never ducked"), Gain(DeepAudioRadio::Group, 1.f), 1.f, 1e-4f);
+	TestTrue(TEXT("Half way is between"), Gain(TEXT("music"), 0.5f) < 1.f && Gain(TEXT("music"), 0.5f) > Gain(TEXT("music"), 1.f));
+	Settings->DuckMusicDb = 3.f;
+	TestEqual(TEXT("A positive setting never boosts"), Gain(TEXT("music"), 1.f), 1.f, 1e-4f);
+	// Attack 50 ms, release 500 ms through FadeToward.
+	TestEqual(TEXT("Attack: full in 50 ms"), DeepAudioRules::FadeToward(0.f, 1.f, 0.05f, 0.05f, 0.5f), 1.f, 1e-4f);
+	TestEqual(TEXT("Release: half in 250 ms"), DeepAudioRules::FadeToward(1.f, 0.f, 0.25f, 0.05f, 0.5f), 0.5f, 1e-4f);
 	return true;
 }
 

@@ -1,5 +1,6 @@
 #include "Story/DeepCaptain.h"
 
+#include "Audio/DeepAudioSubsystem.h"
 #include "Debug/DeepStateReport.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
@@ -70,7 +71,7 @@ int32 UDeepCaptain::Urgency(FName Event)
 		{ DeepEvent::HelmDepthLimit, 2 }, { DeepEvent::HelmArrive, 2 }, { DeepEvent::EnterSub, 1 }, { DeepEvent::HelmTake, 1 },
 		{ DeepEvent::HelmDescend, 1 }, { DeepEvent::IdleInside, 0 },
 		// Other lanes' events (rows arrive with them): the sonar's contact, the shaft's hull.
-		{ TEXT("sonar_contact"), 1 }, { TEXT("hull_hit"), 1 }, { TEXT("hull_critical"), 2 }, { TEXT("hull_breach"), 3 },
+		{ TEXT("sonar_contact"), 2 }, { TEXT("hull_hit"), 1 }, { TEXT("hull_critical"), 2 }, { TEXT("hull_breach"), 3 },
 	};
 	const int32* Found = Table.Find(Event);
 	return Found ? *Found : 0;
@@ -113,6 +114,11 @@ EDeepCaptainScene UDeepCaptain::GatherScene() const
 	if (RunState == EDeepRunState::Settling || RunState == EDeepRunState::Won)
 	{
 		return EDeepCaptainScene::Settlement;
+	}
+	// Driving the sub (seated, not parked) paces like the water, or every wall hit would get a line. Danger stays calm.
+	if (Run->IsSeated() && State && !State->bParked)
+	{
+		return EDeepCaptainScene::Water;
 	}
 	return Run->IsInside() ? EDeepCaptainScene::Aboard : EDeepCaptainScene::Water;
 }
@@ -185,7 +191,17 @@ void UDeepCaptain::HandleEventIn(FName Event, const FDeepEventPayload& Payload, 
 	{
 		Words += Char == TEXT(' ') ? 1 : 0;
 	}
-	const float Duration = FMath::Clamp(Tuning.LineMinSeconds + Words * Tuning.SecondsPerWord, Tuning.LineMinSeconds, FMath::Max(Tuning.LineMinSeconds, Tuning.LineMaxSeconds));
+	float Duration = FMath::Clamp(Tuning.LineMinSeconds + Words * Tuning.SecondsPerWord, Tuning.LineMinSeconds, FMath::Max(Tuning.LineMinSeconds, Tuning.LineMaxSeconds));
+	if (bRadio)
+	{
+		// On the radio: a voice file keeps the subtitle up for as long as he speaks, never shorter than the text.
+		Shown.LineId = Line.Id;
+		Shown.bRadio = true;
+		if (UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(this))
+		{
+			Duration = FMath::Max(Duration, Audio->GetVoiceHoldSeconds(Line.Id));
+		}
+	}
 	Shown.End = NowSeconds + Duration;
 	LastText = Shown.Text;
 
@@ -207,6 +223,14 @@ void UDeepCaptain::Show(const FShown& Line, double NowSeconds)
 	Current.Start = NowSeconds;
 	Current.End = NowSeconds + Duration;
 	LastShownAt = NowSeconds;
+	// The radio opens with a squelch, plays the voice file if there is one and closes when the line ends.
+	if (Line.bRadio)
+	{
+		if (UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(this))
+		{
+			Audio->KeyRadio(Line.LineId, static_cast<float>(Duration));
+		}
+	}
 }
 
 FString UDeepCaptain::GetLineAt(double NowSeconds)

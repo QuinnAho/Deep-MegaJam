@@ -1,6 +1,8 @@
 ﻿// The Captain on the radio (D-040): pacing in the water, tone by danger, the tone column, and the radio switch.
 
 #include "CoreMinimal.h"
+#include "Audio/DeepAudioRules.h"
+#include "Audio/DeepAudioSubsystem.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -221,6 +223,35 @@ bool FDeepCaptainRadioTest::RunTest(const FString& Parameters)
 		Captain->HandleEventIn(TEXT("salvage_small"), Payload, 1.0, S::Water, D::Scared);
 		TestEqual(TEXT("Radio off: chatter in the water shows, as before"), Strip(Captain->GetLineAt(1.1)), FString(TEXT("Small.")));
 		TestEqual(TEXT("Radio off: nothing held back"), Captain->GetHeldBackCount(), 0);
+		if (UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(Scoped.World))
+		{
+			TestEqual(TEXT("Radio off: no squelch"), Audio->CountOf(FName(DeepAudioRadio::On)), 0);
+			TestFalse(TEXT("Radio off: not keyed"), Audio->IsRadioKeyed());
+		}
+	}
+	{
+		// Each shown line keys the radio: squelch on, (no voice file here: text only, no duck), squelch off at its end.
+		DeepCaptainTest::FRadio Radio(1);
+		DeepCaptainTest::FWorld Scoped;
+		UDeepCaptain* Captain = UDeepCaptain::Get(Scoped.World);
+		UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(Scoped.World);
+		UTEST_TRUE(TEXT("Captain and audio"), Captain && Audio);
+		Captain->GetLines().LoadFromString(DeepCaptainTest::Csv);
+		TestEqual(TEXT("No voice file: no voice hold"), Audio->GetVoiceHoldSeconds(TEXT("o_01")), 0.f);
+		TestNull(TEXT("No voice file found"), Audio->FindVoice(TEXT("o_01")));
+		Captain->HandleEventIn(TEXT("overweight"), Payload, 1.0, S::Aboard, D::Calm);
+		TestEqual(TEXT("The line shows"), Strip(Captain->GetLineAt(1.1)), FString(TEXT("Heavy.")));
+		TestTrue(TEXT("Radio keyed"), Audio->IsRadioKeyed());
+		TestEqual(TEXT("Squelch on once"), Audio->CountOf(FName(DeepAudioRadio::On)), 1);
+		Captain->HandleEventIn(TEXT("cut_patience"), Payload, 1.5, S::Aboard, D::Calm);
+		TestEqual(TEXT("A more urgent line while keyed: no second squelch"), Audio->CountOf(FName(DeepAudioRadio::On)), 1);
+		for (int32 I = 0; I < 40; ++I)
+		{
+			Audio->StepAudio(0.5f);
+		}
+		TestFalse(TEXT("Radio closed after the line"), Audio->IsRadioKeyed());
+		TestEqual(TEXT("Squelch off once"), Audio->CountOf(FName(DeepAudioRadio::Off)), 1);
+		TestEqual(TEXT("Text only: no duck"), Audio->GetDuck01(), 0.f);
 	}
 	return true;
 }

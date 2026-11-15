@@ -17,7 +17,7 @@ public:
 
 	static const UDeepAudioSettings& Get() { return *GetDefault<UDeepAudioSettings>(); }
 
-	/** Volume of the `group` column of Sounds.csv (sfx, ui, ambience, creature); 1 for an unknown group. */
+	/** Volume of the `group` column of Sounds.csv (sfx, ui, ambience, creature, voice); 1 for an unknown group. */
 	float GroupVolume(FName Group) const;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Levels", meta = (ClampMin = "0", ClampMax = "1"))
@@ -80,4 +80,45 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "One-shots")
 	int32 MaxOneShots = 16;
+
+	// ---------------------------------------------------------------- the Captain's radio (D-040, Deep.Captain.Radio)
+
+	/** Voice files: a SoundWave named after the CaptainLines.csv id in this folder plays with the line. */
+	UPROPERTY(Config, EditAnywhere, Category = "Radio")
+	FString VoiceRoot = TEXT("/Game/DeepAudio/Captain");
+
+	/** The `voice` group: the Captain's voice files and the radio squelch. */
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMin = "0", ClampMax = "1"))
+	float VoiceVolume = 1.f;
+
+	/** The voice starts this long after the opening squelch. */
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMin = "0"))
+	float VoiceDelaySeconds = 0.15f;
+
+	/** The radio stays keyed this long after the voice ends, then closes with the squelch. */
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMin = "0"))
+	float VoiceTailSeconds = 0.3f;
+
+	/** The radio band on voice files (style guide 9). The crush cannot be added at runtime: voice files arrive crushed. */
+	UPROPERTY(Config, EditAnywhere, Category = "Radio")
+	float RadioHighPassHz = 450.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Radio")
+	float RadioLowPassHz = 3200.f;
+
+	/** How far each group drops while the Captain's voice plays (dB, 0 = no duck). Effects = sfx, ui and creature. */
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMax = "0"))
+	float DuckMusicDb = -9.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMax = "0"))
+	float DuckAmbienceDb = -6.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMax = "0"))
+	float DuckEffectsDb = -3.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMin = "0.01"))
+	float DuckAttackSeconds = 0.05f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMin = "0.01"))
+	float DuckReleaseSeconds = 0.5f;
 };

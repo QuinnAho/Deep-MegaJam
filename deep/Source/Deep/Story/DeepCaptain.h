@@ -2,7 +2,9 @@
 // line at a time for the HUD. A more urgent event replaces the line on screen; a less urgent one waits in a single
 // pending slot and shows next if it is still fresh. Presentation only: it changes no game state.
 // With Deep.Captain.Radio 1 (D-040) he is a voice on the sub's radio: DeepCaptainPacing holds back lines in the
-// water and picks the tone (calm, tense, scared) from the danger.
+// water and picks the tone (calm, tense, scared) from the danger; each shown line keys the radio in
+// UDeepAudioSubsystem (squelch, the voice file `<VoiceRoot>/<id>` if there is one, ducking) and a voice file holds
+// the subtitle up for its length.
 
 #pragma once
 
@@ -66,6 +68,9 @@ private:
 		int32 Urgency = -1;
 		double Start = 0.0;
 		double End = -1.0;
+		/** CaptainLines.csv id (the voice file's name) and whether the radio keys for it (Deep.Captain.Radio). */
+		FString LineId;
+		bool bRadio = false;
 		bool IsValid() const { return !Text.IsEmpty(); }
 	};
 

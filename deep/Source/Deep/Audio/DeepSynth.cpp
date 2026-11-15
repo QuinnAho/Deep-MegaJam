@@ -199,6 +199,61 @@ namespace
 		return X;
 	}
 
+	/** The radio chain on noise: band 450..3200 Hz (style guide 9) and a light crush (hold at 8 kHz, 6 bits). */
+	struct FRadioBand
+	{
+		FLowPass Low{ 450.f };
+		FLowPass High{ 3200.f };
+		float Held = 0.f;
+		int32 Hold = 0;
+
+		float Step(float X)
+		{
+			const float Band = High.Step(X) - Low.Step(X);
+			if (Hold-- <= 0)
+			{
+				Hold = SampleRate / 8000 - 1;
+				Held = FMath::RoundToFloat(Band * 32.f) / 32.f;
+			}
+			return Held;
+		}
+	};
+
+	/** The Captain keys his mic: a click, a burst of squelch, a short hiss. */
+	TArray<float> SquelchOn()
+	{
+		TArray<float> X = Make(0.45f);
+		FRandomStream Rng(71);
+		FRadioBand Band;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Band.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Burst = T < 0.09f ? 1.f - Ramp(T, 0.06f, 0.03f) : 0.f;
+			const float Hiss = 0.22f * (1.f - Ramp(T, 0.12f, 0.33f));
+			const float Click = Decay(T, 0.006f, 0.0005f) * FMath::Sin(TwoPi * 1400.f * T);
+			X[I] = 2.5f * (Burst + Hiss) * Noise + 0.6f * Click;
+		}
+		return X;
+	}
+
+	/** He lets go: a short burst and the click of the key. */
+	TArray<float> SquelchOff()
+	{
+		TArray<float> X = Make(0.22f);
+		FRandomStream Rng(73);
+		FRadioBand Band;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Band.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Burst = Ramp(T, 0.f, 0.01f) * (1.f - Ramp(T, 0.07f, 0.05f));
+			const float Click = Decay(T - 0.12f, 0.005f, 0.0005f) * FMath::Sin(TwoPi * 1100.f * (T - 0.12f));
+			X[I] = 2.5f * Burst * Noise + 0.5f * Click;
+		}
+		return X;
+	}
+
 	// ---------------------------------------------------------------- loops (raw = loop + crossfade)
 
 	TArray<float> MakeLoop(float LoopS) { return Make(LoopS + LoopCrossfadeS); }
@@ -350,6 +405,8 @@ namespace
 			{ TEXT("click"), false, 0.06f, &Click },
 			{ TEXT("harpoon"), false, 0.6f, &Harpoon },
 			{ TEXT("chime"), false, 1.4f, &Chime },
+			{ TEXT("squelch_on"), false, 0.45f, &SquelchOn },
+			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
 			{ TEXT("drone_out"), true, 8.f, &DroneOut },
 			{ TEXT("drone_in"), true, 6.f, &DroneIn },
 			{ TEXT("breath"), true, 8.f, [] { return Breath(4.f, 8.f, 61); } },
