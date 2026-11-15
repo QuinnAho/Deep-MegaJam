@@ -5,23 +5,24 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 8:15 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` at `4f860e9`: everything built since. Water, the room, hull and salvage, the driving view, the serpent's three passes, the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), and the ending fix. Full suite 66 of 66 (gate run at `20c77c5`; the commits after it are notes and an empty list). It is checked out in `.wt\monster`, the orchestrator's merge checkout.
+- `polish/integration` at `71eaaa8`: everything built since. Water, the room, hull and salvage, the driving view, the serpent's three passes, the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, and the first pass of rock and ruin (the placement loader, the cook hook, floor rock at every stop). Full suite 71 of 71 (gate run at `71eaaa8`, 8:08 AM). It is checked out in `.wt\monster`, the orchestrator's merge checkout.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Running now (started 6:57 AM, both Opus at high)**
+**Running now (both Opus at high)**
 
 Their reports go to the session that started them, so a new session checks the branches.
 
-- `polish/dragon` in `.wt\pkg`: the serpent's head from the Dragon Cave dragon (D-034). The join between head and body is the test. Frames `devlog/media/2026-11-15-dragon-*.png`.
-- `polish/dressing` in `.wt\dev`: the placement loader (plan section 7), the cook hook, then rock and ruin from Dragon Cave at the 500 m site, on the sea floors and on the trench wall. Frames `devlog/media/2026-11-15-dressing-*.png`.
-- When one reports: look at its frames yourself, write the verdicts, run the gate, merge into `polish/integration`, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review, not into the branch.
+- `polish/dragon` in `.wt\pkg`, since 6:57 AM: the serpent's head from the Dragon Cave dragon (D-034). The join between head and body is the test. Frames `devlog/media/2026-11-15-dragon-*.png`.
+- `polish/dressing` in `.wt\dev`, second pass since 8:09 AM (the same engineer, resumed with a written review; time box 9:45 AM): the 500 m well as one composition (D-037). The relic as a real object from the pack, its light held by the shaft so that it glows out of the mouth, upright stone that takes the lamp, a lined shaft, a bottom that does not burn out. Then the trench wall: rock sunk into the face, or cut. Frames `devlog/media/2026-11-15-well-*.png`.
+- The first pass is merged. What works: the loader, the cook hook, floor rock at 100 m and 300 m. What does not: every frame of the 500 m site, and the rock on the trench wall.
+- When one reports: look at its frames yourself, write the verdicts, run the gate, merge into `polish/integration`, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
 - Free checkout: `.wt\text`. The writer's draft of the itch.io page is in `devlog/itch-page.md` and the status of every submission requirement is in `01 - Jam/Submission Checklist.md` (both in `main`). **Not yet met, by risk:** no 30 to 60 s gameplay video; no itch.io page; nobody has played by hand; no run on a second machine; the Official Rules PDF is unread; team name and Epic account emails; no public dev log link (Glass Box needs one). After the checkpoint package, have an agent record a scripted run as a fallback video.
 
 **The Dragon Cave pack (D-036)**
