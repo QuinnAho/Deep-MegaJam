@@ -395,6 +395,7 @@ void UDeepAudioSubsystem::StepLoop(FName Loop, const FDeepLoopTarget& Target, fl
 	if (!bWasOn)
 	{
 		LogSound(Loop, *Row, Source, RowVolume(*Row), Pitch, TEXT("start"));
+		Voice.OnSince = GetWorld() ? GetWorld()->GetAudioTimeSeconds() : 0.0;
 	}
 	if (!Comp)
 	{
@@ -468,6 +469,16 @@ float UDeepAudioSubsystem::GetLoopVolume(FName Loop) const
 {
 	const FLoopVoice* Voice = Loops.Find(Loop);
 	return Voice ? Voice->Volume : 0.f;
+}
+
+float UDeepAudioSubsystem::GetLoopPlaySeconds(FName Loop) const
+{
+	const FLoopVoice* Voice = Loops.Find(Loop);
+	if (!Voice || !Voice->bOn || !GetWorld())
+	{
+		return -1.f;
+	}
+	return static_cast<float>(FMath::Max(0.0, GetWorld()->GetAudioTimeSeconds() - Voice->OnSince));
 }
 
 TSharedRef<FJsonObject> UDeepAudioSubsystem::BuildStateJson() const

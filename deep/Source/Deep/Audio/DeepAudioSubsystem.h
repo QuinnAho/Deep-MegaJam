@@ -69,6 +69,9 @@ public:
 	/** Loops audible now (faded above silence), in DeepAudioLoop::All() order. */
 	TArray<FName> GetPlayingLoops() const;
 	float GetLoopVolume(FName Loop) const;
+	/** Seconds since this loop last became audible (its sound starts from the top then), or -1 when silent.
+	 *  The breath bubbles (FX/) time each breath out from this, so they match what the player hears. */
+	float GetLoopPlaySeconds(FName Loop) const;
 
 	/** `{loops:[...], muted, last}` for DEEPSTATE. */
 	TSharedRef<FJsonObject> BuildStateJson() const;
@@ -102,6 +105,8 @@ private:
 	{
 		float Volume = 0.f;
 		bool bOn = false;
+		/** World audio time when it last became audible. */
+		double OnSince = 0.0;
 	};
 	TMap<FName, FLoopVoice> Loops;
 

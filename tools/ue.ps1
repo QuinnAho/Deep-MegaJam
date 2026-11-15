@@ -536,7 +536,7 @@ function Invoke-Editor {
         return 0
     }
     if (Test-PortListening $McpPortEditor) { Write-Host ('  WARN: port {0} is already listening; MCP may fail to bind' -f $McpPortEditor) }
-    $argLine = '"{0}" -ModelContextProtocolStartServer -ModelContextProtocolPort={1}' -f $UProject, $McpPortEditor
+    $argLine = '"{0}" -ModelContextProtocolStartServer -ModelContextProtocolPort={1} -LiveCoding=0' -f $UProject, $McpPortEditor
     try {
         $p = Start-Process -FilePath $EditorExe -ArgumentList $argLine -PassThru -ErrorAction Stop
     } catch {

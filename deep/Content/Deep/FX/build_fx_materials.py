@@ -25,14 +25,17 @@ float r2 = dot(c, c);
 if (r2 >= 1.0) return 0.0;
 float nz = sqrt(1.0 - r2);
 float fres = pow(1.0 - nz, RimPower);
-float edge = 1.0 - smoothstep(0.90, 1.0, sqrt(r2));
+float edge = 1.0 - smoothstep(0.92, 1.0, sqrt(r2));
 return saturate((Clear + (1.0 - Clear) * fres) * edge) * Alpha;
 """
 
+# Half a sphere: the side toward a light is brighter, but the far rim is never fully black, so the ring reads as
+# a ring wherever light reaches it, and a highlight sits on the lit side.
 NORMAL_HLSL = r"""
 float2 c = UV * 2.0 - 1.0;
 float r2 = min(dot(c, c), 0.999);
-return float3(c.x, -c.y, sqrt(1.0 - r2));
+float3 n = float3(c.x, -c.y, sqrt(1.0 - r2));
+return normalize(lerp(float3(0.0, 0.0, 1.0), n, Bend));
 """
 
 SILT_HLSL = r"""
@@ -99,6 +102,12 @@ def finish(mat, name):
         errors = []
     for e in errors or []:
         unreal.log_error("%s compile: %s" % (TAG, e))
+    for prop in ("MP_OPACITY", "MP_NORMAL", "MP_BASE_COLOR"):
+        try:
+            node = mel.get_material_property_input_node(mat, getattr(unreal.MaterialProperty, prop))
+            unreal.log("%s %s %s <- %s" % (TAG, name, prop, node.get_name() if node else "NOTHING"))
+        except Exception as ex:
+            unreal.log_warning("%s readback %s: %s" % (TAG, prop, ex))
     ok = unreal.EditorLoadingAndSavingUtils.save_packages([mat.get_outermost()], False)
     back = unreal.load_asset(PATH + "/" + name)
     unreal.log("%s %s saved=%s expressions=%d errors=%d used_with_niagara_sprites=%s blend=%s tlm=%s" % (
@@ -118,19 +127,20 @@ def build_bubble():
 
     rim = custom(mat, RIM_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, ["UV", "RimPower", "Clear", "Alpha"], "BubbleRim", -500, 0)
     link(uv, "", rim, "UV")
-    link(scalar(mat, "RimPower", 3.0, -800, 80), "", rim, "RimPower")
-    link(scalar(mat, "Clear", 0.04, -800, 140), "", rim, "Clear")
+    link(scalar(mat, "RimPower", 4.0, -800, 80), "", rim, "RimPower")
+    link(scalar(mat, "Clear", 0.01, -800, 140), "", rim, "Clear")
     link(pc, "A", rim, "Alpha")
     mel.connect_material_property(rim, "", unreal.MaterialProperty.MP_OPACITY)
 
-    nrm = custom(mat, NORMAL_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ["UV"], "BubbleNormal", -500, 300)
+    nrm = custom(mat, NORMAL_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ["UV", "Bend"], "BubbleNormal", -500, 300)
     link(uv, "", nrm, "UV")
+    link(scalar(mat, "NormalBend", 0.55, -800, 360), "", nrm, "Bend")
     mel.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
 
     # A neutral film: the colour comes from the light that falls on it (lamp #F2F4EE, hatch amber, water blue).
-    mel.connect_material_property(vector(mat, "FilmColour", (0.55, 0.58, 0.58), -500, -200), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(vector(mat, "FilmColour", (0.30, 0.32, 0.32), -500, -200), "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(scalar(mat, "Specular", 1.0, -500, 460), "", unreal.MaterialProperty.MP_SPECULAR)
-    mel.connect_material_property(scalar(mat, "Roughness", 0.12, -500, 520), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(scalar(mat, "Roughness", 0.1, -500, 520), "", unreal.MaterialProperty.MP_ROUGHNESS)
     finish(mat, name)
 
 
