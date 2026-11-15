@@ -62,6 +62,26 @@ UDeepTuningSettings::UDeepTuningSettings()
 		MakeStop(500.f, 0.6f, FLinearColor(0.004f, 0.01f, 0.02f), 0.1f),
 	};
 
+	// Style guide 5: the sea at 100, 300 and 500 m. Colours are the guide's sRGB hex.
+	// Fog density: the guide's 0.02 / 0.035 / 0.05 are 30x too thin (the engine divides by 1000: 0.02 = 0.002 per m, 92% clear
+	// at 40 m). These meet the guide's own visibility row instead: silhouettes to 40 m at 100 m (0.75 = 0.075 per m, 5%
+	// left at 40 m), and the lamp still shows salvage 10 m away at 300 and 500 m (extinction scale 1, not 1.5 and 2).
+	auto MakeLook = [](float DepthM, float Lux, float Vol, float Density, FColor Water, float Extinction, float VolDistM,
+		float Bias, float Bloom, float Vignette, float Grain, FVector4 Sat, float Contrast, float Fringe, float Glint)
+	{
+		FDeepLookPreset P;
+		P.DepthM = DepthM; P.DownlightLux = Lux; P.DownlightVolumetric = Vol; P.FogDensity = Density;
+		P.FogColor = FLinearColor(Water); P.ExtinctionScale = Extinction; P.VolumetricDistanceM = VolDistM;
+		P.ExposureBias = Bias; P.Bloom = Bloom; P.Vignette = Vignette; P.Grain = Grain; P.Saturation = Sat;
+		P.Contrast = Contrast; P.Fringe = Fringe; P.GlintScale = Glint;
+		return P;
+	};
+	Look.Presets = {
+		MakeLook(100.f, 2.0f, 1.0f, 0.75f, FColor(0x19, 0x3C, 0x45), 1.0f, 80.f, 0.0f, 0.4f, 0.35f, 0.10f, FVector4(0.75, 0.95, 1.0, 0.9), 1.05f, 0.f, 1.0f),
+		MakeLook(300.f, 0.04f, 0.4f, 1.0f, FColor(0x07, 0x1A, 0x28), 1.0f, 60.f, 1.5f, 0.5f, 0.45f, 0.18f, FVector4(0.5, 0.9, 1.0, 0.8), 1.08f, 0.2f, 0.3f),
+		MakeLook(500.f, 0.0f, 0.0f, 1.2f, FColor(0x00, 0x00, 0x00), 1.0f, 40.f, 2.0f, 0.6f, 0.55f, 0.25f, FVector4(0.4, 0.85, 1.0, 0.75), 1.1f, 0.35f, 0.15f),
+	};
+
 	SalvageKinds = {
 		MakeKind(EDeepSalvageSize::Small, TEXT("Scrap"), 2.f, 20, 0.4f, FLinearColor(0.55f, 0.35f, 0.2f)),
 		MakeKind(EDeepSalvageSize::Medium, TEXT("Scrap"), 6.f, 70, 0.7f, FLinearColor(0.45f, 0.45f, 0.5f)),

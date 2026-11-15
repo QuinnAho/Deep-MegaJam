@@ -11,6 +11,7 @@
 
 class UStaticMeshComponent;
 class UPointLightComponent;
+class USpotLightComponent;
 class UCameraComponent;
 
 UCLASS()
@@ -93,6 +94,14 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> HatchCover;
+
+	/** The black water in the open hatch: near-mirror material from FDeepLookTuning::HatchWaterMaterial. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UStaticMeshComponent> HatchWater;
+
+	/** Spot light straight down from the hull (FDeepLookTuning::BellyFlood*). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USpotLightComponent> BellyFlood;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Console;

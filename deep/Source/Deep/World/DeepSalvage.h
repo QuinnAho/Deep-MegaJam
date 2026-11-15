@@ -51,6 +51,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> Glint;
 
+	float GlintScale = 1.f;
+
 	/** The relic's extra shapes (hidden on other kinds): a gold double cone around a pale core, four shards circling. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<USceneComponent> RelicPivot;
@@ -61,5 +63,8 @@ protected:
 	bool IsRelic() const { return Kind.Size == EDeepSalvageSize::Relic; }
 
 public:
+	/** Scales the glint with depth (style guide 5: 100% at 100 m, 30% at 300 m, 15% at 500 m). The relic keeps its light. */
+	void SetGlintScale(float Scale);
+
 	virtual void Tick(float DeltaSeconds) override;
 };

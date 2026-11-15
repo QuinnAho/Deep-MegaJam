@@ -126,9 +126,22 @@ void ADeepSalvage::ApplyKind()
 
 	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
 	Glint->SetRelativeLocation(FVector(0.f, 0.f, Kind.SizeM * UDeepRules::CmPerM));
-	Glint->SetIntensity(IsRelic() ? Arena.RelicLightIntensity : Arena.SalvageGlintIntensity);
+	Glint->SetIntensity(IsRelic() ? Arena.RelicLightIntensity : Arena.SalvageGlintIntensity * GlintScale);
 	Glint->SetAttenuationRadius((IsRelic() ? Arena.RelicLightRadiusM : Arena.SalvageGlintRadiusM) * UDeepRules::CmPerM);
 	Glint->SetLightColor(Kind.Color);
+}
+
+void ADeepSalvage::SetGlintScale(float Scale)
+{
+	if (FMath::IsNearlyEqual(GlintScale, Scale))
+	{
+		return;
+	}
+	GlintScale = FMath::Max(0.f, Scale);
+	if (!IsRelic())
+	{
+		Glint->SetIntensity(UDeepTuningSettings::Get().Arena.SalvageGlintIntensity * GlintScale);
+	}
 }
 
 void ADeepSalvage::Tick(float DeltaSeconds)

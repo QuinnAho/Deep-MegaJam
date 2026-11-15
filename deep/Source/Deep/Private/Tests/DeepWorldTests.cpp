@@ -209,7 +209,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldGreyBoxTest, "Deep.World.GreyBoxLight
 bool FDeepWorldGreyBoxTest::RunTest(const FString& Parameters)
 {
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	TestTrue(TEXT("Grey box is on by default"), FDeepArenaTuning().bGreyBox);
+	// The polish pass (D-033) turns the water look on; the grey box stays as a switch.
+	TestFalse(TEXT("The water look is on by default"), FDeepArenaTuning().bGreyBox);
 	TestTrue(TEXT("Backdrop fog is near zero"), FDeepArenaTuning().GreyBoxBackdropFogDensity <= 0.001f);
 	TestTrue(TEXT("Key light brighter than fill"), FDeepArenaTuning().GreyBoxKeyLux > FDeepArenaTuning().GreyBoxFillLux && FDeepArenaTuning().GreyBoxFillLux > 0.f);
 
@@ -222,6 +223,33 @@ bool FDeepWorldGreyBoxTest::RunTest(const FString& Parameters)
 	FDeepStopTuning Black;
 	Black.FogColor = FLinearColor::Black;
 	TestTrue(TEXT("A black water colour gives white light"), ADeepEnvironment::GreyBoxTint(Black, FDeepArenaTuning()).Equals(FLinearColor::White));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldLookBlendTest, "Deep.World.LookBlend",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDeepWorldLookBlendTest::RunTest(const FString& Parameters)
+{
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	TestEqual(TEXT("Three presets: 100, 300, 500 m"), Look.Presets.Num(), 3);
+	if (Look.Presets.Num() != 3)
+	{
+		return false;
+	}
+	// The presets hold at their depths and clamp beyond the ends.
+	TestEqual(TEXT("100 m fog"), ADeepEnvironment::BlendLook(Look, 100.f).FogDensity, Look.Presets[0].FogDensity);
+	TestEqual(TEXT("Above 100 m clamps"), ADeepEnvironment::BlendLook(Look, 0.f).DownlightLux, 2.f);
+	TestEqual(TEXT("300 m exposure"), ADeepEnvironment::BlendLook(Look, 300.f).ExposureBias, 1.5f);
+	TestEqual(TEXT("Below 500 m clamps, no downlight"), ADeepEnvironment::BlendLook(Look, 700.f).DownlightLux, 0.f);
+	// Driving blends continuously: halfway between stops is halfway between their numbers.
+	const FDeepLookPreset Mid = ADeepEnvironment::BlendLook(Look, 200.f);
+	TestTrue(TEXT("200 m fog is halfway"), FMath::IsNearlyEqual(Mid.FogDensity, (Look.Presets[0].FogDensity + Look.Presets[1].FogDensity) * 0.5f, 1e-4f));
+	TestTrue(TEXT("200 m exposure is halfway"), FMath::IsNearlyEqual(Mid.ExposureBias, 0.75f, 1e-4f));
+	// Darker with depth; the 500 m far fog is black (style guide 3).
+	TestTrue(TEXT("500 m water is black"), Look.Presets[2].FogColor.Equals(FLinearColor(0.f, 0.f, 0.f, 1.f)));
+	TestTrue(TEXT("Light falls with depth"), Look.Presets[0].DownlightLux > Look.Presets[1].DownlightLux && Look.Presets[1].DownlightLux > Look.Presets[2].DownlightLux);
+	TestNotNull(TEXT("Deep.RayTracing is registered"), IConsoleManager::Get().FindConsoleObject(TEXT("Deep.RayTracing")));
 	return true;
 }
 
