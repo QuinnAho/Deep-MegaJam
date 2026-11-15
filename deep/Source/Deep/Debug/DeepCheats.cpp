@@ -141,7 +141,7 @@ namespace
 			}
 			const FVector Eye = Diver->GetPawnViewLocation();
 			const FVector Dir = Controller->GetControlRotation().Vector();
-			// The first of: anything with collision, and the sea bed's own surface (its collision misses traces at 500 m).
+			// The first of: anything with collision, and the sea bed's own surface (a trace from inside the bed misses it).
 			FHitResult Hit;
 			FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHover), true, Diver);
 			float HitCm = World->LineTraceSingleByChannel(Hit, Eye, Eye + Dir * 10000.f, ECC_Visibility, Params) ? static_cast<float>(Hit.Distance) : -1.f;

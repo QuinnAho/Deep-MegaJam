@@ -52,8 +52,8 @@ namespace
 
 	/**
 	 * Where a ray first meets the sea bed, from the bed's own height field (ADeepAbyssFloor::SeabedBelowM, the shape its
-	 * mesh is built from), not from its collision: at 500 m a trace straight down from beside the relic found no surface
-	 * within 100 m (Deep.Hover), so the rays above never saw the pit floor. Coarse steps, then bisection to under 1 cm.
+	 * mesh is built from), as well as the rays above: a trace that starts inside the bed (the pit is a steep funnel, and
+	 * a diver at the relic can be in its slope) never sees it. Coarse steps, then bisection to under 1 cm.
 	 * Returns the distance in cm (or -1) and the bed's normal there (world).
 	 */
 	float MarchBed(const FTransform& BedToWorld, const TArray<FVector4>& Rest, const FDeepLookTuning& Look, const FVector& From, const FVector& Dir, float ReachCm, FVector& OutNormal)
@@ -68,7 +68,10 @@ namespace
 		float Prev = 0.f;
 		if (Below(From) > 0.f)
 		{
-			return -1.f;   // the lamp itself is in the bed: nothing sensible to say
+			// The lamp, held 20 cm ahead and off to the side, is already in the slope (a diver with his face to the pit's
+			// wall): the surface is right at it, so the lamp goes to its floor rather than full (which burnt it white).
+			OutNormal = -Dir;
+			return 0.f;
 		}
 		for (float T = StepCm; T <= ReachCm + 0.5f * StepCm; T += StepCm)
 		{
@@ -137,7 +140,7 @@ float DeepLamp::WantNearScale(const AActor* Holder, const USpotLightComponent* L
 		}
 	}
 
-	// 1b. The sea bed and the well, from the bed's height field (its collision is not reliable for traces: see MarchBed).
+	// 1b. The sea bed and the well, from the bed's height field (also where a trace misses it: see MarchBed).
 	for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
 	{
 		const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
