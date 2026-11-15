@@ -20,6 +20,8 @@ namespace
 {
 	constexpr float EyeHeightCm = 55.f;
 	constexpr float HarnessHeightCm = -30.f;
+	constexpr float HarnessBackCm = 45.f;
+	constexpr float HarnessSideCm = 35.f;
 }
 
 ADeepDiver::ADeepDiver()
@@ -59,6 +61,8 @@ ADeepDiver::ADeepDiver()
 	TetherLine->SetUsingAbsoluteRotation(true);
 	TetherLine->SetUsingAbsoluteScale(true);
 	TetherLine->SetCastShadow(false);
+	// Lit by nothing in the scene (lighting channel 1 only): the helmet lamp right next to it made it glow.
+	TetherLine->SetLightingChannels(false, true, false);
 	Tether->SetLineMesh(TetherLine);
 }
 
@@ -78,7 +82,8 @@ void ADeepDiver::BeginPlay()
 	}
 	OnRep_Lamp();
 
-	DeepShapes::Tint(TetherLine, FLinearColor(0.9f, 0.8f, 0.2f));
+	// Dark cable: a bright tint caught the lamp and read as a glowing rod.
+	DeepShapes::Tint(TetherLine, FLinearColor(0.12f, 0.1f, 0.06f));
 }
 
 void ADeepDiver::ApplySwimTuning()
@@ -176,7 +181,9 @@ FString ADeepDiver::GetZoneName() const
 
 FVector ADeepDiver::GetTetherAttachLocation() const
 {
-	return GetActorLocation() + FVector(0.f, 0.f, HarnessHeightCm);
+	// On the back, behind the camera: the line leaves the diver out of view instead of streaking up the middle
+	// of the screen, lit by the lamp.
+	return GetActorLocation() + FVector(0.f, 0.f, HarnessHeightCm) - GetActorForwardVector() * HarnessBackCm - GetActorRightVector() * HarnessSideCm;
 }
 
 ADeepSalvage* ADeepDiver::FindGrabTarget() const

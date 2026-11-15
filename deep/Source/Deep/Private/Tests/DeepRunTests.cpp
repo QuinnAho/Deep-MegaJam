@@ -124,6 +124,41 @@ bool FDeepRulesFeesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepRulesWinchToAirlockTest, "Deep.Sim.Rules.WinchToAirlock", DEEP_RUN_TEST_FLAGS)
+bool FDeepRulesWinchToAirlockTest::RunTest(const FString& Parameters)
+{
+	FDeepTetherTuning T;
+	T.WinchSpeedMps = 7.f;
+	T.WinchArriveM = 3.f;
+	T.WinchApproachBelowM = 2.f;
+	const FVector Anchor(0.f, 0.f, 0.f);
+
+	// From every side at airlock height, and from above and below: home within the time the distance allows.
+	const TArray<FVector> Starts = { FVector(900, 0, 0), FVector(-900, 0, 0), FVector(0, 900, 0), FVector(600, 600, 300), FVector(0, 0, -4000), FVector(0, 0, 800) };
+	for (const FVector& Start : Starts)
+	{
+		FVector At = Start;
+		float MaxZ = static_cast<float>(At.Z);
+		int32 Steps = 0;
+		while (!UDeepRules::IsHome(At, Anchor, T) && Steps < 1000)
+		{
+			At = UDeepRules::WinchStepToAirlock(At, Anchor, 0.1f, T);
+			MaxZ = FMath::Max(MaxZ, static_cast<float>(At.Z));
+			++Steps;
+		}
+		const float Allowed = static_cast<float>(FVector::Dist(Start, Anchor - FVector(0, 0, 200.f))) / (T.WinchSpeedMps * 100.f) + 0.2f;
+		TestTrue(FString::Printf(TEXT("Home from %s"), *Start.ToString()), UDeepRules::IsHome(At, Anchor, T));
+		TestTrue(FString::Printf(TEXT("In time from %s"), *Start.ToString()), Steps * 0.1f <= Allowed);
+		if (Start.Z <= 0.f)
+		{
+			TestTrue(FString::Printf(TEXT("Never rises above the airlock from %s"), *Start.ToString()), MaxZ <= 0.f);
+		}
+	}
+	const FVector Home(0.f, 0.f, -250.f);
+	TestTrue(TEXT("Home does not move"), UDeepRules::WinchStepToAirlock(Home, Anchor, 1.f, T).Equals(Home));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaptainLinesTest, "Deep.Story.CaptainLines", DEEP_RUN_TEST_FLAGS)
 bool FDeepCaptainLinesTest::RunTest(const FString& Parameters)
 {
@@ -362,6 +397,16 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("bailout_air_s"), Json->HasField(TEXT("bailout_air_s")));
 	TestEqual(TEXT("diver_number"), static_cast<int32>(Json->GetNumberField(TEXT("diver_number"))), State->DiverNumber);
 	TestTrue(TEXT("last_bank after banking"), Json->HasField(TEXT("last_bank")));
+
+	// Winch from the side at airlock height, past the end of the hull (the playtest stall): reaches home.
+	Diver->TeleportDiver(Anchor + FVector(900.f, 0.f, 0.f));
+	Diver->SetWinching(true);
+	for (int32 Step = 0; Step < 60 && !Diver->GetTether()->IsHome(); ++Step)
+	{
+		Diver->GetTether()->UpdateTether(0.1f);
+	}
+	TestTrue(TEXT("Winch from the side reaches the airlock"), Diver->GetTether()->IsHome());
+	Diver->SetWinching(false);
 
 	// Reset.
 	Run->ResetRun();

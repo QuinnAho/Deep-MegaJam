@@ -44,6 +44,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FVector WinchStep(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);
 
+	/**
+	 * The winch the game uses: reels toward a point WinchApproachBelowM under the airlock (inside the home radius,
+	 * below the hull) and stops there. Does nothing once home.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
+	static FVector WinchStepToAirlock(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);
+
 	/** True when the diver is within WinchArriveM of the anchor (home). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static bool IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning);

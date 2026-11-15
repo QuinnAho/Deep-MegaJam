@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
 #include "Engine/World.h"
+#include "Misc/ScopeExit.h"
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
 #include "Sim/DeepRules.h"
@@ -22,9 +23,11 @@ namespace
 	const FLinearColor WarnColor(1.f, 0.6f, 0.15f);
 	const FLinearColor DangerColor(1.f, 0.2f, 0.15f);
 	const FLinearColor GoodColor(0.35f, 1.f, 0.55f);
-	const FLinearColor PanelColor(0.f, 0.02f, 0.04f, 0.78f);
+	const FLinearColor PanelColor(0.f, 0.02f, 0.04f, 0.85f);
 	const FLinearColor PatienceColor(0.25f, 0.85f, 0.95f);
 	const FLinearColor CaptainColor(1.f, 0.85f, 0.45f);
+	constexpr float StatusScale = 0.8f;
+	constexpr float RowScale = 0.85f;
 
 	FString Credits(int32 Amount)
 	{
@@ -43,7 +46,8 @@ void ADeepHUD::DrawHUD()
 	}
 	Font = GEngine->GetMediumFont();
 	BigFont = GEngine->GetLargeFont();
-	S = FMath::Max(1.f, Canvas->ClipY / 720.f);
+	// Large on purpose: read at a glance at 1280x720 (playtest: the first HUD was too small).
+	S = FMath::Max(1.2f, 1.7f * Canvas->ClipY / 720.f);
 	const float Now = GetWorld()->GetTimeSeconds();
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const EDeepRunState State = Run ? Run->GetState() : EDeepRunState::Tethered;
@@ -53,7 +57,7 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawBailout(Diver);
 	}
-	else if (Run)
+	else if (Run && Run->CanSwim())
 	{
 		DrawPatience(*Run, Now);
 	}
@@ -61,7 +65,7 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawPrompts(Diver);
 	}
-	DrawCaptain();
+
 
 	if (State == EDeepRunState::Dead)
 	{
@@ -75,6 +79,8 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawDescending(*Run);
 	}
+	// Last, so the Captain is never hidden behind a panel.
+	DrawCaptain();
 }
 
 void ADeepHUD::TextAt(const FString& String, const FLinearColor& Color, float X, float Y, UFont* InFont, float TextScale)
@@ -87,19 +93,37 @@ float ADeepHUD::TextCentered(const FString& String, const FLinearColor& Color, f
 	UFont* Use = InFont ? InFont : Font.Get();
 	float W = 0.f, H = 0.f;
 	GetTextSize(String, W, H, Use, S * TextScale);
+	// A dark backing so text reads against bright fog and light shafts.
+	DrawRect(PanelColor, (Canvas->ClipX - W) * 0.5f - 8.f * S, Y - 1.f * S, W + 16.f * S, H + 2.f * S);
 	DrawText(String, Color, (Canvas->ClipX - W) * 0.5f, Y, Use, S * TextScale);
 	return H;
 }
 
 void ADeepHUD::DrawStatus(const ADeepDiver* Diver, float Now)
 {
-	const float Line = 24.f * S;
-	const float X = 24.f * S;
-	float Y = 20.f * S;
-	auto Text = [&](const FString& String, const FLinearColor& Color)
+	const float Line = 18.f * S;
+	const float X = 14.f * S;
+	TArray<TPair<FString, FLinearColor>> Lines;
+	auto Text = [&Lines](const FString& String, const FLinearColor& Color)
 	{
-		TextAt(String, Color, X, Y);
-		Y += Line;
+		Lines.Emplace(String, Color);
+	};
+	ON_SCOPE_EXIT
+	{
+		float Widest = 0.f;
+		for (const TPair<FString, FLinearColor>& Entry : Lines)
+		{
+			float W = 0.f, H = 0.f;
+			GetTextSize(Entry.Key, W, H, Font, S * StatusScale);
+			Widest = FMath::Max(Widest, W);
+		}
+		DrawRect(PanelColor, X - 10.f * S, 14.f * S, Widest + 20.f * S, Lines.Num() * Line + 10.f * S);
+		float Y = 20.f * S;
+		for (const TPair<FString, FLinearColor>& Entry : Lines)
+		{
+			TextAt(Entry.Key, Entry.Value, X, Y, nullptr, StatusScale);
+			Y += Line;
+		}
 	};
 
 	Text(FString::Printf(TEXT("DEPTH  %.0f m   %s"), Diver->GetDepthM(), *Diver->GetZoneName().ToUpper()), TextColor);
@@ -116,12 +140,13 @@ void ADeepHUD::DrawStatus(const ADeepDiver* Diver, float Now)
 	{
 		const FDeepTetherSolve& Solve = Tether->GetSolve();
 		const FLinearColor Color = Solve.bTaut ? DangerColor : (Solve.Strain > 0.75f ? WarnColor : TextColor);
-		Text(FString::Printf(TEXT("TETHER %.1f m left of %.0f m%s"), Solve.LeftM, Solve.LengthM, Solve.bTaut ? TEXT("   TAUT") : TEXT("")), Color);
+		Text(FString::Printf(TEXT("TETHER %.0f m of %.0f m%s"), Solve.LeftM, Solve.LengthM, Solve.bTaut ? TEXT("  TAUT") : TEXT("")), Color);
 	}
 
 	if (const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>())
 	{
-		Text(FString::Printf(TEXT("CREDITS %d   HULL %d   STOP %d   DIVER #%d"), State->Credits, State->HullRating, State->Stop, State->DiverNumber), TextColor);
+		Text(FString::Printf(TEXT("CREDITS %d   HULL %d"), State->Credits, State->HullRating), TextColor);
+		Text(FString::Printf(TEXT("STOP %d   DIVER #%d"), State->Stop, State->DiverNumber), TextColor);
 	}
 	// A fee just taken (re-tether, death): show it next to the account for a moment.
 	if (Run && Run->GetLastFee() > 0 && Now - Run->GetLastFeeTime() < 3.f)
@@ -134,7 +159,7 @@ void ADeepHUD::DrawPatience(const UDeepRunComponent& Run, float Now)
 {
 	const FDeepPatienceTuning& Tuning = UDeepTuningSettings::Get().Patience;
 	const float Fraction = Run.GetPatienceFraction();
-	const float W = Canvas->ClipX * 0.4f;
+	const float W = Canvas->ClipX * 0.34f;
 	const float H = 16.f * S;
 	const float X = (Canvas->ClipX - W) * 0.5f;
 	const float Y = 46.f * S;
@@ -184,12 +209,12 @@ void ADeepHUD::DrawBailout(const ADeepDiver* Diver)
 	const bool bPulse = Air <= Tuning.WarnSeconds && FMath::Frac(RealNow * (bSlow ? 1.5f : 2.5f)) < 0.5f;
 
 	TextCentered(TEXT("TETHER CUT  -  SWIM TO THE AIRLOCK"), DangerColor, 14.f * S, nullptr, 1.f);
-	TextCentered(FString::Printf(TEXT("BAILOUT AIR  %.1f s"), Air), bPulse ? FLinearColor::White : DangerColor, 38.f * S, BigFont, 1.f);
+	TextCentered(FString::Printf(TEXT("BAILOUT AIR  %.1f s"), Air), bPulse ? FLinearColor::White : DangerColor, 38.f * S, BigFont, 1.6f);
 
-	const float W = Canvas->ClipX * 0.4f;
+	const float W = Canvas->ClipX * 0.34f;
 	const float H = 12.f * S;
 	const float X = (Canvas->ClipX - W) * 0.5f;
-	const float Y = 84.f * S;
+	const float Y = 100.f * S;
 	const float Fraction = Tuning.AirSeconds > 0.f ? FMath::Clamp(Air / Tuning.AirSeconds, 0.f, 1.f) : 0.f;
 	DrawRect(PanelColor, X - 3.f * S, Y - 3.f * S, W + 6.f * S, H + 6.f * S);
 	DrawRect(DangerColor, X, Y, W * Fraction, H);
@@ -227,7 +252,7 @@ void ADeepHUD::DrawBailout(const ADeepDiver* Diver)
 		{
 			Hint = TEXT("BEHIND YOU");
 		}
-		TextCentered(FString::Printf(TEXT("%s  -  %s"), *Label, Hint), GoodColor, 108.f * S);
+		TextCentered(FString::Printf(TEXT("%s  -  %s"), *Label, Hint), GoodColor, 124.f * S);
 	}
 }
 
@@ -259,7 +284,7 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 		Prompts.Emplace(TEXT("Bring the cargo to the airlock to bank it"), DimColor);
 	}
 
-	float PromptY = Canvas->ClipY * 0.66f;
+	float PromptY = Canvas->ClipY * 0.58f;
 	for (const TPair<FString, FLinearColor>& Prompt : Prompts)
 	{
 		PromptY += TextCentered(Prompt.Key, Prompt.Value, PromptY) + 2.f * S;
@@ -279,11 +304,44 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 		DrawRect(DangerColor, X, Y, W * Hold, 10.f * S);
 	}
 
-	const FString Controls = FString::Printf(TEXT("WASD swim   Mouse look   %s/%s up/down   %s sprint   %s grab   %s drop   hold %s winch   %s lamp   hold %s cut loose"),
+	// Unmissable warnings: one big banner, the most serious first.
+	FString Banner;
+	FLinearColor BannerColor = DangerColor;
+	if (bTethered && Diver->GetTether() && Diver->GetTether()->GetSolve().bTaut && !Diver->IsWinching())
+	{
+		Banner = TEXT("TETHER TAUT");
+	}
+	else if (bTethered && Run->GetPatienceFraction() <= 0.1f)
+	{
+		Banner = TEXT("THE CAPTAIN IS ABOUT TO CUT YOU");
+	}
+	else if (bTethered && Weight.bOverloaded && !Diver->IsWinching())
+	{
+		Banner = TEXT("TOO HEAVY TO SWIM UP");
+		BannerColor = WarnColor;
+	}
+	if (!Banner.IsEmpty())
+	{
+		const bool bFlash = FMath::Frac(GetWorld()->GetRealTimeSeconds() * 2.f) < 0.5f;
+		TextCentered(Banner, bFlash ? FLinearColor::White : BannerColor, Canvas->ClipY * 0.28f, BigFont, 1.1f);
+	}
+
+	// Controls, bottom left, two backed lines.
+	const FString ControlsA = FString::Printf(TEXT("WASD swim   Mouse look   %s/%s up/down   %s sprint   %s grab   %s drop"),
 		*ADeepPlayerController::KeyHint(TEXT("Up")), *ADeepPlayerController::KeyHint(TEXT("Down")), *ADeepPlayerController::KeyHint(TEXT("Sprint")),
-		*ADeepPlayerController::KeyHint(TEXT("Grab")), *ADeepPlayerController::KeyHint(TEXT("Drop")), *ADeepPlayerController::KeyHint(TEXT("Winch")),
-		*ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Cut")));
-	TextAt(Controls, DimColor, 24.f * S, Canvas->ClipY - 28.f * S, nullptr, 0.75f);
+		*ADeepPlayerController::KeyHint(TEXT("Grab")), *ADeepPlayerController::KeyHint(TEXT("Drop")));
+	const FString ControlsB = FString::Printf(TEXT("hold %s winch home   %s lamp   hold %s be cut loose"),
+		*ADeepPlayerController::KeyHint(TEXT("Winch")), *ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Cut")));
+	constexpr float ControlsScale = 0.62f;
+	float WA = 0.f, WB = 0.f, HA = 0.f;
+	GetTextSize(ControlsA, WA, HA, Font, S * ControlsScale);
+	GetTextSize(ControlsB, WB, HA, Font, S * ControlsScale);
+	const float CX = 10.f * S;
+	const float CY = Canvas->ClipY - HA * 2.f - 12.f * S;
+	DrawRect(PanelColor, CX - 6.f * S, CY - 4.f * S, FMath::Max(WA, WB) + 12.f * S, HA * 2.f + 8.f * S);
+	const FLinearColor ControlsColor(0.85f, 0.92f, 0.95f);
+	TextAt(ControlsA, ControlsColor, CX, CY, nullptr, ControlsScale);
+	TextAt(ControlsB, ControlsColor, CX, CY + HA, nullptr, ControlsScale);
 }
 
 void ADeepHUD::DrawCaptain()
@@ -308,7 +366,7 @@ void ADeepHUD::DrawCaptain()
 	{
 		const FString Try = Current.IsEmpty() ? Word : Current + TEXT(" ") + Word;
 		float W = 0.f, H = 0.f;
-		GetTextSize(Try, W, H, Font, S * 1.1f);
+		GetTextSize(Try, W, H, Font, S);
 		if (W > MaxW && !Current.IsEmpty())
 		{
 			Lines.Add(Current);
@@ -326,7 +384,7 @@ void ADeepHUD::DrawCaptain()
 	for (const FString& Text : Lines)
 	{
 		float W = 0.f, H = 0.f;
-		GetTextSize(Text, W, H, Font, S * 1.1f);
+		GetTextSize(Text, W, H, Font, S);
 		WidestW = FMath::Max(WidestW, W);
 	}
 	const float Top = Canvas->ClipY * 0.80f - (Lines.Num() - 1) * LineH;
@@ -334,7 +392,7 @@ void ADeepHUD::DrawCaptain()
 	float Y = Top;
 	for (const FString& Text : Lines)
 	{
-		TextCentered(Text, CaptainColor, Y, nullptr, 1.1f);
+		TextCentered(Text, CaptainColor, Y, nullptr, 1.f);
 		Y += LineH;
 	}
 }
@@ -346,7 +404,7 @@ void ADeepHUD::DrawDead(const UDeepRunComponent& Run)
 	const int32 Number = State ? State->DiverNumber : 1;
 	const FDeepEconomyTuning& Economy = UDeepTuningSettings::Get().Economy;
 	float Y = Canvas->ClipY * 0.36f;
-	Y += TextCentered(FString::Printf(TEXT("DIVER #%d WRITTEN OFF"), Number), DangerColor, Y, BigFont, 1.f) + 10.f * S;
+	Y += TextCentered(FString::Printf(TEXT("DIVER #%d WRITTEN OFF"), Number), DangerColor, Y, BigFont, 1.4f) + 10.f * S;
 	Y += TextCentered(TEXT("Bailout air ran out. Cargo lost."), TextColor, Y) + 4.f * S;
 	Y += TextCentered(FString::Printf(TEXT("Disposal fee  -%d cr"), Economy.DeathFee), DangerColor, Y) + 18.f * S;
 	TextCentered(FString::Printf(TEXT("Replacement diver #%d in %.0f..."), Number + 1, FMath::CeilToFloat(FMath::Max(0.f, Run.GetStateTimeLeft()))), DimColor, Y);
@@ -359,10 +417,10 @@ void ADeepHUD::DrawSettlement(const UDeepRunComponent& Run)
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const float W = FMath::Min(Canvas->ClipX * 0.6f, 620.f * S);
 	const float X = (Canvas->ClipX - W) * 0.5f;
-	const float Line = 26.f * S;
+	const float Line = 20.f * S;
 	const int32 Rows = 9 + Report.FeeLabels.Num();
 	const float H = Rows * Line + 40.f * S;
-	const float Top = FMath::Max(10.f * S, (Canvas->ClipY - H) * 0.42f);
+	const float Top = 8.f * S;
 	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.9f), X, Top, W, H);
 	DrawRect(CaptainColor, X, Top, W, 3.f * S);
 
@@ -370,14 +428,14 @@ void ADeepHUD::DrawSettlement(const UDeepRunComponent& Run)
 	float Y = Top + 14.f * S;
 	auto Row = [&](const FString& Label, const FString& Amount, const FLinearColor& Color, UFont* RowFont = nullptr)
 	{
-		TextAt(Label, Color, X + Pad, Y, RowFont);
+		TextAt(Label, Color, X + Pad, Y, RowFont, RowScale);
 		float AW = 0.f, AH = 0.f;
-		GetTextSize(Amount, AW, AH, RowFont ? RowFont : Font.Get(), S);
-		TextAt(Amount, Color, X + W - Pad - AW, Y, RowFont);
+		GetTextSize(Amount, AW, AH, RowFont ? RowFont : Font.Get(), S * RowScale);
+		TextAt(Amount, Color, X + W - Pad - AW, Y, RowFont, RowScale);
 		Y += Line;
 	};
 
-	TextCentered(TEXT("SETTLEMENT"), CaptainColor, Y, BigFont, 1.f);
+	TextCentered(TEXT("SETTLEMENT"), CaptainColor, Y, BigFont, 1.2f);
 	Y += Line * 1.6f;
 	Row(TEXT("Gross haul"), Credits(Report.Gross), TextColor);
 	Row(FString::Printf(TEXT("The Director's cut (%d%%)"), Economy.DirectorCutPercent), FString::Printf(TEXT("-%d cr"), Report.DirectorCut), WarnColor);
@@ -426,5 +484,5 @@ void ADeepHUD::DrawDescending(const UDeepRunComponent& Run)
 	const float Depth = FMath::Lerp(Run.GetDescendFromDepthM(), Run.GetDescendToDepthM(), FMath::SmoothStep(0.f, 1.f, T));
 	FLinearColor Color = TextColor;
 	Color.A = FMath::Clamp(Alpha * 2.f, 0.f, 1.f);
-	TextCentered(FString::Printf(TEXT("%.0f m"), Depth), Color, Canvas->ClipY * 0.45f, BigFont, 1.f);
+	TextCentered(FString::Printf(TEXT("%.0f m"), Depth), Color, Canvas->ClipY * 0.45f, BigFont, 1.8f);
 }

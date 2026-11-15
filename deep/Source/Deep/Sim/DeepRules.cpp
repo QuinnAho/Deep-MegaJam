@@ -88,6 +88,26 @@ FVector UDeepRules::WinchStep(const FVector& DiverCm, const FVector& AnchorCm, f
 	return DiverCm + ToAnchor * (MoveCm / DistanceCm);
 }
 
+FVector UDeepRules::WinchStepToAirlock(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning)
+{
+	if (IsHome(DiverCm, AnchorCm, Tuning))
+	{
+		return DiverCm;
+	}
+	// Reel toward a point just under the airlock: inside the home radius, and below the hull, so a pull from the
+	// side runs under the sub instead of into it.
+	const float BelowM = FMath::Clamp(Tuning.WinchApproachBelowM, 0.f, FMath::Max(0.f, Tuning.WinchArriveM - 0.5f));
+	const FVector Via = AnchorCm - FVector(0.f, 0.f, BelowM * CmPerM);
+	const FVector ToVia = Via - DiverCm;
+	const float DistanceCm = static_cast<float>(ToVia.Size());
+	const float StepCm = FMath::Max(0.f, Tuning.WinchSpeedMps * DeltaSeconds) * CmPerM;
+	if (StepCm <= 0.f || DistanceCm <= UE_KINDA_SMALL_NUMBER)
+	{
+		return DiverCm;
+	}
+	return DiverCm + ToVia * (FMath::Min(StepCm, DistanceCm) / DistanceCm);
+}
+
 bool UDeepRules::IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning)
 {
 	// A centimetre of slack so a winch that stopped exactly at the arrive distance counts as home.

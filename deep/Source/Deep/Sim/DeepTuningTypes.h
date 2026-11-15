@@ -95,8 +95,13 @@ struct FDeepTetherTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchArriveM = 3.f;
 
+	/** The winch pulls toward this far below the airlock (kept inside WinchArriveM), so it passes under the hull. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
-	float LineThicknessCm = 3.f;
+	float WinchApproachBelowM = 2.f;
+
+	/** A cable, not a rod. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
+	float LineThicknessCm = 1.5f;
 };
 
 USTRUCT(BlueprintType)

@@ -89,8 +89,13 @@ void UDeepTetherComponent::UpdateTether(float DeltaSeconds)
 
 	if (bMovesDiver && Diver->IsWinching())
 	{
-		const FVector Reeled = UDeepRules::WinchStep(Diver->GetActorLocation(), Anchor, DeltaSeconds, Tuning);
+		const FVector Reeled = UDeepRules::WinchStepToAirlock(Diver->GetActorLocation(), Anchor, DeltaSeconds, Tuning);
 		Diver->SetActorLocation(Reeled, true);
+		// The winch always wins: if the hull (or anything) blocked the sweep, the cable drags the diver through.
+		if (FVector::DistSquared(Diver->GetActorLocation(), Reeled) > 1.0)
+		{
+			Diver->SetActorLocation(Reeled, false, nullptr, ETeleportType::TeleportPhysics);
+		}
 		if (Movement)
 		{
 			Movement->Velocity = FVector::ZeroVector;
