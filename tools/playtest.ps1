@@ -22,7 +22,9 @@ Keys: W/A/S/D move, Space up/jump, C down, E use/grab, G drop, R winch, F lamp, 
 param(
     [Parameter(Position = 0)][string]$Scenario = 'all',
     [int]$Port = 8012,
-    [switch]$KeepEditor
+    [switch]$KeepEditor,
+    [double]$Speed = 1,         # game-time speed: slomo n, and every game-time wait and key hold shortened by n
+    [switch]$NoUnthrottle       # leave the editor's background CPU throttle on when this script starts the editor
 )
 $ErrorActionPreference = 'Stop'
 $Tools = $PSScriptRoot
@@ -34,18 +36,87 @@ New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 $All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys')
 $script:Notes = @()
 
+# ---- MCP in-process: one HTTP session for the whole run (the same protocol as tools\mcp.ps1) ----------
+$McpUrl = 'http://127.0.0.1:{0}/mcp' -f $Port
+$McpProto = '2025-11-25'
+$script:McpSession = $null
+$script:McpId = 0
+[Net.ServicePointManager]::Expect100Continue = $false
+function Mcp-Post([string]$body, [int]$timeoutSec) {
+    $req = [Net.HttpWebRequest]::Create($McpUrl)
+    $req.Method = 'POST'; $req.ContentType = 'application/json'; $req.Accept = 'application/json, text/event-stream'
+    $req.Timeout = $timeoutSec * 1000; $req.ReadWriteTimeout = $timeoutSec * 1000
+    if ($script:McpSession) { $req.Headers.Add('Mcp-Session-Id', $script:McpSession); $req.Headers.Add('MCP-Protocol-Version', $McpProto) }
+    $bytes = [Text.Encoding]::UTF8.GetBytes($body)
+    $req.ContentLength = $bytes.Length
+    $st = $req.GetRequestStream(); $st.Write($bytes, 0, $bytes.Length); $st.Close()
+    try { $resp = $req.GetResponse() } catch [Net.WebException] { $resp = $_.Exception.Response; if ($null -eq $resp) { throw } }
+    $sid = $resp.Headers['Mcp-Session-Id']; if ($sid) { $script:McpSession = $sid }
+    $ctype = [string]$resp.ContentType
+    $rd = New-Object IO.StreamReader($resp.GetResponseStream(), [Text.Encoding]::UTF8)
+    $text = $rd.ReadToEnd(); $rd.Close(); $resp.Close()
+    return [pscustomobject]@{ Ctype = $ctype; Text = $text }
+}
+function Mcp-Rpc([string]$method, $params, [int]$timeoutSec, [bool]$wantReply = $true) {
+    $msg = [ordered]@{ jsonrpc = '2.0'; method = $method }
+    if ($wantReply) { $script:McpId++; $msg['id'] = $script:McpId }
+    if ($null -ne $params) { $msg['params'] = $params }
+    $r = Mcp-Post ($msg | ConvertTo-Json -Depth 30 -Compress) $timeoutSec
+    if (-not $wantReply) { return $null }
+    $payloads = @()
+    if ($r.Ctype -match 'event-stream') {
+        $cur = ''
+        foreach ($line in ($r.Text -split "`n")) {
+            $l = $line.TrimEnd("`r")
+            if ($l.StartsWith('data:')) { $cur += $l.Substring(5).TrimStart() } elseif ($l -eq '' -and $cur -ne '') { $payloads += $cur; $cur = '' }
+        }
+        if ($cur -ne '') { $payloads += $cur }
+    } else { $payloads += $r.Text }
+    foreach ($p in $payloads) {
+        try { $o = $p | ConvertFrom-Json } catch { continue }
+        if ($o.PSObject.Properties['id'] -and $o.id -eq $script:McpId) {
+            if ($o.PSObject.Properties['error'] -and $o.error) { throw ('JSON-RPC error {0}: {1}' -f $o.error.code, $o.error.message) }
+            return $o.result
+        }
+    }
+    throw ('no JSON-RPC reply: ' + $r.Text.Substring(0, [Math]::Min(200, $r.Text.Length)))
+}
+function Mcp-Connect([int]$timeoutSec) {
+    $script:McpSession = $null
+    $res = Mcp-Rpc 'initialize' @{ protocolVersion = $McpProto; capabilities = @{}; clientInfo = @{ name = 'deep-playtest'; version = '2.0' } } $timeoutSec
+    $null = Mcp-Rpc 'notifications/initialized' $null $timeoutSec $false
+    return $res
+}
+# Same contract as before: Ok, and Text (the tool's text; images are saved and reported as 'image saved: <path>').
 function Mcp([string]$verb, [string]$name, [string]$json) {
-    $sq = [string][char]39
-    $dq = [string][char]34
-    $cmd = '& ' + $sq + (Join-Path $Tools 'mcp.ps1') + $sq + ' ' + $verb + ' ' + $sq + $name + $sq
-    if ($json) { $cmd += ' ' + $sq + $json.Replace($sq, $sq + $sq) + $sq }
-    $cmd += ' -Port ' + $Port + ' -MaxChars 100000'
-    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ($dq + $cmd.Replace($dq, '\' + $dq) + $dq))
-    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    $out = & powershell.exe @a 2>&1 | Out-String
-    $code = $LASTEXITCODE
-    $ErrorActionPreference = $old
-    return [pscustomobject]@{ Ok = ($code -eq 0); Text = $out.Trim() }
+    try {
+        if ($verb -eq 'ping') {
+            $res = Mcp-Connect 3
+            return [pscustomobject]@{ Ok = $true; Text = ('OK server=' + $res.serverInfo.name) }
+        }
+        if (-not $script:McpSession) { $null = Mcp-Connect 30 }
+        $args1 = $null; if ($json) { $args1 = $json | ConvertFrom-Json } else { $args1 = @{} }
+        $i = $name.LastIndexOf('.')
+        $p = @{ name = 'call_tool'; arguments = @{ toolset_name = $name.Substring(0, $i); tool_name = $name.Substring($i + 1); arguments = $args1 } }
+        try { $res = Mcp-Rpc 'tools/call' $p 100 }
+        catch [Net.WebException] { $script:McpSession = $null; $null = Mcp-Connect 30; $res = Mcp-Rpc 'tools/call' $p 100 }   # session lost: reconnect once
+        $ok = -not ($res.PSObject.Properties['isError'] -and $res.isError)
+        $t = ''
+        foreach ($c in @($res.content)) {
+            if ($c.type -eq 'text') { $t += [string]$c.text + "`n" }
+            elseif ($c.type -eq 'image') {
+                $dir = Join-Path $Repo 'deep\Saved\Harness\mcp'
+                New-Item -ItemType Directory -Force -Path $dir | Out-Null
+                $ext = 'png'; if ($c.mimeType -match 'jpe?g') { $ext = 'jpg' }
+                $f = Join-Path $dir ('{0}-{1}.{2}' -f ($name -replace '^.*\.', ''), (Get-Date -Format 'yyyyMMdd-HHmmss-fff'), $ext)
+                [IO.File]::WriteAllBytes($f, [Convert]::FromBase64String([string]$c.data))
+                $t += 'image saved: ' + $f + "`n"
+            }
+        }
+        return [pscustomobject]@{ Ok = $ok; Text = $t.Trim() }
+    } catch {
+        return [pscustomobject]@{ Ok = $false; Text = ('transport: ' + $_.Exception.Message) }
+    }
 }
 function Call([string]$tool, [string]$json) {
     $r = Mcp 'call' $tool $json
@@ -86,10 +157,16 @@ function Get-Monster {
 # keys: array of key names, held together for $sec seconds
 function Hold([string[]]$keys, [double]$sec) {
     $e = @(); foreach ($k in $keys) { $e += ('{"key":{"keyName":"' + $k + '"},"value":{"x":1,"y":0,"z":0}}') }
-    $j = '{"entries":[' + ($e -join ',') + '],"durationSeconds":' + $sec.ToString([Globalization.CultureInfo]::InvariantCulture) + '}'
+    $j = '{"entries":[' + ($e -join ',') + '],"durationSeconds":' + ([Math]::Max(0.05, $sec / $Speed)).ToString([Globalization.CultureInfo]::InvariantCulture) + '}'
+    $t0 = [Diagnostics.Stopwatch]::StartNew()
     $null = Call 'InputToolset.InputToolset.ApplyInput' $j
+    # the tool may return before the keys are released; a hold is over only when its time is
+    $left = [Math]::Max(0.05, $sec / $Speed) - $t0.Elapsed.TotalSeconds
+    if ($left -gt 0) { Start-Sleep -Milliseconds ([int]($left * 1000)) }
+    $script:HoldWaited += [Math]::Max(0, $left)
 }
-function Wait-Sec([double]$s) { Start-Sleep -Milliseconds ([int]($s * 1000)) }
+$script:HoldWaited = 0
+function Wait-Sec([double]$s) { Start-Sleep -Milliseconds ([Math]::Max(20, [int]($s * 1000 / $Speed))) }   # a wait for game time: shorter when the game runs faster
 function Need([bool]$cond, [string]$why) { if (-not $cond) { throw $why } }
 function Teleport($p) { $null = Run-Exec ('Deep.Teleport {0} {1} {2}' -f [int]$p[0], [int]$p[1], [int]$p[2]); Wait-Sec 0.5 }
 function Near([double]$a, [double]$b, [double]$tol) { return ([Math]::Abs($a - $b) -le $tol) }
@@ -99,26 +176,37 @@ function Wait-Editor([int]$timeoutSec) {
     while ($sw.Elapsed.TotalSeconds -lt $timeoutSec) {
         $r = Mcp 'ping' '' ''
         if ($r.Ok -and $r.Text -match '^OK') { return $true }
-        Start-Sleep -Seconds 3
+        Start-Sleep -Milliseconds 500
     }
     return $false
 }
 
 function Start-Pie {
     $null = Call 'EditorToolset.EditorAppToolset.StartPIE' '{}'
-    for ($i = 0; $i -lt 20; $i++) {
-        Wait-Sec 1
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt 25) {
+        Start-Sleep -Milliseconds 250
         $r = Mcp 'call' 'DeepToolset.DeepToolset.GetState' '{}'
         if ($r.Ok) {
             $s = ($r.Text | ConvertFrom-Json).returnValue | ConvertFrom-Json
-            if ($s.diver_present) { Wait-Sec 1.5; return }
+            if ($s.diver_present) {
+                if ($Speed -ne 1) { $null = Run-Exec ('slomo ' + $Speed.ToString([Globalization.CultureInfo]::InvariantCulture)) }
+                Start-Sleep -Milliseconds 400; return
+            }
         }
     }
-    throw 'PIE started but no diver appeared within 20 s'
+    throw 'PIE started but no diver appeared within 25 s'
 }
 function Stop-Pie {
     $null = Mcp 'call' 'EditorToolset.EditorAppToolset.StopPIE' '{}'
-    Wait-Sec 2
+    # poll until the game world is gone (GetState fails or reports no diver), not a fixed 2 s
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt 8) {
+        $r = Mcp 'call' 'DeepToolset.DeepToolset.GetState' '{}'
+        if (-not $r.Ok) { break }
+        try { $s = ($r.Text | ConvertFrom-Json).returnValue | ConvertFrom-Json; if (-not $s.diver_present) { break } } catch { break }
+        Start-Sleep -Milliseconds 150
+    }
 }
 # One viewport PNG: kept in the harness folder and in devlog\media (named for the dev log).
 function Shot([string]$name) {
@@ -137,7 +225,7 @@ function Wait-State([scriptblock]$test, [double]$timeoutSec, [string]$what) {
         $s = Get-State
         if (& $test $s) { return $s }
         if ($sw.Elapsed.TotalSeconds -gt $timeoutSec) { throw ('timed out after {0:N0} s waiting for {1}; run_state={2} credits={3} stop={4} sub_depth={5} inside={6}' -f $sw.Elapsed.TotalSeconds, $what, $s.run_state, $s.credits, $s.stop, $s.sub_depth_m, $s.inside) }
-        Wait-Sec 0.7
+        Start-Sleep -Milliseconds 120
     }
 }
 # Leave the settlement screen the way a player does (Space), retrying until the minimum screen time has passed.
@@ -156,7 +244,8 @@ function Begin-Run {
     $s = Get-State
     if ($s.on_title) {
         Hold @('SpaceBar') 0.3
-        Wait-Sec 1
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ((Get-State).on_title -and $sw.Elapsed.TotalSeconds -lt 1.5) { Start-Sleep -Milliseconds 100 }
         if ((Get-State).on_title) { $script:Notes += 'title: a key press did not start the run, used Deep.Start'; $null = Run-Exec 'Deep.Start' }
     }
     $null = Wait-State { param($s) -not $s.on_title -and $s.run_state -eq 'aboard' } 15 'the run to start aboard'
@@ -642,13 +731,15 @@ $total = [Diagnostics.Stopwatch]::StartNew()
 $startedEditor = $false
 if (-not (Wait-Editor 3)) {
     Write-Host ('editor not answering on {0}; starting it' -f $Port)
-    $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Tools 'ue.ps1') editor -Port $Port
     $startedEditor = $true
+    # Agent editors run in the background; Windows-side the editor throttles itself then. Turn that off for this editor only.
+    $extra = ''
+    if (-not $NoUnthrottle) { $extra = '-ini:EditorSettings:[/Script/UnrealEd.EditorPerformanceSettings]:bThrottleCPUWhenNotForeground=False' }
+    $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Tools 'ue.ps1') editor -Port $Port -ExtraArgs $extra
     if (-not (Wait-Editor 240)) { Write-Host 'FAIL all: editor never answered'; exit 1 }
-    Start-Sleep -Seconds 40   # the first PIE call is refused while the editor still runs its start-up slow task
+    # no fixed wait: Start-Pie below retries while the editor still runs its start-up slow task
 }
 $null = Mcp 'call' 'EditorToolset.EditorAppToolset.StopPIE' '{}'
-Wait-Sec 1
 
 $pass = 0; $fail = 0
 foreach ($n in $list) {
@@ -656,12 +747,13 @@ foreach ($n in $list) {
     $script:Notes = @()
     $err = $null
     try {
-        for ($tries = 0; $tries -lt 6; $tries++) {
-            try { Start-Pie; break } catch { if ($_.Exception.Message -match 'slow task' -and $tries -lt 5) { Start-Sleep -Seconds 15 } else { throw } }
+        for ($tries = 0; $tries -lt 151; $tries++) {
+            try { Start-Pie; break } catch { if ($_.Exception.Message -match 'slow task|not ready|busy' -and $tries -lt 150) { Start-Sleep -Seconds 1 } else { throw } }
         }
         & $n
     } catch { $err = $_.Exception.Message -replace '\s+', ' ' }
     try { Shot $n } catch { }
+    try { $z = Get-State; Write-Host ('  END {0}: run_state={1} stop={2} parked={3} sub_depth={4:N0} credits={5} cargo_kg={6} hull={7} flashlight={8} won={9}' -f $n, $z.run_state, $z.stop, $z.parked_stop, $z.sub_depth_m, $z.credits, $z.cargo_kg, $z.hull_rating, $z.has_flashlight, $z.won) } catch { }
     try { Stop-Pie } catch { }
     foreach ($x in $script:Notes) { Write-Host ('  ' + $x) }
     if ($err) { $fail++; Write-Host ('FAIL {0}: {1} ({2:N0}s)' -f $n, $err, $sw.Elapsed.TotalSeconds) }

@@ -18,7 +18,8 @@ param(
     [string]$Name = 'shot',
     [int]$Delay = 6,
     [string]$Cmds = '',
-    [int]$Port = 8000
+    [int]$Port = 8000,
+    [string]$ExtraArgs = ''
 )
 
 $ErrorActionPreference = 'Continue'
@@ -533,6 +534,7 @@ function Invoke-Editor {
     }
     if (Test-PortListening $McpPortEditor) { Write-Host ('  WARN: port {0} is already listening; MCP may fail to bind' -f $McpPortEditor) }
     $argLine = '"{0}" -ModelContextProtocolStartServer -ModelContextProtocolPort={1}' -f $UProject, $McpPortEditor
+    if ($ExtraArgs) { $argLine += ' ' + $ExtraArgs }
     try {
         $p = Start-Process -FilePath $EditorExe -ArgumentList $argLine -PassThru -ErrorAction Stop
     } catch {
