@@ -80,6 +80,7 @@ bool FDeepHudPanelsTest::RunTest(const FString& Parameters)
 	In.bBiteAlarm = true;
 	In.bCarryingOrCut = true;
 	TestTrue(TEXT("bitten: band"), Has(EDeepHudMode::Water, BiteAlarm));
+	TestFalse(TEXT("bitten: the controls hint gives way to the band"), Has(EDeepHudMode::Water, ControlsHint));
 	TestTrue(TEXT("carrying: hatch marker"), Has(EDeepHudMode::Water, HatchMarker));
 	TestFalse(TEXT("bitten aboard: never"), Has(EDeepHudMode::Aboard, BiteAlarm | HatchMarker));
 	TestFalse(TEXT("bitten paused: never"), Has(EDeepHudMode::Pause, BiteAlarm));
@@ -127,6 +128,130 @@ bool FDeepHudMotionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("holds"), Tween.Value(5.0), 200.f);
 	Tween.Set(203.f, 6.0, 5.f);
 	TestEqual(TEXT("a small continuous change follows directly"), Tween.Value(6.0), 203.f);
+	return true;
+}
+
+// Direction A: one colour rule for every bar (patience, hull).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHudBarToneTest, "Deep.UI.Hud.BarTone", DEEP_HUD_TEST_FLAGS)
+bool FDeepHudBarToneTest::RunTest(const FString& Parameters)
+{
+	using DeepHudModel::EBarTone;
+	TestTrue(TEXT("full is primary"), DeepHudModel::BarTone(1.f) == EBarTone::Normal);
+	TestTrue(TEXT("just above half is primary"), DeepHudModel::BarTone(0.51f) == EBarTone::Normal);
+	TestTrue(TEXT("half is amber"), DeepHudModel::BarTone(0.5f) == EBarTone::Warn);
+	TestTrue(TEXT("just above a quarter is amber"), DeepHudModel::BarTone(0.26f) == EBarTone::Warn);
+	TestTrue(TEXT("a quarter is alert"), DeepHudModel::BarTone(0.25f) == EBarTone::Danger);
+	TestTrue(TEXT("empty is alert"), DeepHudModel::BarTone(0.f) == EBarTone::Danger);
+	TestTrue(TEXT("the thresholds are the style's"), DeepHudStyle::BarWarnAt == 0.5f && DeepHudStyle::BarDangerAt == 0.25f);
+	return true;
+}
+
+// The hull bar: eases down on a hit, leaves a ghost that fades, flashes the hairline, breaks at zero.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHudHullBarTest, "Deep.UI.Hud.HullBar", DEEP_HUD_TEST_FLAGS)
+bool FDeepHudHullBarTest::RunTest(const FString& Parameters)
+{
+	DeepHudModel::FHullBar Bar;
+	Bar.Step(1.f, 0.0);
+	TestEqual(TEXT("first value shows at once"), Bar.Fill01(0.0), 1.f);
+	TestEqual(TEXT("no ghost before a hit"), Bar.GhostAlpha(0.0), 0.f);
+	TestEqual(TEXT("no flash before a hit"), Bar.FlashAlpha(0.0), 0.f);
+	TestFalse(TEXT("whole hull is not a breach"), Bar.IsBreach());
+
+	// A hit to 60 percent at t = 1.
+	Bar.Step(0.6f, 1.0);
+	TestEqual(TEXT("the fill starts where it stood"), Bar.Fill01(1.0), 1.f);
+	TestTrue(TEXT("the fill is on its way down at half the lerp"), Bar.Fill01(1.0 + DeepHudStyle::BarLerp * 0.5) < 1.f && Bar.Fill01(1.0 + DeepHudStyle::BarLerp * 0.5) > 0.6f);
+	TestEqual(TEXT("the fill arrives after the bar lerp"), Bar.Fill01(1.0 + DeepHudStyle::BarLerp), 0.6f);
+	TestEqual(TEXT("the ghost spans up to where it stood"), Bar.GhostTop, 1.f);
+	TestEqual(TEXT("the ghost is full at the hit"), Bar.GhostAlpha(1.0), 1.f);
+	TestTrue(TEXT("the ghost is fading at 300 ms"), Bar.GhostAlpha(1.3) > 0.f && Bar.GhostAlpha(1.3) < 1.f);
+	TestEqual(TEXT("the ghost is gone after its fade"), Bar.GhostAlpha(1.0 + DeepHudStyle::GhostFade), 0.f);
+	TestEqual(TEXT("the hairline flashes at the hit"), Bar.FlashAlpha(1.05), 1.f);
+	TestEqual(TEXT("the flash is over after 120 ms"), Bar.FlashAlpha(1.0 + DeepHudStyle::HitFlash + 0.001), 0.f);
+
+	// A second hit while the ghost still shows keeps the ghost's top.
+	Bar.Step(0.4f, 1.2);
+	TestEqual(TEXT("a quick second hit keeps the ghost's top"), Bar.GhostTop, 1.f);
+	TestEqual(TEXT("and restarts the ghost"), Bar.GhostAlpha(1.2), 1.f);
+	// A later hit after the ghost faded starts from the current value.
+	Bar.Step(0.3f, 3.0);
+	TestEqual(TEXT("a later hit's ghost starts at the last value"), Bar.GhostTop, 0.4f);
+
+	// A repair eases up with no ghost and no flash.
+	Bar.Step(0.8f, 5.0);
+	TestEqual(TEXT("a repair has no flash"), Bar.FlashAlpha(5.0), 0.f);
+	TestEqual(TEXT("a repair eases up"), Bar.Fill01(5.0 + DeepHudStyle::BarLerp), 0.8f);
+
+	Bar.Step(0.f, 6.0);
+	TestTrue(TEXT("zero is a breach"), Bar.IsBreach());
+	Bar.Step(-0.5f, 6.1);
+	TestTrue(TEXT("below zero clamps to a breach"), Bar.IsBreach());
+	return true;
+}
+
+// The helm gauge's SUB and LIMIT labels never overlap, wherever the sub is (the bug at the limit, Nov 15).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHudGaugeLabelsTest, "Deep.UI.Hud.GaugeLabels", DEEP_HUD_TEST_FLAGS)
+bool FDeepHudGaugeLabelsTest::RunTest(const FString& Parameters)
+{
+	const FVector2f L(1920.f, 1080.f);
+	const FDeepHudRect Gauge = DeepHudLayout::HelmGauge(L);
+	const float GX = Gauge.X + 16.f + 120.f;
+	const float LimitY = 700.f;
+	const FVector2f SubSize(34.f, 22.f);
+	const FVector2f LimitSize(96.f, 22.f);
+	int32 Shifted = 0;
+	for (float SubY = 300.f; SubY <= LimitY + 12.f; SubY += 1.f)
+	{
+		const DeepHudLayout::FGaugeLabels G = DeepHudLayout::GaugeLabels(GX, SubY, LimitY, SubSize, LimitSize, Gauge.Right());
+		if (G.Sub.Overlaps(G.Limit))
+		{
+			AddError(FString::Printf(TEXT("SUB and LIMIT overlap with the sub at y %.0f"), SubY));
+			return false;
+		}
+		if (G.Limit.Right() > Gauge.Right() - 16.f + 0.01f)
+		{
+			AddError(FString::Printf(TEXT("LIMIT leaves the panel with the sub at y %.0f"), SubY));
+			return false;
+		}
+		Shifted += G.bShifted ? 1 : 0;
+	}
+	TestTrue(TEXT("LIMIT moves only near the limit"), Shifted > 0 && Shifted < 80);
+	const DeepHudLayout::FGaugeLabels Far = DeepHudLayout::GaugeLabels(GX, 300.f, LimitY, SubSize, LimitSize, Gauge.Right());
+	TestFalse(TEXT("far from the limit, LIMIT stays put"), Far.bShifted);
+	TestEqual(TEXT("far from the limit, LIMIT sits by the gauge"), Far.Limit.X, GX + 32.f);
+	const DeepHudLayout::FGaugeLabels AtLimit = DeepHudLayout::GaugeLabels(GX, LimitY, LimitY, SubSize, LimitSize, Gauge.Right());
+	TestTrue(TEXT("at the limit, LIMIT clears SUB by two grid steps"), AtLimit.Limit.X >= AtLimit.Sub.Right() + 16.f - 0.01f);
+	TestEqual(TEXT("SUB stays with its arrow"), AtLimit.Sub.X, GX + 24.f);
+	return true;
+}
+
+// Direction A's water panels and the hull bar sit on screen and clear of each other.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHudLayoutATest, "Deep.UI.Hud.Layout", DEEP_HUD_TEST_FLAGS)
+bool FDeepHudLayoutATest::RunTest(const FString& Parameters)
+{
+	using namespace EDeepHudPanel;
+	FDeepHudModeInputs In;
+	TestTrue(TEXT("the helm shows the hull bar"), (DeepHudModel::PanelsFor(EDeepHudMode::Helm, In) & Hull) != 0);
+	TestFalse(TEXT("the water has no hull bar"), (DeepHudModel::PanelsFor(EDeepHudMode::Water, In) & Hull) != 0);
+	TestFalse(TEXT("aboard has no hull bar"), (DeepHudModel::PanelsFor(EDeepHudMode::Aboard, In) & Hull) != 0);
+	TestTrue(TEXT("the hull bit is inside the panel count"), static_cast<uint32>(Hull) < (1u << EDeepHudPanel::Count));
+
+	for (const FVector2f L : { FVector2f(1920.f, 1080.f), FVector2f(1440.f, 1080.f), FVector2f(2560.f, 1080.f) })
+	{
+		const FDeepHudRect Depth = DeepHudLayout::DepthPanel(L);
+		const FDeepHudRect Cargo = DeepHudLayout::CargoPanel(L);
+		const FDeepHudRect Subtitle = DeepHudLayout::SubtitleMax(L, 3);
+		const FString At = FString::Printf(TEXT(" at %.0fx%.0f"), L.X, L.Y);
+		TestTrue(TEXT("depth is 280 x 128") + At, Depth.W == 280.f && Depth.H == 128.f);
+		TestTrue(TEXT("depth on screen") + At, Depth.Inside(L.X, L.Y));
+		TestTrue(TEXT("cargo on screen") + At, Cargo.Inside(L.X, L.Y));
+		TestFalse(TEXT("depth clear of the subtitle") + At, Depth.Overlaps(Subtitle));
+		TestFalse(TEXT("cargo clear of the subtitle") + At, Cargo.Overlaps(Subtitle));
+		TestTrue(TEXT("the strain line is inside the depth panel") + At, DeepHudStyle::StrainLineY + 2.f <= Depth.H);
+		const FDeepHudRect Hull = DeepHudLayout::HullSlot(L);
+		TestTrue(TEXT("the hull bar is 400 x 48, 496 above the bottom margin") + At,
+			Hull.W == 400.f && Hull.H == 48.f && FMath::IsNearlyEqual(L.Y - DeepHudStyle::Margin - Hull.Y, 496.f + 48.f));
+	}
 	return true;
 }
 

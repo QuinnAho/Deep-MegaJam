@@ -44,6 +44,8 @@ private:
 	DeepHudModel::FTween Patience;
 	DeepHudModel::FTween Tether;
 	DeepHudModel::FTween Air;
+	/** The hull bar: eased fill, the ghost of a hit, the hairline flash. */
+	DeepHudModel::FHullBar HullBar;
 
 	EDeepHudMode LastMode = EDeepHudMode::None;
 	double ModeStart = 0.0;

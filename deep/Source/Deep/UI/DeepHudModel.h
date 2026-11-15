@@ -4,6 +4,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "UI/DeepHudStyle.h"
 
 /** One mode at a time. Nothing from one mode shows in another. */
 enum class EDeepHudMode : uint8
@@ -34,8 +35,8 @@ namespace EDeepHudPanel
 		Feedback = 1 << 2,
 		ObjectPrompts = 1 << 3,  // aboard: prompts anchored to the hatch, console and helm
 		HelmGauge = 1 << 4,
-		Depth = 1 << 5,          // water: depth and the tether under it
-		Cargo = 1 << 6,          // water: cargo, lamp and harpoon state
+		Depth = 1 << 5,          // water: depth, and the tether's strain line when it pulls
+		Cargo = 1 << 6,          // water: kilograms and credits carried
 		Patience = 1 << 7,
 		Reticle = 1 << 8,
 		Threat = 1 << 9,         // the red screen edge
@@ -52,7 +53,8 @@ namespace EDeepHudPanel
 		CreditsCard = 1 << 20,
 		ConfirmCard = 1 << 21,  // quit asks once
 		Sonar = 1 << 22,        // the helm sonar, bottom left (Sonar lane)
-		Count = 23,
+		Hull = 1 << 23,         // the hull integrity bar, above the sonar's place (direction A)
+		Count = 24,
 	};
 }
 
@@ -92,6 +94,10 @@ namespace DeepHudModel
 		float Alpha() const;
 	};
 
+	/** A bar's colour band (patience, hull): normal above WarnAt, warn at WarnAt or below, danger at DangerAt or below. */
+	enum class EBarTone : uint8 { Normal, Warn, Danger };
+	DEEP_API EBarTone BarTone(float Fraction01, float WarnAt = DeepHudStyle::BarWarnAt, float DangerAt = DeepHudStyle::BarDangerAt);
+
 	/** A number that eases to each new target over a fixed time, from wherever it is shown now. */
 	struct DEEP_API FTween
 	{
@@ -103,6 +109,30 @@ namespace DeepHudModel
 		/** Sets a new target; a jump smaller than Snap follows directly (continuous values such as depth). */
 		void Set(float Target, double Now, float Snap = 0.f);
 		float Value(double Now) const;
+	};
+
+	/**
+	 * The hull bar's motion (HUD spec A, element 11). A hit eases the fill down over BarLerp, leaves a ghost of the lost
+	 * segment that fades over GhostFade, and flashes the panel's hairline for HitFlash. A repair just eases up.
+	 */
+	struct DEEP_API FHullBar
+	{
+		/** The last integrity seen, 0..1; below 0 until the first Step. */
+		float Last = -1.f;
+		FTween Fill;
+		/** The top of the ghost segment: where the bar stood before the latest hit (or hits, while one still shows). */
+		float GhostTop = 0.f;
+		double HitTime = -1000.0;
+
+		void Step(float Hull01, double Now);
+		/** The fill drawn now, 0..1. */
+		float Fill01(double Now) const { return Fill.Value(Now); }
+		/** The ghost's opacity: 1 at the hit, 0 after GhostFade. */
+		float GhostAlpha(double Now) const;
+		/** The hairline's alert flash: 1 for HitFlash after a hit, then 0. */
+		float FlashAlpha(double Now) const;
+		/** The hull is gone: the bar gives way to HULL BREACH. */
+		bool IsBreach() const { return Last >= 0.f && Last <= KINDA_SMALL_NUMBER; }
 	};
 }
 
@@ -134,4 +164,22 @@ namespace DeepHudLayout
 	DEEP_API FDeepHudRect SubtitleMax(FVector2f Local, int32 Lines);
 	/** The sonar scope's centre and radius inside its panel. */
 	DEEP_API void SonarScope(const FDeepHudRect& Panel, FVector2f& Centre, float& Radius);
+	/** The water's depth panel (bottom left) and cargo panel (bottom right), direction A's 280 x 128. */
+	DEEP_API FDeepHudRect DepthPanel(FVector2f Local);
+	DEEP_API FDeepHudRect CargoPanel(FVector2f Local);
+
+	/** The helm gauge's two labels: SUB beside its arrow, LIMIT above the limit line. */
+	struct FGaugeLabels
+	{
+		FDeepHudRect Sub;
+		FDeepHudRect Limit;
+		/** LIMIT moved right, past SUB, because the sub is near the limit; the limit line then runs under it in two parts. */
+		bool bShifted = false;
+	};
+	/**
+	 * Places the gauge labels so they never overlap. GaugeX is the gauge line, SubY the arrow's centre, LimitY the limit
+	 * line. SUB stays with its arrow; LIMIT sits above the line, and steps right past SUB (two grid steps clear) when
+	 * the two would touch. Sizes are the measured labels; PanelRight bounds the shift.
+	 */
+	DEEP_API FGaugeLabels GaugeLabels(float GaugeX, float SubY, float LimitY, FVector2f SubSize, FVector2f LimitSize, float PanelRight);
 }
