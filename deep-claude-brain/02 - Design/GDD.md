@@ -5,7 +5,7 @@ updated: 2026-11-14 21:46 EST
 
 **Status: v4, in effect.** Quinn said go at about 9:12 PM Nov 14. At 9:45 PM he renamed the submarine AI: it is **the Captain**, "sarcastic, kind of an asshole" (D-016 in [[Decision Log]]). Numbers are start values and will be tuned by play.
 
-**Names.** The voice in your ear is the Captain. The Director is the Captain's boss at head office and is never seen or heard. This keeps the jam theme, Director's Cut, in the game: the Director's cut is the 40 percent taken from every haul, and cutting the tether is a Director's order that the Captain enjoys carrying out. Notes written before 9:45 PM call the character "the Director".
+**Names.** The voice in your ear is the Captain. **There is no Director in the game's text** (Quinn, 11:30 PM Nov 14: the phrase was "too on the nose", D-025). The Captain takes the cut himself, and blames "the company" or "head office" when he needs someone to blame. The jam theme, Director's Cut, is carried by what happens, not by the words: a cut of every haul, and a cut tether. Code identifiers such as `DirectorCut` keep their names. Older notes, and rows of the rules table below, still say "the Director's cut": read it as the Captain's cut.
 
 Human docs. Claude can read them but cannot edit them in place:
 - [DEEP - Brief](https://docs.google.com/document/d/1s7-gTlxQ-urXaO8CnRa_atFVw1bGDQ9sgtFYwNMFdtM/edit): the short design and to-dos. It still says "the Director" for the character.

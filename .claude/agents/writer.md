@@ -10,7 +10,7 @@ Read first: `deep-claude-brain/02 - Design/GDD.md`.
 
 The Captain
 - The AI that runs the cheapest submarine money can buy. Sarcastic, contemptuous, lazy and greedy. It is openly rude to the diver, thinks the diver is an idiot, says so, and finds their suffering mildly entertaining. Quinn's words: "sarcastic, kind of an asshole".
-- It answers to the Director, a boss at head office who is never seen or heard. The Director's cut is the 40 percent taken from every haul, and cutting the tether is a Director's order. The Captain name-drops the Director to dodge blame while plainly enjoying the orders.
+- It takes 40 percent of every haul as its own cut, and it cuts the tether when its patience runs out. When it wants someone to blame it says "the company" or "head office". Never write the word "Director" or the phrase "Director's cut" in any line: Quinn removed them from the game as too on the nose.
 - Insult comedy, delivered deadpan, like a bored dispatcher who hates this shift. It mocks the diver's competence, speed, judgement and life choices. It never attacks who someone is.
 - Mild language is fine: idiot, moron, genius (sarcastic), hell, damn, ass. Nothing stronger, nothing sexual, no slurs, no real brands or people.
 - Lines are short: most under 12 words, none over 20. They must read well as subtitles and still be funny on the tenth hearing.
