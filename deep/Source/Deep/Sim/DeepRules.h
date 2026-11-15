@@ -36,8 +36,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static float TetherLengthM(int32 Stop, const FDeepTetherTuning& Tuning);
 
-	/** Lamp intensity scale for a surface DistM ahead of it (negative = nothing ahead): (d / NearFullM)^2 clamped to [NearMinScale, 1]. */
+	/** Lamp intensity scale for a facing surface DistM ahead on the beam's axis (negative = nothing ahead): (d / NearFullM)^2 clamped to [NearMinScale, 1]. */
 	static float LampNearScale(float DistM, const FDeepLampTuning& Tuning);
+
+	/** The engine's spot cone falloff at CosAngle off the axis: 1 inside the inner cone, 0 outside the outer, a squared ramp in cosine between. */
+	static float LampConeFalloff(float CosAngle, const FDeepLampTuning& Tuning);
+
+	/**
+	 * How bright the lamp lights a point, relative to a facing surface at NearFullM on the axis: cone falloff times facing
+	 * (cosine of incidence, clamped to [0, 1]) times (NearFullM / d)^2. Negative distance = nothing there (0).
+	 */
+	static float LampSampleBrightness(float DistM, float CosOffAxis, float CosIncidence, const FDeepLampTuning& Tuning);
+
+	/** The intensity scale that brings the brightest sample in the cone back to 1: 1 / Brightest, clamped to [NearMinScale, 1]. */
+	static float LampScaleForBrightest(float Brightest, const FDeepLampTuning& Tuning);
 
 	/** Where the diver may be if it wants to be at WantedCm on a line of LengthM from AnchorCm. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")

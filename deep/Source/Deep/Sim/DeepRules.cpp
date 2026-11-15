@@ -579,11 +579,36 @@ bool UDeepRules::InHatchColumn(const FVector& LocalCm, const FDeepSubTuning& Tun
 
 float UDeepRules::LampNearScale(float DistM, const FDeepLampTuning& Tuning)
 {
-	if (DistM < 0.f || Tuning.NearFullM <= 0.f || DistM >= Tuning.NearFullM)
+	return LampScaleForBrightest(LampSampleBrightness(DistM, 1.f, 1.f, Tuning), Tuning);
+}
+
+float UDeepRules::LampConeFalloff(float CosAngle, const FDeepLampTuning& Tuning)
+{
+	// As the engine's SpotAttenuation: Square(saturate((cos - cosOuter) / (cosInner - cosOuter))).
+	const float Outer = FMath::Clamp(Tuning.OuterConeDeg, 0.f, 89.f);
+	const float Inner = FMath::Clamp(Tuning.InnerConeDeg, 0.f, Outer);
+	const float CosOuter = FMath::Cos(FMath::DegreesToRadians(Outer));
+	const float CosInner = FMath::Cos(FMath::DegreesToRadians(Inner));
+	const float Span = FMath::Max(CosInner - CosOuter, 1e-4f);
+	return FMath::Square(FMath::Clamp((CosAngle - CosOuter) / Span, 0.f, 1.f));
+}
+
+float UDeepRules::LampSampleBrightness(float DistM, float CosOffAxis, float CosIncidence, const FDeepLampTuning& Tuning)
+{
+	if (DistM < 0.f || Tuning.NearFullM <= 0.f)
+	{
+		return 0.f;
+	}
+	const float D = FMath::Max(DistM, 0.01f);
+	return LampConeFalloff(CosOffAxis, Tuning) * FMath::Clamp(CosIncidence, 0.f, 1.f) * FMath::Square(Tuning.NearFullM / D);
+}
+
+float UDeepRules::LampScaleForBrightest(float Brightest, const FDeepLampTuning& Tuning)
+{
+	if (Brightest <= 1.f)
 	{
 		return 1.f;
 	}
-	const float R = DistM / Tuning.NearFullM;
-	return FMath::Clamp(R * R, FMath::Clamp(Tuning.NearMinScale, 0.f, 1.f), 1.f);
+	return FMath::Clamp(1.f / Brightest, FMath::Clamp(Tuning.NearMinScale, 0.f, 1.f), 1.f);
 }
 

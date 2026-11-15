@@ -262,6 +262,29 @@ bool FDeepWorldLookBlendTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Lamp: 10 m, full"), UDeepRules::LampNearScale(10.f, Lamp), 1.f);
 	TestTrue(TEXT("Lamp: 3 m, a quarter"), FMath::IsNearlyEqual(UDeepRules::LampNearScale(3.f, Lamp), 0.25f, 1e-4f));
 	TestEqual(TEXT("Lamp: touching, the floor"), UDeepRules::LampNearScale(0.1f, Lamp), 0.05f);
+
+	// The shipped tuning holds the lit spot at its NearFullM brightness from 0.5 m out (the pit floor at 1 m burnt
+	// three times over when the floor stopped the curve at 1.7 m).
+	const FDeepLampTuning Shipped;
+	for (const float D : { 0.5f, 1.f, 2.f, 4.f })
+	{
+		const float Lit = UDeepRules::LampNearScale(D, Shipped) * FMath::Square(Shipped.NearFullM / D);
+		TestTrue(*FString::Printf(TEXT("Lamp: a facing surface at %.1f m on the axis is lit as at NearFullM (%.3f)"), D, Lit), FMath::IsNearlyEqual(Lit, 1.f, 1e-3f));
+	}
+	// The cone: full inside the inner cone, nothing outside the outer, between them weaker; facing counts.
+	const auto CosDeg = [](float Deg) { return FMath::Cos(FMath::DegreesToRadians(Deg)); };
+	TestEqual(TEXT("Lamp cone: on the axis, full"), UDeepRules::LampConeFalloff(1.f, Shipped), 1.f);
+	TestTrue(TEXT("Lamp cone: at the inner edge, full"), FMath::IsNearlyEqual(UDeepRules::LampConeFalloff(CosDeg(Shipped.InnerConeDeg - 0.01f), Shipped), 1.f, 1e-3f));
+	TestEqual(TEXT("Lamp cone: past the outer edge, nothing"), UDeepRules::LampConeFalloff(CosDeg(Shipped.OuterConeDeg + 1.f), Shipped), 0.f);
+	const float Halfway = UDeepRules::LampConeFalloff(CosDeg((Shipped.InnerConeDeg + Shipped.OuterConeDeg) * 0.5f), Shipped);
+	TestTrue(TEXT("Lamp cone: halfway out, weaker"), Halfway > 0.1f && Halfway < 0.6f);
+	TestTrue(TEXT("Lamp: a surface at a graze is lit less than one facing"),
+		UDeepRules::LampSampleBrightness(2.f, 1.f, 0.3f, Shipped) < UDeepRules::LampSampleBrightness(2.f, 1.f, 1.f, Shipped));
+	TestEqual(TEXT("Lamp: nothing there, no light"), UDeepRules::LampSampleBrightness(-1.f, 1.f, 1.f, Shipped), 0.f);
+	// The scale answers the brightest sample: a near wall at the cone's edge dims less than the same wall on the axis.
+	const float EdgeScale = UDeepRules::LampScaleForBrightest(UDeepRules::LampSampleBrightness(1.f, CosDeg(18.f), 1.f, Shipped), Shipped);
+	TestTrue(TEXT("Lamp: a wall at the cone's edge dims less than on the axis"), EdgeScale > UDeepRules::LampNearScale(1.f, Shipped));
+	TestEqual(TEXT("Lamp: dim samples leave it at full"), UDeepRules::LampScaleForBrightest(0.5f, Shipped), 1.f);
 	return true;
 }
 
