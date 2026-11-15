@@ -1,5 +1,6 @@
 #include "Debug/DeepStateReport.h"
 
+#include "Audio/DeepAudioSubsystem.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Dom/JsonObject.h"
@@ -138,6 +139,10 @@ namespace DeepStateReport
 			}
 		}
 		Json->SetNumberField(TEXT("salvage_in_world"), SalvageCount);
+		if (const UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(World))
+		{
+			Json->SetObjectField(TEXT("audio"), Audio->BuildStateJson());
+		}
 
 		const FVector Pos = Diver ? Diver->GetActorLocation() : FVector::ZeroVector;
 		TArray<TSharedPtr<FJsonValue>> PosArray = {
