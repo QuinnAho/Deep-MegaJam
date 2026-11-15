@@ -11,6 +11,8 @@
 
 class UStaticMeshComponent;
 class UPointLightComponent;
+class UInstancedStaticMeshComponent;
+class ULocalLightComponent;
 class USpotLightComponent;
 class UCameraComponent;
 class URectLightComponent;
@@ -95,6 +97,9 @@ public:
 
 	/** Shows or hides the outside dress and the lamp housings (Deep.Hull, frame-time A/B). */
 	void SetHullDressVisible(bool bVisible);
+
+	/** Shows or hides the room's dressing and its lights (World/DeepRoomDress, `Deep.Room.Dress`). */
+	void SetRoomDressVisible(bool bVisible);
 
 	/** The trench shows to a local viewer: through the helm camera, or from inside the room while the sub is not parked (the window). */
 	static bool TrenchShows(bool bHelmView, bool bInRoomView, bool bParked);
@@ -192,6 +197,14 @@ protected:
 	/** The outside dress, one component per DeepHull::Parts entry (same order). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UStaticMeshComponent>> HullDress;
+
+	/** The room's dressing (DeepRoomDress::Pieces): one instanced mesh per shape and material, no collision. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UInstancedStaticMeshComponent>> RoomDressMeshes;
+
+	/** The dressing's caged lights (DeepRoomDress::Lights). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<ULocalLightComponent>> RoomDressLights;
 
 	/** Work lights on the top rails amidships, aimed down each side (Look.HullLight*). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")

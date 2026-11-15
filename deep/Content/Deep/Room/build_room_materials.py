@@ -9,6 +9,8 @@
 #   M_Screen    : an amber instrument screen (#FFB45A): dim graph lines and bars on near-black glass, with scanlines. UV0.
 #   M_Glass     : the helm window. Translucent, lit per pixel (Surface ForwardShading), so Lumen front-layer reflections put
 #                 a faint copy of the lit room on it over the dark sea; with ray tracing off it falls back to screen space.
+#   MI_FrameSteel, MI_PipeSteel, MI_DullBrass, MI_Rubber, MI_GrimyGlass : instances of M_WornSteel for the room's dressing
+#                 (World/DeepRoomDress). EdgeWear (default 0) chips paint on edges found from the instance-local position.
 import unreal
 
 PATH = "/Game/Deep/Room"
@@ -30,12 +32,21 @@ float chip(float3 p, float wear) { float v = fbm(p * 0.018) * 0.85 + n(p * 0.2) 
 float rust(float3 p, float amt) { float s = fbm(float3(p.x * 0.06, p.y * 0.06, p.z * 0.006)) * 0.7 + fbm(p * 0.02) * 0.3; return smoothstep(1.0 - amt, 1.0 - amt + 0.18, s); }
 float grime(float3 p) { return fbm(p * 0.008 + 3.7); }
 float height(float3 p, float wear, float amt) { return 0.6 * (1.0 - chip(p, wear)) + 0.3 * rust(p, amt) * n(p * 0.5) + 0.1 * n(p * 1.3); }
+// Edge wear (Lane E): near two faces at once = an edge or a corner. Width is in local units (percent of the piece's size),
+// broken by noise so it reads as chipped edges, not an outline. Off when EdgeWear is 0.
+float edge(float3 lp, float3 p, float wearAmt, float width) {
+  float3 d = 50.0 - abs(lp);
+  float mid = max(min(d.x, d.y), min(max(d.x, d.y), d.z));
+  float e = 1.0 - smoothstep(0.0, max(width, 0.01), mid);
+  float v = e * (0.55 + 0.9 * fbm(p * 0.09 + 5.3));
+  return step(0.001, wearAmt) * smoothstep(1.0 - wearAmt, 1.0 - wearAmt + 0.08, v);
+}
 };
 DeepN N;
 """
 
 COLOR = NOISE + r"""
-float c = N.chip(P, Wear); float r = N.rust(P, Rust); float g = N.grime(P);
+float c = max(N.chip(P, Wear), N.edge(LP, P, EdgeWear, EdgeWidth)); float r = N.rust(P, Rust); float g = N.grime(P);
 float3 col = lerp(Paint.rgb, Bare.rgb, c);
 col = lerp(col, RustCol.rgb * (0.7 + 0.6 * N.n(P * 0.4)), r);
 col *= lerp(0.65, 1.05, g);
@@ -47,7 +58,7 @@ return col;
 """
 
 ROUGH = NOISE + r"""
-float c = N.chip(P, Wear); float r = N.rust(P, Rust); float g = N.grime(P);
+float c = max(N.chip(P, Wear), N.edge(LP, P, EdgeWear, EdgeWidth)); float r = N.rust(P, Rust); float g = N.grime(P);
 float rough = lerp(PaintRough, BareRough, c);
 rough = lerp(rough, 0.85, r);
 rough += (g - 0.5) * 0.25;
@@ -61,7 +72,7 @@ return clamp(rough, 0.08, 0.95);
 """
 
 METAL = NOISE + r"""
-float c = N.chip(P, Wear); float r = N.rust(P, Rust);
+float c = max(N.chip(P, Wear), N.edge(LP, P, EdgeWear, EdgeWidth)); float r = N.rust(P, Rust);
 return saturate(lerp(PaintMetal, 1.0, c) * (1.0 - r));
 """
 
@@ -151,6 +162,8 @@ def build_steel():
     mat = fresh("M_WornSteel")
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
     mat.set_editor_property("tangent_space_normal", False)
+    # Room dressing is drawn as instanced static meshes (World/DeepRoomDress).
+    mat.set_editor_property("used_with_instanced_static_meshes", True)
     wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1800, 0)
     obj = mel.create_material_expression(mat, unreal.MaterialExpressionObjectPositionWS, -1800, 120)
     rel = mel.create_material_expression(mat, unreal.MaterialExpressionSubtract, -1600, 60)
@@ -158,6 +171,7 @@ def build_steel():
     link(obj, "", rel, "B")
     nw = mel.create_material_expression(mat, unreal.MaterialExpressionVertexNormalWS, -1800, 240)
     dist = mel.create_material_expression(mat, unreal.MaterialExpressionPixelDepth, -1800, 340)
+    lp = mel.create_material_expression(mat, unreal.MaterialExpressionLocalPosition, -1800, 440)  # instance-local
 
     # Paint: muted grey-green (sRGB about 62,68,64; saturation under 10%). Bare steel: grey, metallic. Rust: brown under 35%.
     p = {
@@ -173,10 +187,13 @@ def build_steel():
         "BareRough": scalar(mat, "BareRoughness", 0.42, -1300, 100),
         "PaintMetal": scalar(mat, "PaintMetal", 0.0, -1300, 160),
         "Bump": scalar(mat, "Bump", 0.35, -1300, 220),
+        "EdgeWear": scalar(mat, "EdgeWear", 0.0, -1300, 280),
+        "EdgeWidth": scalar(mat, "EdgeWidth", 4.0, -1300, 340),
     }
 
     def node(code, out, names, desc, y):
-        e = custom(mat, code, out, ["P", "WP", "Nw", "Dist"] + names, desc, -700, y)
+        e = custom(mat, code, out, ["P", "WP", "Nw", "Dist", "LP"] + names, desc, -700, y)
+        link(lp, "", e, "LP")
         link(rel, "", e, "P")
         link(wp, "", e, "WP")
         link(nw, "", e, "Nw")
@@ -187,9 +204,9 @@ def build_steel():
 
     f3 = unreal.CustomMaterialOutputType.CMOT_FLOAT3
     f1 = unreal.CustomMaterialOutputType.CMOT_FLOAT1
-    color = node(COLOR, f3, ["Paint", "Bare", "RustCol", "Wear", "Rust", "Wet", "Centre", "Radius"], "SteelColor", -400)
-    rough = node(ROUGH, f1, ["PaintRough", "BareRough", "Wear", "Rust", "Wet", "Centre", "Radius"], "SteelRoughness", -100)
-    metal = node(METAL, f1, ["Wear", "Rust", "PaintMetal"], "SteelMetallic", 150)
+    color = node(COLOR, f3, ["Paint", "Bare", "RustCol", "Wear", "Rust", "Wet", "Centre", "Radius", "EdgeWear", "EdgeWidth"], "SteelColor", -400)
+    rough = node(ROUGH, f1, ["PaintRough", "BareRough", "Wear", "Rust", "Wet", "Centre", "Radius", "EdgeWear", "EdgeWidth"], "SteelRoughness", -100)
+    metal = node(METAL, f1, ["Wear", "Rust", "PaintMetal", "EdgeWear", "EdgeWidth"], "SteelMetallic", 150)
     normal = node(NORMAL, f3, ["Wear", "Rust", "Bump", "Centre", "Radius"], "SteelNormal", 400)
     mel.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
@@ -231,6 +248,50 @@ def build_glass():
     finish(mat)
 
 
+# Instances of M_WornSteel for the room's dressing (World/DeepRoomDress, Lane E). Epic's material skill: instance before new
+# material. Colours are linear; every surface stays at or under 35% saturation (style guide), roughness 0.4..0.9 except glass.
+INSTANCES = {
+    # Ribs, lockers, the tray, cages: the hull's grey-green paint, worn through on every edge a shoulder or a boot meets.
+    "MI_FrameSteel": dict(vec={"PaintColor": (0.042, 0.049, 0.045), "BareColor": (0.17, 0.17, 0.165), "RustColor": (0.09, 0.055, 0.037)},
+                          sca={"Wear": 0.28, "Rust": 0.4, "EdgeWear": 0.45, "EdgeWidth": 5.0, "PaintRoughness": 0.66,
+                               "BareRoughness": 0.45, "PaintMetal": 0.0, "Bump": 0.35}),
+    # Pipes and valve bodies: a warmer, dirtier paint, rust running from the flanges.
+    "MI_PipeSteel": dict(vec={"PaintColor": (0.058, 0.055, 0.046), "BareColor": (0.15, 0.148, 0.14), "RustColor": (0.10, 0.058, 0.036)},
+                         sca={"Wear": 0.3, "Rust": 0.55, "EdgeWear": 0.3, "EdgeWidth": 6.0, "PaintRoughness": 0.6,
+                              "BareRoughness": 0.45, "PaintMetal": 0.0, "Bump": 0.3}),
+    # Valve wheels, bezels, handles: tarnished brass, rubbed back to bright brass where hands go.
+    "MI_DullBrass": dict(vec={"PaintColor": (0.13, 0.10, 0.06), "BareColor": (0.26, 0.20, 0.115), "RustColor": (0.045, 0.058, 0.045)},
+                         sca={"Wear": 0.25, "Rust": 0.35, "EdgeWear": 0.5, "EdgeWidth": 8.0, "PaintRoughness": 0.55,
+                              "BareRoughness": 0.4, "PaintMetal": 1.0, "Bump": 0.2}),
+    # Cables, the cushion, vents: black rubber, grime only.
+    "MI_Rubber": dict(vec={"PaintColor": (0.013, 0.013, 0.013), "BareColor": (0.02, 0.02, 0.019), "RustColor": (0.04, 0.038, 0.035)},
+                      sca={"Wear": 0.05, "Rust": 0.1, "EdgeWear": 0.0, "PaintRoughness": 0.85, "BareRoughness": 0.8,
+                           "PaintMetal": 0.0, "Bump": 0.15}),
+    # Gauge faces, bulbs, the strip's cover: near-black glass with grime blotches (opaque: these are small and seen dark).
+    "MI_GrimyGlass": dict(vec={"PaintColor": (0.006, 0.008, 0.008), "BareColor": (0.012, 0.013, 0.013), "RustColor": (0.03, 0.03, 0.025)},
+                          sca={"Wear": 0.0, "Rust": 0.2, "EdgeWear": 0.0, "PaintRoughness": 0.18, "BareRoughness": 0.3,
+                               "PaintMetal": 0.0, "Bump": 0.05}),
+}
+
+
+def build_instances():
+    parent = unreal.load_asset(PATH + "/M_WornSteel")
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    for name, spec in INSTANCES.items():
+        mi = unreal.load_asset(PATH + "/" + name)
+        if not mi:
+            mi = tools.create_asset(name, PATH, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        mel.set_material_instance_parent(mi, parent)
+        for k, v in spec["vec"].items():
+            mel.set_material_instance_vector_parameter_value(mi, k, unreal.LinearColor(v[0], v[1], v[2], 1.0))
+        for k, v in spec["sca"].items():
+            mel.set_material_instance_scalar_parameter_value(mi, k, v)
+        mel.update_material_instance(mi)
+        ok = unreal.EditorLoadingAndSavingUtils.save_packages([mi.get_outermost()], False)
+        unreal.log("DEEPROOMMAT %s saved=%s parent=%s" % (name, ok, parent.get_name() if parent else None))
+
+
 build_steel()
 build_screen()
 build_glass()
+build_instances()
