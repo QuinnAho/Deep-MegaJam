@@ -48,6 +48,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Orb;
 
+	/** Scrap shapes (look only, no collision): the box becomes a pipe, a bent plate or a tank (opening pass, Nov 15). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> ScrapParts;
+
+	/** Lays the scrap parts out for this size; false = none shown (the plain box stays). */
+	bool ApplyScrapShape(const FLinearColor& Paint);
+
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> Glint;
 

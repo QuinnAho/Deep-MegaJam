@@ -31,6 +31,16 @@ ADeepSalvage::ADeepSalvage()
 		Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 		Mesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 	}
+	// Scrap shapes: two cylinders and two boxes, laid out per size in ApplyScrapShape. Look only.
+	const TCHAR* ScrapShapes[] = { DeepShapes::Cylinder, DeepShapes::Cylinder, DeepShapes::Cube, DeepShapes::Cube };
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(ScrapShapes); ++Index)
+	{
+		UStaticMeshComponent* Part = DeepShapes::CreateShape(this, *FString::Printf(TEXT("ScrapPart%d"), Index), ScrapShapes[Index]);
+		Part->SetupAttachment(Root);
+		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Part->SetVisibility(false);
+		ScrapParts.Add(Part);
+	}
 
 	// The relic: built from basic shapes so it reads as obviously special from far away.
 	RelicPivot = CreateDefaultSubobject<USceneComponent>(TEXT("RelicPivot"));
@@ -148,6 +158,10 @@ void ADeepSalvage::ApplyKind()
 	{
 		// The relic's core and pearls keep their pale tint: the one thing down here that is not metal.
 		DeepShapes::Tint(Shown, IsRelic() ? FLinearColor(0.55f, 0.6f, 0.62f) : Kind.Color);
+		for (UStaticMeshComponent* Part : ScrapParts)
+		{
+			Part->SetVisibility(false);
+		}
 	}
 	else
 	{
@@ -156,6 +170,11 @@ void ADeepSalvage::ApplyKind()
 		const FLinearColor Hsv = Kind.Color.LinearRGBToHSV();
 		const FLinearColor Paint = FLinearColor(Hsv.R, FMath::Min(Hsv.G, 0.3f), FMath::Min(Hsv.B, 1.f) * 0.14f + 0.02f).HSVToLinearRGB();
 		DeepShapes::Steel(Shown, Paint, 0.45f, 0.6f, 0.7f, 0.f);
+		// The box stays as the grab collider; what shows is a pipe, a bent plate or a tank.
+		if (ApplyScrapShape(Paint))
+		{
+			Shown->SetVisibility(false);
+		}
 	}
 
 	// The relic: two gold cones point to point form a tall crystal around the core; four shards circle it.
@@ -215,6 +234,60 @@ void ADeepSalvage::ApplyKind()
 		Beacon->SetAttenuationRadius(Arena.RelicBeaconRangeM * UDeepRules::CmPerM);
 		Beacon->SetVolumetricScatteringIntensity(Arena.RelicBeaconScattering);
 		Beacon->SetLightColor(Arena.RelicLightColor);
+	}
+}
+
+bool ADeepSalvage::ApplyScrapShape(const FLinearColor& Paint)
+{
+	if (ScrapParts.Num() < 4)
+	{
+		return false;
+	}
+	// Sizes in units of the kind's size (S), laid out round the pivot, with the lowest point near -0.3 S like the old box
+	// (the bed passes under the pivot there). One yaw for the whole piece so the ring of salvage is not all aligned.
+	const float S = Kind.SizeM * UDeepRules::CmPerM;
+	const FRotator Base(0.f, 30.f + 47.f * static_cast<float>(static_cast<uint8>(Kind.Size)), 0.f);
+	auto Put = [&](int32 Index, const FVector& Loc, const FRotator& Rot, const FVector& SizeInS, float Wear, float Rust)
+	{
+		UStaticMeshComponent* Part = ScrapParts[Index];
+		Part->SetRelativeLocation(Base.RotateVector(Loc * S));
+		Part->SetRelativeRotation((Base.Quaternion() * Rot.Quaternion()).Rotator());
+		Part->SetRelativeScale3D(SizeInS * (S / DeepShapes::ShapeSizeCm));
+		Part->SetVisibility(true);
+		DeepShapes::Steel(Part, Paint, Wear, Rust, 0.7f, 0.f);
+	};
+	// Cylinders stand on Z: pitch 90 lays one along X, roll 90 along Y. Their scale is (diameter, diameter, length).
+	const FRotator AlongX(90.f, 0.f, 0.f);
+	const FRotator AlongY(0.f, 0.f, 90.f);
+	switch (Kind.Size)
+	{
+	case EDeepSalvageSize::Small:
+		// A length of pipe with a flange at one end and a torn bracket.
+		Put(0, FVector(0.f, 0.f, -0.14f), AlongX, FVector(0.32f, 0.32f, 1.4f), 0.5f, 0.75f);
+		Put(1, FVector(0.62f, 0.f, -0.14f), AlongX, FVector(0.56f, 0.56f, 0.08f), 0.35f, 0.6f);
+		Put(2, FVector(-0.3f, 0.08f, 0.04f), FRotator(0.f, 0.f, 25.f), FVector(0.28f, 0.06f, 0.24f), 0.6f, 0.5f);
+		ScrapParts[3]->SetVisibility(false);
+		return true;
+	case EDeepSalvageSize::Medium:
+		// A bent hull plate, the bend up off the bed, a pipe run across it.
+		Put(2, FVector(-0.2f, 0.f, -0.27f), FRotator(4.f, 0.f, 2.f), FVector(1.1f, 0.85f, 0.06f), 0.55f, 0.6f);
+		Put(3, FVector(0.56f, 0.f, -0.08f), FRotator(-38.f, 0.f, 2.f), FVector(0.55f, 0.85f, 0.06f), 0.55f, 0.6f);
+		Put(0, FVector(-0.15f, 0.f, -0.17f), AlongY, FVector(0.13f, 0.13f, 1.05f), 0.4f, 0.8f);
+		Put(1, FVector(-0.15f, 0.47f, -0.17f), AlongY, FVector(0.22f, 0.22f, 0.06f), 0.35f, 0.7f);
+		return true;
+	case EDeepSalvageSize::Large:
+		// A gas tank on its side, a band round it, a valve block on top and a skid under one end.
+		Put(0, FVector(0.f, 0.f, -0.03f), AlongX, FVector(0.54f, 0.54f, 1.3f), 0.45f, 0.65f);
+		Put(1, FVector(0.3f, 0.f, -0.03f), AlongX, FVector(0.59f, 0.59f, 0.09f), 0.6f, 0.5f);
+		Put(2, FVector(-0.45f, 0.f, 0.3f), FRotator(0.f, 15.f, 0.f), FVector(0.16f, 0.16f, 0.14f), 0.3f, 0.4f);
+		Put(3, FVector(-0.42f, 0.f, -0.27f), FRotator::ZeroRotator, FVector(0.14f, 0.62f, 0.08f), 0.5f, 0.7f);
+		return true;
+	default:
+		for (UStaticMeshComponent* Part : ScrapParts)
+		{
+			Part->SetVisibility(false);
+		}
+		return false;
 	}
 }
 

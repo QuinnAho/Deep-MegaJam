@@ -582,6 +582,45 @@ struct FDeepSerpentBodyTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
 	float EyeLightRadiusM = 0.6f;
 
+	// ---- Its own light (opening pass, Nov 15) ----
+
+	/**
+	 * The photophores' light: one point light under the jaw in the markings' colour (style guide 6: seen only by light,
+	 * cyan-green). Look only. Full and pulsing at the spots' threat rate while it bites, so the moment before the lamp
+	 * has something to look at; a faint glow on the first pass; dark in every other state.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	FLinearColor GlowColor = FLinearColor(0.55f, 1.f, 0.8f);
+
+	/** Unitless, like the lamp (40,000 at 7 m); at 1 to 2 m this reads about as bright as the lamp's pool at 10 m. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowIntensity = 900.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowRadiusM = 4.f;
+
+	/** Volumetric scattering: the halo it makes in the water. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowScattering = 3.f;
+
+	/** Fraction of GlowIntensity in the first pass, and the low point of the bite's pulse. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowPassFraction = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowPulseLow = 0.45f;
+
+	/** Where it sits on the head socket (cm: back, side, up). Under the jaw so it lights the teeth from below. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	FVector GlowOffsetCm = FVector(-45.f, 0.f, -40.f);
+
+	/** Rise and fall rates (per second). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowAttack = 6.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glow")
+	float GlowRelease = 3.f;
+
 	// ---- Motion cues ----
 
 	/** Recoil from the lamp: the flinch lasts this long (chosen here). */

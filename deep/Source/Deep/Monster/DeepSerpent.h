@@ -149,6 +149,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> EyeLightRight;
 
+	/** Its own photophores' light, under the jaw: lights its head and the line in a bite, faintly in the first pass. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UPointLightComponent> GlowLight;
+
+	void UpdateGlow(float Dt);
+	float Glow01 = 0.f;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SkinMID;
 

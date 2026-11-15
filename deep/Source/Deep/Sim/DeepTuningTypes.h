@@ -1021,6 +1021,17 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
 	float StripIntensity = 5000.f;
 
+	/** A third strip across the nose, this far aft of the window wall, so the helm end and the window frame read (opening pass, Nov 15). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float NoseStripBackCm = 70.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float NoseStripIntensity = 3500.f;
+
+	/** The strips' barn doors (88 = none). 45 left the walls black; wider lets the strips wash down the walls. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float StripBarnDoorDeg = 75.f;
+
 	/** Amber practicals at the console and the helm (#FFB45A): the only warm room light, from the screens. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
 	FLinearColor PracticalColor = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
