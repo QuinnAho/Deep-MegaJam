@@ -314,15 +314,13 @@ void SDeepHud::Advance(const FDeepHudFrame& InFrame, double RealNow, float Delta
 	Frame = InFrame;
 	Now = RealNow;
 	DeltaSeconds = FMath::Clamp(DeltaSeconds, 0.f, 0.1f);
+	// The calm HUD: what the player does not need right now never reaches the painter.
+	Calm.Apply(Frame, Now);
 
 	if (Frame.Mode != LastMode)
 	{
 		LastMode = Frame.Mode;
 		ModeStart = Now;
-	}
-	if (Frame.Mode == EDeepHudMode::Title)
-	{
-		HintShown.Reset();
 	}
 
 	if ((Frame.Panels & EDeepHudPanel::TitleCard) && !Fades[FMath::FloorLog2(static_cast<uint32>(EDeepHudPanel::TitleCard))].bTarget)
@@ -331,7 +329,12 @@ void SDeepHud::Advance(const FDeepHudFrame& InFrame, double RealNow, float Delta
 	}
 	for (int32 Index = 0; Index < EDeepHudPanel::Count; ++Index)
 	{
-		Fades[Index].Step((Frame.Panels & (1u << Index)) != 0, DeltaSeconds, PanelOpen, PanelClose);
+		// The panels that come and go while playing (hull, cargo) ease slower, so they never pop.
+		const uint32 Bit = 1u << Index;
+		const bool bCalm = Bit == static_cast<uint32>(EDeepHudPanel::Hull) || Bit == static_cast<uint32>(EDeepHudPanel::Cargo);
+		const float Open = bCalm ? Calm.Tuning.FadeSeconds : PanelOpen;
+		const float Close = bCalm ? Calm.Tuning.FadeSeconds : PanelClose;
+		Fades[Index].Step((Frame.Panels & Bit) != 0, DeltaSeconds, Open, Close);
 	}
 
 	// Anchored and slot prompts fade on their own, by id; the last copy stays for the fade out.
@@ -378,19 +381,13 @@ void SDeepHud::Advance(const FDeepHudFrame& InFrame, double RealNow, float Delta
 		HullBar.Step(Frame.Hull01, Now);
 	}
 
-	// The controls hint: once per mode per run.
-	if ((Frame.Panels & EDeepHudPanel::ControlsHint) && Frame.Hint.Num() > 0 && !HintShown.Contains(Frame.Mode))
+	// The controls hint: the calm layer decides; it eases in and out and keeps its rows for the fade.
+	const bool bHint = (Frame.Panels & EDeepHudPanel::ControlsHint) && Frame.Hint.Num() > 0;
+	if (bHint)
 	{
-		HintShown.Add(Frame.Mode);
-		HintMode = Frame.Mode;
-		HintStart = Now;
+		HintRows = Frame.Hint;
 	}
-	const bool bHint = HintMode == Frame.Mode && (Frame.Panels & EDeepHudPanel::ControlsHint) && Now - HintStart < Frame.HintSeconds && !Frame.bHintDone;
-	if (!bHint && HintMode == Frame.Mode && Frame.bHintDone)
-	{
-		HintStart = -1000.0;
-	}
-	HintFade.Step(bHint, DeltaSeconds, PanelOpen, PromptFade);
+	HintFade.Step(bHint, DeltaSeconds, Calm.Tuning.FadeSeconds, Calm.Tuning.FadeSeconds);
 
 	// Feedback: the newest cue replaces the last; cues never stack.
 	if (Frame.Cues.Num() > 0)
@@ -495,7 +492,7 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 	}
 
-	// ------------------------------------------------ the water: depth, bottom left (spec A: 280 x 128, no zone, no tether text)
+	// ------------------------------------------------ the water: depth, bottom left, small (the calm HUD: label and number)
 	if (const float DA = A(EDeepHudPanel::Depth); DA > 0.f)
 	{
 		FDeepHudRect R = DeepHudLayout::DepthPanel(L);
@@ -504,16 +501,16 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		const float CY = R.Y + Pad;
 		P.Text(TEXT("DEPTH"), R.X + Pad, CY, LabelFont, Secondary(DA));
 		const FString Number = FString::Printf(TEXT("%.0f"), Depth.Value(Now));
-		// Light 72 sits up into the label's leading so its digits clear the strain line; the unit shares its baseline.
-		const float NW = P.Text(Number, R.X + Pad - 4.f, CY + LabelH - 12.f, DepthFont, Primary(DA));
-		P.Text(TEXT("m"), R.X + Pad + NW + Grid, CY + LabelH + 28.f, ReadoutFont, Primary(UnitAlpha * DA));
+		const float ReadH = P.TextSize(TEXT("0"), ReadoutFont).Y;
+		const float NW = P.Text(Number, R.X + Pad, CY + LabelH, ReadoutFont, Primary(DA));
+		P.Text(TEXT("m"), R.X + Pad + NW + 6.f, CY + LabelH + ReadH - BodyH - 3.f, BodyFont, Secondary(UnitAlpha * DA));
 		// The tether's strain: a 2 px line along the panel's foot, only once it pulls; alert when taut.
 		if (Frame.bTether && Frame.TetherStrain > StrainShowAt)
 		{
 			const bool bAlert = Frame.bTaut || Frame.TetherStrain > StrainAlertAt;
 			const float Show = FMath::Clamp((Frame.TetherStrain - StrainShowAt) / (1.f - StrainShowAt), 0.f, 1.f);
 			const float LineA = DA * (bAlert ? 1.f : FMath::Lerp(0.45f, 1.f, Show));
-			P.Box(R.X + Pad, R.Y + StrainLineY, R.W - Pad * 2.f, 2.f, bAlert ? Alert(LineA) : Primary(LineA));
+			P.Box(R.X + Pad, R.Bottom() - 6.f, R.W - Pad * 2.f, 2.f, bAlert ? Alert(LineA) : Primary(LineA));
 		}
 	}
 
@@ -540,27 +537,7 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 	}
 
-	// ------------------------------------------------ the Captain's patience, top centre (spec A: 480 x 44)
-	if (const float PA = A(EDeepHudPanel::Patience); PA > 0.f)
-	{
-		const float W = PatienceW;
-		const float X = Centre.X - W * 0.5f;
-		const float Y = Margin - SlideOf(PA);
-		const float F = Patience.Value(Now);
-		P.TextCentre(TEXT("THE CAPTAIN'S PATIENCE"), Centre.X, Y, LabelFont, Secondary(PA));
-		const float BarY = Y + LabelH + Grid;
-		P.Box(X, BarY, W, 4.f, Secondary(TrackAlpha * PA));
-		P.Box(X, BarY, W * F, 4.f, BarColor(Frame.Patience01, PA));
-		for (const float Mark : Frame.PatienceMarks)
-		{
-			P.Box(X + W * Mark, BarY + 2.f - BarTickPx * 0.5f, P.Hair, BarTickPx, Secondary(TickAlpha * PA));
-		}
-		if (Frame.RefillFraction > 0.f && Frame.SinceRefill < 1.2f)
-		{
-			const float RA = PA * (1.f - EaseOutCubic(Frame.SinceRefill / 1.2f));
-			P.Text(FString::Printf(TEXT("+%d%%"), FMath::RoundToInt(Frame.RefillFraction * 100.f)), X + W + Grid * 2.f, BarY - LabelH * 0.5f, MonoFont, Primary(RA));
-		}
-	}
+	// The Captain's patience bar is gone (the calm HUD, Nov 15): no mode lists EDeepHudPanel::Patience.
 
 	// ------------------------------------------------ bailout air after a cut: top centre and a ring at the reticle
 	if (const float BA = A(EDeepHudPanel::Bailout); BA > 0.f)
@@ -616,8 +593,8 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 		else
 		{
-			// At the screen edge, inset by the margin, in the direction of home. Top and bottom keep clear of the patience
-			// bar and the depth and cargo panels, so the chevron never lands on a readout.
+			// At the screen edge, inset by the margin, in the direction of home. Top and bottom keep clear of the bailout
+			// readout and the depth and cargo panels, so the chevron never lands on a readout.
 			const FVector2f D = Frame.HatchDir.GetSafeNormal();
 			const float HalfX = Centre.X - Margin;
 			const float HalfY = Centre.Y - Margin - (D.Y < 0.f ? PatienceH : WaterPanelH) - Grid * 2.f;
@@ -634,72 +611,29 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 	}
 
-	// ------------------------------------------------ the helm: one instrument on the right
+	// ------------------------------------------------ the helm: a slim depth readout with the next stop, bottom right
+	// The calm HUD (Nov 15) cut the gauge column and the "between stops" text; the sonar is the instrument.
 	if (const float GA = A(EDeepHudPanel::HelmGauge); GA > 0.f)
 	{
-		const float W = 400.f;
-		const float X = L.X - Margin - W + SlideOf(GA);
-		const float Y = Margin;
-		const float H = L.Y - Margin * 2.f;
-		P.Panel(X, Y, W, H, GA);
-		float CY = Y + Pad;
-		P.Text(TEXT("HELM"), X + Pad, CY, LabelFont, MachineAmber(GA));
-		P.TextRight(TEXT("DEPTH"), X + W - Pad, CY, LabelFont, Secondary(0.6f * GA));
-		CY += LabelH;
+		FDeepHudRect R = DeepHudLayout::HelmGauge(L);
+		R.Y += SlideOf(GA);
+		P.Panel(R.X, R.Y, R.W, R.H, GA);
+		const float CY = R.Y + Pad;
+		P.Text(TEXT("DEPTH"), R.X + Pad, CY, LabelFont, Secondary(GA));
+		const float NextM = DeepHudCalm::NextStopM(Frame.Stops, Frame.SubDepthM, Frame.ParkedStop);
+		const bool bLimit = Frame.bAtLimit || (NextM > 0.f && Frame.LimitM > 0.f && NextM > Frame.LimitM + 0.5f);
+		if (bLimit)
+		{
+			P.TextRight(FString::Printf(TEXT("LIMIT %.0f m"), Frame.LimitM), R.Right() - Pad, CY, LabelFont, Alert(GA));
+		}
+		else if (NextM > 0.f)
+		{
+			P.TextRight(FString::Printf(TEXT("NEXT STOP %.0f m"), NextM), R.Right() - Pad, CY, LabelFont, Secondary(GA));
+		}
 		const FString Number = FString::Printf(TEXT("%.0f"), SubDepth.Value(Now));
-		const float NW = P.TextSize(Number, DepthFont).X;
-		const float MW = P.TextSize(TEXT("m"), ReadoutFont).X;
-		P.Text(Number, X + W - Pad - MW - Grid - NW, CY - 10.f, DepthFont, Primary(GA));
-		P.Text(TEXT("m"), X + W - Pad - MW, CY + 30.f, ReadoutFont, Primary(0.7f * GA));
-		CY += 96.f;
-
-		// The gauge: 0 m at the top, the deepest the hull can be rated at the bottom.
-		const float GTop = CY + Grid * 2.f;
-		const float GBottom = Y + H - Pad - 200.f;
-		const float GX = X + Pad + 120.f;
-		auto YAt = [&](float M) { return GTop + (GBottom - GTop) * FMath::Clamp(M / FMath::Max(1.f, Frame.GaugeMaxM), 0.f, 1.f); };
-		P.Box(GX, GTop, P.Hair, GBottom - GTop, Secondary(0.35f * GA));
-		const float LimitY = YAt(Frame.LimitM);
-		P.Box(GX - 3.f, LimitY, 7.f, GBottom - LimitY, Alert(0.18f * GA));
-		for (int32 Index = 0; Index < Frame.Stops.Num(); ++Index)
-		{
-			const float SY = YAt(Frame.Stops[Index]);
-			const bool bHere = Frame.ParkedStop == Index + 1;
-			P.Box(GX - 12.f, SY, 24.f, bHere ? 2.f : P.Hair, bHere ? Primary(GA) : Secondary(0.7f * GA));
-			P.TextRight(FString::Printf(TEXT("%.0f"), Frame.Stops[Index]), GX - 24.f, SY - LabelH * 0.5f, MonoFont, bHere ? Primary(GA) : Secondary(0.7f * GA));
-		}
-		// SUB stays with its arrow; LIMIT steps right past it when the sub nears the limit (DeepHudLayout::GaugeLabels).
-		const FString LimitText = FString::Printf(TEXT("LIMIT %.0f"), Frame.LimitM);
-		const float SubY = YAt(SubDepth.Value(Now));
-		const DeepHudLayout::FGaugeLabels Labels = DeepHudLayout::GaugeLabels(GX, SubY, LimitY, P.TextSize(TEXT("SUB"), LabelFont),
-			P.TextSize(LimitText, LabelFont), X + W);
-		if (Labels.bShifted)
-		{
-			// The line in two parts: the gauge tick, then a rule under the moved label; the sub's arrow sits between.
-			P.Box(GX - 16.f, LimitY, 20.f, P.Hair, Alert(GA));
-			P.Box(Labels.Limit.X - Grid, LimitY, Labels.Limit.W + Grid, P.Hair, Alert(GA));
-		}
-		else
-		{
-			P.Box(GX - 16.f, LimitY, Labels.Limit.Right() - (GX - 16.f), P.Hair, Alert(GA));
-		}
-		P.Text(LimitText, Labels.Limit.X, Labels.Limit.Y, LabelFont, Alert(GA));
-		P.Lines({ FVector2f(GX + 4.f, SubY), FVector2f(GX + 16.f, SubY - 7.f), FVector2f(GX + 16.f, SubY + 7.f), FVector2f(GX + 4.f, SubY) }, MachineAmber(GA), 1.5f);
-		P.Text(TEXT("SUB"), Labels.Sub.X, Labels.Sub.Y, LabelFont, MachineAmber(GA));
-
-		CY = GBottom + Grid * 3.f;
-		P.Box(X + Pad, CY - Grid, W - Pad * 2.f, P.Hair, Secondary(0.15f * GA));
-		P.Text(Frame.HelmStatus.ToUpper(), X + Pad, CY, LabelFont, Frame.ParkedStop > 0 ? Primary(GA) : MachineAmber(GA));
-		CY += LabelH + Grid;
-		for (const FString& Line : P.Wrap(Frame.HelmReason, BodyFont, W - Pad * 2.f))
-		{
-			P.Text(Line, X + Pad, CY, BodyFont, Secondary(GA));
-			CY += BodyH;
-		}
-		if (Frame.bAtLimit)
-		{
-			P.Text(TEXT("THE HELM WILL NOT GO DEEPER"), X + Pad, Y + H - Pad - LabelH, LabelFont, Alert(GA));
-		}
+		const float ReadH = P.TextSize(TEXT("0"), ReadoutFont).Y;
+		const float NW = P.Text(Number, R.X + Pad, CY + LabelH, ReadoutFont, Primary(GA));
+		P.Text(TEXT("m"), R.X + Pad + NW + 6.f, CY + LabelH + ReadH - BodyH - 3.f, BodyFont, Secondary(UnitAlpha * GA));
 	}
 
 	// ------------------------------------------------ the hull, at the helm in the cave shaft (spec A, element 11: 400 x 48)
@@ -957,14 +891,14 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		P.PromptRow(Lamp, Centre.X - RW * 0.5f, Y + H - 44.f - Grid, BA);
 	}
 
-	// ------------------------------------------------ the controls hint, top left, once
-	if (const float HA = HintFade.Alpha(); HA > 0.f && Frame.Hint.Num() > 0)
+	// ------------------------------------------------ the controls hint, top left, until the controls are used once
+	if (const float HA = HintFade.Alpha(); HA > 0.f && HintRows.Num() > 0)
 	{
-		float Y = (Frame.Panels & EDeepHudPanel::HelmGauge) ? Margin : Margin + 96.f;
+		float Y = Margin;
 		const float X = Margin - SlideOf(HA);
 		P.Text(TEXT("CONTROLS"), X, Y, LabelFont, Secondary(0.6f * HA));
 		Y += LabelH + Grid;
-		for (const FDeepHudPrompt& H : Frame.Hint)
+		for (const FDeepHudPrompt& H : HintRows)
 		{
 			P.PromptRow(H, X, Y, HA);
 			Y += 44.f + Grid * 0.5f;
@@ -1017,6 +951,13 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		if (!Frame.CardFooter.IsEmpty())
 		{
 			H += 44.f + Grid * 3.f;
+		}
+		// The pause card keeps the full controls list of the mode the run was in (the calm HUD shows it once, then here).
+		const TArray<FDeepHudPrompt>& Controls = Which == EDeepHudPanel::PauseCard ? Frame.Hint : TArray<FDeepHudPrompt>();
+		const float ControlRowH = 30.f;
+		if (Controls.Num() > 0)
+		{
+			H += LabelH + Grid + Controls.Num() * ControlRowH + Grid * 2.f;
 		}
 		H += Frame.MenuItems.Num() * 48.f + (Frame.MenuItems.Num() > 0 ? Grid * 2.f : 0.f);
 		if (!Frame.MenuHint.IsEmpty())
@@ -1080,6 +1021,22 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 			P.PromptRow(Footer, Centre.X - FW * 0.5f, CY, CA * (Frame.bFooterReady ? 1.f : 0.5f));
 			CY += 44.f + Grid;
 		}
+		if (Controls.Num() > 0)
+		{
+			P.Text(TEXT("CONTROLS"), X + Pad, CY, LabelFont, Secondary(0.6f * CA));
+			CY += LabelH + Grid;
+			for (const FDeepHudPrompt& Row : Controls)
+			{
+				P.Text(Row.Key, X + Pad, CY, MonoFont, Primary(CA));
+				P.Text(Row.Verb, X + Pad + 136.f, CY, LabelFont, Secondary(CA));
+				if (!Row.Detail.IsEmpty())
+				{
+					P.TextRight(Row.Detail, X + Width - Pad, CY, LabelFont, Secondary(0.5f * CA));
+				}
+				CY += ControlRowH;
+			}
+			CY += Grid * 2.f;
+		}
 		if (Frame.MenuItems.Num() > 0)
 		{
 			CY += Grid;
@@ -1119,7 +1076,7 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	Card(EDeepHudPanel::DeadCard, 640.f);
 	Card(EDeepHudPanel::SettlementCard, 720.f);
 	Card(EDeepHudPanel::ReviewCard, 720.f);
-	Card(EDeepHudPanel::PauseCard, 480.f);
+	Card(EDeepHudPanel::PauseCard, Frame.Hint.Num() > 0 ? 600.f : 480.f);
 	Card(EDeepHudPanel::SettingsCard, 720.f);
 	Card(EDeepHudPanel::CreditsCard, 720.f);
 	Card(EDeepHudPanel::ConfirmCard, 480.f);

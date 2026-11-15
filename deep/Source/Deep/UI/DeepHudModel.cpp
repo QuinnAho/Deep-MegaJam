@@ -53,21 +53,24 @@ namespace DeepHudModel
 		{
 		case EDeepHudMode::Title:
 			return TitleCard | Subtitle;
+		// The calm HUD (rescope, Nov 15): no Captain subtitle and no patience bar in play; the controls hint, the hull and
+		// the cargo are listed here but shown only when FDeepHudCalm lets them (first use, a change, low).
 		case EDeepHudMode::Aboard:
-			return ObjectPrompts | Subtitle | Feedback | ControlsHint;
+			return ObjectPrompts | Feedback | ControlsHint;
 		case EDeepHudMode::Helm:
-			return HelmGauge | Hull | Subtitle | Feedback | ControlsHint | (In.bSonar ? Sonar : None);
+			// HelmGauge is the slim depth readout with the next stop; the sonar is the instrument.
+			return HelmGauge | Hull | Feedback | ControlsHint | (In.bSonar ? Sonar : None);
 		case EDeepHudMode::Water:
 			// The bite alarm takes the top of the screen: the controls hint gives way to it.
-			return Depth | Cargo | Patience | Reticle | Threat | WaterPrompts | Subtitle | Feedback
+			return Depth | Cargo | Reticle | Threat | WaterPrompts | Feedback
 				| (In.bBiteAlarm ? BiteAlarm : ControlsHint) | (In.bCarryingOrCut ? HatchMarker : None);
 		case EDeepHudMode::Cut:
-			return Depth | Cargo | Bailout | Reticle | Threat | HatchMarker | WaterPrompts | Subtitle | Feedback
+			return Depth | Cargo | Bailout | Reticle | Threat | HatchMarker | WaterPrompts | Feedback
 				| (In.bBiteAlarm ? BiteAlarm : None);
 		case EDeepHudMode::Dead:
-			return DeadCard | Subtitle;
+			return DeadCard;
 		case EDeepHudMode::Settlement:
-			return SettlementCard | Subtitle | Feedback;
+			return SettlementCard | Feedback;
 		case EDeepHudMode::Review:
 			return ReviewCard;
 		case EDeepHudMode::Pause:
@@ -221,7 +224,8 @@ namespace DeepHudLayout
 
 	FDeepHudRect HelmGauge(FVector2f Local)
 	{
-		return { Local.X - Margin - SideW, Margin, SideW, Local.Y - Margin * 2.f };
+		// The slim depth readout, bottom right, level with the sonar's foot.
+		return { Local.X - Margin - DeepHudStyle::HelmReadoutW, Local.Y - Margin - DeepHudStyle::CompactPanelH, DeepHudStyle::HelmReadoutW, DeepHudStyle::CompactPanelH };
 	}
 
 	FDeepHudRect Sonar(FVector2f Local)
@@ -257,7 +261,8 @@ namespace DeepHudLayout
 
 	FDeepHudRect DepthPanel(FVector2f Local)
 	{
-		return { Margin, Local.Y - Margin - DeepHudStyle::WaterPanelH, DeepHudStyle::WaterPanelW, DeepHudStyle::WaterPanelH };
+		// Small: a label and the number (the calm HUD; the 72 px figure is gone).
+		return { Margin, Local.Y - Margin - DeepHudStyle::CompactPanelH, DeepHudStyle::CompactPanelW, DeepHudStyle::CompactPanelH };
 	}
 
 	FDeepHudRect CargoPanel(FVector2f Local)

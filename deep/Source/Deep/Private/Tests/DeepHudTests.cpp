@@ -55,10 +55,15 @@ bool FDeepHudPanelsTest::RunTest(const FString& Parameters)
 	// Aboard: no HUD at all, only prompts on objects (and the radio line, cues, the one-time hint).
 	TestFalse(TEXT("aboard: no depth"), Has(EDeepHudMode::Aboard, Depth | Cargo | Patience | Reticle | Threat | HelmGauge));
 	TestTrue(TEXT("aboard: object prompts"), Has(EDeepHudMode::Aboard, ObjectPrompts));
-	// Water: depth, cargo, patience, reticle; no helm, no cards, no object prompts.
+	// Water: depth, cargo (shown on change), reticle; no helm, no cards, no object prompts. The calm HUD (Nov 15) cut the
+	// Captain's patience bar and his subtitle from every play mode.
 	TestTrue(TEXT("water: depth"), Has(EDeepHudMode::Water, Depth));
 	TestTrue(TEXT("water: cargo"), Has(EDeepHudMode::Water, Cargo));
-	TestTrue(TEXT("water: patience"), Has(EDeepHudMode::Water, Patience));
+	TestFalse(TEXT("water: no patience (calm HUD)"), Has(EDeepHudMode::Water, Patience));
+	for (const EDeepHudMode Mode : { EDeepHudMode::Aboard, EDeepHudMode::Helm, EDeepHudMode::Water, EDeepHudMode::Cut, EDeepHudMode::Dead, EDeepHudMode::Settlement })
+	{
+		TestFalse(FString::Printf(TEXT("mode %d: no Captain subtitle, no patience (calm HUD)"), static_cast<int32>(Mode)), Has(Mode, Subtitle | Patience));
+	}
 	TestTrue(TEXT("water: reticle"), Has(EDeepHudMode::Water, Reticle));
 	TestFalse(TEXT("water: no bailout"), Has(EDeepHudMode::Water, Bailout));
 	TestFalse(TEXT("water: no bite band unless bitten"), Has(EDeepHudMode::Water, BiteAlarm));
@@ -67,8 +72,8 @@ bool FDeepHudPanelsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("cut: bailout"), Has(EDeepHudMode::Cut, Bailout));
 	TestTrue(TEXT("cut: hatch marker"), Has(EDeepHudMode::Cut, HatchMarker));
 	TestFalse(TEXT("cut: no patience"), Has(EDeepHudMode::Cut, Patience));
-	// Helm: the gauge only.
-	TestTrue(TEXT("helm: gauge"), Has(EDeepHudMode::Helm, HelmGauge));
+	// Helm: the slim depth readout (the HelmGauge bit).
+	TestTrue(TEXT("helm: depth readout"), Has(EDeepHudMode::Helm, HelmGauge));
 	TestFalse(TEXT("helm: no water panels"), Has(EDeepHudMode::Helm, Depth | Cargo | Patience | Reticle | ObjectPrompts));
 	// Cards are alone.
 	TestEqual(TEXT("pause: the card only"), DeepHudModel::PanelsFor(EDeepHudMode::Pause, In), static_cast<uint32>(PauseCard));
@@ -194,7 +199,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHudGaugeLabelsTest, "Deep.UI.Hud.GaugeLabe
 bool FDeepHudGaugeLabelsTest::RunTest(const FString& Parameters)
 {
 	const FVector2f L(1920.f, 1080.f);
-	const FDeepHudRect Gauge = DeepHudLayout::HelmGauge(L);
+	// The calm HUD (Nov 15) replaced the gauge column with a slim readout; the label rule is kept and tested on the
+	// old 400 px column so it stays correct if the gauge comes back.
+	const FDeepHudRect Gauge{ L.X - 48.f - 400.f, 48.f, 400.f, L.Y - 96.f };
 	const float GX = Gauge.X + 16.f + 120.f;
 	const float LimitY = 700.f;
 	const FVector2f SubSize(34.f, 22.f);
@@ -242,12 +249,13 @@ bool FDeepHudLayoutATest::RunTest(const FString& Parameters)
 		const FDeepHudRect Cargo = DeepHudLayout::CargoPanel(L);
 		const FDeepHudRect Subtitle = DeepHudLayout::SubtitleMax(L, 3);
 		const FString At = FString::Printf(TEXT(" at %.0fx%.0f"), L.X, L.Y);
-		TestTrue(TEXT("depth is 280 x 128") + At, Depth.W == 280.f && Depth.H == 128.f);
+		// The calm HUD (Nov 15): the water depth is small, a label and the number.
+		TestTrue(TEXT("depth is compact") + At, Depth.W == DeepHudStyle::CompactPanelW && Depth.H == DeepHudStyle::CompactPanelH);
 		TestTrue(TEXT("depth on screen") + At, Depth.Inside(L.X, L.Y));
 		TestTrue(TEXT("cargo on screen") + At, Cargo.Inside(L.X, L.Y));
 		TestFalse(TEXT("depth clear of the subtitle") + At, Depth.Overlaps(Subtitle));
 		TestFalse(TEXT("cargo clear of the subtitle") + At, Cargo.Overlaps(Subtitle));
-		TestTrue(TEXT("the strain line is inside the depth panel") + At, DeepHudStyle::StrainLineY + 2.f <= Depth.H);
+		TestFalse(TEXT("depth clear of cargo") + At, Depth.Overlaps(Cargo));
 		const FDeepHudRect Hull = DeepHudLayout::HullSlot(L);
 		TestTrue(TEXT("the hull bar is 400 x 48, 496 above the bottom margin") + At,
 			Hull.W == 400.f && Hull.H == 48.f && FMath::IsNearlyEqual(L.Y - DeepHudStyle::Margin - Hull.Y, 496.f + 48.f));
