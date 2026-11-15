@@ -126,7 +126,28 @@ void ADeepEnvironment::BeginPlay()
 	if (!Tuning.Arena.bGreyBox && GetNetMode() != NM_DedicatedServer)
 	{
 		BuildSnow(Tuning.Look);
+		ApplyFogQuality(Tuning.Look);
 	}
+}
+
+void ADeepEnvironment::ApplyFogQuality(const FDeepLookTuning& Look)
+{
+	// Render settings on this machine only (the look is local). Set by code, so a later scalability change keeps them.
+	// A zero keeps the engine's value. Epic, "Volumetric Fog": a heavy temporal filter trails a moving flashlight.
+	const auto SetIf = [](const TCHAR* Name, bool bSet, const FString& Value)
+	{
+		if (bSet)
+		{
+			if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Name))
+			{
+				Var->Set(*Value, ECVF_SetByCode);
+			}
+		}
+	};
+	SetIf(TEXT("r.VolumetricFog.HistoryWeight"), Look.FogHistoryWeight > 0.f, FString::SanitizeFloat(Look.FogHistoryWeight));
+	SetIf(TEXT("r.VolumetricFog.GridPixelSize"), Look.FogGridPixelSize > 0, FString::FromInt(Look.FogGridPixelSize));
+	SetIf(TEXT("r.VolumetricFog.GridSizeZ"), Look.FogGridSizeZ > 0, FString::FromInt(Look.FogGridSizeZ));
+	SetIf(TEXT("r.VolumetricFog.HistoryMissSupersampleCount"), Look.FogHistoryMissSamples > 0, FString::FromInt(Look.FogHistoryMissSamples));
 }
 
 void ADeepEnvironment::SetStop(int32 InStop)

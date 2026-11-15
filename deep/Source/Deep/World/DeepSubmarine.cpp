@@ -236,7 +236,9 @@ ADeepSubmarine::ADeepSubmarine()
 		USpotLightComponent* Light = CreateDefaultSubobject<USpotLightComponent>(Name);
 		Light->SetupAttachment(Root);
 		Light->SetMobility(EComponentMobility::Movable);
-		Light->SetCastShadows(false);
+		// They become the helm floods: their shadows and fog shadows keep the lit water inside the rock (rescope/light).
+		Light->SetCastShadows(true);
+		Light->SetCastVolumetricShadow(true);
 		BowLights.Add(Light);
 	}
 	for (const TCHAR* Name : { TEXT("HullLightPort"), TEXT("HullLightStarboard") })

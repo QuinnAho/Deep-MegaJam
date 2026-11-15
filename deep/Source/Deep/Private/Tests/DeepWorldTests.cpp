@@ -282,9 +282,19 @@ bool FDeepWorldLookBlendTest::RunTest(const FString& Parameters)
 		UDeepRules::LampSampleBrightness(2.f, 1.f, 0.3f, Shipped) < UDeepRules::LampSampleBrightness(2.f, 1.f, 1.f, Shipped));
 	TestEqual(TEXT("Lamp: nothing there, no light"), UDeepRules::LampSampleBrightness(-1.f, 1.f, 1.f, Shipped), 0.f);
 	// The scale answers the brightest sample: a near wall at the cone's edge dims less than the same wall on the axis.
-	const float EdgeScale = UDeepRules::LampScaleForBrightest(UDeepRules::LampSampleBrightness(1.f, CosDeg(18.f), 1.f, Shipped), Shipped);
+	const float EdgeScale = UDeepRules::LampScaleForBrightest(UDeepRules::LampSampleBrightness(1.f, CosDeg(Shipped.OuterConeDeg - 3.f), 1.f, Shipped), Shipped);
 	TestTrue(TEXT("Lamp: a wall at the cone's edge dims less than on the axis"), EdgeScale > UDeepRules::LampNearScale(1.f, Shipped));
 	TestEqual(TEXT("Lamp: dim samples leave it at full"), UDeepRules::LampScaleForBrightest(0.5f, Shipped), 1.f);
+	// rescope/light: a usable pool (at least 30 degrees out), forward-scattering water that does not milk the eye.
+	TestTrue(TEXT("Lamp: a wide pool, not a pencil beam"), Shipped.OuterConeDeg >= 30.f && Shipped.InnerConeDeg >= 12.f);
+	const FDeepLookTuning ShippedLook = UDeepTuningSettings::Get().Look;
+	TestTrue(TEXT("Fog: forward scattering, little back at the lamp holder"), ShippedLook.FogScatteringDistribution >= 0.6f && ShippedLook.FogScatteringDistribution < 0.95f);
+	TestTrue(TEXT("Fog: starts clear of the eye"), ShippedLook.VolumetricStartM >= 1.f);
+	TestTrue(TEXT("Fog: a moving beam does not trail (history weight under the engine's 0.9)"), ShippedLook.FogHistoryWeight > 0.f && ShippedLook.FogHistoryWeight < 0.9f);
+	for (const FDeepLookPreset& P : ShippedLook.Presets)
+	{
+		TestTrue(*FString::Printf(TEXT("Fog at %.0f m: the volume covers the lamp's reach"), P.DepthM), P.VolumetricDistanceM >= Shipped.RangeM);
+	}
 	return true;
 }
 

@@ -712,11 +712,16 @@ struct FDeepLampTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float Intensity = 40000.f;
 
+	/**
+	 * A wide, soft dive light (rescope/light): full strength to InnerConeDeg, then the engine's squared ramp to
+	 * OuterConeDeg, so the pool is about 15 m across at 10 m with a soft edge. 7/21 was a pencil beam ("you can't see
+	 * anything really", Quinn). The intensity is unitless, so widening the cone does not dim its centre.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float InnerConeDeg = 7.f;
+	float InnerConeDeg = 18.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float OuterConeDeg = 21.f;
+	float OuterConeDeg = 38.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float RangeM = 35.f;
@@ -728,9 +733,12 @@ struct FDeepLampTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	FLinearColor Color = FLinearColor(FColor(0xF2, 0xF4, 0xEE));
 
-	/** How strongly the beam lights the volumetric fog (the visible cone in the murk). 0 = no beam. */
+	/**
+	 * How strongly the beam lights the volumetric fog (the visible cone in the murk). 0 = no beam. Below the narrow cone's
+	 * 1.2: the wide cone lights about three times the water, and the beam should read as murk, not as a solid.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float VolumetricScattering = 1.2f;
+	float VolumetricScattering = 0.8f;
 
 	/** The lamp's shadows cut the fog too (the beam is blocked by what it hits). About 3x a plain light's fog cost. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
@@ -879,9 +887,10 @@ struct FDeepLookTuning
 	/**
 	 * Volumetric fog phase (Henyey-Greenstein g). Sea water scatters strongly forward: the fog glows when looking toward a
 	 * light (shafts from above) and barely glows back at a viewer holding the lamp, so lit surfaces and specks carry the beam.
+	 * 0.7 (was 0.5; measured sea water is near 0.9) halves the backscatter at the eye, which milks the view in a wide cone.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
-	float FogScatteringDistribution = 0.5f;
+	float FogScatteringDistribution = 0.7f;
 
 	/** Light function on the downlight: the moving pattern of the surface far above, cut into the fog as shafts. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
@@ -891,9 +900,27 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
 	float ShaftScaleCm = 100.f;
 
-	/** Volumetric fog starts this far from the eye, or the helmet lamp lights a blob on the visor. */
+	/** Volumetric fog starts this far from the eye, or the lamp lights a blob of milk round the eye (was 0.5 m). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
-	float VolumetricStartM = 0.5f;
+	float VolumetricStartM = 1.0f;
+
+	/**
+	 * Volumetric fog quality, set once as console variables by ADeepEnvironment (r.VolumetricFog.*). Epic, "Volumetric
+	 * Fog": the heavy temporal filter leaves "lighting trails" behind a moving flashlight; a lower history weight lets the
+	 * beam follow the head, and more history-miss samples hide the noise that adds. 0 keeps the engine's value. The grid
+	 * stays at scalability (16 px, 64 slices): 8 px / 128 slices measured GPU 58 ms against 12 ms at stop 1 (Lane F).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float FogHistoryWeight = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	int32 FogGridPixelSize = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	int32 FogGridSizeZ = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	int32 FogHistoryMissSamples = 8;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
 	float FogHeightFalloff = 0.001f;
@@ -1131,9 +1158,12 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmFloodRangeM = 30.f;
 
-	/** How much the floods light the water: a visible beam that the specks stream through. */
+	/**
+	 * How much the floods light the water: a visible beam that the specks stream through. 0.15 (was 0.35): at 0.35 two
+	 * 40,000 floods in front of the camera milked the whole helm view grey and hid the wall 9 m ahead (rescope/light).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodFog = 0.35f;
+	float HelmFloodFog = 0.15f;
 
 	/** The floods' pitch (down is negative); the helm camera looks down at Sub.HelmCameraPitchDeg. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")

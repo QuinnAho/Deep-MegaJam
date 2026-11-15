@@ -78,9 +78,11 @@ UDeepTuningSettings::UDeepTuningSettings()
 	};
 	// The sub's outside lights: full at 100 m, dim with a little glow at 300 m, at 500 m only a faint warm mark at the
 	// hatch that lights the rim and no water, so the sea is black and the lamp is the only light.
+	// Volumetric distance 64/48/40 m (was 80/60/40): the same Z slices over less water give the 35 m lamp beam finer
+	// slices; past it the plain height fog carries the water colour.
 	Look.Presets = {
-		MakeLook(100.f, 2.0f, 3.0f, 0.75f, FColor(0x19, 0x3C, 0x45), 1.0f, 80.f, 0.0f, 0.4f, 0.35f, 0.10f, FVector4(0.75, 0.95, 1.0, 0.9), 1.05f, 0.f, 1.0f),
-		MakeLook(300.f, 0.04f, 0.4f, 1.0f, FColor(0x07, 0x1A, 0x28), 1.0f, 60.f, 1.5f, 0.5f, 0.45f, 0.18f, FVector4(0.5, 0.9, 1.0, 0.8), 1.08f, 0.2f, 0.3f),
+		MakeLook(100.f, 2.0f, 3.0f, 0.75f, FColor(0x19, 0x3C, 0x45), 1.0f, 64.f, 0.0f, 0.4f, 0.35f, 0.10f, FVector4(0.75, 0.95, 1.0, 0.9), 1.05f, 0.f, 1.0f),
+		MakeLook(300.f, 0.04f, 0.4f, 1.0f, FColor(0x07, 0x1A, 0x28), 1.0f, 48.f, 1.5f, 0.5f, 0.45f, 0.18f, FVector4(0.5, 0.9, 1.0, 0.8), 1.08f, 0.2f, 0.3f),
 		MakeLook(500.f, 0.0f, 0.0f, 1.2f, FColor(0x00, 0x00, 0x00), 1.0f, 40.f, 2.0f, 0.6f, 0.55f, 0.25f, FVector4(0.4, 0.85, 1.0, 0.75), 1.1f, 0.35f, 0.15f),
 	};
 	Look.Presets[0].SubLightScale = 1.f;   Look.Presets[0].SubLightFog = 0.6f;
