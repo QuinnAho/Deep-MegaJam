@@ -5,14 +5,14 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 9:20 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 9:55 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` on origin at `c4ad3c1`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), and a texture limit for the build. Full suite 71 of 71; packaged and smoke-tested at `c4ad3c1`, zip 762 MB. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
+- `polish/integration` on origin at `67d4cb6`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, and a texture limit for the build. Full suite 76 of 76; packaged and smoke-tested at `67d4cb6`, zip 762 MB. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
@@ -21,7 +21,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 Their reports go to the session that started them, so a new session checks the branches.
 
 - `polish/ascent` in `.wt\pkg`, since 9:18 AM (a fresh engineer; time box 10:50 AM). The lamp burns anything close to white: the serpent's body at 2 m and the pit floor beside the relic at 1 m. Fix the close-range dimming at its cause (`Diver/DeepDiver.cpp`, `UDeepRules::LampNearScale`), give the silt detail that holds at 0.5 m, then walk the real ending frame by frame and fix what fails; then the bite in the dark. Frames `devlog/media/2026-11-15-ascent-*.png`.
-- `polish/rope` in `.wt\dev`, since 8:58 AM (a fresh engineer; time box 10:25 AM). The tether as a rope that sags, goes taut and visibly parts when cut (it is a stretched cylinder today); bubbles tied to the breath, the hatch and the winch; a silt puff on the bed; the harpoon line as the same rope. Materials and Niagara systems go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-rope-*.png`.
+- `polish/rope` in `.wt\dev`, second task since 9:46 AM (the rope engineer, resumed; time box 10:40 AM). The rope is done and merged. Now bubbles on each breath, at the hatch and at the winch, and a silt puff off the bed. Materials and Niagara systems go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-fx-*.png`.
 - `polish/hull` in `.wt\text`, since 9:05 AM (a fresh engineer; time box 10:40 AM). The submarine's outside from basic shapes: a hull with a silhouette round the room of cubes (tanks, a frame, skids, thrusters, lamp housings, a hatch well), visual only. Then the helm window, then the smear on the trench rock. Frames `devlog/media/2026-11-15-hull-*.png`.
 - When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, take a frame from the packaged game, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
 - Scripts for this are in the session's scratch folder and are worth rewriting if lost: one runs `verify`, then `package` and `smoke` inside the Unreal slot and `zip` after it; one takes a frame from the packaged game with `-DeepShot`.
