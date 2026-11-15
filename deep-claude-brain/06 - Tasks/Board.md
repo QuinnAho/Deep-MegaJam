@@ -7,7 +7,7 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 
 ## State of the game
 
-`main` is at `bf58444`. 27 tests passing.
+`main` is at `f9feeec`. 31 tests passing. The game runs from a title screen to a win screen.
 
 - **Playable loop:** dive, grab, weight, tether, winch, the Captain's Patience, the cut, bailout air, re-tether, death and respawn, bank, settlement screen, hull rating, descent to stop 2, the Captain's subtitles. A test plays stops 1 and 2 start to finish.
 - **Plain on purpose:** the grey box is evenly lit with no fog, at Quinn's request (D-020). No atmosphere work until the gameplay is right.
@@ -20,7 +20,9 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 
 | Lane | Agent | Task | Started |
 |---|---|---|---|
-| Ending | systems-engineer (Opus, high), `.wt\dev` on `dev/ending` | Item 3: stop 3 and the relic, the win and a performance review, title screen, pause and quit, restart. | 11:07 PM |
+| Ending | systems-engineer (Opus, high), `.wt\dev` on `dev/ending` | **Done 11:27 PM**, merged as `f9feeec`. Item 3: title screen, stop 3 and the relic, the win with a performance review, pause, restart, quit. 31 of 31 tests. | 11:07 PM |
+| Harpoon | systems-engineer (Opus, high), `.wt\monster` on `dev/harpoon` | Item 3a (D-021): one shot per dive, reels home off the sub, latches to anything solid, drives the serpent back, hull damage and a repair fee. | 11:13 PM |
+| Submarine | systems-engineer (Opus, high), `.wt\dev` on `dev/sub` | Item 3c (D-022, D-023): the room, the hatch, the console, the helm, driving with the sub static and the world moving, and the flashlight and hull upgrade gates. Started before the harpoon landed to save time; it merges `main` at the end. | 11:28 PM |
 | Regression | build-sheriff (Sonnet, medium), `.wt\pkg` on `tools/regress` | Bring the scripted playtests up to the new loop (S4 from the side, S5 cut, S6 bank, S7 descend, S8 full run), then package, smoke and zip the loop build. | 10:52 PM |
 
 ## Next, in order
