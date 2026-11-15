@@ -90,6 +90,7 @@ namespace DeepHudStyle
 	constexpr float CompactPanelW = 200.f; // water depth, bottom left
 	constexpr float CompactPanelH = 88.f;
 	constexpr float HelmReadoutW = 280.f;  // helm depth and the next stop, bottom right
+	constexpr float HelmLeversH = 152.f;   // the seated readout above it: throttle, ballast, heading
 	constexpr float StrainShowAt = 0.5f;  // the strain line shows only above this strain
 	constexpr float StrainAlertAt = 0.75f;
 	constexpr float HullBarPx = 8.f;

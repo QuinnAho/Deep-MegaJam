@@ -227,4 +227,50 @@ bool FDeepHudCalmFilterTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHudCalmHelmTest, "Deep.UI.HudCalm.Helm", DEEP_HUDCALM_TEST_FLAGS)
+bool FDeepHudCalmHelmTest::RunTest(const FString& Parameters)
+{
+	using namespace EDeepHudPanel;
+
+	// The seated readout's labels: the throttle telegraph, the ballast lever, the heading.
+	TestEqual(TEXT("-2"), DeepHudCalm::ThrottleLabel(-2), FString(TEXT("FULL ASTERN")));
+	TestEqual(TEXT("-1"), DeepHudCalm::ThrottleLabel(-1), FString(TEXT("HALF ASTERN")));
+	TestEqual(TEXT("0"), DeepHudCalm::ThrottleLabel(0), FString(TEXT("STOP")));
+	TestEqual(TEXT("1"), DeepHudCalm::ThrottleLabel(1), FString(TEXT("SLOW")));
+	TestEqual(TEXT("2"), DeepHudCalm::ThrottleLabel(2), FString(TEXT("HALF")));
+	TestEqual(TEXT("3"), DeepHudCalm::ThrottleLabel(3), FString(TEXT("FULL AHEAD")));
+	TestEqual(TEXT("past the stops clamps"), DeepHudCalm::ThrottleLabel(9), FString(TEXT("FULL AHEAD")));
+
+	TestEqual(TEXT("blown"), DeepHudCalm::BallastLabel(-1.f), FString(TEXT("BLOWN")));
+	TestEqual(TEXT("neutral"), DeepHudCalm::BallastLabel(0.f), FString(TEXT("NEUTRAL")));
+	TestEqual(TEXT("flooded"), DeepHudCalm::BallastLabel(1.f), FString(TEXT("FLOODED")));
+	TestEqual(TEXT("part flooded"), DeepHudCalm::BallastLabel(0.4f), FString(TEXT("FLOOD 40%")));
+	TestEqual(TEXT("part blown"), DeepHudCalm::BallastLabel(-0.25f), FString(TEXT("BLOW 25%")));
+
+	TestEqual(TEXT("north"), DeepHudCalm::HeadingLabel(0.f), FString(TEXT("000°")));
+	TestEqual(TEXT("left of north wraps"), DeepHudCalm::HeadingLabel(-45.f), FString(TEXT("315°")));
+	TestEqual(TEXT("just under 360 rounds to 000"), DeepHudCalm::HeadingLabel(359.7f), FString(TEXT("000°")));
+
+	// The hint teaches the ballast as a lever.
+	const TArray<FDeepHudPrompt> Hint = DeepHudCalm::HelmHint();
+	const FDeepHudPrompt* Ballast = Hint.FindByPredicate([](const FDeepHudPrompt& P) { return P.Verb == TEXT("BALLAST"); });
+	TestTrue(TEXT("ballast row"), Ballast != nullptr);
+	TestTrue(TEXT("ballast is a lever that stays"), Ballast && Ballast->Detail.Contains(TEXT("stays")) && Ballast->Detail.Contains(TEXT("C floods")));
+
+	// Deep.Hud.HelmSonar 0: the helm loses its sonar panel and keeps the readout.
+	FDeepHudModeInputs In;
+	In.bSonar = true;
+	FDeepHudCalm Calm;
+	FDeepHudFrame F = DeepHudCalmTest::Make(EDeepHudMode::Helm);
+	F.Panels = DeepHudModel::PanelsFor(EDeepHudMode::Helm, In);
+	Calm.Apply(F, 0.0);
+	TestTrue(TEXT("sonar on by default"), DeepHudCalmTest::Has(F, Sonar));
+	Calm.Tuning.bHelmSonar = false;
+	F.Panels = DeepHudModel::PanelsFor(EDeepHudMode::Helm, In);
+	Calm.Apply(F, 0.1);
+	TestFalse(TEXT("sonar hidden"), DeepHudCalmTest::Has(F, Sonar));
+	TestTrue(TEXT("readout kept"), DeepHudCalmTest::Has(F, HelmGauge));
+	return true;
+}
+
 #endif

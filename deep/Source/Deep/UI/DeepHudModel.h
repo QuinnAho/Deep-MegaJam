@@ -154,6 +154,8 @@ namespace DeepHudLayout
 {
 	/** The helm instrument on the right, full height. */
 	DEEP_API FDeepHudRect HelmGauge(FVector2f Local);
+	/** The seated readout (throttle, ballast, heading), stacked on the depth readout, bottom right. */
+	DEEP_API FDeepHudRect HelmLevers(FVector2f Local);
 	/** The sonar scope, bottom left. */
 	DEEP_API FDeepHudRect Sonar(FVector2f Local);
 	/** The room kept above the sonar for the hull integrity bar (the Shaft lane's). */

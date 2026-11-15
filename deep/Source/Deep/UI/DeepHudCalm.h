@@ -33,6 +33,8 @@ struct FDeepHudCalmTuning
 	float HelmUseM = 1.f;
 	/** A hint stays at least this long, so it can be read even when the controls are in use at once. */
 	float HintMinSeconds = 8.f;
+	/** The helm sonar panel shows (Deep.Hud.HelmSonar; Quinn may move the radar to the swimmer). */
+	bool bHelmSonar = true;
 };
 
 namespace DeepHudCalm
@@ -79,6 +81,18 @@ namespace DeepHudCalm
 		/** True while the hint for this frame's mode should show. */
 		bool Step(const FDeepHudFrame& Frame, const FDeepHudCalmTuning& Tuning, double Now);
 	};
+
+	/** The throttle notch as the telegraph reads it: FULL ASTERN, HALF ASTERN, STOP, SLOW, HALF, FULL AHEAD (-2..+3). */
+	DEEP_API FString ThrottleLabel(int32 Notch);
+
+	/** The ballast lever: BLOWN or FLOODED at the end stops, NEUTRAL in the middle, else BLOW or FLOOD with the share. */
+	DEEP_API FString BallastLabel(float Lever);
+
+	/** The heading as three digits and a degree sign, 000..359. */
+	DEEP_API FString HeadingLabel(float YawDeg);
+
+	/** Deep.Hud.HelmSonar: 0 hides the helm sonar panel. */
+	DEEP_API bool HelmSonarOn();
 
 	/** True for a menu over the run (pause and its screens): the run's hints wait under it. */
 	DEEP_API bool IsOverlay(EDeepHudMode Mode);

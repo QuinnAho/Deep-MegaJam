@@ -315,6 +315,7 @@ void SDeepHud::Advance(const FDeepHudFrame& InFrame, double RealNow, float Delta
 	Now = RealNow;
 	DeltaSeconds = FMath::Clamp(DeltaSeconds, 0.f, 0.1f);
 	// The calm HUD: what the player does not need right now never reaches the painter.
+	Calm.Tuning.bHelmSonar = DeepHudCalm::HelmSonarOn();
 	Calm.Apply(Frame, Now);
 
 	if (Frame.Mode != LastMode)
@@ -634,6 +635,54 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		const float ReadH = P.TextSize(TEXT("0"), ReadoutFont).Y;
 		const float NW = P.Text(Number, R.X + Pad, CY + LabelH, ReadoutFont, Primary(GA));
 		P.Text(TEXT("m"), R.X + Pad + NW + 6.f, CY + LabelH + ReadH - BodyH - 3.f, BodyFont, Secondary(UnitAlpha * GA));
+
+		// ---- the seated readout, stacked on it: the levers the helm camera cannot see (rescope, Nov 15).
+		// THROTTLE with the telegraph's notches, BALLAST with a centre-zero bar, HEADING in degrees.
+		FDeepHudRect V = DeepHudLayout::HelmLevers(L);
+		V.Y += SlideOf(GA);
+		P.Panel(V.X, V.Y, V.W, V.H, GA);
+		const float VX = V.X + Pad;
+		const float VW = V.W - 2.f * Pad;
+		const float RowGap = 10.f;
+		const float BarGap = 6.f;
+		const float TickH = 8.f;
+		float RY = V.Y + Pad;
+
+		P.Text(TEXT("THROTTLE"), VX, RY, LabelFont, Secondary(GA));
+		P.TextRight(DeepHudCalm::ThrottleLabel(Frame.HelmNotch), V.Right() - Pad, RY, LabelFont, Primary(GA));
+		{
+			const int32 Lo = FMath::Min(Frame.HelmNotchMin, 0);
+			const int32 Hi = FMath::Max(Frame.HelmNotchMax, 0);
+			const int32 N = Hi - Lo + 1;
+			const float Gap = 4.f;
+			const float CellW = (VW - Gap * (N - 1)) / static_cast<float>(N);
+			const float TY = RY + LabelH + BarGap;
+			for (int32 I = 0; I < N; ++I)
+			{
+				const int32 Notch = Lo + I;
+				const float CX = VX + I * (CellW + Gap);
+				const FLinearColor C = Notch == Frame.HelmNotch ? Primary(GA) : Notch == 0 ? Secondary(0.6f * GA) : Primary(0.18f * GA);
+				P.Box(CX, TY, CellW, TickH, C);
+			}
+		}
+		RY += LabelH + BarGap + TickH + RowGap;
+
+		P.Text(TEXT("BALLAST"), VX, RY, LabelFont, Secondary(GA));
+		P.TextRight(DeepHudCalm::BallastLabel(Frame.HelmBallast), V.Right() - Pad, RY, LabelFont, Primary(GA));
+		{
+			const float BY = RY + LabelH + BarGap;
+			const float Mid = VX + VW * 0.5f;
+			const float Lever = FMath::Clamp(Frame.HelmBallast, -1.f, 1.f);
+			P.Box(VX, BY + 2.f, VW, TickH - 4.f, Primary(0.18f * GA));
+			const float FillW = FMath::Abs(Lever) * VW * 0.5f;
+			P.Box(Lever < 0.f ? Mid - FillW : Mid, BY + 2.f, FillW, TickH - 4.f, Primary(GA));
+			P.Box(Mid - 1.f, BY, 2.f, TickH, Secondary(GA));
+		}
+		RY += LabelH + BarGap + TickH + RowGap;
+
+		P.Text(TEXT("HEADING"), VX, RY, LabelFont, Secondary(GA));
+		const float HdgH = P.TextSize(TEXT("0"), MonoFont).Y;
+		P.TextRight(DeepHudCalm::HeadingLabel(Frame.HeadingDeg), V.Right() - Pad, RY + (LabelH - HdgH) * 0.5f, MonoFont, Primary(GA));
 	}
 
 	// ------------------------------------------------ the hull, at the helm in the cave shaft (spec A, element 11: 400 x 48)

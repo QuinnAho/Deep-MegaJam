@@ -1,5 +1,13 @@
 #include "UI/DeepHudCalm.h"
 
+#include "HAL/IConsoleManager.h"
+
+static TAutoConsoleVariable<int32> CVarDeepHudHelmSonar(
+	TEXT("Deep.Hud.HelmSonar"),
+	1,
+	TEXT("1 shows the helm sonar panel, 0 hides it (Quinn is weighing moving the radar to the swimmer)."),
+	ECVF_Default);
+
 namespace DeepHudCalm
 {
 	namespace
@@ -33,10 +41,49 @@ namespace DeepHudCalm
 		return {
 			Row(TEXT("hh1"), TEXT("W / S"), TEXT("THROTTLE"), TEXT("in notches")),
 			Row(TEXT("hh2"), TEXT("A / D"), TEXT("RUDDER")),
-			Row(TEXT("hh3"), TEXT("SPACE / C"), TEXT("BALLAST"), TEXT("hold: rise / sink")),
-			Row(TEXT("hh4"), TEXT("X"), TEXT("ALL STOP")),
+			Row(TEXT("hh3"), TEXT("C / SPACE"), TEXT("BALLAST"), TEXT("C floods, SPACE blows; it stays")),
+			Row(TEXT("hh4"), TEXT("X"), TEXT("ALL STOP"), TEXT("throttle and ballast")),
 			Row(TEXT("hh5"), TEXT("E"), TEXT("STAND UP")),
 		};
+	}
+
+	FString ThrottleLabel(int32 Notch)
+	{
+		switch (FMath::Clamp(Notch, -2, 3))
+		{
+		case -2: return TEXT("FULL ASTERN");
+		case -1: return TEXT("HALF ASTERN");
+		case 1: return TEXT("SLOW");
+		case 2: return TEXT("HALF");
+		case 3: return TEXT("FULL AHEAD");
+		default: return TEXT("STOP");
+		}
+	}
+
+	FString BallastLabel(float Lever)
+	{
+		const float L = FMath::Clamp(Lever, -1.f, 1.f);
+		const int32 Share = FMath::RoundToInt(FMath::Abs(L) * 100.f);
+		if (Share == 0)
+		{
+			return TEXT("NEUTRAL");
+		}
+		if (Share >= 100)
+		{
+			return L < 0.f ? TEXT("BLOWN") : TEXT("FLOODED");
+		}
+		return FString::Printf(TEXT("%s %d%%"), L < 0.f ? TEXT("BLOW") : TEXT("FLOOD"), Share);
+	}
+
+	FString HeadingLabel(float YawDeg)
+	{
+		const int32 Deg = FMath::RoundToInt(FRotator::ClampAxis(YawDeg)) % 360;
+		return FString::Printf(TEXT("%03d%s"), Deg, TEXT("\u00B0"));
+	}
+
+	bool HelmSonarOn()
+	{
+		return CVarDeepHudHelmSonar.GetValueOnGameThread() != 0;
 	}
 
 	FDeepHudPrompt UnclipHint()
@@ -186,6 +233,10 @@ void FDeepHudCalm::Apply(FDeepHudFrame& Frame, double Now)
 	if (Frame.Mode == EDeepHudMode::Helm)
 	{
 		Frame.Hint = DeepHudCalm::HelmHint();
+		if (!Tuning.bHelmSonar)
+		{
+			Frame.Panels &= ~static_cast<uint32>(EDeepHudPanel::Sonar);
+		}
 	}
 	if (Frame.Mode == EDeepHudMode::Water)
 	{
