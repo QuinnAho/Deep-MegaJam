@@ -96,14 +96,15 @@ FString UDeepMonsterBrain::BuildStateJson() const
 {
 	const ADeepSerpentController* Mind = GetSerpentController();
 	return FString::Printf(
-		TEXT("{\"present\":%s,\"state\":\"%s\",\"noise\":%.2f,\"heard\":%.2f,\"lit_s\":%.2f,\"cooldown_s\":%.2f,\"tether_distance_m\":%.2f,\"diver_distance_m\":%.2f,\"threat\":%.3f,\"stop\":%d}"),
+		TEXT("{\"present\":%s,\"state\":\"%s\",\"noise\":%.2f,\"heard\":%.2f,\"lit_s\":%.2f,\"cooldown_s\":%.2f,\"tether_distance_m\":%.2f,\"diver_distance_m\":%.2f,\"threat\":%.3f,\"stop\":%d,\"first_sight_done\":%s}"),
 		Mind ? TEXT("true") : TEXT("false"),
 		*UDeepMonsterRules::StateName(GetState()),
 		GetNoise(),
 		Mind ? Mind->GetHeardTotal() : 0.f,
 		Mind ? Mind->GetLitSeconds() : 0.f,
 		Mind ? Mind->GetCooldownSeconds() : 0.f,
-		GetTetherDistanceM(), GetDiverDistanceM(), GetThreat01(), CurrentStop());
+		GetTetherDistanceM(), GetDiverDistanceM(), GetThreat01(), CurrentStop(),
+		Mind && Mind->IsFirstSightDone() ? TEXT("true") : TEXT("false"));
 }
 
 int32 UDeepMonsterBrain::CurrentStop() const
@@ -208,6 +209,12 @@ void UDeepMonsterBrain::ForceState(EDeepMonsterState NewState)
 	{
 		Mind->ForceState(NewState);
 	}
+}
+
+bool UDeepMonsterBrain::StartFirstSight()
+{
+	ADeepSerpentController* Mind = GetSerpentController();
+	return Mind && Mind->StartFirstSight();
 }
 
 ADeepSerpent* UDeepMonsterBrain::SpawnSerpent(bool bForced)

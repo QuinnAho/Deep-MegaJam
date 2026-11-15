@@ -1,4 +1,4 @@
-// The sea serpent's tuning structs, state enum and rule inputs/results. Numbers live in UDeepMonsterSettings.
+﻿// The sea serpent's tuning structs, state enum and rule inputs/results. Numbers live in UDeepMonsterSettings.
 
 #pragma once
 
@@ -23,7 +23,12 @@ enum class EDeepMonsterState : uint8
 	/** Holding the tether: a fixed alarm, then the line is severed unless the beam hits it. */
 	Bite,
 	/** The diver has no tether: chases the diver directly. */
-	Hunt
+	Hunt,
+	/**
+	 * The first sight, once per run before its first hunt: after a sound, one slow pass across the diver's view at
+	 * the edge of the lamp's reach (part of the body, never the whole animal), then it leaves. Ignores noise.
+	 */
+	Pass
 };
 
 /** Every serpent behaviour number. Per-stop overrides in FDeepMonsterStopTuning are applied on top. */
@@ -150,6 +155,76 @@ struct FDeepMonsterTuning
 	/** Threat is 0 at or beyond this distance from the diver, 1 at CatchReachM. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Contact")
 	float ThreatFarM = 70.f;
+
+	// ---- The bite, staged: it takes the line a few metres from the diver, striking across it from the side ----
+
+	/** The bite point: this far up the tether from the diver (so a diver who turns sees it a few metres away). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Contact")
+	float BiteFromDiverM = 4.f;
+
+	/** Final approach: it first swims to a point this far out to the side of the line, then strikes across it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Contact")
+	float BiteSideLeadM = 3.f;
+
+	/** Recoil: for this long it turns its head away from the lamp nearly in place (in frame), then it flees. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Contact")
+	float RecoilTurnS = 0.9f;
+
+	/** Speed during that turn, as a fraction of RecoilSpeedMps. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Contact")
+	float RecoilTurnSpeedFraction = 0.15f;
+
+	// ---- The first sight (state Pass): once per run, before the first hunt ----
+
+	/** Off = no first sight; it hunts from the first noise as before. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	bool bFirstSight = true;
+
+	/** The pass starts this long after it begins lurking, or sooner if noise would bring it in or the diver loses the tether. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float FirstSightAfterS = 20.f;
+
+	/** Distance in front of the lamp of the pass line (the edge of the lamp's reach in this water: 6 to 8 m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassDistanceM = 7.f;
+
+	/** The head starts this far to the side of the view (out of view and out of the beam): the sound comes first. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassSideStartM = 18.f;
+
+	/** The line runs this far above the lamp (negative: below; the beam leaves the helmet angled down), so the body crosses the bright part of the beam. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassUpM = -0.6f;
+
+	/** It turns away from the diver this far past the middle of the view (at the beam's axis)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassTurnAtM = 0.f;
+
+	/** ...toward a point this much farther out and this far to the side: the head leaves the beam sideways into the dark (not down the beam, where it would stay lit), and the body drags through the beam after it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassLeaveM = 9.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassLeaveSideM = 12.f;
+
+	/** Slow: the body takes several seconds to slide through the beam. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassSpeedMps = 3.f;
+
+	/** The pass is over once the head is this far from the diver after the last turn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassEndM = 24.f;
+
+	/**
+	 * In the pass the beam must stay on its head this long to drive it off (a head crossing the beam is not enough:
+	 * it is passing, not coming for you, and the first sight should play out).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassLitToRecoilS = 5.f;
+
+	/** The pass gives up after this long whatever happens. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
+	float PassMaxS = 25.f;
 };
 
 /** Stop-specific overrides: the stop with the greatest Stop not above the current one applies. */
@@ -472,6 +547,14 @@ struct FDeepMonsterInputs
 	/** False when there is no diver at all: it just keeps doing what it does. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
 	bool bHasDiver = true;
+
+	/** The first sight has not happened yet this run and there is a player to stage it for. False = the old rules exactly. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	bool bFirstSightPending = false;
+
+	/** Pass: the head has made its last turn and is out in the dark. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	bool bPassComplete = false;
 };
 
 /** The next state, plus which one-off events this step caused. */
@@ -498,6 +581,10 @@ struct FDeepMonsterStep
 	/** The lamp drove it off (held on its head, or any beam during a bite). Not set by a sever or a catch. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
 	bool bRepelled = false;
+
+	/** Lurk -> Pass: the first sight begins (fire the first sound, lay out the pass). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	bool bPassStarted = false;
 
 	/** Recoil reached the lurk radius: start the cooldown. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")

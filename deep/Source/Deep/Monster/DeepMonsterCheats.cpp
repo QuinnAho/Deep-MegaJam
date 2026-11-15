@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -9,6 +10,7 @@
 #include "Monster/DeepSerpent.h"
 #include "Monster/DeepMonsterBrain.h"
 #include "Monster/DeepMonsterRules.h"
+#include "Monster/DeepSerpentController.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepMonsterCheats, Log, All);
 
@@ -89,7 +91,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs MonsterPoseCommand(
 		TEXT("Deep.Monster.Pose"),
-		TEXT("Deep.Monster.Pose <state|-1>: shots only. The serpent shows that state's motion and markings (0 lurk, 1 stalk, 2 recoil, 3 bite, 4 hunt) at full threat; the brain is untouched. -1 turns it off."),
+		TEXT("Deep.Monster.Pose <state|-1>: shots only. The serpent shows that state's motion and markings (0 lurk, 1 stalk, 2 recoil, 3 bite, 4 hunt, 5 pass) at full threat; the brain is untouched. -1 turns it off."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Pose")))
@@ -144,6 +146,64 @@ namespace
 				Brain->SetDebugLit(FCString::Atof(*Args[0]));
 				LogMonster(Brain);
 			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterFirstSightCommand(
+		TEXT("Deep.Monster.FirstSight"),
+		TEXT("The first sight now: the first-heard sound, then one slow pass across the diver's lamp at the edge of its reach, then it leaves and hunts as normal."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.FirstSight")))
+			{
+				Brain->SpawnSerpent(true);
+				if (!Brain->StartFirstSight())
+				{
+					UE_LOG(LogDeepMonsterCheats, Warning, TEXT("Deep.Monster.FirstSight: no diver to show it to"));
+				}
+				LogMonster(Brain);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterStageBiteCommand(
+		TEXT("Deep.Monster.StageBite"),
+		TEXT("Deep.Monster.StageBite [side_m] [out_m]: shots. Moves the diver out_m (default 12) out from the anchor along the view and 4 m down, turns the view back to the bite point on the tether, puts the head side_m (default 8) to its right, and sends it stalking: it strikes across the line from the side."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.StageBite"));
+			APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+			ADeepDiver* Diver = Player ? Cast<ADeepDiver>(Player->GetPawn()) : nullptr;
+			if (!Brain || !Diver)
+			{
+				return;
+			}
+			Brain->SpawnSerpent(true);
+			ADeepSerpentController* Mind = Brain->GetSerpentController();
+			ADeepSerpent* Serpent = Brain->GetSerpent();
+			if (!Mind || !Serpent)
+			{
+				return;
+			}
+			FVector Eye;
+			FRotator View;
+			Player->GetPlayerViewPoint(Eye, View);
+			if (const UDeepTetherComponent* Tether = Diver->GetTether())
+			{
+				// Out in the water on a real length of line, so there is a line to bite between the diver and the sub.
+				const float OutM = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 12.f;
+				const FVector Out = FRotator(0.f, View.Yaw, 0.f).Vector();
+				Diver->TeleportDiver(Tether->GetAnchorLocation() + Out * (OutM * 100.f) - FVector(0.f, 0.f, 400.f));
+				// The camera manager's view point is a frame behind a teleport; the pawn's own view location is not.
+				Eye = Diver->GetPawnViewLocation();
+			}
+			const FVector Point = Mind->GetBitePoint(Diver);
+			const FRotator Look = (Point - Eye).Rotation();
+			Player->SetControlRotation(Look);
+			const float SideM = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 8.f;
+			const FVector Right = FRotationMatrix(FRotator(0.f, Look.Yaw, 0.f)).GetUnitAxis(EAxis::Y);
+			Serpent->PlaceHead(Point + Right * (SideM * 100.f), -Right);
+			Brain->ForceState(EDeepMonsterState::Stalk);
+			Brain->AddNoise(100.f);
+			LogMonster(Brain);
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs MonsterRevealCommand(

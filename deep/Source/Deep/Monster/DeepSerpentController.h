@@ -34,6 +34,17 @@ public:
 	/** Jumps to a state with fresh timers (no events fire). */
 	void ForceState(EDeepMonsterState NewState);
 
+	/**
+	 * The first sight now (cheat, tests): fires the first sound, lays out the pass across the focus diver's lamp and
+	 * enters Pass. Counts as this run's first sight. False if there is no diver.
+	 */
+	bool StartFirstSight();
+	bool IsFirstSightDone() const { return bFirstSightDone; }
+	/** Where on this diver's tether it means to bite (shots and tests). */
+	FVector GetBitePoint(const ADeepDiver* Diver) const;
+	/** Closest the head came to the focus diver during the last pass (m); 0 before any pass. */
+	float GetPassClosestM() const { return PassClosestM; }
+
 	EDeepMonsterState GetState() const { return State; }
 	float GetNoise() const { return Noise; }
 	float GetLitSeconds() const { return LitSeconds; }
@@ -67,6 +78,12 @@ private:
 	float LurkRadiusCm(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const;
 	bool IsHeadLit(const TArray<ADeepDiver*>& Divers, const FDeepMonsterTuning& Tuning) const;
 	void EnterState(EDeepMonsterState NewState, const FDeepMonsterTuning& Tuning);
+	/** Lays out the first-sight pass across this diver's lamp and puts the head at its start (out of view). */
+	bool BeginPass(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning);
+	/** Where on the tether it means to bite: BiteFromDiverM up the line from the diver. */
+	FVector BitePoint(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const;
+	/** The first sight has not happened, the settings allow it, the brain spawned it itself, and a player is there to see it. */
+	bool IsFirstSightPending(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const;
 	void Steer(const FDeepMonsterTuning& Tuning, float DeltaSeconds);
 
 	TWeakObjectPtr<ADeepDiver> Focus;
@@ -84,4 +101,14 @@ private:
 	float Threat01 = 0.f;
 	/** Where on the tether (0 anchor .. 1 diver) the bite holds. */
 	float BiteAlpha = 0.5f;
+
+	// ---- The first sight ----
+	bool bFirstSightDone = false;
+	TArray<FVector> PassPoints;
+	int32 PassLeg = 0;
+	float PassClosestM = 0.f;
+
+	// ---- The staged bite: the side it strikes from, fixed once it is close ----
+	FVector BiteSide = FVector::ZeroVector;
+	bool bBiteCommit = false;
 };

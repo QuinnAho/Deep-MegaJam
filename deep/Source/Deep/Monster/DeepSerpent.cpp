@@ -66,7 +66,7 @@ namespace
 		return FMath::Sign(V) * FMath::Pow(FMath::Abs(V), E);
 	}
 
-	float EaseOutCubic(float X)
+	float SerpentEaseOutCubic(float X)
 	{
 		const float C = 1.f - FMath::Clamp(X, 0.f, 1.f);
 		return 1.f - C * C * C;
@@ -685,7 +685,8 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	StateAge += Dt;
 	LifeAge += Dt;
 	const EDeepMonsterState State = static_cast<EDeepMonsterState>(Shown);
-	if (State != EDeepMonsterState::Lurk)
+	// The first sight (Pass) does not count: its markings stay dark, it is seen by the lamp alone.
+	if (State != EDeepMonsterState::Lurk && State != EDeepMonsterState::Pass)
 	{
 		bHeardOnce = true;
 	}
@@ -723,7 +724,7 @@ void ADeepSerpent::UpdateMotion(float Dt)
 		const float Strike = FMath::Max(0.01f, Tuning.LungeS);
 		if (StateAge < Strike)
 		{
-			LungeCm = EaseOutCubic(StateAge / Strike) * Tuning.LungeM * CmPerM;
+			LungeCm = SerpentEaseOutCubic(StateAge / Strike) * Tuning.LungeM * CmPerM;
 			TargetGape = Tuning.JawOpenDeg;
 			GapeDeg = Tuning.JawOpenDeg * FMath::Min(1.f, StateAge / (Strike * 0.5f));
 		}

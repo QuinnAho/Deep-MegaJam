@@ -81,6 +81,10 @@ public:
 	void SetDebugLit(float Seconds);
 	/** Jumps to a state with fresh timers (no events fire). */
 	void ForceState(EDeepMonsterState NewState);
+	/** The first sight now: a sound, then one slow pass across the diver's lamp (see ADeepSerpentController::StartFirstSight). */
+	bool StartFirstSight();
+	/** Spawned by a cheat or a test: it stays at any stop and skips the first sight (the old rules exactly). */
+	bool IsForcedSpawn() const { return bForcedSpawn; }
 	/** Spawn bookkeeping (stop 2 and deeper). Tick calls this; tests call it directly. */
 	void Step(float DeltaSeconds);
 	/** A new run: the serpent and its controller are removed and every tether counts as intact again. */
