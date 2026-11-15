@@ -499,7 +499,7 @@ struct FDeepArenaTuning
 	float RelicBeaconRangeM = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
-	float RelicBeaconScattering = 20.f;
+	float RelicBeaconScattering = 12.f;
 
 	/** The relic's shape: a pack mesh (cooked through PackAssets.csv), worn with the dressing skin. Falls back to basic shapes. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
