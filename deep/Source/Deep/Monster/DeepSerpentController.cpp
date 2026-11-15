@@ -49,6 +49,9 @@ void ADeepSerpentController::OnPossess(APawn* InPawn)
 	StateSeconds = 0.f;
 	LitSeconds = 0.f;
 	CooldownS = 0.f;
+	bFirstSightDone = false;
+	PassPoints.Reset();
+	PassLeg = 0;
 }
 
 void ADeepSerpentController::HandlePerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
@@ -128,6 +131,101 @@ float ADeepSerpentController::LurkRadiusCm(const ADeepDiver* Diver, const FDeepM
 	return Brain ? Brain->LurkRadiusCm(Diver, Tuning) : Tuning.LurkRadiusM * CmPerM;
 }
 
+FVector ADeepSerpentController::BitePoint(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const
+{
+	FVector A, B;
+	const UDeepMonsterBrain* Brain = GetBrain();
+	if (!Brain || !Brain->TetherEnds(Diver, A, B))
+	{
+		return TetherMiddle(Diver);
+	}
+	const float LengthCm = static_cast<float>(FVector::Dist(A, B));
+	const float Alpha = LengthCm > 1.f ? FMath::Clamp(1.f - Tuning.BiteFromDiverM * CmPerM / LengthCm, 0.1f, 1.f) : 0.5f;
+	return FMath::Lerp(A, B, Alpha);
+}
+
+FVector ADeepSerpentController::GetBitePoint(const ADeepDiver* Diver) const
+{
+	const UWorld* World = GetWorld();
+	const ADeepGameState* GameState = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	return BitePoint(Diver, UDeepMonsterSettings::Get().GetTuning(GameState ? GameState->Stop : 1));
+}
+
+bool ADeepSerpentController::IsFirstSightPending(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const
+{
+	const UDeepMonsterBrain* Brain = GetBrain();
+	// Staged for a player's eyes: test divers and cheat spawns keep the old rules exactly.
+	return Tuning.bFirstSight && !bFirstSightDone && Diver && Diver->IsPlayerControlled() && Brain && !Brain->IsForcedSpawn();
+}
+
+bool ADeepSerpentController::BeginPass(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning)
+{
+	ADeepSerpent* Body = GetSerpent();
+	if (!Body || !Diver)
+	{
+		return false;
+	}
+	// The view is the lamp (it rides the camera). Pitch is limited so a diver looking at the floor still gets a pass in front.
+	FVector Eye;
+	FRotator View;
+	if (const USpotLightComponent* Lamp = Diver->FindComponentByClass<USpotLightComponent>())
+	{
+		Eye = Lamp->GetComponentLocation();
+		View = Lamp->GetComponentRotation();
+	}
+	else
+	{
+		Diver->GetActorEyesViewPoint(Eye, View);
+	}
+	View.Pitch = FMath::Clamp(View.Pitch, -30.f, 30.f);
+	View.Roll = 0.f;
+	const FRotationMatrix M(View);
+	const FVector F = M.GetUnitAxis(EAxis::X);
+	const FVector R = M.GetUnitAxis(EAxis::Y);
+	const FVector U = M.GetUnitAxis(EAxis::Z);
+	const float Side = FMath::RandBool() ? 1.f : -1.f;
+	const FVector Base = Eye + U * (Tuning.PassUpM * CmPerM);
+
+	const FVector Start = Base + F * (Tuning.PassDistanceM * CmPerM) - R * (Side * Tuning.PassSideStartM * CmPerM);
+	PassPoints.Reset();
+	PassPoints.Add(Base + F * (Tuning.PassDistanceM * CmPerM) + R * (Side * Tuning.PassTurnAtM * CmPerM));
+	PassPoints.Add(Base + F * ((Tuning.PassDistanceM + Tuning.PassLeaveM) * CmPerM) + R * (Side * (Tuning.PassTurnAtM + Tuning.PassLeaveSideM) * CmPerM));
+	PassLeg = 0;
+	PassClosestM = 1000.f;
+	// Out of view and far outside the beam, so the move is never seen; the body lies straight behind it.
+	Body->PlaceHead(Start, R * Side);
+	bFirstSightDone = true;
+	UE_LOG(LogDeepSerpent, Log, TEXT("Serpent first sight: pass at %.0f m, from the %s"), Tuning.PassDistanceM, Side > 0.f ? TEXT("left") : TEXT("right"));
+	return true;
+}
+
+bool ADeepSerpentController::StartFirstSight()
+{
+	UDeepMonsterBrain* Brain = GetBrain();
+	UWorld* World = GetWorld();
+	if (!Brain || !World)
+	{
+		return false;
+	}
+	TArray<ADeepDiver*> Divers;
+	GatherDivers(Divers);
+	if (!Focus.IsValid() || !Divers.Contains(Focus.Get()))
+	{
+		Focus = PickFocus(Divers);
+	}
+	const ADeepGameState* GameState = World->GetGameState<ADeepGameState>();
+	const FDeepMonsterTuning Tuning = UDeepMonsterSettings::Get().GetTuning(GameState ? GameState->Stop : 1);
+	if (!BeginPass(Focus.Get(), Tuning))
+	{
+		return false;
+	}
+	EnterState(EDeepMonsterState::Pass, Tuning);
+	LitSeconds = 0.f;
+	// The sound comes first: the run's first-heard line and ping.
+	Brain->OnStalkStarted.Broadcast(Focus.Get());
+	return true;
+}
+
 bool ADeepSerpentController::IsHeadLit(const TArray<ADeepDiver*>& Divers, const FDeepMonsterTuning& Tuning) const
 {
 	const APawn* Body = GetPawn();
@@ -175,6 +273,11 @@ void ADeepSerpentController::EnterState(EDeepMonsterState NewState, const FDeepM
 		*UDeepMonsterRules::StateName(State), *UDeepMonsterRules::StateName(NewState), Noise, TetherDistanceM);
 	State = NewState;
 	StateSeconds = 0.f;
+	if (NewState == EDeepMonsterState::Stalk)
+	{
+		BiteSide = FVector::ZeroVector;
+		bBiteCommit = false;
+	}
 	if (NewState == EDeepMonsterState::Recoil)
 	{
 		LitSeconds = 0.f;
@@ -237,7 +340,20 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	In.DiverDistanceM = DiverDistanceM;
 	In.bDiverTethered = bTethered;
 	In.bHasDiver = Target != nullptr;
-	const FDeepMonsterStep Result = UDeepMonsterRules::NextState(In, Tuning);
+	In.bFirstSightPending = IsFirstSightPending(Target, Tuning);
+	if (State == EDeepMonsterState::Pass)
+	{
+		PassClosestM = FMath::Min(PassClosestM, DiverDistanceM);
+		In.bPassComplete = PassLeg >= PassPoints.Num() && DiverDistanceM >= Tuning.PassEndM;
+	}
+	FDeepMonsterStep Result = UDeepMonsterRules::NextState(In, Tuning);
+	if (Result.bPassStarted && !BeginPass(Target, Tuning))
+	{
+		// Nowhere to stage it: skip the first sight and stay put this step.
+		bFirstSightDone = true;
+		Result = FDeepMonsterStep();
+		Result.Next = State;
+	}
 
 	if (Result.bBiteStarted)
 	{
@@ -253,6 +369,12 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	}
 
 	// Events last, after the state is consistent, so listeners that read it see the new state.
+	// The first sight starts with a sound: the run's first-heard line (the run component says it once per run), so
+	// by the first real stalk the Captain has already named it and says it is near instead.
+	if (Result.bPassStarted)
+	{
+		Brain->OnStalkStarted.Broadcast(Target);
+	}
 	if (Result.Changed(In.State) && Result.Next == EDeepMonsterState::Stalk)
 	{
 		Brain->OnStalkStarted.Broadcast(Target);
@@ -306,13 +428,65 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 		break;
 
 	case EDeepMonsterState::Stalk:
-		Body->SwimToward(UDeepMonsterRules::SpiralAimPoint(Middle, Head, Tuning.StalkArcDeg, Tuning.StalkInwardFraction, Tuning.StalkDirectWithinM),
-			Tuning.StalkSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
+	{
+		// Spiral in on the bite point, a few metres up the line from the diver. Close in, swing out to one side of the
+		// line and strike across it, so the diver who turns sees it in profile clamping the line.
+		const FVector Point = BitePoint(Target, Tuning);
+		FVector Aim = UDeepMonsterRules::SpiralAimPoint(Point, Head, Tuning.StalkArcDeg, Tuning.StalkInwardFraction, Tuning.StalkDirectWithinM);
+		FVector A, B;
+		if (FVector::Dist(Head, Point) <= Tuning.StalkDirectWithinM * CmPerM && Brain->TetherEnds(Target, A, B))
+		{
+			if (BiteSide.IsNearlyZero())
+			{
+				const FVector Line = (B - A).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector);
+				FVector Out = Head - Point;
+				Out -= Line * FVector::DotProduct(Out, Line);
+				BiteSide = Out.GetSafeNormal(UE_SMALL_NUMBER, FVector::CrossProduct(Line, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector));
+			}
+			const FVector Lead = Point + BiteSide * (Tuning.BiteSideLeadM * CmPerM);
+			if (!bBiteCommit && FVector::Dist(Head, Lead) > 150.f)
+			{
+				Aim = Lead;
+			}
+			else
+			{
+				bBiteCommit = true;
+				Aim = Point;
+			}
+		}
+		Body->SwimToward(Aim, Tuning.StalkSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
 		break;
+	}
+
+	case EDeepMonsterState::Pass:
+	{
+		// The first sight: slow, along the laid-out line, then out into the dark.
+		FVector Aim = Head + Body->GetHeading() * (10.f * CmPerM);
+		if (PassLeg < PassPoints.Num())
+		{
+			Aim = PassPoints[PassLeg];
+			if (FVector::Dist(Head, Aim) < 150.f)
+			{
+				++PassLeg;
+			}
+		}
+		Body->SwimToward(Aim, Tuning.PassSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
+		break;
+	}
 
 	case EDeepMonsterState::Recoil:
 	{
-		// Straight away from the line, flinching round faster than it normally turns.
+		if (StateSeconds < Tuning.RecoilTurnS)
+		{
+			// First it turns its head away from the lamp almost where it is, so the flinch happens in frame.
+			FVector FromLamp = Head - Target->GetActorLocation();
+			FromLamp.Z *= 0.3f;
+			FromLamp = FromLamp.GetSafeNormal(UE_SMALL_NUMBER, -Body->GetHeading());
+			Body->SwimToward(Head + FromLamp * (Tuning.LurkRadiusM * CmPerM), Tuning.RecoilSpeedMps * Tuning.RecoilTurnSpeedFraction,
+				Tuning.TurnRateDegPerS * 2.f, DeltaSeconds);
+			break;
+		}
+		// Then straight away from the line, flinching round faster than it normally turns.
 		FVector Away = Head - Middle;
 		Away.Z *= 0.3f;
 		Away = Away.GetSafeNormal(UE_SMALL_NUMBER, -Body->GetHeading());

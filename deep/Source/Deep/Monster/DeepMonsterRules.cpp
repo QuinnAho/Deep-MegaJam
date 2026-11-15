@@ -93,6 +93,12 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		{
 			// Still shaken from the lamp: nothing brings it in yet.
 		}
+		else if (In.bFirstSightPending && (In.Noise >= Tuning.StalkNoise || !In.bDiverTethered || In.StateSeconds >= Tuning.FirstSightAfterS))
+		{
+			// Before its first hunt it shows itself once: a sound, then part of it at the edge of the lamp.
+			Out.Next = EDeepMonsterState::Pass;
+			Out.bPassStarted = true;
+		}
 		else if (!In.bDiverTethered)
 		{
 			Out.Next = EDeepMonsterState::Hunt;
@@ -149,6 +155,20 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		{
 			Out.Next = EDeepMonsterState::Lurk;
 			Out.bStartCooldown = true;
+		}
+		break;
+
+	case EDeepMonsterState::Pass:
+		if (In.LitSeconds >= Tuning.PassLitToRecoilS)
+		{
+			// The lamp works here too: the first lesson.
+			Out.Next = EDeepMonsterState::Recoil;
+			Out.bRepelled = true;
+		}
+		else if (In.bPassComplete || In.StateSeconds >= Tuning.PassMaxS)
+		{
+			// Gone into the dark; normal hunting from here.
+			Out.Next = EDeepMonsterState::Lurk;
 		}
 		break;
 
@@ -279,6 +299,7 @@ FString UDeepMonsterRules::StateName(EDeepMonsterState State)
 	case EDeepMonsterState::Recoil: return TEXT("Recoil");
 	case EDeepMonsterState::Bite: return TEXT("Bite");
 	case EDeepMonsterState::Hunt: return TEXT("Hunt");
+	case EDeepMonsterState::Pass: return TEXT("Pass");
 	}
 	return TEXT("Unknown");
 }

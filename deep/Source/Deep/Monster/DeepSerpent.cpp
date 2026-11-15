@@ -685,7 +685,8 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	StateAge += Dt;
 	LifeAge += Dt;
 	const EDeepMonsterState State = static_cast<EDeepMonsterState>(Shown);
-	if (State != EDeepMonsterState::Lurk)
+	// The first sight (Pass) does not count: its markings stay dark, it is seen by the lamp alone.
+	if (State != EDeepMonsterState::Lurk && State != EDeepMonsterState::Pass)
 	{
 		bHeardOnce = true;
 	}
