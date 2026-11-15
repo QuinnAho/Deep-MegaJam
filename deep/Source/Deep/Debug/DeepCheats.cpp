@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Debug/DeepStateReport.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
 #include "Game/DeepGameMode.h"
 #include "HAL/IConsoleManager.h"
@@ -57,6 +58,8 @@ namespace
 					}
 				}
 				Diver->AddCargo(Item);
+				// Counts as a pickup: Patience refill and the Captain's comment.
+				Diver->GetRun()->NotifyPickup(Item);
 				DeepStateReport::LogState(World);
 			}
 		}));
@@ -96,5 +99,68 @@ namespace
 				Diver->TeleportDiver(FVector(FCString::Atof(*Args[0]), FCString::Atof(*Args[1]), FCString::Atof(*Args[2])));
 				DeepStateReport::LogState(World);
 			}
+		}));
+
+	/** Runs Action on the diver's run component (server), then logs state. */
+	void WithRun(UWorld* World, const TCHAR* Command, TFunctionRef<void(UDeepRunComponent&)> Action)
+	{
+		ADeepDiver* Diver = RequireDiver(World, Command);
+		if (!Diver || !Diver->GetRun())
+		{
+			return;
+		}
+		if (!Diver->HasAuthority())
+		{
+			UE_LOG(LogDeepCheats, Warning, TEXT("%s: run on the server"), Command);
+			return;
+		}
+		Action(*Diver->GetRun());
+		DeepStateReport::LogState(World);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs SetPatienceCommand(
+		TEXT("Deep.SetPatience"),
+		TEXT("Deep.SetPatience <0..1>: sets the Captain's Patience as a fraction of full. 0 cuts the tether on the next tick."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.SetPatience <0..1>"));
+				return;
+			}
+			const float Fraction = FCString::Atof(*Args[0]);
+			WithRun(World, TEXT("Deep.SetPatience"), [Fraction](UDeepRunComponent& Run) { Run.SetPatienceFraction(Fraction); });
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs ForceCutCommand(
+		TEXT("Deep.ForceCut"),
+		TEXT("Deep.ForceCut: cuts the tether now (as if Patience ran out); bailout air starts."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.ForceCut"), [](UDeepRunComponent& Run) { Run.CutTether(false); });
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs BankCommand(
+		TEXT("Deep.Bank"),
+		TEXT("Deep.Bank: banks the diver's cargo wherever it is and opens the settlement screen."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.Bank"), [](UDeepRunComponent& Run) { Run.Bank(); });
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs ContinueCommand(
+		TEXT("Deep.Continue"),
+		TEXT("Deep.Continue: leaves the settlement screen (descends if the hull allows)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.Continue"), [](UDeepRunComponent& Run) { Run.ContinueAfterSettlement(); });
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs ResetRunCommand(
+		TEXT("Deep.ResetRun"),
+		TEXT("Deep.ResetRun: credits, hull, stop and diver number back to the start; a fresh dive at stop 1."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.ResetRun"), [](UDeepRunComponent& Run) { Run.ResetRun(); });
 		}));
 }

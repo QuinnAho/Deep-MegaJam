@@ -104,6 +104,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
 	static FDeepHullPurchase TryBuyHull(int32 Credits, int32 HullRating, const FDeepEconomyTuning& Tuning);
 
+	/** Total settlement fees for a haul: FeePercent of gross rounded up, plus FeeFlat (charged even on nothing). */
+	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
+	static int32 SettlementFeeTotal(int32 Gross, const FDeepEconomyTuning& Tuning);
+
+	/** Splits Total into Lines non-negative amounts that sum to Total (each at least 1 when Total allows). Seeded. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
+	static TArray<int32> SplitFee(int32 Total, int32 Lines, int32 Seed);
+
+	/** Empty when nothing was banked, Good when net reaches GoodBankNet, else Poor. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
+	static EDeepBankMood BankMood(int32 Gross, int32 Net, const FDeepEconomyTuning& Tuning);
+
 	// ---- Bailout ----
 
 	/** Bailout air left after RealDeltaSeconds. Inside the slow window air drains at SlowDrainScale. Never negative. */

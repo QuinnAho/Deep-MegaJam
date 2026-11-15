@@ -1,5 +1,6 @@
 #include "Game/DeepGameMode.h"
 
+#include "Debug/DeepShot.h"
 #include "Diver/DeepDiver.h"
 #include "Game/DeepGameState.h"
 #include "Game/DeepHUD.h"
@@ -35,6 +36,7 @@ void ADeepGameMode::StartPlay()
 {
 	EnsureArena();
 	Super::StartPlay();
+	DeepShot::StartIfRequested(GetWorld());
 }
 
 void ADeepGameMode::RestartPlayer(AController* NewPlayer)

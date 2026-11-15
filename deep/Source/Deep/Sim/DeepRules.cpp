@@ -247,6 +247,57 @@ FDeepHullPurchase UDeepRules::TryBuyHull(int32 Credits, int32 HullRating, const 
 	return Out;
 }
 
+int32 UDeepRules::SettlementFeeTotal(int32 Gross, const FDeepEconomyTuning& Tuning)
+{
+	const int64 Percent = DirectorCut(FMath::Max(0, Gross), FMath::Max(0, Tuning.FeePercent));
+	return static_cast<int32>(FMath::Min<int64>(MAX_int32, Percent + FMath::Max(0, Tuning.FeeFlat)));
+}
+
+TArray<int32> UDeepRules::SplitFee(int32 Total, int32 Lines, int32 Seed)
+{
+	const int32 Count = FMath::Max(1, Lines);
+	const int32 Sum = FMath::Max(0, Total);
+	TArray<int32> Out;
+	Out.Init(0, Count);
+
+	// Everyone gets 1 first when the total allows, so no joke line reads "0 cr" unless it must.
+	const int32 Base = Sum >= Count ? 1 : 0;
+	int32 Left = Sum - Base * Count;
+	FRandomStream Rng(Seed);
+	TArray<float> Weights;
+	float WeightSum = 0.f;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		Weights.Add(0.2f + Rng.FRand());
+		WeightSum += Weights.Last();
+	}
+	int32 Given = 0;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const int32 Share = FMath::FloorToInt(Left * (Weights[Index] / WeightSum));
+		Out[Index] = Base + Share;
+		Given += Share;
+	}
+	// Remainder from rounding down goes to the first line.
+	Out[0] += Left - Given;
+	if (Base == 0 && Sum > 0)
+	{
+		// Too small to spread: put it all on one line.
+		Out.Init(0, Count);
+		Out[0] = Sum;
+	}
+	return Out;
+}
+
+EDeepBankMood UDeepRules::BankMood(int32 Gross, int32 Net, const FDeepEconomyTuning& Tuning)
+{
+	if (Gross <= 0)
+	{
+		return EDeepBankMood::Empty;
+	}
+	return Net >= Tuning.GoodBankNet ? EDeepBankMood::Good : EDeepBankMood::Poor;
+}
+
 float UDeepRules::BailoutStep(float AirSeconds, float RealDeltaSeconds, const FDeepBailoutTuning& Tuning)
 {
 	float Air = FMath::Max(0.f, AirSeconds);

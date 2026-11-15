@@ -20,6 +20,9 @@ namespace DeepArena
 	/** Spawns one salvage actor of the given kind. Server only. */
 	DEEP_API ADeepSalvage* SpawnSalvage(UWorld* World, const FDeepSalvageKind& Kind, const FVector& LocationCm);
 
+	/** Destroys every salvage piece and spawns the tuned ring again (start of every dive). Returns pieces spawned. */
+	DEEP_API int32 RespawnSalvage(UWorld* World);
+
 	/** Applies the stop's light and fog to the world's environment actor. */
 	DEEP_API void ApplyStop(UWorld* World, int32 Stop);
 }

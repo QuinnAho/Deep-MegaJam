@@ -2,6 +2,7 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -70,6 +71,18 @@ void UDeepTetherComponent::UpdateTether(float DeltaSeconds)
 	const FDeepTetherTuning& Tuning = UDeepTuningSettings::Get().Tether;
 	const FVector Anchor = GetAnchorLocation();
 	UCharacterMovementComponent* Movement = Diver->GetCharacterMovement();
+
+	// Cut (or dead): no limit, no line. Home still counts, so a cut diver can re-tether at the airlock.
+	if (const UDeepRunComponent* Run = Diver->GetRun(); Run && !Run->HasTether())
+	{
+		Solve = FDeepTetherSolve();
+		bHome = UDeepRules::IsHome(Diver->GetActorLocation(), Anchor, Tuning);
+		if (Line)
+		{
+			Line->SetVisibility(false);
+		}
+		return;
+	}
 
 	// Only the machine that moves the diver corrects it: the server, or the owning client for its own prediction.
 	const bool bMovesDiver = Diver->HasAuthority() || Diver->IsLocallyControlled();

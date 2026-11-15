@@ -10,6 +10,9 @@
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
+#include "Diver/DeepRunComponent.h"
+#include "Story/DeepCaptain.h"
+#include "Story/DeepEventBus.h"
 #include "World/DeepSalvage.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepState, Log, All);
@@ -62,6 +65,27 @@ namespace DeepStateReport
 		Json->SetBoolField(TEXT("winching"), Diver && Diver->IsWinching());
 		Json->SetBoolField(TEXT("home"), Tether && Tether->IsHome());
 		Json->SetBoolField(TEXT("lamp"), Diver && Diver->IsLampOn());
+
+		const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
+		Json->SetStringField(TEXT("run_state"), Run ? UDeepRunComponent::StateName(Run->GetState()) : FString(TEXT("none")));
+		Json->SetNumberField(TEXT("patience"), Run ? Run->GetPatienceFraction() : 0.f);
+		Json->SetNumberField(TEXT("patience_s"), Run ? Run->GetPatienceSeconds() : 0.f);
+		Json->SetNumberField(TEXT("bailout_air_s"), Run ? Run->GetBailoutAirSeconds() : 0.f);
+		if (Run && Run->GetSettlement().bValid)
+		{
+			const FDeepSettlementReport& Report = Run->GetSettlement();
+			TSharedRef<FJsonObject> Bank = MakeShared<FJsonObject>();
+			Bank->SetNumberField(TEXT("gross"), Report.Gross);
+			Bank->SetNumberField(TEXT("cut"), Report.DirectorCut);
+			Bank->SetNumberField(TEXT("fees"), Report.Fees);
+			Bank->SetNumberField(TEXT("net"), Report.Net);
+			Bank->SetBoolField(TEXT("hull_bought"), Report.bHullBought);
+			Json->SetObjectField(TEXT("last_bank"), Bank);
+		}
+		const UDeepEventBus* Bus = UDeepEventBus::Get(World);
+		Json->SetStringField(TEXT("last_event"), Bus ? Bus->GetLastEvent().ToString() : FString());
+		const UDeepCaptain* Captain = UDeepCaptain::Get(World);
+		Json->SetStringField(TEXT("captain_line"), Captain ? Captain->GetLastText() : FString());
 
 		const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
 		Json->SetNumberField(TEXT("credits"), State ? State->Credits : 0);
