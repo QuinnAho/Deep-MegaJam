@@ -60,6 +60,8 @@ protected:
 	void ApplyStop(const FDeepStopTuning& StopTuning, const FDeepArenaTuning& Arena);
 	void ApplyLook(const FDeepLookPreset& Preset, const FDeepLookTuning& Look);
 	void BuildSnow(const FDeepLookTuning& Look);
+	/** The volumetric fog's quality CVars from DEEP Tuning > Look (history weight, grid). */
+	static void ApplyFogQuality(const FDeepLookTuning& Look);
 	void UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Look);
 
 	UPROPERTY(ReplicatedUsing = OnRep_Stop, VisibleAnywhere, Category = "Deep")

@@ -241,7 +241,9 @@ void ADeepShaft::Build()
 			Tube->bUseComplexAsSimpleCollision = true;
 			Tube->SetCollisionProfileName(TEXT("BlockAll"));
 			Tube->SetCanEverAffectNavigation(false);
-			Tube->SetCastShadow(false);
+			// The rock casts shadows (rescope/light): without them the downlight and the helm floods lit the fog through the
+			// shaft's walls, so light leaked through rock in the descent.
+			Tube->SetCastShadow(true);
 			Tube->RegisterComponent();
 			// Its own collision cook key (World/DeepCookKey.h), 40 m out in the rock behind its first row.
 			const FVector KeyFrom = PieceVertices[0];
