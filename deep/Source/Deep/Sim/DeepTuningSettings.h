@@ -79,4 +79,8 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepReviewTuning Review;
+
+	/** Shakes, the footage look, the sonar pulse made visible, interference (Camera/). */
+	UPROPERTY(Config, EditAnywhere, Category = "Camera")
+	FDeepCameraTuning Camera;
 };

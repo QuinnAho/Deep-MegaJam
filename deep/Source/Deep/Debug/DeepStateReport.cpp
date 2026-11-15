@@ -1,6 +1,7 @@
 #include "Debug/DeepStateReport.h"
 
 #include "Audio/DeepAudioSubsystem.h"
+#include "Camera/DeepCameraSubsystem.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Dom/JsonObject.h"
@@ -169,6 +170,10 @@ namespace DeepStateReport
 		if (const UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(World))
 		{
 			Json->SetObjectField(TEXT("audio"), Audio->BuildStateJson());
+		}
+		if (const UDeepCameraSubsystem* Camera = UDeepCameraSubsystem::Get(World))
+		{
+			Json->SetObjectField(TEXT("camera"), Camera->BuildStateJson());
 		}
 
 		const FVector Pos = Diver ? Diver->GetActorLocation() : FVector::ZeroVector;

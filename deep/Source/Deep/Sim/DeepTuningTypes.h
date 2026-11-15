@@ -1478,3 +1478,186 @@ struct FDeepHelmStep
 	UPROPERTY(BlueprintReadOnly, Category = "Sub")
 	bool bAtTop = false;
 };
+
+/** One camera shake: Perlin noise on location and rotation under an eased envelope (Camera/DeepCameraRules). */
+USTRUCT(BlueprintType)
+struct FDeepShakeSpec
+{
+	GENERATED_BODY()
+
+	/** Location noise amplitude on each axis (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float LocationCm = 0.f;
+
+	/** Pitch and yaw noise amplitude (degrees); roll gets RollScale of it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float RotationDeg = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float RollScale = 0.5f;
+
+	/** Noise speed: about this many wobbles a second. Low = a heave, high = a rattle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float FrequencyHz = 8.f;
+
+	/** Seconds from start to end, blends included. 0 or less = until stopped (the handheld sway). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float DurationS = 0.4f;
+
+	/** Ease-in and ease-out times (smoothstep). Every shake eases both ways. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float BlendInS = 0.04f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	float BlendOutS = 0.25f;
+
+	bool IsNone() const { return LocationCm <= 0.f && RotationDeg <= 0.f; }
+};
+
+/** A bus event (matched by name) and the shake it plays. */
+USTRUCT(BlueprintType)
+struct FDeepEventShake
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	FName Event;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
+	FDeepShakeSpec Shake;
+};
+
+/**
+ * The camera: shakes on events, the helmet-camera footage look, the sonar pulse made visible, interference.
+ * Each feature has a console switch (Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse, Deep.Look.Interference);
+ * the switch's default is the b...On flag here.
+ */
+USTRUCT(BlueprintType)
+struct FDeepCameraTuning
+{
+	GENERATED_BODY()
+
+	FDeepCameraTuning();
+
+	// ---- Shakes
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Shake")
+	bool bShakeOn = true;
+
+	/** Event name -> shake. Names from other lanes (hull_*) are matched by name, so they work when they arrive. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Shake")
+	TArray<FDeepEventShake> EventShakes;
+
+	/** Every shake's size is multiplied by this (one knob for "too much"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Shake")
+	float ShakeScale = 1.f;
+
+	// ---- Footage look (the diver's helmet camera, watched from the sub)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	bool bFootageOn = false;
+
+	/** Film grain added on top of the depth look, at FootageShallowM and FootageDeepM (the camera pushes its gain in the dark). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	FVector2D FootageGrainAdd = FVector2D(0.25f, 0.55f);
+
+	/** Extra grain in the shadows at the same two depths (gain noise lives in the dark). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	FVector2D FootageGrainShadows = FVector2D(1.2f, 1.8f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageShallowM = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageDeepM = 500.f;
+
+	/** Vignette added to the depth look. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageVignetteAdd = 0.2f;
+
+	/** Chromatic aberration added to the depth look, kept to the edges by FootageFringeStart (0 centre, 1 corner). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageFringeAdd = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageFringeStart = 0.45f;
+
+	/** Motion blur while the footage look is on (Look.MotionBlur otherwise). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageMotionBlur = 0.2f;
+
+	/** Barrel lens distortion strength (0 = off): UV pushed outward by k * r^2 in the lens material. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	float FootageBarrel = 0.06f;
+
+	/** The handheld sway: a low, slow Perlin shake that never ends while the look is on. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	FDeepShakeSpec Sway;
+
+	/** The footage lens post-process material (barrel distortion, interference). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Footage")
+	FSoftObjectPath LensMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_FootageLens.M_FootageLens"));
+
+	// ---- The sonar made visible
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	bool bPulseOn = false;
+
+	/** The shell's growth from the sub to PulseRangeM. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseSeconds = 1.5f;
+
+	/** Shell range when the sonar does not say (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseRangeM = 80.f;
+
+	/** The bright band where the shell crosses a surface (m thick). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseBandM = 0.6f;
+
+	/** Dots left behind the band fade over this long. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseDotFadeS = 2.f;
+
+	/** Spacing of the lidar dot grid (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseDotSpacingM = 0.35f;
+
+	/** Band brightness (overlay units, after the tonemapper: 1 = the colour itself). Dots are PulseDotIntensity of it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseBandIntensity = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseDotIntensity = 0.35f;
+
+	/** Sonar sweep colour: amber (style guide 3). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FLinearColor PulseColor = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FSoftObjectPath PulseMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_SonarPulse.M_SonarPulse"));
+
+	// ---- Interference (the feed degrades as the serpent closes)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	bool bInterferenceOn = false;
+
+	/** Serpent head distance (m) where interference starts, and where it is full. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	FVector2D InterferenceFarNearM = FVector2D(30.f, 4.f);
+
+	/** Strength while the serpent's distance alone drives it (a bite is 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceNearMax = 0.6f;
+
+	/** A burst on a hit: strength and seconds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceBurst = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceBurstS = 0.5f;
+
+	/** Strength eases toward its target at this rate (per second). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceEasePerS = 4.f;
+};
