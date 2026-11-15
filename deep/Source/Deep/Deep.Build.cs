@@ -13,6 +13,6 @@ public class Deep : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "DeveloperSettings", "EnhancedInput", "AIModule" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Json", "AudioExtensions" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Json", "AudioExtensions", "Slate", "SlateCore" });
 	}
 }
