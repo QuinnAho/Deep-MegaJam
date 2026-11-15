@@ -13,6 +13,7 @@ class UCameraComponent;
 class USpotLightComponent;
 class UStaticMeshComponent;
 class UDeepTetherComponent;
+class UDeepRopeComponent;
 class UDeepRunComponent;
 class UDeepHarpoonComponent;
 class ADeepSalvage;
@@ -138,7 +139,7 @@ protected:
 	TObjectPtr<UDeepTetherComponent> Tether;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> TetherLine;
+	TObjectPtr<UDeepRopeComponent> TetherLine;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UDeepRunComponent> Run;

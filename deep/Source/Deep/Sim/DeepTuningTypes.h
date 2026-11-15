@@ -112,9 +112,81 @@ struct FDeepTetherTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchHullClearM = 0.3f;
 
-	/** A cable, not a rod. */
+	/** A diver's umbilical: thick enough to read in the lamp at 20 m, still a rope, not a rod. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
-	float LineThicknessCm = 1.5f;
+	float LineThicknessCm = 3.f;
+};
+
+/** How the tether and the harpoon line look as ropes (visual only: no rule reads these). */
+USTRUCT(BlueprintType)
+struct FDeepRopeTuning
+{
+	GENERATED_BODY()
+
+	/** Points along the tether. More = smoother sag; one mesh segment per link. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	int32 TetherPoints = 36;
+
+	/** Points along the harpoon line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	int32 HarpoonPoints = 16;
+
+	/** Slack shown when the diver is inside the tether length: this share of the straight distance... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float SlackShare = 0.06f;
+
+	/** ...but never more than this (m), and never more than the line left on the reel. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float SlackMaxM = 3.f;
+
+	/** How fast the shown length follows (1/s): the line pays out and takes up slack smoothly. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float LengthFollowPerS = 2.5f;
+
+	/** A wet line is a little heavier than water (cm/s2). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float SinkCmS2 = 120.f;
+
+	/** A cut length falls faster: nothing holds it up. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float LooseSinkCmS2 = 260.f;
+
+	/** Water drag (1/s): high, so the line lags behind the diver and settles without swinging. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float DragPerS = 2.2f;
+
+	/** Recoil speed of a cut end (cm/s), fading over WhipPoints points. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float WhipCmS = 1200.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	int32 WhipPoints = 8;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	int32 SolverIterations = 24;
+
+	/** A pin that jumps further than this in one frame (a teleport) restarts the rope straight (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float SnapResetM = 8.f;
+
+	/** A serpent head within this distance of the line when it parts means a bite: it parts there (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float BiteNearM = 6.f;
+
+	/** Bending stiffness per solver pass (0..1): folds round over several links instead of kinking at one joint. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	float BendStiffness = 0.08f;
+
+	/**
+	 * The tether: old, dirty tan-yellow line (linear). Saturation 32%, under the style guide's 35% cap; dark, because
+	 * the lamp is 40,000 cd at arm's length and the first, brighter yellow (0.20, 0.16, 0.07) washed out cream-white.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	FLinearColor TetherColor = FLinearColor(0.085f, 0.075f, 0.058f);
+
+	/** The harpoon line: a dull grey cord. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	FLinearColor HarpoonColor = FLinearColor(0.07f, 0.072f, 0.066f);
 };
 
 USTRUCT(BlueprintType)
