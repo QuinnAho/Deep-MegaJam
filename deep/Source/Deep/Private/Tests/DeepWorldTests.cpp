@@ -305,6 +305,20 @@ bool FDeepWorldSeabedTest::RunTest(const FString& Parameters)
 	// The hatch column is clear: under the anchor the bed is well below the hull, and it falls away into the dark.
 	TestTrue(TEXT("Bed is at least 6 m under the anchor"), ADeepAbyssFloor::SeabedBelowM(FVector2D::ZeroVector, Rest, Tuning.Look) > 6.f);
 	TestTrue(TEXT("Bed falls away far out"), ADeepAbyssFloor::SeabedBelowM(FVector2D(150.f, 0.f), Rest, Tuning.Look) > 40.f);
+	// The relic's sinkhole has a floor a diver can stand at, not a funnel: 2 m out the bed is within 0.3 m of the
+	// relic's floor (it was 2.6 m up, and a diver at the relic had the slope in his face).
+	for (const FVector4& R : Rest)
+	{
+		if (R.W < 0.f)
+		{
+			for (const float Angle : { 0.f, 90.f, 200.f })
+			{
+				const FVector2D Out = FVector2D(R.X, R.Y) + FVector2D(2.f, 0.f).GetRotated(Angle);
+				const float Rise = R.Z - ADeepAbyssFloor::SeabedBelowM(Out, Rest, Tuning.Look);
+				TestTrue(*FString::Printf(TEXT("Pit floor flat 2 m from the relic (%.0f deg: %.2f m up)"), Angle, Rise), Rise < 0.3f);
+			}
+		}
+	}
 	// A scanned material can be slotted in by path; the made one is the default.
 	TestEqual(TEXT("Seabed material by path"), Tuning.Look.SeabedMaterial.ToString(), FString(TEXT("/Game/Deep/Look/M_Silt.M_Silt")));
 	return true;

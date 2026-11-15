@@ -89,15 +89,16 @@ float ADeepAbyssFloor::SeabedBelowM(const FVector2D& XyM, const TArray<FVector4>
 	// The roll fades out near a resting point so salvage lies exactly on the bed.
 	const double Keep = RestM.IsEmpty() ? 1.0 : 1.0 - FMath::Exp(-NearestSq * 2.5);
 	double Below = Sum / Weight - Look.SeabedRollM * Roll(XyM) * Keep;
-	// A sinkhole (negative radius) cuts into the blended bed: exact at its centre, gone by about 1.4 radii, so a
-	// neighbouring spot's bump cannot lift its floor.
+	// A sinkhole (negative radius) cuts into the blended bed: flat round its centre, gone by about 1.4 radii, so a
+	// neighbouring spot's bump cannot lift its floor. exp(-(d/R)^SeabedPitPower): see the tuning (a power of 4 was a funnel).
+	const double PitHalfPower = FMath::Max(1.0, double(Look.SeabedPitPower) * 0.5);
 	for (const FVector4& Rest : RestM)
 	{
 		if (Rest.W < 0.f)
 		{
 			const double R = FMath::Max(0.5, -Rest.W);
 			const double DSq = FVector2D::DistSquared(XyM, FVector2D(Rest.X, Rest.Y)) / (R * R);
-			Below = FMath::Lerp(Below, double(Rest.Z), FMath::Exp(-DSq * DSq));
+			Below = FMath::Lerp(Below, double(Rest.Z), FMath::Exp(-FMath::Pow(DSq, PitHalfPower)));
 		}
 	}
 	return float(Below);

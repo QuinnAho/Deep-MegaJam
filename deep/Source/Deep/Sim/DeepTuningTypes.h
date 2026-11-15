@@ -887,6 +887,16 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
 	float SeabedPitRadiusM = 4.5f;
 
+	/**
+	 * The sinkhole's cut is exp(-(d / R)^SeabedPitPower). At 4 (until Nov 15) it was a funnel: 2 m from the relic the bed
+	 * was already 2.6 m above the relic's floor, so a diver at the relic had the slope in his face (the white disc in the
+	 * scripted relic grab). At 8 the bottom is flat to about 2.5 m out (10 cm up at 2 m), the wall stands at about the
+	 * same radius (the cut is the same at d = R) and is steeper, and it is gone sooner past R (nothing at the salvage
+	 * spot 8 m out). The shaft's dressing finds the wall on this function, so it follows.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedPitPower = 8.f;
+
 	/** Gentle rolling (m of height), kept off the resting points. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
 	float SeabedRollM = 0.8f;
