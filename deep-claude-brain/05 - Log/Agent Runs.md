@@ -52,6 +52,10 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 40 | 1:32 AM Nov 15 | technical art lead | Opus 5.5, high | In `.wt\dev`: the plan for the polish pass. Techniques for Unreal 5.9 and six to ten work packages. A note only. | 133k | 38 | 7.5 min | Done, merged as `6ff4a2a`. Ten work packages in three lanes from 10 AM to 3 PM, a proposed rule that lets agents create assets in their own folder during the pass, and a cut order. Written in parallel with the asset scout, so its pack list disagrees with the scout's on two packs. |
 | 41 | 1:39 AM Nov 15 | playtest agent | Sonnet 5.5, medium | In `.wt\pkg`: play the first stop start to finish on simulated keyboard and mouse input, and list every step where real input fails. Function, not polish. | | | | Running. |
 
+| 42 | 2:01 AM Nov 15 | researcher | Sonnet 5.5, medium | In `.wt\dev`: read the agent skills Epic ships inside Unreal 5.9's toolset plugins and map them to the polish work packages. No editor. | | | | Running. |
+| 43 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\text`: other Unreal MCP servers and generation tools for the serpent, sound, voice and textures; a shortlist of what to add today. | | | | Running. |
+| 44 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\monster`: a polish checklist from recognised sources, existing agent skills for game work, and an outline for our own polish skill. | | | | Running. |
+
 ## What the numbers say so far
 
 - Runs 9 to 11 cost about 1.41 million tokens for ten notes, because a fork carries the whole conversation. Runs 14 and 15 cost 222k for a working pipeline and the game's entire script. Fresh agents with tight briefs are about six times cheaper per run.

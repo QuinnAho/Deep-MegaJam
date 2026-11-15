@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 01:45 EST
+updated: 2026-11-15 02:02 EST
 ---
 # Board
 
@@ -15,6 +15,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polis
 4. **Real-input playthrough** (`tools/regress`, in `.wt\pkg`, Sonnet at medium, started 1:39 AM, editor on port 8012). It adds scenario `S8-keys` and reports every step of the loop that fails on simulated keyboard and mouse input. Scripts and notes only, so merge without a gate. What fails is function and goes to an Opus engineer as fix batch two.
 5. One Unreal editor at a time: the machine has 32 GB of RAM and about 6 GB free with no editor open.
 6. **Polish is one planned pass (D-028), and a priority equal to gameplay (D-029).** Research and planning now. No HUD, look, effect or sound-finish work is dispatched until Quinn has chosen from the research and given the pass a start time.
+7. **Three more research agents, started 2:01 AM at Quinn's request** (notes only, no tests, no editor): `research/engine-skills` in `.wt\dev` (the agent skills Epic ships inside Unreal 5.9's toolset plugins, and which toolsets each work package should use); `research/ext-tools` in `.wt\text` (other Unreal MCP servers, and generation tools for the serpent, sound, voice and textures); `research/polish-craft` in `.wt\monster` (a polish checklist, existing agent skills, and an outline for our own `deep-polish` skill). Merge each note when its branch has a commit.
 
 After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
 
@@ -60,6 +61,9 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | Sound, voice, fonts, references | Sonnet, medium, `.wt\text` on `research/polish-web` | **Done 1:36 AM**, merged as `c019cfb`. | 1:32 AM |
 | The polish plan | Opus, high, `.wt\dev` on `research/polish-plan` | **Done 1:40 AM**, merged as `6ff4a2a`. Ten work packages in three lanes. | 1:32 AM |
 | Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | Scenario `S8-keys`: the first stop on simulated keyboard and mouse input, and a list of what fails. Editor on port 8012. | 1:39 AM |
+| Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | Read the skills Epic ships for agents (Niagara, MetaSound, widgets, textures, PCG, video) and map them to the work packages. | 2:01 AM |
+| Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | Other Unreal MCP servers; generation tools for the serpent, sound, voice and textures; what to add today. | 2:01 AM |
+| Polish craft | Sonnet, medium, `.wt\monster` on `research/polish-craft` | A checkable polish checklist, existing agent skills, and an outline for our own skill. | 2:01 AM |
 | Dev log post one | Sonnet, medium, `.wt\text` on `devlog/post1` | **Done 1:03 AM**, merged as `c263c9a`. `devlog/01-saturday-night.md`: the first five hours, for the Glass Box prize. A file only; nothing published. | 1:01 AM |
 
 ## Next, in order
@@ -92,7 +96,7 @@ Models: submarine first, then salvage pieces, relic, serpent head. Sounds: breat
 
 ## Checkouts
 
-The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\dev`, `.wt\monster`, `.wt\text`. One Unreal editor at a time: the machine has 32 GB of RAM.
+The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: none. One Unreal editor at a time: the machine has 32 GB of RAM and had 1.5 GB free at 1:55 AM.
 
 ## Done
 
