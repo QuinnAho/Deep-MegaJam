@@ -7,6 +7,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArenaRoot.h"
+#include "World/DeepDressing.h"
 #include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
@@ -214,6 +215,12 @@ namespace DeepArena
 		{
 			World->SpawnActor<ADeepEnvironment>(Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
 		}
+
+		// Rock and ruin from the packs (Content/Data/Dressing.csv), hung from the root; every machine reads the rows itself.
+		if (!FindFirst<ADeepDressing>(World))
+		{
+			World->SpawnActor<ADeepDressing>(FindArenaRoot(World)->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
+		}
 		ApplyStop(World, Stop);
 		return Sub;
 	}
@@ -240,6 +247,11 @@ namespace DeepArena
 		}
 		PositionRoot(World);
 		EnsureRelic(World, Stop);
+		// The root may have re-based: dressing placed by absolute depth follows in the same frame.
+		if (ADeepDressing* Dressing = World ? FindFirst<ADeepDressing>(World) : nullptr)
+		{
+			Dressing->Refresh();
+		}
 		if (ADeepSubmarine* Sub = FindSubmarine(World))
 		{
 			const ADeepGameState* State = World->GetGameState<ADeepGameState>();
