@@ -4,6 +4,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Diver/DeepLamp.h"
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "World/DeepRopeComponent.h"
@@ -122,22 +123,14 @@ void ADeepDiver::Tick(float DeltaSeconds)
 		// One slow, small breath in the light (style guide 5: 2% at 0.3 Hz). No flicker.
 		const FDeepLampTuning& LampTuning = UDeepTuningSettings::Get().Lamp;
 		const double T = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
-		// Up close the beam's centre would burn to white (inverse square): dim toward what it meets, keep the reach.
-		float WantNear = 1.f;
-		if (UWorld* World = GetWorld(); World && LampTuning.NearFullM > 0.f)
-		{
-			const FVector From = Lamp->GetComponentLocation();
-			const FVector To = From + Lamp->GetForwardVector() * (LampTuning.NearFullM * UDeepRules::CmPerM);
-			FHitResult Hit;
-			FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepLampNear), false, this);
-			if (World->LineTraceSingleByChannel(Hit, From, To, ECC_Visibility, Params))
-			{
-				WantNear = UDeepRules::LampNearScale(Hit.Distance / UDeepRules::CmPerM, LampTuning);
-			}
-		}
-		LampNearScale = FMath::FInterpTo(LampNearScale, WantNear, DeltaSeconds, LampTuning.NearFollowRate);
+		// Up close anything in the cone would burn to white (inverse square): dim for the brightest thing the cone holds
+		// (the bed, salvage, the serpent, pack rock), keep the reach. Dims fast so a turn toward a wall never flashes.
+		const float WantNear = DeepLamp::WantNearScale(this, Lamp, LampTuning);
+		LampNearScale = FMath::FInterpTo(LampNearScale, WantNear, DeltaSeconds, WantNear < LampNearScale ? LampTuning.NearDimRate : LampTuning.NearFollowRate);
 		Lamp->SetIntensity(LampNearScale * LampTuning.Intensity * (1.f + LampTuning.WobbleFraction * FMath::Sin(UE_TWO_PI * LampTuning.WobbleHz * T)));
 	}
+	// The relic's warm glow goes with the diver who carries it (lamp on or off).
+	DeepLamp::UpdateCarriedGlow(*this);
 
 	// Movement input only comes from the controlling machine; character movement replicates the result.
 	if (!IsLocallyControlled())

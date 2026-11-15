@@ -511,6 +511,14 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float DiverStartPitchDeg = -15.f;
 
+	/**
+	 * Look only: dropping through the hatch, the view is pitched at least this far down (0 = left alone). Level with the
+	 * eye after the drop at 500 m there is only black water; at -45 the far lip of the well (about 7 m out, 6 m down)
+	 * and the relic's light in it sit in the middle of the frame. Ascent pass, Nov 15.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float HatchDropPitchDeg = -45.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorBelowSubM = 120.f;
 
@@ -554,6 +562,21 @@ struct FDeepArenaTuning
 	/** Amber (style guide 3: salvage glints may be amber). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
 	FLinearColor RelicLightColor = FLinearColor(1.f, 0.62f, 0.27f);
+
+	/**
+	 * Once taken, the relic's glow goes with the diver (the relic actor is gone): a smaller light of the same colour at the
+	 * harness, so the winch up the black shaft keeps the warm light the climax was built around. Fraction of
+	 * RelicLightIntensity, and its reach. Look only (DeepLamp::UpdateCarriedGlow).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicCarriedLightFraction = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicCarriedLightRadiusM = 5.f;
+
+	/** How strongly the carried glow lights the fog round the diver (a warm halo in the water). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicCarriedLightScattering = 1.5f;
 
 	/**
 	 * The beacon: a narrow spot from the relic straight up the shaft, scattering in the volumetric fog, so a column of
@@ -704,19 +727,36 @@ struct FDeepLampTuning
 	float WobbleHz = 0.3f;
 
 	/**
-	 * Close-range dimming: inverse-square makes a surface 3 m away 136x brighter than at 35 m, so the lamp dims when the
-	 * beam's centre meets a surface nearer than NearFullM (intensity times (d / NearFullM)^2, never below NearMinScale),
-	 * keeping the lit spot at about its NearFullM brightness. Reach is unchanged: in open water it runs at full.
+	 * Close-range dimming: inverse-square makes a surface 3 m away 136x brighter than at 35 m, so the lamp dims when
+	 * anything in its cone is nearer than NearFullM: intensity times 1 / (the brightest sample in the cone), a sample
+	 * being the spot falloff at its angle times its facing times (NearFullM / d)^2 (UDeepRules::LampSampleBrightness).
+	 * The brightest lit point stays at about its NearFullM brightness. Reach is unchanged: in open water it runs at full.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float NearFullM = 7.f;
 
+	/**
+	 * The floor of the dimming. (d / NearFullM)^2 reaches it at d = NearFullM * sqrt(NearMinScale): 0.002 holds the
+	 * matched brightness to 0.31 m from the lamp (0.06 stopped at 1.7 m, so the pit floor at 1 m burnt three times over).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
-	float NearMinScale = 0.06f;
+	float NearMinScale = 0.002f;
 
-	/** How fast the dimming follows (1/s), so a sweep past an edge does not pop. */
+	/** How fast the lamp comes back up (1/s) when the near surface leaves the cone, so a sweep past an edge does not pop. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float NearFollowRate = 8.f;
+
+	/** How fast it dims (1/s) when a surface comes into the cone: fast, or a turn toward a wall flashes white first. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float NearDimRate = 40.f;
+
+	/**
+	 * How much light the serpent's near-black skin sends back, relative to the silt the dimming is matched on. Its spheres
+	 * hold the body loosely (a little nearer than the skin), and at 1 (first frames) the head at 4 m went nearly black;
+	 * at full lamp the head at 4 m read well and only the body at 2 m burnt (Deep.Lamp.Near 1 frames).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float NearSerpentReflectance = 0.4f;
 };
 
 /** The sea at one depth (style guide 5). ADeepEnvironment blends between presets by the sub's depth. */
@@ -918,6 +958,16 @@ struct FDeepLookTuning
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
 	float SeabedPitRadiusM = 4.5f;
+
+	/**
+	 * The sinkhole's cut is exp(-(d / R)^SeabedPitPower). At 4 (until Nov 15) it was a funnel: 2 m from the relic the bed
+	 * was already 2.6 m above the relic's floor, so a diver at the relic had the slope in his face (the white disc in the
+	 * scripted relic grab). At 8 the bottom is flat to about 2.5 m out (10 cm up at 2 m), the wall stands at about the
+	 * same radius (the cut is the same at d = R) and is steeper, and it is gone sooner past R (nothing at the salvage
+	 * spot 8 m out). The shaft's dressing finds the wall on this function, so it follows.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
+	float SeabedPitPower = 8.f;
 
 	/** Gentle rolling (m of height), kept off the resting points. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Seabed")
