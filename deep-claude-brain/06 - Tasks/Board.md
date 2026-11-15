@@ -5,7 +5,7 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 10:40 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 10:50 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
@@ -16,12 +16,13 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Running now (two engineers, both Opus at high)**
+**Running now (three engineers, all Opus at high)**
 
 Their reports go to the session that started them, so a new session checks the branches.
 
 - `polish/fx` in `.wt\dev`, since 10:08 AM (a fresh engineer; time box 11:25 AM). Breath bubbles, bubbles at the hatch and the winch, and a silt puff, as Niagara particles with a lit translucent material. A first try without Niagara (mirror spheres) was rejected and reverted by its own engineer; the reason and the rejected frames are in the dev log (10:05 AM). Assets go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-fx-*.png`.
 - `polish/opening` in `.wt\pkg`, since 10:20 AM (a fresh engineer; time box 11:45 AM). The first five minutes as the player really sees them, by the method that fixed the ending: walk the real sequence, judge every frame, fix what fails. The serpent's bite with the lamp off is part of it. Frames `devlog/media/2026-11-15-opening-*.png`.
+- `polish/wellserpent` in `.wt\text`, since 10:46 AM (a fresh engineer; time box 11:50 AM; editor port 8016 if it needs one). The serpent inside the well during the last ascent: no frame of it exists yet. Find out what the player really sees from the line, then make the approach come up the well and stay inside it. It keeps to the controller and brain, because the `polish/opening` lane is in `Monster/DeepSerpent.cpp` for the bite's look. Frames `devlog/media/2026-11-15-wellserpent-*.png`.
 - When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, take a frame from the packaged game, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
 - Scripts for this are in the session's scratch folder and are worth rewriting if lost: one runs `verify`, then `package` and `smoke` inside the Unreal slot and `zip` after it; one takes a frame from the packaged game with `-DeepShot`.
 - A resumed engineer with a long history costs more per minute than a fresh one (691k tokens for the 42-minute second pass on the well, 492k for the 66-minute first). Resume for a review of the same work; start fresh for new work.
@@ -37,6 +38,7 @@ Their reports go to the session that started them, so a new session checks the b
 
 - Merged and pushed (`a942e1c`). Gate 77 of 77, package and smoke green, zip 762 MB, and **all 14 scripted playthroughs pass** (13 in the set at 10:34 AM, and `S3-serpent` alone at 10:37 AM after the script learned to wait for a busy editor).
 - `S10-cutdrop` now passes. It had failed 2 of 2: a diver cut at the very bottom of the shaft could not swim out. With the pit's flat floor the diver drops the relic and gets home on bailout air. That settles the third of Quinn's three calls on the ending, by script; a try by hand is still worth it.
+- Checked in the packaged game with ray tracing switched off (`Deep.RayTracing 0`): the relic in the lamp and the hull at the hatch both look right, so a machine without ray tracing gets an acceptable picture.
 - The lamp samples its whole cone and no longer burns the serpent, the pit floor or the hoard. Left from that lane: the serpent in the shaft never caught in a frame, the hard edge of the beam up the shaft, a dim lamp pool at 100 m, the pit wall nearly black at 1 m. The bite with the lamp off went to the `polish/opening` lane.
 - For Quinn: the view now tips down at least 45 degrees as the diver drops through the hatch (`Arena.HatchDropPitchDeg`). It makes the bed and the well's glow the first thing seen. It is a change to the camera at every dive.
 
@@ -58,7 +60,7 @@ Their reports go to the session that started them, so a new session checks the b
 
 **Not yet met for the submission, by risk**
 
-No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. Free checkout: `.wt\text` (on `polish/hull`, clean).
+No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. No checkout is free.
 
 **The build's size (the limit is 1 GB zipped)**
 
