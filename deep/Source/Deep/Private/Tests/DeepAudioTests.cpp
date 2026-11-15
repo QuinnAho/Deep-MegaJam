@@ -17,10 +17,13 @@
 #include "Game/DeepGameMode.h"
 #include "Game/DeepGameState.h"
 #include "Harpoon/DeepHarpoonRules.h"
+#include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/PackageName.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Sonar/DeepSonarRules.h"
+#include "Sound/SoundBase.h"
 #include "Story/DeepEventBus.h"
 #include "World/DeepSubmarine.h"
 
@@ -352,6 +355,105 @@ bool FDeepAudioMusicTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("No sting: far and unseen"), DeepAudioRules::ShouldSting(false, false, 80.f, *Settings));
 	TestFalse(TEXT("No sting: no serpent"), DeepAudioRules::ShouldSting(false, false, -1.f, *Settings));
 	TestFalse(TEXT("Sting once"), DeepAudioRules::ShouldSting(true, true, 5.f, *Settings));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepAudioFilesTest, "Deep.Sim.Audio.Files", DEEP_AUDIO_TEST_FLAGS)
+bool FDeepAudioFilesTest::RunTest(const FString& Parameters)
+{
+	UDeepAudioSettings* Settings = NewObject<UDeepAudioSettings>();
+	Settings->PitchJitter = 0.03f;
+
+	TestEqual(TEXT("Object path from a package"), DeepAudioRules::AssetObjectPath(TEXT("/Game/DeepAudio/Serpent/roar")), FString(TEXT("/Game/DeepAudio/Serpent/roar.roar")));
+	TestEqual(TEXT("Object path kept"), DeepAudioRules::AssetObjectPath(TEXT("/Game/A/B.B")), FString(TEXT("/Game/A/B.B")));
+	TestEqual(TEXT("Package from an object path"), DeepAudioRules::AssetPackage(TEXT("/Game/A/B.B")), FString(TEXT("/Game/A/B")));
+	TestEqual(TEXT("Empty stays empty"), DeepAudioRules::AssetObjectPath(TEXT("")), FString());
+	const TArray<FString> Variants = DeepAudioRules::VariantPackages(TEXT("/Game/DeepAudio/Serpent/roar"), 3);
+	TestEqual(TEXT("Three variations"), Variants.Num(), 3);
+	TestEqual(TEXT("Named _01"), Variants.Num() > 0 ? Variants[0] : FString(), FString(TEXT("/Game/DeepAudio/Serpent/roar_01")));
+	TestEqual(TEXT("Named _03"), Variants.Num() > 2 ? Variants[2] : FString(), FString(TEXT("/Game/DeepAudio/Serpent/roar_03")));
+
+	// Picks cover every variation and never repeat the last one.
+	TSet<int32> Seen;
+	int32 Last = INDEX_NONE;
+	bool bRepeated = false;
+	for (int32 I = 0; I < 60; ++I)
+	{
+		const int32 Pick = DeepAudioRules::PickVariant(3, Last, float((I * 37) % 100) / 100.f);
+		bRepeated |= Pick == Last;
+		TestTrue(TEXT("Pick in range"), Pick >= 0 && Pick < 3);
+		Seen.Add(Pick);
+		Last = Pick;
+	}
+	TestFalse(TEXT("Never the same variation twice"), bRepeated);
+	TestEqual(TEXT("Every variation plays"), Seen.Num(), 3);
+	TestEqual(TEXT("One file: always it"), DeepAudioRules::PickVariant(1, 0, 0.9f), 0);
+
+	const FName Sfx(TEXT("sfx"));
+	TestEqual(TEXT("Jitter low end"), DeepAudioRules::JitterPitch(1.f, Sfx, 0.f, *Settings), 0.97f, 1.e-4f);
+	TestEqual(TEXT("Jitter high end"), DeepAudioRules::JitterPitch(1.f, Sfx, 1.f, *Settings), 1.03f, 1.e-4f);
+	TestEqual(TEXT("Jitter middle"), DeepAudioRules::JitterPitch(1.2f, Sfx, 0.5f, *Settings), 1.2f, 1.e-4f);
+	TestEqual(TEXT("Music is never jittered"), DeepAudioRules::JitterPitch(1.f, FName(DeepAudioMusic::Group), 0.f, *Settings), 1.f);
+	TestEqual(TEXT("The Captain is never jittered"), DeepAudioRules::JitterPitch(1.f, FName(DeepAudioRadio::Group), 0.f, *Settings), 1.f);
+
+	// The cook adds pack files by reference (with the variations that exist), never /Game/DeepAudio/ (cooked whole).
+	FDeepSoundTable Table;
+	Table.LoadFromString(TEXT(
+		"\"event\",\"group\",\"asset\",\"builtin\",\"volume\",\"pitch\",\"loop\",\"note\"\n"
+		"\"a\",\"creature\",\"/Game/Pack/Roar\",\"\",1,1,0,\"\"\n"
+		"\"b\",\"music\",\"/Game/DeepAudio/Music/music_depth1\",\"\",1,1,1,\"\"\n"
+		"\"c\",\"sfx\",\"/Game/Pack/Gone\",\"\",1,1,0,\"\"\n"
+		"\"d\",\"sfx\",\"\",\"click\",1,1,0,\"\"\n"));
+	const TSet<FString> OnDisk = { TEXT("/Game/Pack/Roar"), TEXT("/Game/Pack/Roar_02"), TEXT("/Game/DeepAudio/Music/music_depth1") };
+	const TArray<FName> Cook = DeepAudioRules::PackagesToCook(Table, 3, [&OnDisk](const FString& P) { return OnDisk.Contains(P); });
+	TestEqual(TEXT("Cook: the pack file and its one variation"), Cook.Num(), 2);
+	TestTrue(TEXT("Cook: base"), Cook.Contains(FName(TEXT("/Game/Pack/Roar"))));
+	TestTrue(TEXT("Cook: _02"), Cook.Contains(FName(TEXT("/Game/Pack/Roar_02"))));
+	return true;
+}
+
+// Every file Sounds.csv names loads as a sound (the base or a variation), checked only where its folder exists: music,
+// serpent and pack folders arrive late and are outside git, so a fresh checkout skips them.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepAudioAssetsResolveTest, "Deep.Sim.Audio.AssetsResolve", DEEP_AUDIO_TEST_FLAGS)
+bool FDeepAudioAssetsResolveTest::RunTest(const FString& Parameters)
+{
+	FDeepSoundTable Shipped;
+	UTEST_TRUE(TEXT("Sounds.csv loads"), Shipped.LoadDefault() > 0);
+	const int32 MaxVariants = UDeepAudioSettings::Get().MaxVariants;
+	int32 Checked = 0;
+	int32 Skipped = 0;
+	for (const FDeepSoundRow& Row : Shipped.GetRows())
+	{
+		const FString Package = DeepAudioRules::AssetPackage(Row.Asset);
+		if (Package.IsEmpty())
+		{
+			continue;
+		}
+		FString Folder;
+		const bool bFolder = FPackageName::TryConvertLongPackageNameToFilename(FPackageName::GetLongPackagePath(Package), Folder)
+			&& IFileManager::Get().DirectoryExists(*Folder);
+		if (!bFolder)
+		{
+			++Skipped;
+			continue;
+		}
+		TArray<FString> Candidates = { Package };
+		Candidates.Append(DeepAudioRules::VariantPackages(Package, MaxVariants));
+		bool bLoaded = false;
+		for (const FString& Candidate : Candidates)
+		{
+			if (FPackageName::DoesPackageExist(Candidate))
+			{
+				const FString ObjectPath = DeepAudioRules::AssetObjectPath(Candidate);
+				const bool bSound = LoadObject<USoundBase>(nullptr, *ObjectPath, nullptr, LOAD_NoWarn | LOAD_Quiet) != nullptr;
+				TestTrue(FString::Printf(TEXT("%s: %s is a sound"), *Row.Event.ToString(), *ObjectPath), bSound);
+				bLoaded |= bSound;
+			}
+		}
+		TestTrue(FString::Printf(TEXT("%s: %s (or a _01.. variation) is in its folder"), *Row.Event.ToString(), *Package), bLoaded);
+		++Checked;
+	}
+	AddInfo(FString::Printf(TEXT("%d asset rows checked, %d skipped (folder not delivered)"), Checked, Skipped));
 	return true;
 }
 

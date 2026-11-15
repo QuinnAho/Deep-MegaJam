@@ -211,6 +211,96 @@ namespace DeepAudioRules
 		}
 		return bFirstSightDone || (SerpentDistanceM >= 0.f && SerpentDistanceM <= Settings.StingSerpentM);
 	}
+
+	FString AssetPackage(const FString& Asset)
+	{
+		FString Package = Asset.TrimStartAndEnd();
+		int32 Dot = INDEX_NONE;
+		int32 Slash = INDEX_NONE;
+		Package.FindLastChar(TEXT('/'), Slash);
+		if (Package.FindLastChar(TEXT('.'), Dot) && Dot > Slash)
+		{
+			Package.LeftInline(Dot);
+		}
+		return Package;
+	}
+
+	FString AssetObjectPath(const FString& Asset)
+	{
+		const FString Package = AssetPackage(Asset);
+		if (Package.IsEmpty())
+		{
+			return FString();
+		}
+		int32 Slash = INDEX_NONE;
+		Package.FindLastChar(TEXT('/'), Slash);
+		return Package + TEXT(".") + Package.Mid(Slash + 1);
+	}
+
+	TArray<FString> VariantPackages(const FString& Asset, int32 MaxVariants)
+	{
+		TArray<FString> Out;
+		const FString Package = AssetPackage(Asset);
+		if (Package.IsEmpty())
+		{
+			return Out;
+		}
+		for (int32 I = 1; I <= MaxVariants; ++I)
+		{
+			Out.Add(FString::Printf(TEXT("%s_%02d"), *Package, I));
+		}
+		return Out;
+	}
+
+	int32 PickVariant(int32 Count, int32 LastIndex, float Rand01)
+	{
+		if (Count <= 1)
+		{
+			return 0;
+		}
+		const bool bAvoid = LastIndex >= 0 && LastIndex < Count;
+		const int32 Choices = bAvoid ? Count - 1 : Count;
+		int32 Pick = FMath::Clamp(FMath::FloorToInt(FMath::Clamp(Rand01, 0.f, 1.f) * Choices), 0, Choices - 1);
+		if (bAvoid && Pick >= LastIndex)
+		{
+			++Pick;
+		}
+		return Pick;
+	}
+
+	float JitterPitch(float Pitch, FName Group, float Rand01, const UDeepAudioSettings& Settings)
+	{
+		if (Group == FName(DeepAudioMusic::Group) || Group == FName(DeepAudioRadio::Group))
+		{
+			return Pitch;
+		}
+		return Pitch * (1.f + (FMath::Clamp(Rand01, 0.f, 1.f) * 2.f - 1.f) * Settings.PitchJitter);
+	}
+
+	TArray<FName> PackagesToCook(const FDeepSoundTable& Table, int32 MaxVariants, TFunctionRef<bool(const FString&)> PackageExists)
+	{
+		TArray<FName> Out;
+		for (const FDeepSoundRow& Row : Table.GetRows())
+		{
+			const FString Package = AssetPackage(Row.Asset);
+			if (Package.IsEmpty() || Package.StartsWith(TEXT("/Game/DeepAudio/")))
+			{
+				continue;
+			}
+			if (PackageExists(Package))
+			{
+				Out.AddUnique(FName(*Package));
+			}
+			for (const FString& Variant : VariantPackages(Package, MaxVariants))
+			{
+				if (PackageExists(Variant))
+				{
+					Out.AddUnique(FName(*Variant));
+				}
+			}
+		}
+		return Out;
+	}
 }
 
 TArray<FName> DeepAudioRadio::Rows()

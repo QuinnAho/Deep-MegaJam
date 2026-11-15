@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "Audio/DeepAudioRules.h"
+#include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "DeepAudioSubsystem.generated.h"
 
@@ -62,6 +63,8 @@ public:
 
 	EDeepSoundSource Resolve(const FDeepSoundRow& Row) const;
 	const FDeepSoundTable& GetTable() const { return Table; }
+	/** How many variation files ("<asset>_01" ..) loaded for this row. */
+	int32 GetVariantCount(FName Event) const { const TArray<int32>* Found = VariantIndex.Find(Event); return Found ? Found->Num() : 0; }
 
 	/** One-shot starts, oldest first (bounded). */
 	const TArray<FDeepAudioPlay>& GetHistory() const { return History; }
@@ -117,7 +120,7 @@ private:
 	/** Final volume of a row: row x group x master, 0 when muted, clamped to 0..1. */
 	float RowVolume(const FDeepSoundRow& Row) const;
 	bool CanPlayAudio() const;
-	UAudioComponent* StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch);
+	UAudioComponent* StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride = nullptr);
 	TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> GetPcm(FName Builtin);
 	void LogSound(FName Event, const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, const TCHAR* Action) const;
 
@@ -126,6 +129,17 @@ private:
 	/** Loaded assets by event. */
 	UPROPERTY(Transient)
 	TMap<FName, TObjectPtr<USoundBase>> Assets;
+
+	/** Loaded variations ("<asset>_01" ..), kept alive here; VariantIndex maps an event to its slots. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USoundBase>> VariantSounds;
+	TMap<FName, TArray<int32>> VariantIndex;
+	TMap<FName, int32> LastVariant;
+	FRandomStream VariantRandom{ 1971 };
+
+	/** The file a one-shot plays: a variation when the row has some, else its asset. */
+	USoundBase* PickAsset(FName Event);
+	static USoundBase* LoadSoundIfPresent(const FString& Asset, bool& bExists);
 
 	TMap<FName, TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe>> PcmCache;
 

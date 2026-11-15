@@ -4,6 +4,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Templates/Function.h"
 
 class UDeepAudioSettings;
 
@@ -144,4 +145,25 @@ namespace DeepAudioRules
 
 	/** The serpent sting plays once: the first sight started, or the serpent came within StingSerpentM (a client's view; < 0 = no serpent). */
 	DEEP_API bool ShouldSting(bool bAlreadyPlayed, bool bFirstSightDone, float SerpentDistanceM, const UDeepAudioSettings& Settings);
+
+	/** "/Game/X/Y" or "/Game/X/Y.Y" -> the object path "/Game/X/Y.Y"; empty stays empty. */
+	DEEP_API FString AssetObjectPath(const FString& Asset);
+
+	/** "/Game/X/Y" -> its package "/Game/X/Y" (drops any ".Object"). */
+	DEEP_API FString AssetPackage(const FString& Asset);
+
+	/** The variation files a row may have beside its base: "<base>_01" .. "<base>_NN" (packages). */
+	DEEP_API TArray<FString> VariantPackages(const FString& Asset, int32 MaxVariants);
+
+	/** Which variation plays: random, never the last one twice when there are two or more. Rand01 in [0, 1). */
+	DEEP_API int32 PickVariant(int32 Count, int32 LastIndex, float Rand01);
+
+	/** A one-shot's pitch with +-PitchJitter (fraction) from Rand01 in [0, 1]; music and the Captain's voice are never jittered. */
+	DEEP_API float JitterPitch(float Pitch, FName Group, float Rand01, const UDeepAudioSettings& Settings);
+
+	/**
+	 * Packages a cook must add for Sounds.csv: every row asset outside /Game/DeepAudio/ (pack sounds are cooked by
+	 * reference only), each with the variations PackageExists finds. /Game/DeepAudio/ is cooked whole (DefaultGame.ini).
+	 */
+	DEEP_API TArray<FName> PackagesToCook(const FDeepSoundTable& Table, int32 MaxVariants, TFunctionRef<bool(const FString&)> PackageExists);
 }

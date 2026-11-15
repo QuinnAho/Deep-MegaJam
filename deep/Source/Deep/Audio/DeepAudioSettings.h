@@ -146,4 +146,14 @@ public:
 	/** The serpent sting plays the first time the first sight starts, or the serpent comes this close (m). */
 	UPROPERTY(Config, EditAnywhere, Category = "Music", meta = (ClampMin = "0"))
 	float StingSerpentM = 30.f;
+
+	// ---------------------------------------------------------------- files and variations
+
+	/** A row may have up to this many variations beside its asset: "<asset>_01" .. (one picked at random per play). */
+	UPROPERTY(Config, EditAnywhere, Category = "Files", meta = (ClampMin = "0", ClampMax = "9"))
+	int32 MaxVariants = 3;
+
+	/** One-shots from files play at a random pitch within this fraction (0.03 = +-3%). Not music or the Captain. */
+	UPROPERTY(Config, EditAnywhere, Category = "Files", meta = (ClampMin = "0", ClampMax = "0.25"))
+	float PitchJitter = 0.03f;
 };

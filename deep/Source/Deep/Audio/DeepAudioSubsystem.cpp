@@ -26,6 +26,10 @@
 #include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
 
+#if WITH_EDITOR
+#include "GameDelegates.h"
+#endif
+
 DEFINE_LOG_CATEGORY_STATIC(LogDeepAudio, Log, All);
 
 namespace
@@ -128,22 +132,34 @@ void UDeepAudioSubsystem::Reload()
 {
 	Table.LoadDefault();
 	Assets.Reset();
+	VariantSounds.Reset();
+	VariantIndex.Reset();
+	LastVariant.Reset();
+	const int32 MaxVariants = UDeepAudioSettings::Get().MaxVariants;
 	for (const FDeepSoundRow& Row : Table.GetRows())
 	{
 		if (Row.Asset.IsEmpty())
 		{
 			continue;
 		}
-		FString Path = Row.Asset;
-		if (!Path.Contains(TEXT(".")))
+		bool bExists = false;
+		USoundBase* Sound = LoadSoundIfPresent(Row.Asset, bExists);
+		// Variations "<asset>_01" .. sit beside the base; with no base file the first variation stands in for it.
+		if (!Row.bLoop)
 		{
-			Path = Path + TEXT(".") + FPackageName::GetShortName(Path);
-		}
-		USoundBase* Sound = nullptr;
-		const bool bExists = FPackageName::IsValidObjectPath(Path) && FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Path));
-		if (bExists)
-		{
-			Sound = LoadObject<USoundBase>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			for (const FString& Variant : DeepAudioRules::VariantPackages(Row.Asset, MaxVariants))
+			{
+				bool bVariantExists = false;
+				if (USoundBase* VariantSound = LoadSoundIfPresent(Variant, bVariantExists))
+				{
+					VariantIndex.FindOrAdd(Row.Event).Add(VariantSounds.Add(VariantSound));
+				}
+			}
+			if (!Sound && VariantIndex.Contains(Row.Event))
+			{
+				Sound = VariantSounds[VariantIndex[Row.Event][0]];
+				bExists = true;
+			}
 		}
 		if (Sound)
 		{
@@ -170,6 +186,30 @@ void UDeepAudioSubsystem::Reload()
 		}
 	}
 	LoopComponents.Reset();
+}
+
+USoundBase* UDeepAudioSubsystem::LoadSoundIfPresent(const FString& Asset, bool& bExists)
+{
+	const FString Path = DeepAudioRules::AssetObjectPath(Asset);
+	bExists = !Path.IsEmpty() && FPackageName::IsValidObjectPath(Path)
+		&& FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Path));
+	return bExists ? LoadObject<USoundBase>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr;
+}
+
+USoundBase* UDeepAudioSubsystem::PickAsset(FName Event)
+{
+	const TArray<int32>* Slots = VariantIndex.Find(Event);
+	if (!Slots || Slots->IsEmpty())
+	{
+		return Assets.FindRef(Event);
+	}
+	// The base file, when there is one, is one more choice beside its variations.
+	USoundBase* Base = Assets.FindRef(Event);
+	const bool bBaseIsOwn = Base && !Slots->ContainsByPredicate([this, Base](int32 Slot) { return VariantSounds[Slot] == Base; });
+	const int32 Count = Slots->Num() + (bBaseIsOwn ? 1 : 0);
+	const int32 Pick = DeepAudioRules::PickVariant(Count, LastVariant.Contains(Event) ? LastVariant[Event] : INDEX_NONE, VariantRandom.FRand());
+	LastVariant.Add(Event, Pick);
+	return Pick < Slots->Num() ? VariantSounds[(*Slots)[Pick]].Get() : Base;
 }
 
 EDeepSoundSource UDeepAudioSubsystem::Resolve(const FDeepSoundRow& Row) const
@@ -215,7 +255,7 @@ TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> UDeepAudioSubsystem::GetPcm
 	return Pcm;
 }
 
-UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch)
+UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride)
 {
 	if (Source == EDeepSoundSource::None || !CanPlayAudio())
 	{
@@ -224,7 +264,7 @@ UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeep
 	USoundBase* Sound = nullptr;
 	if (Source == EDeepSoundSource::Asset)
 	{
-		Sound = Assets.FindRef(Row.Event);
+		Sound = AssetOverride ? AssetOverride : Assets.FindRef(Row.Event).Get();
 	}
 	else
 	{
@@ -303,7 +343,14 @@ bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float 
 
 	const EDeepSoundSource Source = Resolve(*Row);
 	const float Volume = FMath::Clamp(RowVolume(*Row) * FMath::Max(0.f, VolumeScale), 0.f, 1.f);
-	const float Pitch = Row->Pitch * FMath::Clamp(PitchScale, 0.25f, 4.f);
+	float Pitch = Row->Pitch * FMath::Clamp(PitchScale, 0.25f, 4.f);
+	// A file plays one of its variations at a slightly different pitch each time, so repeats do not sound canned.
+	USoundBase* AssetSound = nullptr;
+	if (Source == EDeepSoundSource::Asset)
+	{
+		AssetSound = PickAsset(Event);
+		Pitch = DeepAudioRules::JitterPitch(Pitch, Row->Group, VariantRandom.FRand(), Settings);
+	}
 	if (History.Num() >= MaxAudioHistory)
 	{
 		History.RemoveAt(0);
@@ -324,7 +371,7 @@ bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float 
 	{
 		return true;
 	}
-	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Pitch))
+	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Pitch, AssetSound))
 	{
 		double StopAt = TNumericLimits<double>::Max();
 		if (Source == EDeepSoundSource::Generated)
@@ -789,3 +836,32 @@ namespace
 			}
 		}));
 }
+
+#if WITH_EDITOR
+namespace
+{
+	// /Game/DeepAudio/ is cooked whole (DefaultGame.ini). Pack sounds are loaded by path, which the cook cannot follow,
+	// and a pack folder is too big to cook whole: add exactly the files (and variations) Sounds.csv names.
+	void AddSoundsToCook(TConstArrayView<const ITargetPlatform*> /*Platforms*/, TArray<FName>& PackagesToCook, TArray<FName>& /*NeverCook*/)
+	{
+		FDeepSoundTable Sounds;
+		Sounds.LoadDefault();
+		const TArray<FName> Packages = DeepAudioRules::PackagesToCook(Sounds, UDeepAudioSettings::Get().MaxVariants,
+			[](const FString& Package) { return FPackageName::DoesPackageExist(Package); });
+		for (const FName& Package : Packages)
+		{
+			PackagesToCook.AddUnique(Package);
+			UE_LOG(LogDeepAudio, Display, TEXT("DEEPCOOK add %s"), *Package.ToString());
+		}
+		UE_LOG(LogDeepAudio, Display, TEXT("DEEPCOOK added %d pack sounds named by Sounds.csv"), Packages.Num());
+	}
+
+	struct FRegisterSoundsCook
+	{
+		FRegisterSoundsCook()
+		{
+			FGameDelegates::Get().GetModifyCookDelegate().AddStatic(&AddSoundsToCook);
+		}
+	} GRegisterSoundsCook;
+}
+#endif

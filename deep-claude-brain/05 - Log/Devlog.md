@@ -706,3 +706,8 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
 
 ### 12:40 PM  Captain lane takes the sonar integration (polish/captain)
 - What happened: `origin/polish/integration` (`ea29122`, sonar) was merged into polish/captain. Both sides were kept in DeepSynth (squelch voices and sonar voices), Sounds.csv (radio, music and sonar rows) and ARCHITECTURE (the Audio and Sonar lines). In CaptainLines.csv the revised D-040 script stays: it already had a `sonar_contact` line in its six-column form, and the sonar lane's five-column row would not fit that format. The merged build is green.
+
+### 12:45 PM  Sound files get variations, and the cook knows where they are (polish/captain)
+- What happened: Any Sounds.csv row may now have `<asset>_01` .. `_03` beside its file. A one-shot picks one at random, never the same twice in a row, and plays it at +-3% pitch (music and the Captain are never jittered). If only the variations exist, the row still plays. `/Game/DeepAudio` is cooked whole. Pack sounds are cooked only as Sounds.csv names them (a cook hook like the dressing's), because a pack folder is too big to cook whole. The new test `Deep.Sim.Audio.AssetsResolve` loads every file the table names, but skips a folder that has not arrived. Today it checked 0 rows and skipped 8: no music, serpent or pack sound files are in the checkout yet.
+- Evidence: build green; Deep.Sim.Audio, Deep.World.Audio and Deep.Story 13 of 13 passed (Deep.Sim.Audio.Files and Deep.Sim.Audio.AssetsResolve are new).
+- Not done: no row is mapped to a pack sound yet, because no sound pack folder has arrived. Nothing was imported from `audio-drop/`, which is waiting for the orchestrator's go.
