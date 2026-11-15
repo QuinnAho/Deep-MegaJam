@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 04:19 EST
+updated: 2026-11-15 04:23 EST
 ---
 # Board
 
@@ -18,6 +18,10 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. **The pol
 **Monster, second pass: a real step forward, still not merged.** `polish/monster` at `f947013` (it includes the water look's first pass). No outline glow, a dark scaled body seen only in the lamp, small eyes, a flat toothed head. Frames `2026-11-15-serpent2-*.png`: `recoil` and `eyes-lit` work; `bite` is still a cone with teeth. Next for the monster, once the water's second pass is in: the Dragon Cave head (needs Quinn's install) and a staged first sight at 6 to 8 m, which means a small addition to the brain.
 
 **The HUD lane started at 4:19 AM** (`polish/hud` in `.wt\pkg`, Opus): the real HUD in native C++ from the style guide. Frames will be `2026-11-15-hud-*.png`. **Running now: water second pass and the HUD.** Free checkouts: `.wt\monster`, `.wt\text`. When the water's second pass lands, publish one page of frames for Quinn to approve, then start the room inside.
+
+**Water, second pass (4:20 AM): now a real base.** `polish/water` at `5b3b0e7`: a silt sea floor, a cone beam that lands on things, drifting matter only in light, black at 500 m, 6 to 8 ms a frame. Frames `2026-11-15-water2-*.png`; `floor-rake` is the standard. It moved the relic into a sinkhole (gameplay data: Quinn's eye needed).
+
+**`polish/integration` (`8fd459a`) = water second pass + monster second pass + `main`. Full suite: 54 of 54.** This is the branch to merge into `main` when Quinn approves the frames, and the base for new polish lanes. **Running now, started 4:23 AM:** `polish/room` in `.wt\dev` (the room, helm window, driving, lamp at close range, hull, salvage); `polish/monster3` in `.wt\monster` (staged first sight, bite from the side); `polish/hud` in `.wt\pkg` (from `main`). When each reports: look at its frames, merge it into `polish/integration`, run `verify` there, push. Quinn has a private page of frames to approve (URL in Claude's memory).
 
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
