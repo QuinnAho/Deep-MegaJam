@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 02:13 EST
+updated: 2026-11-15 02:29 EST
 ---
 # Board
 
@@ -12,7 +12,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polis
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
 3. **Still unconfirmed in the research:** the Official Rules PDF, seven sound needs with no candidate, most Freesound licences, the download size of every pack, and how long the first cook with pack materials takes.
-4. **Two function agents, started 2:12 AM.** (a) Fix batch two (`dev/fix2`, `.wt\dev`, Opus at high): the stall on returning to the hatch from the side, the hatch on the console-to-helm walk, a check of the mouse look scale. C++, so the gate is `.wt\dev\tools\ue.ps1 verify`; then merge, push, and run `tools\playtest.ps1 S8-keys` once from a free checkout to see the return work. (b) Fast playtests (`tools/regress`, `.wt\pkg`, Sonnet at medium, editor on port 8012): MCP calls in-process, one reused editor, polling for readiness, then a `-Speed` option with a check that every scenario gives the same result as at normal speed. Scripts and notes only: merge without a gate.
+4. **One function agent is running: fast playtests** (`tools/regress`, `.wt\pkg`, Sonnet at medium, started 2:12 AM, editor on port 8012). MCP calls in-process, one reused editor, polling for readiness, then a `-Speed` option with a check that every scenario gives the same result as at normal speed. At 2:28 AM it was also asked to merge `main` afterwards and add scenario `S9-side-return`, which swims and winches straight at the submarine from the side: the only proof in real play that fix batch two works. Scripts and notes only: merge without a gate. If `S9-side-return` fails, that is the next engineer task. Fix batch two itself is merged (`0874fe5`).
 5. One Unreal editor at a time: the machine has 32 GB of RAM and about 6 GB free with no editor open.
 6. **Polish is one planned pass (D-028), and a priority equal to gameplay (D-029).** Research and planning now. No HUD, look, effect or sound-finish work is dispatched until Quinn has chosen from the research and given the pass a start time.
 7. The three later research notes (engine skills, outside tools, polish craft) are merged and folded into `Polish - Start Here.md`.
@@ -21,7 +21,7 @@ After merging a branch that adds dev log entries, remove any repeated `## Sunday
 
 ## State of the game
 
-`main` is at `6f2e259`. 46 tests passing. Nobody has played it by hand yet, and nobody has heard it.
+`main` is at `0874fe5`. 52 tests passing. Nobody has played it by hand yet, and nobody has heard it.
 
 - **The run, start to finish:** title, then standing in the submarine's one room. Drop through the hatch to dive: grab, weight, tether, winch, the Captain's Patience, the cut, bailout air, the harpoon. Back up through the hatch. Bank at the console and buy the gates there. Drive from the helm between stops at 100, 300 and 500 m. The relic at stop 3, then the win screen with a performance review. Pause and restart work.
 - **Layer gates (D-023):** the helm stops at 200 m without the flashlight (50 cr) and at 400 m without the hull upgrade (200 cr). The serpent appears in layer 2 and is aggressive in layer 3.
@@ -40,10 +40,10 @@ Function, fixed in batch one (merged 1:29 AM as `6f2e259`):
 
 Function, from the playthrough on simulated keyboard and mouse (merged 2:10 AM as `b8b4037`):
 
-- **Returning to the hatch from the side stalls against the hull about 5 m out.** The Captain cuts the line and the diver dies. In fix batch two.
-- **The open hatch lies on the straight walk from the console to the helm**, so a player drops into the sea by accident. In fix batch two.
+- Returning to the hatch from the side: fixed in code and merged (`0874fe5`). The diver now slides down and under the hull, and the winch routes round it. **Not yet seen working in real play**: scenario `S9-side-return` is being added to prove it.
+- The hatch on the console-to-helm walk: fixed and merged (`0874fe5`). The start position, the console stand and the helm moved to the console's side of the room.
 - Works on simulated input (scenario `S8-keys`): the title key, walking to and through the hatch, E to grab, the return from below, E at the console, the settlement screen, E at the helm, holding the dive key and parking at 300 m, the lamp, the winch, the cut, the harpoon.
-- Still needs a human: mouse look (the input tool turned the view only 0 to 14 degrees for a delta of 40), the Esc pause menu (the tool cannot reach it), and anything in multiplayer.
+- Still needs a human: the Esc pause menu (the input tool cannot reach it), how the mouse feels (the code gives 0.175 degrees per count, which is normal; the tool's odd reading was the tool), and anything in multiplayer.
 - E on the settlement screen does not use the console twice (checked on simulated input).
 - No gamepad support. In the editor the game window may need a click before keys arrive.
 - Every number is a guess: room size, walk speed, hatch size, harpoon speed and pull, serpent values.
@@ -64,7 +64,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | Sound, voice, fonts, references | Sonnet, medium, `.wt\text` on `research/polish-web` | **Done 1:36 AM**, merged as `c019cfb`. | 1:32 AM |
 | The polish plan | Opus, high, `.wt\dev` on `research/polish-plan` | **Done 1:40 AM**, merged as `6ff4a2a`. Ten work packages in three lanes. | 1:32 AM |
 | Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | **Done 2:10 AM**, merged as `b8b4037`. `S8-keys` passes; two game problems found. | 1:39 AM |
-| Fix batch two | Opus, high, `.wt\dev` on `dev/fix2` | The return to the hatch from the side, the hatch on the console-to-helm walk, a mouse look check. Function only. | 2:12 AM |
+| Fix batch two | Opus, high, `.wt\dev` on `dev/fix2` | **Done 2:27 AM**, merged as `0874fe5`. 52 of 52 tests. | 2:12 AM |
 | Fast playtests | Sonnet, medium, `.wt\pkg` on `tools/regress` | In-process MCP calls, one reused editor, polling, then faster than real time with an equivalence check. | 2:12 AM |
 | Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | **Done 2:07 AM**, merged as `7256f6c`. | 2:01 AM |
 | Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | **Done 2:04 AM**, merged as `7c15b45`. | 2:01 AM |
@@ -78,7 +78,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | 1 | Play the whole run by hand and say what is wrong with how it plays. | Quinn | todo |
 | 1a | Prove the loop with simulated key and mouse input, and list where real input fails. | Sonnet agent | done, `b8b4037` |
 | 1b | **Fast scripted playtests** (Quinn asked at about 2:03 AM). Most of the time is the script, not the game: about 200 of 303 s is a new process per MCP call. So: in-process calls, one reused editor, polling, then a `-Speed` option (fixed time step or `slomo`), with every scenario giving the same result as at normal speed. | Sonnet agent, `.wt\pkg` | doing |
-| 2 | Fix batch two: what the playthrough found. Function only. Quinn's own play notes go in batch three. | Opus engineer, `.wt\dev` | doing |
+| 2 | Fix batch two: what the playthrough found. | Opus engineer | done, `0874fe5`; proof in real play pending (`S9-side-return`) |
 | 3 | Real sound files replace the generated ones: import under `/Game/Audio/`, put the path in that row of `Sounds.csv`, run `Deep.Audio.Reload`. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
 | 4 | The Captain's voice. | writer | blocked on Quinn's choice |
 | 5 | **The polish pass (D-028, D-029):** look, HUD, effects, sound and voice, in one planned pass to a professional standard. A priority equal to gameplay. The research and the plan are done ([[Polish - Plan and Techniques]]). | Quinn chooses, agents build | waiting on Quinn's choices |
@@ -102,7 +102,7 @@ Models: submarine first, then salvage pieces, relic, serpent head. Sounds: breat
 
 ## Checkouts
 
-The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\monster`, `.wt\text`. One Unreal editor at a time: the machine has 32 GB of RAM.
+The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\dev`, `.wt\monster`, `.wt\text`. One Unreal editor at a time: the machine has 32 GB of RAM.
 
 ## Done
 
@@ -131,3 +131,4 @@ The main checkout is Quinn's and he may keep the editor open on it (port 8000: n
 | Polish research: assets, sound and voice, the plan; a visual board for Quinn | 1:44 AM | `6ff4a2a` |
 | Six research notes for the polish pass, with one index note | 2:10 AM | `7256f6c` |
 | The first stop played on simulated keyboard and mouse (`S8-keys`) | 2:10 AM | `b8b4037` |
+| The diver can return to the hatch from any side; the hatch is off the walking line | 2:27 AM | `0874fe5` |
