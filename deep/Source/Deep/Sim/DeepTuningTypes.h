@@ -519,6 +519,10 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float HatchDropPitchDeg = -45.f;
 
+	/** Look only: coming back aboard (hatch, winch, harpoon) the view is set to this pitch, yaw kept, so the room reads, not the ceiling. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float AboardPitchDeg = 0.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorBelowSubM = 120.f;
 
