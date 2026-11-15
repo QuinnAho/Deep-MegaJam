@@ -478,21 +478,25 @@ struct FDeepSerpentChainTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
 	float DragPerS = 1.2f;
 
+	/** Extra drag across the body: water resists a snake moving sideways far more than along its length, which is what keeps the body on the head's line instead of whipping about it. Velocity across the body falls by exp(-(DragPerS + SideDragPerS) * t). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float SideDragPerS = 10.f;
+
 	/** The most any joint bends (deg), so the body never folds or kinks. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
 	float BendLimitDeg = 28.f;
 
 	/** Pull onto the head's path at the particle's distance back (per second): the body goes where the head went. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
-	float TrailPullPerS = 1.5f;
+	float TrailPullPerS = 0.5f;
 
-	/** The head's swim stroke: side to side at the neck (m) at full speed, 0 at rest. Look only; 0 = no stroke. */
+	/** The head's swim stroke: side to side at the neck (m) at full speed, 0 at rest. Look only; 0 = no stroke (shipped: Quinn wants plain rope physics, no animation). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
-	float StrokeM = 0.35f;
+	float StrokeM = 0.f;
 
 	/** The head's yaw with the stroke (deg) at full speed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
-	float StrokeDeg = 14.f;
+	float StrokeDeg = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
 	float StrokeHz = 0.9f;

@@ -62,7 +62,7 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("The code-built head with its moving jaw by default (Quinn, Nov 15: the pack head read as two models)"), Serpent->HasMeshHead());
 
 	// The body follows the head (a physics chain, no sideways sine): at rest it lies still; after the head swims 3 m and
-	// turns, the tail has moved and the spacing holds. The head's stroke swings the neck while it swims.
+	// turns, the tail has moved and the spacing holds. With no stroke (Quinn: rope physics, no animation) the neck stays on the head's line on the straight.
 	{
 		const FVector Start(0.f, 0.f, -100000.f);
 		Serpent->PlaceHead(Start, FVector::ForwardVector);
@@ -107,7 +107,7 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 			TailMoved, SpacingCm, WorstSpacing01 * 100.f, MaxSide - MinSide));
 		TestTrue(TEXT("The tail has followed the head (moved at least 2 m)"), TailMoved >= 200.f);
 		TestTrue(TEXT("The spacing holds within 2%"), WorstSpacing01 < 0.02f);
-		TestTrue(TEXT("The head's stroke swings the neck while it swims (at least 10 cm)"), MaxSide - MinSide >= 10.f);
+		TestTrue(TEXT("No animation: on the straight the neck stays on the head's line (within 5 cm)"), MaxSide - MinSide < 5.f);
 	}
 	{
 		IConsoleVariable* Switch = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Monster.MeshHead"));

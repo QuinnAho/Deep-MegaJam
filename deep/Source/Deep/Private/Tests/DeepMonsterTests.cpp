@@ -852,6 +852,15 @@ bool FDeepMonsterChainStraightTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("A head moving straight leaves a straight body (within 1 cm)"), WorstOff < 1.f);
 	TestTrue(TEXT("Spacing holds within 2%"), Swim.WorstSpacing01() < 0.02f);
 	TestTrue(TEXT("The body moved with the head"), Swim.Chain.Pos.Last().X > 800.f - (HeadBackCm + Segs * SpacingCm) - 50.f);
+	// The drawn body passes through every particle: the smooth curve meets each joint.
+	float CurveMiss = 0.f;
+	float AlongCm = 0.f;
+	for (int32 i = 0; i < Swim.Chain.Pos.Num(); ++i)
+	{
+		AlongCm += i > 0 ? Swim.Chain.RestCm[i - 1] : 0.f;
+		CurveMiss = FMath::Max(CurveMiss, static_cast<float>(FVector::Dist(UDeepMonsterRules::ChainPoint(Swim.Chain, AlongCm), Swim.Chain.Pos[i])));
+	}
+	TestTrue(TEXT("The smooth body curve passes through every joint (within 1 cm)"), CurveMiss < 1.f);
 	return true;
 }
 
@@ -978,7 +987,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterBodyShippedTest, "Deep.Sim.Monster.
 bool FDeepMonsterBodyShippedTest::RunTest(const FString& Parameters)
 {
 	const FDeepSerpentBodyTuning& Body = UDeepMonsterSettings::Get().Body;
-	TestTrue(TEXT("The head strokes when it swims (it can be set to 0)"), Body.Chain.StrokeM > 0.f);
+	TestTrue(TEXT("No swim stroke by default: the body moves by the head's path and the physics only"), Body.Chain.StrokeM == 0.f && Body.Chain.StrokeDeg == 0.f);
+	TestTrue(TEXT("Water resists sideways motion more than motion along the body"), Body.Chain.SideDragPerS > 0.f);
 	TestTrue(TEXT("Substeps of at most 1/60 s"), Body.Chain.SubstepS > 0.f && Body.Chain.SubstepS <= 1.f / 60.f);
 	TestTrue(TEXT("The bend limit lets it curl but not fold"), Body.Chain.BendLimitDeg > 5.f && Body.Chain.BendLimitDeg < 60.f);
 	TestTrue(TEXT("No pack head by default"), Body.MeshHead.Mesh.IsNull());

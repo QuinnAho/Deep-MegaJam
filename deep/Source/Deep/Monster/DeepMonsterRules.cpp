@@ -348,6 +348,7 @@ int32 UDeepMonsterRules::StepChain(FDeepSerpentChain& Chain, const FVector& PinC
 	const double CosL = FMath::Cos(Limit);
 	const double SinL = FMath::Sin(Limit);
 	const float Damp = FMath::Exp(-FMath::Max(0.f, Tuning.DragPerS) * H);
+	const float SideDamp = FMath::Exp(-FMath::Max(0.f, Tuning.SideDragPerS) * H);
 	const float Pull = PathCm.Num() > 0 ? 1.f - FMath::Exp(-FMath::Max(0.f, Tuning.TrailPullPerS) * H) : 0.f;
 	const int32 Iterations = FMath::Clamp(Tuning.Iterations, 1, 16);
 
@@ -370,7 +371,12 @@ int32 UDeepMonsterRules::StepChain(FDeepSerpentChain& Chain, const FVector& PinC
 		// Verlet: x' = x + (x - x_old) * drag. Neutrally buoyant: no gravity.
 		for (int32 i = 1; i < N; ++i)
 		{
-			const FVector Vel = (Pos[i] - Old[i]) * Damp;
+			// Anisotropic water drag: little along the body, much more across it.
+			FVector Vel = Pos[i] - Old[i];
+			const FVector Front = i == 1 ? Pos[0] : Old[i - 1]; // the neighbour as it was before this step
+			const FVector Along = (Front - Pos[FMath::Min(i + 1, N - 1)]).GetSafeNormal();
+			const FVector VelAlong = Along * FVector::DotProduct(Vel, Along);
+			Vel = VelAlong * Damp + (Vel - VelAlong) * (Damp * SideDamp);
 			Old[i] = Pos[i];
 			Pos[i] += Vel;
 		}
@@ -382,7 +388,10 @@ int32 UDeepMonsterRules::StepChain(FDeepSerpentChain& Chain, const FVector& PinC
 		{
 			for (int32 i = 1; i < N; ++i)
 			{
-				Pos[i] += (Targets[i] - Pos[i]) * Pull;
+				// Old moves with Pos: the pull drifts the body toward the path without adding speed, so it never springs past it.
+				const FVector Drift = (Targets[i] - Pos[i]) * Pull;
+				Pos[i] += Drift;
+				Old[i] += Drift;
 			}
 		}
 
@@ -605,4 +614,41 @@ FVector UDeepMonsterRules::WellAimPoint(EDeepMonsterState State, const FDeepWell
 		break;
 	}
 	return KeepInWell(Well, Aim, Tuning);
+}
+
+FVector UDeepMonsterRules::ChainPoint(const FDeepSerpentChain& Chain, float DistanceCm)
+{
+	const TArray<FVector>& P = Chain.Pos;
+	const int32 N = P.Num();
+	if (N == 0)
+	{
+		return FVector::ZeroVector;
+	}
+	if (N < 2 || Chain.RestCm.Num() != N - 1)
+	{
+		return PointAlongTrail(P, DistanceCm);
+	}
+	if (DistanceCm <= 0.f)
+	{
+		return P[0] + (P[0] - P[1]).GetSafeNormal() * -DistanceCm;
+	}
+	float Left = DistanceCm;
+	for (int32 i = 0; i + 1 < N; ++i)
+	{
+		const float Rest = FMath::Max(1.f, Chain.RestCm[i]);
+		if (Left <= Rest)
+		{
+			const float T = Left / Rest;
+			// Uniform Catmull-Rom; the end tangents mirror the last link.
+			const FVector& P1 = P[i];
+			const FVector& P2 = P[i + 1];
+			const FVector P0 = i > 0 ? P[i - 1] : P1 - (P2 - P1);
+			const FVector P3 = i + 2 < N ? P[i + 2] : P2 + (P2 - P1);
+			const float T2 = T * T;
+			const float T3 = T2 * T;
+			return 0.5f * ((2.f * P1) + (P2 - P0) * T + (2.f * P0 - 5.f * P1 + 4.f * P2 - P3) * T2 + (3.f * P1 - P0 - 3.f * P2 + P3) * T3);
+		}
+		Left -= Rest;
+	}
+	return P[N - 1] + (P[N - 1] - P[N - 2]).GetSafeNormal() * Left;
 }

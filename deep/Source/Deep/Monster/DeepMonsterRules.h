@@ -109,6 +109,8 @@ public:
 	static void KickChain(FDeepSerpentChain& Chain, const FVector& Up, float KickCmPerS, float WaveCm, float SubstepS);
 	/** Bend at joint i in degrees: between the link into it (joint 0: -PinForward) and the link out of it. */
 	static float ChainBendDeg(const FDeepSerpentChain& Chain, int32 Joint, const FVector& PinForward);
+	/** The point DistanceCm along the chain from its pinned end, on a Catmull-Rom curve through the particles, so the drawn body bends smoothly instead of creasing at each joint. Past either end it carries on straight. */
+	static FVector ChainPoint(const FDeepSerpentChain& Chain, float DistanceCm);
 
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FString StateName(EDeepMonsterState State);

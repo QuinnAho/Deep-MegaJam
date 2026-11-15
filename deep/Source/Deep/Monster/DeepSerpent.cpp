@@ -1205,8 +1205,7 @@ void ADeepSerpent::BuildTube()
 	const float BodyM = BodyLengthM();
 	const float LengthM = BodyM + FrontM;
 
-	// The body runs along the chain, from the neck (its pinned particle) to the tail tip.
-	const TArray<FVector>& Path = Chain.Pos;
+	// The body runs along the chain, from the neck (its pinned particle) to the tail tip, on a smooth curve through the particles.
 
 	const FTransform Socket = HeadSocket->GetComponentTransform();
 	const FVector SocketBack = -Socket.GetUnitAxis(EAxis::X);
@@ -1222,7 +1221,7 @@ void ADeepSerpent::BuildTube()
 	{
 		const float T = k / static_cast<float>(Rings - 1);
 		const float AlongM = StartM + RingAlong(T) * LengthM;
-		FVector Centre = UDeepMonsterRules::PointAlongTrail(Path, (AlongM - HeadBack) * CmPerM);
+		FVector Centre = UDeepMonsterRules::ChainPoint(Chain, (AlongM - HeadBack) * CmPerM);
 		const float ToHeadM = AlongM - HeadBack;
 		const float Blend = 1.f - FMath::SmoothStep(0.f, NeckBlendM, FMath::Max(0.f, ToHeadM));
 		if (Blend > 0.f)
