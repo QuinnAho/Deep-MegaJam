@@ -238,6 +238,10 @@ function S1-hatch {
     $null = Run-Exec 'Deep.EnterSub'
     $s = Wait-State { param($s) $s.inside } 10 'coming back aboard'
     $script:Notes += ('S1 back aboard: run_state={0} cargo_kg={1}' -f $s.run_state, $s.cargo_kg)
+    $script:Notes += ('S1 audio: last={0} loops={1} muted={2}' -f $s.audio.last, (@($s.audio.loops) -join ','), $s.audio.muted)
+    Need ($null -ne $s.audio) 'state report has no audio key (sound layer missing)'
+    Need ([bool]$s.audio.last) 'no sound fired during a dive, grab and return (audio.last is empty)'
+    Need (@($s.audio.loops).Count -ge 1) 'no sound loop is playing (expected an ambient loop)'
     Need ($s.run_state -eq 'aboard') ('run_state ' + $s.run_state + ' after the return')
     Need ($s.cargo_kg -gt 0) 'cargo was lost on the way up'
     # bank at the console
