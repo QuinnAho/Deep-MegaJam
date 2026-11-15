@@ -435,6 +435,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - `S10-cutdrop` (cut beside the relic, drop it, swim): got home at radius 6 (23 s, about 7 s of air left). At 4.5 it failed 2 of 2: the scripted swimmer drifts about 5 m off the shaft's axis and sticks under the rim 12 m below the hatch.
 - Decisions left for Quinn: (1) Should the serpent hunt the moment it cuts the line? Today it flees first, so a lampless diver who drops the relic gets away. The GDD says a careless one dies. (2) The cut from the bottom of the shaft needs a look by hand.
 - Evidence: build PASS; `Deep.Sim.Rules.Winch` 3 of 3, `Deep.Sim.Monster.LastAscent` (new: the relic winch is slower than the stalk, a careless player is cut before home, two repels are enough, a dropped-relic swim beats the air) 1 of 1, `Deep.World.Seabed` 1 of 1, `Deep.World.RelicWin` 1 of 1. Logs in `deep/Saved/Harness/win/b5-*.txt`. Branch `dev/win`.
+### 4:55 AM  The orchestrator pushed a red merge, for ninety seconds
+- What happened: the HUD branch and the monster branch each built on their own. Merged, they did not: the serpent had a small helper called `EaseOutCubic` and so did the HUD, and once the build tool compiled the files together the HUD's calls could not choose. The orchestrator's check should have stopped the push. It did not, because twenty minutes earlier the orchestrator had wrapped the check in a machine-wide lock so that agents would not start Unreal at the same time, and that wrapper threw the exit code away. The output said FAIL and the script said 0.
+- Why it matters: this is the same class of mistake the orchestrator caught an engineer making at 12:31 AM, a green that was not green, made by the checker itself. It was caught by reading the output instead of the exit code, fixed by renaming one helper, re-verified at 59 of 59 tests, and pushed green. It never reached the main branch, because nothing merges there until Quinn has seen frames. The gate now requires both a zero exit code and the PASS line, and the corrected command is written into the orchestrator's rules.
+- Evidence: `polish/integration` `53b045c` (red) and `c562939` (green); `.claude/loop.md`, "How to run the gate".
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
