@@ -621,6 +621,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Frames (game light, diver's eye): best `-after-stalk-close.png`: the dragon's head coming up the shaft at about 10 m, face on, jaw open, teeth and one eye catching the beam. Next `-after-recoil.png`: the head turning down, the body hanging below it. Worst: `-after-lurk.png` and `-after-stalk-far.png`: at 46 to 50 m below it is not visible at all, only the shaft's stones; the lamp does not reach. Plain light from above (`-after-plain-down.png`): the body lies down the axis on the shaft floor.
 - Seen, not mine to fix: looking down, the relic's carried light sits in the middle of every frame and is the brightest thing in it; the head at 10 m is read against that glow, as a dark shape. Nearer than 9 m it was not captured in the shaft (the lamp drives it off at about 10 m).
 
+### 11:15 AM  The scripted ending still wins; where the bite happens in the well (polish/wellserpent)
+- What happened: `tools/playtest.ps1 S10-relic -Port 8016` on the final build: PASS, won, home with the relic in 21 s, no bites, one repel. Serpent: "0.7s Recoil@78m, 9.0s Lurk@46m, 13.0s Stalk@30m, 16.3s Recoil@16m, 18.3s Lurk@8m" (was "0.7s Stalk@78m, 5.0s Recoil@62m, 9.0s Lurk@46m, 13.0s Stalk@30m"). It starts in Recoil: on the swim down the shaft the lamp, pointed down, already caught it in the shaft. Port 8016 closed afterwards; the playtest's tracked screenshots put back.
+- The bite in the well (task 3, from the lamp-off log, no frame): it bites at the diver's feet, 0.6 to 1.4 m below him and 1.5 to 1.9 m off the axis, 1.5 m from his eye; the drawn body reaches at most 3.9 m from the axis, so the stone hides nothing. In the shaft there is no line below the diver, so the staged bite 4 m along the line (open water) becomes a bite at his feet. A player looking level does not see it (the head is 104 to 126 degrees off the view); looking down, it fills the bottom of the screen. Not framed: the bite's look at 300 m is another engineer's lane today.
+- Evidence: `deep/Saved/Harness/wellserpent/run4.log`, `deep/Saved/Harness/shot-20261115-110232.log`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
