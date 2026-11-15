@@ -1,41 +1,67 @@
 ---
-updated: 2026-11-15 05:51 EST
+updated: 2026-11-15 07:01 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (written 2:52 AM Nov 15)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15)
 
-A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. **The polish pass has started (D-033, Quinn's go at about 2:47 AM).** Two Opus engineers are running, and their reports go to the session that started them, so a new session checks their branches: (a) `polish/water` in `.wt\dev`: the sea at each depth, the lamp, particles, the hatch pool, ray tracing; (b) `polish/monster` in `.wt\monster`: the serpent's body, skin, markings, eyes and motion. **Neither merges until Quinn has seen its frames** (`devlog/media/2026-11-15-water-*.png` and `2026-11-15-serpent-*.png`). When he approves: run `verify` in the branch's checkout, merge, push. Every polish brief links to `02 - Design/Style Guide.md` and `03 - Research/Polish - Start Here.md`. Next lanes, once one of these frees a checkout: the placement loader (plan WP2), then the room inside and the HUD. Waiting on Quinn: installing packs (Megascans rocks, Modular Ship Interior, Industrial Infrastructure, and Dragon Cave, which has realistic dragon meshes that could serve as the serpent's head and the 500 m site); the DLSS plugin download for the NVIDIA award (D-032); an OpenAI key for the Captain's voice.
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
-**Monster, first pass (3:38 AM): built but not good enough, not merged.** `polish/monster` at `12b6968` has the continuous body, the mesh head socket, the skin, markings, eyeshine and motion. In its frames (`.wt\monster\devlog\media\2026-11-15-serpent-*.png`) it reads as a glowing teal eel: a rim glow outlines the whole body, the head is a smooth blob with large white eyes. Second pass, on the same branch, once the water look is in so it is judged in the real light: rim glow close to zero, the body seen only by glints and silhouette, eyes as small points, scale detail on the skin, a larger animal, and the Dragon Cave head as soon as Quinn installs the pack (D-034). The cook path for `/Game/Deep/Serpent` still has to be added to `DefaultGame.ini`.
+**Where things are**
 
-**Water, first pass: built but not at the bar, not merged.** `polish/water` at `1f99715`. The depth mood is right and frame times are good. In its frames (`.wt\dev\devlog\media\2026-11-15-water-*.png`) the lamp is a soft disc that lands on nothing, the specks read as a starfield, every frame looks into empty water, and 500 m is green. 
+- `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
+- `polish/integration` at `4f860e9`: everything built since. Water, the room, hull and salvage, the driving view, the serpent's three passes, the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), and the ending fix. Full suite 66 of 66 (gate run at `20c77c5`; the commits after it are notes and an empty list). It is checked out in `.wt\monster`, the orchestrator's merge checkout.
+- **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Second passes started at 3:40 AM, one Opus engineer each, from the orchestrator's written review of the frames.** Water adds a code-built sea floor so the lamp lands on something. The monster merges the water branch first, so it is judged in the real light. Their frames will be `2026-11-15-water2-*.png` and `2026-11-15-serpent2-*.png`. Still nothing merges until Quinn has seen frames. **The biggest missing piece is geometry for light to land on, which needs Quinn to install packs:** Megascans rocks and a silt or sand surface, Dragon Cave, Modular Ship Interior, Industrial Infrastructure.
+**Running now (started 6:57 AM, both Opus at high)**
 
-**Monster, second pass: a real step forward, still not merged.** `polish/monster` at `f947013` (it includes the water look's first pass). No outline glow, a dark scaled body seen only in the lamp, small eyes, a flat toothed head. Frames `2026-11-15-serpent2-*.png`: `recoil` and `eyes-lit` work; `bite` is still a cone with teeth. Next for the monster, once the water's second pass is in: the Dragon Cave head (needs Quinn's install) and a staged first sight at 6 to 8 m, which means a small addition to the brain.
+Their reports go to the session that started them, so a new session checks the branches.
 
-**The HUD lane started at 4:19 AM** (`polish/hud` in `.wt\pkg`, Opus): the real HUD in native C++ from the style guide. Frames will be `2026-11-15-hud-*.png`. **Running now: water second pass and the HUD.** Free checkouts: `.wt\monster`, `.wt\text`. When the water's second pass lands, publish one page of frames for Quinn to approve, then start the room inside.
+- `polish/dragon` in `.wt\pkg`: the serpent's head from the Dragon Cave dragon (D-034). The join between head and body is the test. Frames `devlog/media/2026-11-15-dragon-*.png`.
+- `polish/dressing` in `.wt\dev`: the placement loader (plan section 7), the cook hook, then rock and ruin from Dragon Cave at the 500 m site, on the sea floors and on the trench wall. Frames `devlog/media/2026-11-15-dressing-*.png`.
+- When one reports: look at its frames yourself, write the verdicts, run the gate, merge into `polish/integration`, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review, not into the branch.
+- Free checkout: `.wt\text`. The writer's draft of the itch.io page is in `devlog/itch-page.md` and the status of every submission requirement is in `01 - Jam/Submission Checklist.md` (both in `main`). **Not yet met, by risk:** no 30 to 60 s gameplay video; no itch.io page; nobody has played by hand; no run on a second machine; the Official Rules PDF is unread; team name and Epic account emails; no public dev log link (Glass Box needs one). After the checkpoint package, have an agent record a scripted run as a fallback video.
 
-**Water, second pass (4:20 AM): now a real base.** `polish/water` at `5b3b0e7`: a silt sea floor, a cone beam that lands on things, drifting matter only in light, black at 500 m, 6 to 8 ms a frame. Frames `2026-11-15-water2-*.png`; `floor-rake` is the standard. It moved the relic into a sinkhole (gameplay data: Quinn's eye needed).
+**The Dragon Cave pack (D-036)**
 
-**THE GAME CANNOT BE WON IN REAL PLAY (found 5:50 AM by the scripted playtests).** The 60 kg relic overloads the diver, the only way up is the loud winch, the serpent cuts the tether 4 to 5 s in, and the overloaded diver sinks back into the sinkhole and dies: 3 of 3 runs. The full-run scenario had only passed because it teleports, so the ending was never played for real, on `main` either. **An Opus engineer is on it (`dev/win` in `.wt\dev`, started 5:51 AM):** first find out whether a player who uses the lamp can already win, then tune until a careful player wins and a careless one dies, proved by five runs with the lamp and three without (scenario `S10-relic`). When it reports: read its list of changed numbers, merge into integration with the gate, push. **Do not tell Quinn the branch is ready to merge until this is in.**
+- Quinn installed it at 3:31 AM through his own import project (`C:\Repositories\DeepImport`, Unreal 5.7). That editor is still open and is his: leave it alone. The pack is at `deep/Content/DragonCave/` in the main checkout: 4.8 GB, 333 files, kept outside git by a line in `.gitignore`.
+- It holds four static poses of a whole dragon (no skeleton, no separate head), cave rocks and large rocks, stone walls, columns, arches and stairs, skeletons, skulls, treasure, old timber and dead trees.
+- Each agent checkout sees it through a link at `.wt\<name>\deep\Content\DragonCave`. **Before removing a worktree, remove the link first (`cmd /c rmdir <link>`), and never run `git clean` in a worktree.** Either could delete Quinn's files through the link.
+- Only what the game uses may be cooked. The limit is 1 GB zipped, and the last zip was 427 MB. `deep/Content/Data/PackAssets.csv` lists the pack assets that code loads by path; the cook hook that reads it is part of the dressing lane. **Cut a package only from a checkout that has the link**, or the pack's meshes are missing from the build.
 
-**`polish/integration` is at `ac11138`: water + the room, hull and salvage + the driving view + monster third pass + the new HUD + settings, credits and a title menu + the second dev log post + the working fast playtest script (S0 to S12) + `main`. Full suite: 65 of 65.** A package of it at `cc139e6` passed and looked right. Use the gate snippet in `.claude/loop.md`. It is checked out in `.wt\monster`, the orchestrator's merge checkout. Free checkouts: `.wt\pkg`, `.wt\text`. **Waiting on Quinn:** his look at the frames page (URL in Claude's memory) and the word "merge"; installing Dragon Cave (the monster's head, D-034), Megascans rocks and surfaces, and the interior and hull packs; the DLSS plugin download; an OpenAI key; a key press on the title of the packaged build; listening to the sound.
+**The ending (D-035)**
 
-**Package of the integration branch, 5:05 AM: pass, and it looks right.** 708.1 MB on disk, zip 427.2 MB, smoke clean. Three frames captured from the packaged game match the editor's (`devlog/media/2026-11-15-packaged-*.png`): the room, the hatch pool, the sea floor in the lamp. One thing to check by hand: in the packaged build the start command is ignored for about the first four seconds after launch, so a very early key press on the title may be too. The build is at `.wt\pkg\Builds\Windows\Deep.exe`.
+- The 5:50 AM alarm, "the game cannot be won", was half wrong. The scripted player winched in bursts, and that is why it was cut. A player who simply held the winch won every time and never needed the lamp, because the winch was as fast as the serpent. So the ending was not impossible. It was trivial, or, for a diver cut in the shaft, a trap.
+- Fixed on `dev/win` and merged. With the relic the winch runs at 4 m/s, not 7. The relic's shaft is straight under the hatch (`Arena.RelicOutM` 8 to 0) and wider (`Look.SeabedPitRadiusM` 2.5 to 4.5).
+- Scripted results: with the lamp, 5 of 5 win after a 21 s ascent. Without it, 0 of 3 win, and all three drop the relic and get home alive. The full-run scenario now winches the relic home and passes.
+- **Quinn decides:** (1) the relic straight under the hatch is a layout change; (2) whether the serpent should hunt the moment it cuts the line, so a careless diver dies and does not only lose the relic; (3) a diver cut at the very bottom of the shaft could not swim out in the script (`S10-cutdrop` fails 2 of 2), which needs a try by hand.
 
-1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
-2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
-3. **Still unconfirmed in the research:** the Official Rules PDF, seven sound needs with no candidate, most Freesound licences, the download size of every pack, and how long the first cook with pack materials takes.
-4. **Scripted playtests are deferred until a checkpoint (D-031, Quinn at about 2:30 AM).** The fast-playtests agent (`.wt\pkg`) was told to stop, keep its work on `tools/regress` if it runs or on `parked/fast-playtests` if it is half-done, and close its editor. Check that no Unreal editor is left running and that `.wt\pkg` is clean. Do not dispatch playtest work until a package is about to be cut. Deferred with it: proof in real play that the diver gets home from the side (`0874fe5`), which Quinn can check by hand.
-5. One Unreal editor at a time: the machine has 32 GB of RAM and about 6 GB free with no editor open.
-6. **Polish is one planned pass (D-028), and a priority equal to gameplay (D-029).** Research and planning now. No HUD, look, effect or sound-finish work is dispatched until Quinn has chosen from the research and given the pass a start time.
-7. The three later research notes (engine skills, outside tools, polish craft) are merged and folded into `Polish - Start Here.md`.
+**Next checkpoint: when both lanes are in**
 
-After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
+1. Package from `.wt\monster`, smoke, zip, and check the size against 1 GB.
+2. Three frames from the packaged game against the editor's.
+3. The scripted playtest set, once (D-031 allows it at a checkpoint).
+4. Update the frames page and tell Quinn.
+
+**Waiting on Quinn**
+
+- His look at the frames page and the word "merge". The three ending decisions above.
+- More packs, if he wants them: Megascans rocks and a silt or sand surface, Modular Ship Interior, Industrial Infrastructure. The room and the hull are still boxes.
+- The DLSS plugin download for the NVIDIA award (D-032). An OpenAI key for the Captain's voice.
+- By hand: a key press on the title of a packaged build, listening to the sound, volume and mouse feel, and whether settings survive a restart. The last packaged build (`.wt\pkg\Builds\Windows\Deep.exe`, from `cc139e6`) is older than the settings menu and the ending fix.
+- Team name, student status, Fun Ideas picks, and where the public dev log is hosted.
+
+**Standing reminders**
+
+- Polish rules: `03 - Research/Polish - Start Here.md` and `02 - Design/Style Guide.md`. Every polish brief links to both. No half-done polish (D-028), one style (D-030).
+- Every Unreal launch goes through the machine-wide slot. The snippet is in `.claude/loop.md`, and every brief must carry it, because the role files do not.
+- Scripted playtests and packages run only at checkpoints (D-031).
+- Sunday: feature freeze 3 PM, final package and video 5 PM, submitted by 8 PM. The deadline is 8:59 PM.
+- Still unconfirmed from the research: the Official Rules PDF, seven sound needs with no candidate, and most Freesound licences.
+- After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
+- In a packaged build the start command is ignored for about the first four seconds after launch.
 
 ## State of the game
 
