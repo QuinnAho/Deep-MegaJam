@@ -195,6 +195,18 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: A new player can tell where they are and what to do from the room and the hatch shots alone. The helm shot is clear only because of the HUD. The camera under the hull sees mostly grey floor part-way down, so the descent does not yet feel like motion.
 - Evidence: `devlog\media\2026-11-14-sub-room.png`, `devlog\media\2026-11-14-sub-helm-descent.png` (172 m, between stops, limit 400), `devlog\media\2026-11-14-sub-hatch-from-below.png`.
 
+### 11:55 PM  Most of our usage was one long conversation
+- What happened: Quinn's usage panel tied 83 percent of the last day's usage to not starting fresh, 66 percent to max effort and 33 percent to subagent model choice (the shares overlap). The orchestrator session had run for four hours at max effort, so every one-line board update re-read the whole night.
+- Why it matters: the agents were already cheap, with a named model and effort since about 9:20 PM. The orchestrator was the expensive part. The fix was a handoff section at the top of the board so a new session can take over from git branches, project settings that start sessions at medium effort and compact at 200k tokens, and compacting this session. An orchestrator needs a short memory more than a long one.
+- Evidence: `84287a7` (handoff), `bc392e5` (settings).
+
+## Sunday Nov 15 2026
+
+### 12:07 AM  You can walk around inside the submarine
+- What happened: the interior branch passed a second verification (39 of 39 tests) and merged. One room, a hatch in the floor, a console to bank at, and a helm that drives while the submarine stays still and the sea moves. Depth is gated by the flashlight, then the hull upgrade.
+- Why it matters: this was the biggest design change of the night, asked for at 11:20 PM and merged 47 minutes later. It was also the most expensive run so far: 37 minutes and 406k tokens. The orchestrator looked at two frames. The room reads clearly. The helm view does not: flat grey with three specks, so driving does not feel like moving. That is logged as the first item for the next feel pass and is not fixed.
+- Evidence: `0acf06d`, `devlog/media/2026-11-14-sub-room.png`, `devlog/media/2026-11-14-sub-helm-descent.png`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
