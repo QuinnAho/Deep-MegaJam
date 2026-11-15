@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 02:06 EST
+updated: 2026-11-15 02:10 EST
 ---
 # Board
 
@@ -9,13 +9,13 @@ The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules 
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polish research is finished and merged, and the pass is waiting on Quinn's choices (item 1). One agent is running (item 4). Its report goes to the session that started it, so a new session checks its branch instead:
 
-1. **Polish research is in (D-029).** Three notes in `03 - Research/`: `Polish - Assets.md`, `Polish - Sound, Voice, Fonts and References.md` and `Polish - Plan and Techniques.md`. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn answers:** the style (dark, worn and realistic, or stylised), which packs he installs, whether agents may create binary assets in their own folders during the pass (the plan's section 6), the sound source, the Captain's voice, and whether the code-only work packages start before 10 AM.
+1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
 3. **Still unconfirmed in the research:** the Official Rules PDF, seven sound needs with no candidate, most Freesound licences, the download size of every pack, and how long the first cook with pack materials takes.
 4. **Real-input playthrough** (`tools/regress`, in `.wt\pkg`, Sonnet at medium, started 1:39 AM, editor on port 8012). It adds scenario `S8-keys` and reports every step of the loop that fails on simulated keyboard and mouse input. Scripts and notes only, so merge without a gate. What fails is function and goes to an Opus engineer as fix batch two.
 5. One Unreal editor at a time: the machine has 32 GB of RAM and about 6 GB free with no editor open.
 6. **Polish is one planned pass (D-028), and a priority equal to gameplay (D-029).** Research and planning now. No HUD, look, effect or sound-finish work is dispatched until Quinn has chosen from the research and given the pass a start time.
-7. **Three more research agents, started 2:01 AM at Quinn's request** (notes only, no tests, no editor): `research/engine-skills` in `.wt\dev` (the agent skills Epic ships inside Unreal 5.9's toolset plugins, and which toolsets each work package should use); `research/ext-tools` in `.wt\text` (other Unreal MCP servers, and generation tools for the serpent, sound, voice and textures); `research/polish-craft` in `.wt\monster` (a polish checklist, existing agent skills, and an outline for our own `deep-polish` skill). Merge each note when its branch has a commit.
+7. The three later research notes (engine skills, outside tools, polish craft) are merged and folded into `Polish - Start Here.md`.
 
 After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
 
@@ -61,7 +61,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | Sound, voice, fonts, references | Sonnet, medium, `.wt\text` on `research/polish-web` | **Done 1:36 AM**, merged as `c019cfb`. | 1:32 AM |
 | The polish plan | Opus, high, `.wt\dev` on `research/polish-plan` | **Done 1:40 AM**, merged as `6ff4a2a`. Ten work packages in three lanes. | 1:32 AM |
 | Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | Scenario `S8-keys`: the first stop on simulated keyboard and mouse input, and a list of what fails. Editor on port 8012. | 1:39 AM |
-| Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | Read the skills Epic ships for agents (Niagara, MetaSound, widgets, textures, PCG, video) and map them to the work packages. | 2:01 AM |
+| Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | **Done 2:07 AM**, merged as `7256f6c`. | 2:01 AM |
 | Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | **Done 2:04 AM**, merged as `7c15b45`. | 2:01 AM |
 | Polish craft | Sonnet, medium, `.wt\monster` on `research/polish-craft` | **Done 2:03 AM**, merged as `e58a6e1`. | 2:01 AM |
 | Dev log post one | Sonnet, medium, `.wt\text` on `devlog/post1` | **Done 1:03 AM**, merged as `c263c9a`. `devlog/01-saturday-night.md`: the first five hours, for the Glass Box prize. A file only; nothing published. | 1:01 AM |
@@ -97,7 +97,7 @@ Models: submarine first, then salvage pieces, relic, serpent head. Sounds: breat
 
 ## Checkouts
 
-The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: none. One Unreal editor at a time: the machine has 32 GB of RAM and had 1.5 GB free at 1:55 AM.
+The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator runs the merge gate in the branch's own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\dev`, `.wt\monster`, `.wt\text`. One Unreal editor at a time: the machine has 32 GB of RAM and had 1.5 GB free at 1:55 AM.
 
 ## Done
 
@@ -124,3 +124,4 @@ The main checkout is Quinn's and he may keep the editor open on it (port 8000: n
 | Scripted playtests for the new flow; package with sound proven | 12:59 AM | `844cbee` |
 | The title starts on any key or click; tether distance fixed | 1:29 AM | `6f2e259` |
 | Polish research: assets, sound and voice, the plan; a visual board for Quinn | 1:44 AM | `6ff4a2a` |
+| Six research notes for the polish pass, with one index note | 2:10 AM | `7256f6c` |
