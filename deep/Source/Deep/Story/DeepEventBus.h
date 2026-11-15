@@ -53,6 +53,11 @@ namespace DeepEvent
 	inline const TCHAR* HelmDepthLimit = TEXT("helm_depth_limit");
 	inline const TCHAR* HelmArrive = TEXT("helm_arrive");
 	inline const TCHAR* IdleInside = TEXT("idle_inside");
+	// The cave shaft: brushing the rock, knocking into it, and the hull giving out.
+	inline const TCHAR* HelmScrape = TEXT("helm_scrape");
+	inline const TCHAR* HelmHit = TEXT("helm_hit");
+	inline const TCHAR* HullBreach = TEXT("hull_breach");
+	inline const TCHAR* HullCritical = TEXT("hull_critical");
 
 	/** Every event the game fires today. */
 	DEEP_API TArray<FName> AllFired();
@@ -78,6 +83,10 @@ struct FDeepEventPayload
 
 	UPROPERTY(BlueprintReadOnly, Category = "Deep")
 	float DepthM = 0.f;
+
+	/** The hull's integrity 0..1 after the event (helm_hit, helm_scrape, hull_critical, hull_breach); 1 otherwise. */
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float HullIntegrity01 = 1.f;
 
 	/** The actor the event is about (usually the diver). May be null. */
 	UPROPERTY(BlueprintReadOnly, Category = "Deep")

@@ -12,11 +12,13 @@
 #include "Monster/DeepMonsterSettings.h"
 #include "Monster/DeepSerpent.h"
 #include "Net/UnrealNetwork.h"
+#include "Sim/DeepCaveRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptainLines.h"
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 
 UDeepRunComponent::UDeepRunComponent()
@@ -461,6 +463,165 @@ void UDeepRunComponent::StepAboard(float DeltaSeconds)
 
 void UDeepRunComponent::StepHelm(float DeltaSeconds)
 {
+	const bool bAutopilot = AutopilotDepthM >= 0.f;
+	StepHelmDepth(DeltaSeconds);
+	if (bSeated)
+	{
+		StepShaft(DeltaSeconds, bAutopilot);
+	}
+}
+
+void UDeepRunComponent::StepShaft(float DeltaSeconds, bool bAutopilot)
+{
+	ADeepGameState* GameState = GetGameState();
+	if (!GameState || DeltaSeconds <= 0.f)
+	{
+		return;
+	}
+	// Off, or parked (the game state glides the offset home): no steering, no rock.
+	if (!DeepShaft::IsOn() || GameState->bParked)
+	{
+		SteerVelMps = FVector2D::ZeroVector;
+		ScrapeSeconds = 0.f;
+		return;
+	}
+	ShaftClock += DeltaSeconds;
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const TArray<float> Stops = Tuning.StopDepthsM();
+	FVector BoxMin, BoxMax;
+	DeepShaft::SubBoxM(DeepArena::FindSubmarine(GetWorld()), BoxMin, BoxMax);
+	const float MinR = UDeepCaveRules::MinRadiusM(BoxMin, BoxMax, Cave);
+	const float DepthM = GameState->SubDepthM;
+
+	FVector2D Offset = GameState->SubOffsetM;
+	if (bAutopilot)
+	{
+		// The autopilot holds the passage's centre (a quick ease from wherever the pilot left it).
+		const FVector2D Centre = UDeepCaveRules::CentreM(DepthM, Stops, Cave);
+		Offset = Centre + (Offset - Centre) * FMath::Exp(-6.f * DeltaSeconds);
+		// Within a centimetre: exactly on it, so a parked sub sits exactly where it did before the shaft.
+		if (FVector2D::DistSquared(Offset, Centre) < FMath::Square(0.01f))
+		{
+			Offset = Centre;
+		}
+		SteerVelMps = FVector2D::ZeroVector;
+	}
+	// Substeps: a fast sub never passes through the rock between two ticks.
+	const int32 Steps = FMath::Clamp(FMath::CeilToInt(DeltaSeconds / 0.05f), 1, 40);
+	const float Dt = DeltaSeconds / Steps;
+	bool bTouching = false;
+	float ImpactMps = 0.f;
+	for (int32 Index = 0; Index < Steps; ++Index)
+	{
+		if (!bAutopilot)
+		{
+			SteerVelMps = UDeepCaveRules::SteerVelocity(SteerVelMps, HelmSteer, Dt, Cave);
+			Offset += SteerVelMps * Dt;
+		}
+		const FDeepCaveContact Hit = UDeepCaveRules::Contact(Offset, DepthM, BoxMin, BoxMax, Stops, MinR, Cave);
+		if (!Hit.bTouching)
+		{
+			continue;
+		}
+		bTouching = true;
+		ImpactMps = FMath::Max(ImpactMps, Hit.PenetrationM / Dt);
+		Offset -= Hit.Normal * Hit.PenetrationM;
+		const float Into = FVector2D::DotProduct(SteerVelMps, Hit.Normal);
+		if (Into > 0.f)
+		{
+			SteerVelMps -= Hit.Normal * Into * (1.f + FMath::Clamp(Cave.Bounce, 0.f, 1.f));
+		}
+	}
+	if (!Offset.Equals(GameState->SubOffsetM, 0.0001f))
+	{
+		GameState->SubOffsetM = Offset;
+		DeepArena::MoveRoot(GetWorld());
+	}
+	if (bAutopilot)
+	{
+		ScrapeSeconds = 0.f;
+		return;
+	}
+
+	// A knock (fast into the rock): dents by impact speed, then a cooldown. Holding against it: a scrape, a dent a while.
+	const int32 Damage = UDeepCaveRules::HitDamage(ImpactMps, Cave);
+	if (Damage > 0 && ShaftClock - LastHitClock >= Cave.HitCooldownSeconds)
+	{
+		LastHitClock = ShaftClock;
+		LastScrapeClock = ShaftClock;
+		ScrapeSeconds = 0.f;
+		DentHull(Damage, DeepEvent::HelmHit, ImpactMps);
+		return;
+	}
+	if (!bTouching)
+	{
+		return;
+	}
+	ScrapeSeconds += DeltaSeconds;
+	int32 Scraped = 0;
+	if (Cave.ScrapeSecondsPerDamage > 0.f && ScrapeSeconds >= Cave.ScrapeSecondsPerDamage)
+	{
+		ScrapeSeconds -= Cave.ScrapeSecondsPerDamage;
+		Scraped = 1;
+	}
+	if (ShaftClock - LastScrapeClock >= Cave.ScrapeCooldownSeconds)
+	{
+		LastScrapeClock = ShaftClock;
+		DentHull(Scraped, DeepEvent::HelmScrape, ImpactMps);
+	}
+	else if (Scraped > 0)
+	{
+		DentHull(Scraped, nullptr, ImpactMps);
+	}
+}
+
+void UDeepRunComponent::DentHull(int32 Points, const TCHAR* Event, float ImpactMps)
+{
+	ADeepGameState* GameState = GetGameState();
+	if (!GameState)
+	{
+		return;
+	}
+	const FDeepCaveTuning& Cave = UDeepTuningSettings::Get().Cave;
+	const int32 DamageBefore = GameState->HullDamage;
+	if (Points > 0)
+	{
+		GameState->HullDamage += Points;
+		// Billed at the console with the harpoon's dents (DeepHarpoon::BillHullRepairs).
+		GameState->HullRepairsOwed += Points;
+	}
+	UE_LOG(LogTemp, Log, TEXT("DEEPCAVE %s +%d hull (%d), impact %.1f m/s at %.1f m"), Event ? Event : TEXT("scrape"), Points, GameState->HullDamage, ImpactMps, GameState->SubDepthM);
+	if (Cave.bHullBreachKills && UDeepCaveRules::IsBreached(GameState->HullDamage, Cave))
+	{
+		// Breached: the room floods, the diver at the helm drowns. The next diver gets a patched hull and the bill.
+		GameState->HullDamage = 0;
+		HelmInput = 0.f;
+		HelmSteer = FVector2D::ZeroVector;
+		SteerVelMps = FVector2D::ZeroVector;
+		AutopilotDepthM = -1.f;
+		bSeated = false;
+		bHelmAtLimit = false;
+		bWasDriving = false;
+		ScrapeSeconds = 0.f;
+		DieFor(DeepEvent::HullBreach, false);
+		return;
+	}
+	FDeepEventPayload Payload;
+	Payload.DepthM = GameState->SubDepthM;
+	Payload.HullIntegrity01 = UDeepCaveRules::HullIntegrity01(GameState->HullDamage, Cave);
+	if (Event)
+	{
+		Fire(Event, Payload);
+	}
+	if (UDeepCaveRules::CrossesCritical(DamageBefore, GameState->HullDamage, Cave))
+	{
+		Fire(DeepEvent::HullCritical, Payload);
+	}
+}
+
+void UDeepRunComponent::StepHelmDepth(float DeltaSeconds)
+{
 	ADeepGameState* GameState = GetGameState();
 	if (!GameState)
 	{
@@ -788,6 +949,7 @@ void UDeepRunComponent::TakeHelm()
 	}
 	bSeated = true;
 	HelmInput = 0.f;
+	HelmSteer = FVector2D::ZeroVector;
 	AutopilotDepthM = -1.f;
 	bWasDriving = false;
 	bHelmAtLimit = false;
@@ -801,8 +963,10 @@ void UDeepRunComponent::LeaveHelm()
 	{
 		return;
 	}
-	// Standing up releases the control: park if close enough to a stop.
+	// Standing up releases the control: park if close enough to a stop. In the shaft the sub drifts to a stop sideways.
 	HelmInput = 0.f;
+	HelmSteer = FVector2D::ZeroVector;
+	SteerVelMps = FVector2D::ZeroVector;
 	AutopilotDepthM = -1.f;
 	StepHelm(0.f);
 	bSeated = false;
@@ -844,6 +1008,29 @@ void UDeepRunComponent::ServerSetHelmInput_Implementation(float Input)
 	SetHelmInput(Input);
 }
 
+void UDeepRunComponent::SetHelmSteer(FVector2D Steer)
+{
+	Steer = Steer.GetClampedToMaxSize(1.f);
+	if (GetOwner()->HasAuthority())
+	{
+		HelmSteer = Steer;
+		// Steering takes the helm back from the autopilot, as the depth keys do.
+		if (!Steer.IsNearlyZero())
+		{
+			AutopilotDepthM = -1.f;
+		}
+	}
+	else
+	{
+		ServerSetHelmSteer(Steer);
+	}
+}
+
+void UDeepRunComponent::ServerSetHelmSteer_Implementation(FVector2D Steer)
+{
+	SetHelmSteer(Steer);
+}
+
 void UDeepRunComponent::CutTether(bool bRequested)
 {
 	CutTetherFor(bRequested ? DeepEvent::CutRequested : DeepEvent::CutPatience);
@@ -864,10 +1051,19 @@ void UDeepRunComponent::CutTetherFor(const TCHAR* Event)
 
 void UDeepRunComponent::Die(bool bByMonster)
 {
+	DieFor(bByMonster ? DeepEvent::DeathMonster : DeepEvent::DeathAir, bByMonster);
+}
+
+void UDeepRunComponent::DieFor(const TCHAR* Event, bool bByMonster)
+{
 	bLastDeathMonster = bByMonster;
 	ADeepDiver* Diver = GetDiver();
 	FDeepEventPayload Payload;
 	Payload.DepthM = Diver ? Diver->GetDepthM() : 0.f;
+	if (FCString::Strcmp(Event, DeepEvent::HullBreach) == 0)
+	{
+		Payload.HullIntegrity01 = 0.f;
+	}
 	if (Diver)
 	{
 		Diver->SetWinching(false);
@@ -877,7 +1073,7 @@ void UDeepRunComponent::Die(bool bByMonster)
 	BailoutAirSeconds = 0.f;
 	SetState(EDeepRunState::Dead);
 	StateTimeLeft = FMath::Max(0.f, UDeepTuningSettings::Get().Run.DeathScreenSeconds);
-	Fire(bByMonster ? DeepEvent::DeathMonster : DeepEvent::DeathAir, Payload);
+	Fire(Event, Payload);
 }
 
 void UDeepRunComponent::Respawn()
@@ -1100,6 +1296,12 @@ void UDeepRunComponent::ResetRun(bool bToTitle)
 	HelmInput = 0.f;
 	AutopilotDepthM = -1.f;
 	IdleSeconds = 0.f;
+	HelmSteer = FVector2D::ZeroVector;
+	SteerVelMps = FVector2D::ZeroVector;
+	ShaftClock = 0.0;
+	LastHitClock = -1000.0;
+	LastScrapeClock = -1000.0;
+	ScrapeSeconds = 0.f;
 	ChatterLastTime.Reset();
 	// Every run starts aboard, on the deck; on the title it waits there for a key.
 	DeepArena::RespawnSalvage(GetWorld());

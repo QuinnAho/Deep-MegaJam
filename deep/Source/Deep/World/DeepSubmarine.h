@@ -114,6 +114,10 @@ protected:
 	bool bHelmManned = false;
 	bool bWasParked = true;
 	float SettleAge = 100.f;
+	/** The cave shaft: a knock on the rock jolts the helm camera (from the replicated hull dents, so every machine). */
+	int32 LastHullDamageSeen = -1;
+	float JoltDeg = 0.f;
+	float JoltAge = 0.f;
 
 	/** A cliff of rock ahead of the helm, slid up as the sub descends; visible only while the helm is manned. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")

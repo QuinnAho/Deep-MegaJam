@@ -71,6 +71,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
 	FDeepSubTuning Sub;
 
+	/** The cave shaft between stops: its shape, the helm's steering and the wall's hits (Sim/DeepCaveRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Cave")
+	FDeepCaveTuning Cave;
+
 	/** Displayed depth of each stop (Stops[i].SubDepthM), shallowest first. */
 	TArray<float> StopDepthsM() const;
 

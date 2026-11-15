@@ -1080,7 +1080,7 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 		const int32 NewStop = NewReachableStop(State);
 		Next = FString::Printf(TEXT("PARKED AT %.0f m"), Tuning.GetStop(Parked).SubDepthM);
 		Why = NewStop > 0
-			? FString::Printf(TEXT("Hold [%s] or [S] to dive to %.0f m.  [%s] stand up, then drop through the hatch."), *Down, Tuning.GetStop(NewStop).SubDepthM, *ADeepPlayerController::KeyHint(TEXT("Use")))
+			? FString::Printf(TEXT("Hold [%s] to dive to %.0f m.  [%s] stand up, then drop through the hatch."), *Down, Tuning.GetStop(NewStop).SubDepthM, *ADeepPlayerController::KeyHint(TEXT("Use")))
 			: FString::Printf(TEXT("[%s] stand up, then drop through the hatch to dive here."), *ADeepPlayerController::KeyHint(TEXT("Use")));
 	}
 	else

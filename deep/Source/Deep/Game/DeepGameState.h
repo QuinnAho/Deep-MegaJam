@@ -24,6 +24,17 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	float SubDepthM = 100.f;
 
+	/**
+	 * The sub's sideways place in the cave shaft (m, X = ahead, Y = starboard, relative to the stops' column). Zero at
+	 * every stop once parked (it glides home). The sub never moves; the arena root moves by -SubOffsetM. Sim/DeepCaveRules.
+	 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	FVector2D SubOffsetM = FVector2D::ZeroVector;
+
+	/** The hull for the HUD: 1 whole, 0 breached (HullDamage against Cave.HullBreachDamage). */
+	UFUNCTION(BlueprintPure, Category = "Deep")
+	float GetHullIntegrity01() const;
+
 	/** Parked at Stop's depth: the hatch is open. False while driving or hanging between stops. */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	bool bParked = true;
@@ -90,6 +101,9 @@ public:
 
 	/** The performance review from the run totals. Divers expended = written-off divers (DiverNumber - 1). */
 	FDeepRunReview BuildReview() const;
+
+	/** Server: parked off-centre, the sub glides home to the stop's centre (Cave.ParkGlideMps); with the shaft off the offset is cleared. */
+	void StepParkGlide(float DeltaSeconds);
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

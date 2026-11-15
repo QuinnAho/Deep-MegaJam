@@ -114,6 +114,10 @@ namespace DeepStateReport
 		Json->SetBoolField(TEXT("seated"), Run && Run->IsSeated());
 		Json->SetNumberField(TEXT("sub_depth_m"), State ? State->SubDepthM : 0.f);
 		Json->SetNumberField(TEXT("depth_limit_m"), State ? State->DepthLimitM() : 0.f);
+		// The cave shaft: the sideways offset from the stops' axis (sub frame, m) and the hull left before a breach.
+		Json->SetNumberField(TEXT("sub_offset_x_m"), State ? State->SubOffsetM.X : 0.f);
+		Json->SetNumberField(TEXT("sub_offset_y_m"), State ? State->SubOffsetM.Y : 0.f);
+		Json->SetNumberField(TEXT("hull_integrity"), State ? State->GetHullIntegrity01() : 1.f);
 		Json->SetBoolField(TEXT("has_flashlight"), State && State->HasFlashlight());
 		Json->SetBoolField(TEXT("hull_upgraded"), State && State->IsHullUpgraded());
 		Json->SetNumberField(TEXT("parked_stop"), State ? State->ParkedStop() : 0);
