@@ -28,6 +28,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-017 | Build our own MCP tooling: a command-line client, a `DeepToolset`, and scripted playtests | Decided (Quinn asked; the shape is Claude's) |
 | D-018 | A live AI brain for the Captain: later, as an add-on over the scripted lines | Deferred to about 1 PM Sunday (Quinn agrees it comes later) |
 | D-019 | The monster is a sea serpent with a procedural body and a five-state brain | Decided (snake by Quinn; the behaviour is Claude's first version, all tunable) |
+| D-020 | Raw gameplay first: no environment or atmosphere work until the loop plays | Decided (Quinn, 10:35 PM Nov 14) |
 
 ## Open
 
@@ -132,6 +133,14 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-020 Raw gameplay first, no environment yet
+- **Status:** Decided
+- **Date:** 2026-11-14, 10:35 PM EST
+- **Who:** Quinn: "i dont want any enviroment yet jsut raw gameplay workiung".
+- **Decision:** No fog, light or atmosphere work until the loop plays start to finish. The grey box should be plainly visible instead: fog off, fixed exposure, even light, so the submarine, salvage and tether can be seen and the gameplay judged.
+- **Why:** The first screenshots were a washed-out haze that hid the submarine and the salvage. Claude's response was to start a look pass on Opus. Quinn's call is the cheaper and faster one: a grey box only has to be visible, and tuning atmosphere before the gameplay exists is wasted if the gameplay changes.
+- **What follows:** The look agent (run 23) was stopped after seven minutes with nothing merged. The core-loop engineer owns the environment files again and is making the scene plain. The look pass, and the live tuning commands planned with it, move to after the loop is playable. This overrides the "darkness is the art budget" work in [[GDD]] for now; the principle stands for later.
 
 ### D-019 The monster is a sea serpent
 - **Status:** Decided for the creature. The behaviour is a first version for Quinn to shape.

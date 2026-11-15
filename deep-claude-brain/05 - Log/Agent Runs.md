@@ -21,10 +21,13 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 18 | 9:47 PM | writer | Sonnet 5.5, medium | Rewrite all 138 lines for the Captain after the rename (D-016); file becomes `CaptainLines.csv`. | 61k | 13 | 70 s | Done, commit `5021c7f`. Checked by the orchestrator: same ids and counts, ASCII, 10 lines say "Director's cut", no strong language. |
 
 | 19 | 9:56 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: command-line MCP client, live catalog of 5.9 toolsets, PIE round trip with a screenshot, how to write our own toolset. | 124k | 54 | 9.5 min | Green, commit `d19c1d4`, merged as `3dea698`. 106 toolsets and about 840 tools reported live. Round trip passed with a real captured frame. A custom toolset built, registered and called. |
-| 20 | 10:08 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: Patience, the cut, bailout, re-tether, respawn, bank, settlement screen, hull, descent, event bus, the Captain's subtitles, screenshot support. | | | | Running. |
-| 21 | 10:08 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: `DeepToolset` with real game state, scripted playtests S0 to S4 with screenshots, first look at the game. | | | | Running. |
+| 20 | 10:08 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: Patience, the cut, bailout, re-tether, respawn, bank, settlement screen, hull, descent, event bus, the Captain's subtitles, screenshot support. | not reported | | 25 min | Stopped by accident at 10:33 PM and could not be resumed. Two commits were already pushed (`e374c6b`, `7d3e234`) and seven files were left edited but uncommitted. Run 24 continues it. |
+| 21 | 10:08 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: `DeepToolset` with real game state, scripted playtests S0 to S4 with screenshots, first look at the game. | 107k | 48 | 17 min | Green, commit `d4db244`, merged as `ce7058a`. All five scenarios pass in about 2 minutes. Found a real bug (the winch stalls 7.4 m out from the side) and produced the first screenshots, which show the look is wrong. |
+| 23 | 10:28 PM | look engineer | Opus 5.5, high | In `.wt\pkg` on `look/pass1`: live tuning commands, 16:9 captures, then fix fog, exposure and light per stop by looking at frames. | not reported | | 7 min | Stopped by the orchestrator at 10:35 PM: Quinn wants raw gameplay before any environment work (D-020). Nothing merged. A cost of the orchestrator starting a look pass without asking. |
 
-| 22 | 10:17 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: the sea serpent. Procedural body, five-state brain, tests, console commands, new files only. | | | | Running. |
+| 22 | 10:17 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: the sea serpent. Procedural body, five-state brain, tests, console commands, new files only. Redirected mid-run to use Unreal's AI controller and hearing perception. | (to fill) | | 28 min | Green, commit `1ab0f29` on `dev/monster`, not merged. 20 of 20 tests. Not verified: nobody has seen it move. |
+
+| 24 | 10:38 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: take over run 20's uncommitted work, make the grey box plainly visible with no fog (D-020), fix the winch, HUD and tether findings, prove the loop at stops 1 and 2, merge `main` in. | | | | Running. |
 
 ## What the numbers say so far
 

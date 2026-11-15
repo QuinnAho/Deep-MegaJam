@@ -1,7 +1,7 @@
 ---
 updated: 2026-11-14 21:36 EST
 ---
-# Board
+WW# Board
 
 The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each item are in [[GDD]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
@@ -12,9 +12,13 @@ The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each it
 | Pipeline | build-sheriff | **Done 9:32 PM.** `tools\ue.ps1` exists; `build` (45 s cold, 5 s warm), `test` (17 s) and `verify` pass, and a failing test, an empty filter and a compile error each report FAIL. All Toolsets and Unreal MCP are in the `.uproject`. Not yet run: `package`, `zip`, `smoke`, `editor`. | 9:21 PM |
 | Gameplay | systems-engineer (Opus, high) | **Done 10:05 PM**, commit `a445002`. Items 1 and 2: rules with 14 tests, then the playable grey box (38 files, 3,785 lines, 15 of 15 tests). Nobody had pressed Play when it was committed. | 9:34 PM |
 | Gameplay | systems-engineer (Opus, high), in `.wt\dev` on `dev/loop` | Item 3 and item 5: Patience, the cut, bailout, re-tether, respawn, bank, settlement screen, hull, descent, event bus, the Captain's subtitles, `-DeepShot`. | 10:08 PM |
-| MCP tooling | tools agent (Sonnet, medium), in `.wt\pkg` on `tools/playtest` | Items 5a and 5b: `DeepToolset` with real game state, scripted playtests S0 to S4, screenshots into `devlog\media`. | 10:08 PM |
+| MCP tooling | tools agent (Sonnet, medium), in `.wt\pkg` on `tools/playtest` | **Done 10:25 PM**, merged as `ce7058a`. Items 5a and 5b: `DeepToolset` has `GetState`, `Exec` and `GetArena`; `tools\playtest.ps1 all` runs S0 to S4 in about 2 minutes and all pass. First screenshots are in `devlog\media`. | 10:08 PM |
+| Look | look engineer (Opus, high), in `.wt\pkg` on `look/pass1` | **Stopped 10:35 PM at Quinn's request** (D-020: raw gameplay first, no environment yet). Nothing merged. The look pass and the `Deep.Tune` live tuning commands wait until the loop plays. | 10:28 PM |
+| Gameplay | systems-engineer (Opus, high), a new agent continuing in `.wt\dev` | The first engineer was stopped by accident at 10:33 PM and could not be resumed, so a new one took over at 10:38 PM with its uncommitted edits. Already pushed on `dev/loop`: stops at 100 / 300 / 500 m (`e374c6b`), and the run loop with Patience, the cut, bailout, death and respawn, bank, settlement, descent and the Captain's subtitles (`7d3e234`). Now: make the grey box plainly visible with no fog, fix the winch, HUD and tether findings, merge `main` in, verify, push. | 10:36 PM |
 
-| Monster | systems-engineer (Opus, high), in `.wt\monster` on `dev/monster` | Item 7, pulled forward: the sea serpent (D-019). Procedural body, five-state brain, tests, console commands. New files only. Wiring to the cut and death happens after it and `dev/loop` are both merged. | 10:17 PM |
+**Open bugs from the first playtests**, sent to the core-loop engineer at 10:28 PM: the winch stalls 7.4 m out when approached from the side; HUD text is too small and the TAUT warning has low contrast; the tether renders as a thick glowing rod.
+
+| Monster | systems-engineer (Opus, high), in `.wt\monster` on `dev/monster` | **Done 10:45 PM**, commit `1ab0f29`, pushed, **not merged yet**. The sea serpent (D-019): a Pawn with a procedural body, an `AAIController` with Unreal's hearing perception, a five-state brain as tested pure functions, console commands. 20 of 20 tests. New files only, plus `AIModule` in `Deep.Build.cs`. Nobody has seen it move. Merge it after `dev/loop`, then wire: noise sources, bite to the cut (`NotifyTetherCut` / `NotifyRetethered`), caught to death, threat to sound and HUD. | 10:17 PM |
 
 **Checkouts.** The main checkout is Quinn's: he may keep the editor open on it. Agents build only in `.wt\dev` and `.wt\pkg` and push branches; the orchestrator merges into `main` after `verify` passes. After a merge Quinn restarts the editor to pick up new code.
 | Writing | director-writer | **Done 9:30 PM.** 138 lines across 41 events in `deep\Content\Data\DirectorLines.csv`, 24 fee labels in `SettlementFees.csv`. Checked: ASCII, no duplicate ids, longest line 15 words. | 9:21 PM |
