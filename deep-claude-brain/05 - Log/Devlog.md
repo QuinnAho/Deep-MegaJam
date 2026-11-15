@@ -297,6 +297,16 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: Everything committed survived, which is the argument for committing at every green step. The green but unpushed merge was pushed by the next session at 11:31 AM. Lost: the three engineers' context, the ending playtests on the new build, and the effects engineer's half-built fourth try, which is on disk but uncommitted. A new session picked up the state from git, the board and the tail of the old session's log in about ten minutes.
 - Evidence: integration `b7755a1`; `.wt\monster\deep\Saved\Harness\package-20261115-111700.log`; frames `devlog/media/2026-11-15-wellserpent-*.png`, `-opening-*.png`, `-fx-try3-*.png` on the lane branches; Windows System log, Kernel-Power 41 and EventLog 6008 ("previous system shutdown at 11:19:45 AM was unexpected").
 
+### 12:02 PM  Quinn changes the game: drive the sub down caves by sonar (orchestrator)
+- What happened: At 11:44 AM the first-five-minutes pass merged cleanly (one conflict, in a notes file): verify 78 of 78, package and smoke green, zip 762 MB. Then Quinn rethought the game: "what makes this game fun and driving the sub with a radar mechanic or something is part of it really also i think we must do caverns because if your swimming in an open ocean it really lessens it". Hitting walls is what should damage the hull.
+- The orchestrator pushed back on part of it. Free driving through branching tunnels would rewrite how the sub, the tether, the stops and the ending work. Today the sub never moves; the whole world slides past it. It offered a version that keeps all of that: between stops the descent becomes a winding cave shaft that you steer through sideways; the sonar shows the walls around you and 20 m below; every stop becomes a cavern. Quinn also asked why features froze at 3 PM. They don't have to: that was our own buffer, and the jam's only deadline is 8:59 PM. The freeze moved to 5:30 PM (D-038, D-039).
+- Three Opus engineers started at 12:02 PM, one each for the shaft, the caverns and the sonar, in three checkouts. Before writing a line they agreed one contract: at every stop the passage is centred on the parked sub with a 14 m radius; every cave surface answers the sonar's traces; each part has a switch that gives back today's game. Whatever isn't solid by 5:30 PM ships switched off.
+- The machine crashed at 11:19 with two Unreal editors up, so four engineers and the orchestrator now take turns: every build, test and frame waits for one shared lock. At 11:47 AM a small sonnet fix (coming aboard, the view levels instead of staring at the ceiling) got its 10-second build and 23-second test into the gap between the orchestrator's package and its playthroughs.
+- Cut to make room: bubbles. The fourth try was half-built when the machine went down. It is committed, unfinished, on its own branch.
+- Why it matters: this is the biggest design change since the submarine room, made nine hours before the deadline. The switches are what make it a bet we can afford.
+- Evidence: integration `ad644df` (`.wt\monster\deep\Saved\Harness\package-20261115-114533.log`, 0 usage-flag lines); `polish/aboard` `2f27da3`; `polish/fx-wip4` `f7a3fce`; D-038 and D-039 in [[Decision Log]].
+
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

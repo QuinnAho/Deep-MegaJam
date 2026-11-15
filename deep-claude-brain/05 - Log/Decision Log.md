@@ -46,6 +46,8 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-035 | The last ascent: the winch is slower with the relic, and the relic's shaft is straight under the hatch | In the integration branch (engineer, 6:45 AM Nov 15); Quinn can overrule |
 | D-036 | Packs stay where they are installed, agents link to them, and the cook takes only what is used | Decided (orchestrator, 6:55 AM Nov 15) |
 | D-037 | The relic becomes a real object, and the well holds its light | In the integration branch (8:56 AM Nov 15); Quinn can overrule |
+| D-038 | Feature freeze moves from 3 PM to 5:30 PM | Quinn, 11:58 AM Nov 15 |
+| D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; three lanes building |
 
 ## Open
 
@@ -59,6 +61,24 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-039 Drive the sub down a winding cave shaft with a sonar; every stop is a cavern
+- **Status:** Decided by Quinn (11:55 AM Nov 15). Three lanes building: `polish/shaft`, `polish/cavern`, `polish/sonar`.
+- **Date:** 2026-11-15, 11:55 AM EST
+- **Who:** Quinn. The orchestrator challenged the full version and offered a scoped one.
+- **Quinn's words:** "what makes this game fun and driving the sub with a radar mechanic or something is part of it really also i think we must do caverns because if your swimming in an open ocean it really lessens it". And earlier: bumping into walls is what damages the hull.
+- **Decision:**
+  - Between stops the helm descent becomes a cave shaft that bends, opens into caverns and pinches into squeezes. The player steers sideways to follow it. A wall hit jolts the view, scrapes, makes the Captain sneer and damages the hull. A breach kills the diver aboard, through the existing death and respawn path.
+  - A sonar at the helm shows the walls round the sub and 20 m below, plus salvage and the serpent.
+  - Every stop's arena is enclosed: rock walls and a roof, the sea bed as the floor, and a 14 m opening over the sub where the shaft comes in.
+  - This un-cuts **Sonar** from the GDD's Cut list. It is Quinn's call.
+- **Not done:** free driving through branching tunnels. The sub is the fixed point that the tether, hatch, stops, serpent and ending hang from (the world slides past it), so free driving would mean rewriting them under freeze. The shaft keeps that: at every stop the passage is centred on the parked sub.
+- **Safety:** each part is behind its own switch (`Deep.Cave.Shaft`, `Deep.Cave.Cavern`, `Deep.Sonar`). Set to 0, a switch gives back today's game exactly, so any part that is not solid by 5:30 PM ships switched off.
+- **Cost:** the fourth bubbles try (FX lane, half-built at the 11:19 crash) is parked on `polish/fx-wip4`, unfinished.
+
+### D-038 Feature freeze moves from 3 PM to 5:30 PM
+- **Status:** Decided by Quinn (11:58 AM Nov 15).
+- **Why:** the 3 PM freeze was the team's own buffer, set on the Board; the jam only requires the entry by 8:59 PM EST. The new plan is: features until 5:30 PM, the final scripted playthroughs and package at 6 PM, the video, itch page and form from 6 to 7:30 PM, and submission by 8 PM. That still leaves an hour for a crash or a bad merge (the machine went down at 11:19 AM).
 
 ### D-037 The relic becomes a real object, and the well holds its light
 - **Status:** Built, in the integration branch (`5ae5f0b`, 8:56 AM Nov 15). Quinn can overrule.

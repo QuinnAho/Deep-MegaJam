@@ -1,30 +1,35 @@
 ---
-updated: 2026-11-15 11:35 EST
+updated: 2026-11-15 12:05 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 11:35 AM after the crash)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 12:05 PM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` on origin at `b7755a1`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit, rebuilt silt, and the serpent kept inside the well on the last ascent. Full suite 78 of 78; packaged and smoke-tested at `b7755a1` (11:18 AM), zip 762 MB, no usage-flag lines. All 14 scripted playthroughs passed at `a942e1c`; the ending set has not run on `b7755a1`, because the machine went down as it started. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
+- `polish/integration` on origin at `ad644df` (the first-five-minutes pass merged at 11:44 AM: verify 78 of 78, package and smoke green, zip 762 MB, 0 usage-flag lines): everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit, rebuilt silt, and the serpent kept inside the well on the last ascent. Full suite 78 of 78; packaged and smoke-tested at `b7755a1` (11:18 AM), zip 762 MB, no usage-flag lines. All 14 scripted playthroughs passed at `a942e1c`; the ending set has not run on `b7755a1`, because the machine went down as it started. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**After the crash (11:19:45 AM; a new orchestrator session picked up at 11:25 AM)**
+**Now (12:05 PM): the scope changed (D-038, D-039)**
 
-- The machine reset without shutting down (Kernel-Power 41, no bugcheck recorded). The orchestrator session and all three engineers died. At that moment two Unreal editors were up: the effects engineer's, and the orchestrator's playtest editor started 27 s earlier. The cause is not proved. Until it is, **one Unreal editor on the machine at a time**, the orchestrator's playtests included.
-- `polish/wellserpent`: done, merged and pushed (`b7755a1`). The packaged build `.wt\monster\Builds\Windows\Deep.exe` is from `b7755a1` (11:18 AM). The ending playtests on it (`S10-relic`, `S10-cutdrop`, `S7-run`) did not run; the engineer's own scripted ending wins with the lamp.
-- `polish/opening`: reported and pushed (`3e92e52`), not merged. Next: merge it into integration in `.wt\monster`, gate, package, the ending playtests plus `S3-serpent`, one frame from the package. Expect text conflicts: both lanes added a block to `Monster/DeepMonsterTypes.h`, and both edited `ARCHITECTURE.md`, `Monster/README.md` and the dev log.
-- `polish/fx`: reported at 11:16 AM that nothing met the standard and all three effects are off by default (pushed `53c629e`), then was resumed for a fourth try (a dim rim lit by a `Spill` value; the lamp untouched) and killed mid-way. That try is on disk in `.wt\dev`, uncommitted: 10 files, 162 lines, a new `MPC_FxLight`, on top of a local, unpushed merge of integration (`a97434d`). A fresh engineer can finish it from there, or it is dropped. Bubbles stay off unless a frame passes.
-- The frames page was not republished after the opening and well sections were written. The generator and the built page are in the old session's scratch folder (`C:\Users\quinn\AppData\Local\Temp\claude\4cf960466880eab9\f3fa3667-c758-4612-8d67-d2bda7e089c8\scratchpad\frames_gen\` and `frames\polish-frames.html`; Python is `py`). Publish at the next checkpoint.
-- **Builds are blocked**: an editor that no agent started opened at 11:27 AM on `.wt\pkg\deep\Deep.uproject` and runs Live Coding. Ask Quinn before anything builds.
-- Left from the opening, for a next lane: coming aboard, the first frame is the ceiling (the diver keeps its swim pitch; the fix is in the run component or the diver); the walls by the start spot are near black; the serpent's first sight is faint; the boulders at the 300 m gate are pale grey (dressing).
+- **Freeze is 5:30 PM** (D-038). The final playthroughs and package are at 6 PM, the video and itch page run 6 to 7:30 PM, and submission is by 8 PM.
+- **Quinn's new scope (D-039):** drive the sub down a winding cave shaft, with a sonar, into a cavern at every stop. Three opus engineers started at 12:02 PM, each in its own checkout. They share one contract: the passage is centred on the parked sub with 14 m radius at every stop, every cave surface blocks `ECC_Visibility` and Pawn, and each part has a switch that gives back today's game.
+  - `polish/shaft` in `.wt\pkg`: steering, the tube, hull hits and breach, and `GetHullIntegrity01()`. First version due 2:15 PM, final 3:30 PM.
+  - `polish/cavern` in `.wt\dev`: walls and roof round each stop, rock from `Dressing.csv`. First version due 2:15 PM, final 3:30 PM.
+  - `polish/sonar` in `.wt\text`: the helm sonar panel and its pings. First version due 2:00 PM, final 3:15 PM. Follow-up after merging: a hull integrity bar reading the shaft's `GetHullIntegrity01()`.
+  - Every `tools\ue.ps1` call by an engineer holds the `Global\DeepUnrealSlot` mutex. The orchestrator's playtest script also waits for any other `UnrealEditor.exe` to close. One Unreal process at a time, since the 11:19 crash had two editors up.
+  - When they report, expect conflicts in `DeepArena.cpp` (shaft: `ApplySubDepth`; cavern: `EnsureArena`), `Sim/DeepTuningTypes.h` (three new tuning structs) and the CSVs (rows appended at the end). After each merge, run the scripted playthroughs that drive or swim (`S2-gate`, `S7-run`, `S9-floor`, `S10-relic`, `S11-pass`, `S12-sidehome`). Quinn sees frames before any part is called done.
+- `polish/aboard` (`2f27da3`, pushed): coming aboard levels the view (`Arena.AboardPitchDeg`, test `Deep.World.SubAboardPitch`, `Deep.World.Sub` 9 of 9). Not merged yet; merge after the 11:48 AM playthroughs end.
+- Bubbles are parked. The fourth try, half-built at the crash, is committed unfinished on `polish/fx-wip4` (`f7a3fce`). `polish/fx` has all effects off by default.
+- The crash (11:19:45 AM, Kernel-Power 41, no bugcheck): the orchestrator and all three engineers died. Every lane that had committed work survived, and `polish/wellserpent` was merged and pushed (`b7755a1`).
+- The frames page still needs republishing with the opening and well sections, at the next checkpoint. The generator is in the old session's scratch folder (`C:\Users\quinn\AppData\Local\Temp\claude\4cf960466880eab9\f3fa3667-c758-4612-8d67-d2bda7e089c8\scratchpad\frames_gen\`; Python is `py`).
+- Left from the opening: the walls by the start spot are near black, the serpent's first sight is faint, and the boulders at the 300 m gate are pale grey.
 
 **How a lane is merged**
 
@@ -108,7 +113,7 @@ No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no
 - Polish rules: `03 - Research/Polish - Start Here.md` and `02 - Design/Style Guide.md`. Every polish brief links to both. No half-done polish (D-028), one style (D-030).
 - Every Unreal launch goes through the machine-wide slot. The snippet is in `.claude/loop.md`, and every brief must carry it, because the role files do not.
 - Scripted playtests and packages run only at checkpoints (D-031).
-- Sunday: feature freeze 3 PM, final package and video 5 PM, submitted by 8 PM. The deadline is 8:59 PM.
+- Sunday: feature freeze 5:30 PM (D-038), final playthroughs and package 6 PM, video and itch page 6 to 7:30 PM, submitted by 8 PM. The deadline is 8:59 PM.
 - Still unconfirmed from the research: the Official Rules PDF, seven sound needs with no candidate, and most Freesound licences.
 - After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
 - In a packaged build the start command is ignored for about the first four seconds after launch.
@@ -178,7 +183,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | 5 | **The polish pass (D-028, D-029):** look, HUD, effects, sound and voice, in one planned pass to a professional standard. A priority equal to gameplay. The research and the plan are done ([[Polish - Plan and Techniques]]). | Quinn chooses, agents build | waiting on Quinn's choices |
 | 6 | Water and rope feel (D-024): swim inertia, a tether and harpoon line that sag and snap, bubbles and silt. Part of the polish pass. | engineer, Quinn tunes | later |
 | 7 | Ideas Quinn picks from [[Fun Ideas]]. Live Captain brain decision about 1 PM Sunday (D-018). | per idea | waiting on review |
-| 8 | Sunday: feature freeze 3 PM, final package and video 5 PM, submitted 8 PM. **Run the scripted playtests before each package** (D-031); they are not run in between. The itch.io page says in one sentence how the game answers the theme (D-025). | all | todo |
+| 8 | Sunday: feature freeze 5:30 PM (D-038), final package 6 PM, video and itch page by 7:30 PM, submitted 8 PM. **Run the scripted playtests before each package** (D-031); they are not run in between. The itch.io page says in one sentence how the game answers the theme (D-025). | all | todo |
 
 ## Waiting on Quinn
 
