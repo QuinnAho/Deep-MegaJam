@@ -22,6 +22,7 @@
 #include "Misc/PackageName.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Sim/DeepAirLineRules.h"
 #include "Sonar/DeepSonarRules.h"
 #include "Sound/SoundBase.h"
 #include "Story/DeepEventBus.h"
@@ -44,7 +45,8 @@ namespace DeepAudioTest
 	{
 		TArray<FName> Out = DeepEvent::AllFired();
 		for (const TCHAR* Name : { DeepHarpoonEvent::Fired, DeepHarpoonEvent::HitSub, DeepHarpoonEvent::HitTerrain,
-			DeepHarpoonEvent::HitMonster, DeepHarpoonEvent::Missed, DeepHarpoonEvent::Empty, DeepSonarEvent::Ping, DeepSonarEvent::Near })
+			DeepHarpoonEvent::HitMonster, DeepHarpoonEvent::Missed, DeepHarpoonEvent::Empty, DeepSonarEvent::Ping, DeepSonarEvent::Near,
+			DeepAirLine::TetherBitten, DeepAirLine::Unclip })
 		{
 			Out.AddUnique(FName(Name));
 		}
