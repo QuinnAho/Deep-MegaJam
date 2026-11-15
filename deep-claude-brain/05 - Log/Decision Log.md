@@ -38,6 +38,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-027 | Test adaptively: an agent runs its own area's tests, and the full suite runs once, at merge | Decided (Quinn, about 12:50 AM Nov 15) |
 | D-028 | No half-done polish: the gameplay loop first, then polish in one pass to a professional standard | Decided (Quinn, about 1:10 AM Nov 15) |
 | D-029 | Looks are as important as gameplay: research and plan the polish pass now | Decided (Quinn, about 1:25 AM Nov 15) |
+| D-030 | One style for everything the player sees and hears | Decided (Quinn, about 1:45 AM Nov 15); the direction itself is still open |
 
 ## Open
 
@@ -142,6 +143,14 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-030 One style for everything
+- **Status:** Decided. Which style is still open.
+- **Date:** 2026-11-15, about 1:45 AM EST
+- **Who:** Quinn: "its impoartant that everythign follows the same stule theme, a game will wlayes look bad if theres a strong discrepancy in style".
+- **Decision:** Assets, HUD, effects, type and sound all follow one style. A good asset that clashes with it is left out.
+- **How it is enforced with several agents working at once:** Quinn picks the direction from the look board (the asset scout sorted every pick into dark, worn and realistic, or stylised). That direction is then written down once, in `02 - Design/Style Guide.md`: palette, materials, lighting, type, sound. Every polish brief links to it, and Quinn approves frames at each gate.
+- **Known conflict to settle by that choice:** the plan lists Corals and Atlantis Ruins for installing, and the asset scout says both clash with the realistic set.
 
 ### D-029 Looks are as important as gameplay
 - **Status:** Decided.
