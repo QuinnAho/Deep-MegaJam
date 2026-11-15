@@ -1,5 +1,6 @@
 // HUD drawn on the canvas in code: status lines, the Captain's Patience bar or the bailout timer, the airlock
 // marker when cut, prompts, the Captain's subtitle, and full-screen panels for death, settlement and descent.
+// Also the run's frame: the title screen, the first dive's controls card, the pause menu and the win review.
 
 #pragma once
 
@@ -36,6 +37,14 @@ private:
 	void DrawDead(const UDeepRunComponent& Run);
 	void DrawSettlement(const UDeepRunComponent& Run);
 	void DrawDescending(const UDeepRunComponent& Run);
+	/** Where home is: a box on the airlock, or an edge hint when it is off screen. */
+	void DrawAirlockMarker(const ADeepDiver* Diver, float Y);
+	void DrawTitle(float RealNow);
+	void DrawControlsCard(float Alpha);
+	void DrawPauseMenu();
+	void DrawReview(const UDeepRunComponent& Run);
+	/** A vertical list of menu items, the selected one marked. Returns the y below it. */
+	float DrawMenu(const TArray<FString>& Items, int32 Selected, float Y, bool bEnabled = true);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UFont> Font;

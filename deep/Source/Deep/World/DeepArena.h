@@ -20,9 +20,18 @@ namespace DeepArena
 	/** Spawns one salvage actor of the given kind. Server only. */
 	DEEP_API ADeepSalvage* SpawnSalvage(UWorld* World, const FDeepSalvageKind& Kind, const FVector& LocationCm);
 
-	/** Destroys every salvage piece and spawns the tuned ring again (start of every dive). Returns pieces spawned. */
+	/**
+	 * Destroys every salvage piece and spawns the tuned ring again (start of every dive), plus the relic at
+	 * Arena.RelicStop and deeper (the stop is read from the game state). Returns pieces spawned.
+	 */
 	DEEP_API int32 RespawnSalvage(UWorld* World);
 
-	/** Applies the stop's light and fog to the world's environment actor. */
+	/** Applies the stop's light and fog to the world's environment actor, and adds or removes the relic for the stop. */
 	DEEP_API void ApplyStop(UWorld* World, int32 Stop);
+
+	/** The relic in the world, or null. */
+	DEEP_API ADeepSalvage* FindRelic(const UWorld* World);
+
+	/** Spawns the relic if the stop has one and none exists; removes it above Arena.RelicStop. Server only. */
+	DEEP_API ADeepSalvage* EnsureRelic(UWorld* World, int32 Stop);
 }

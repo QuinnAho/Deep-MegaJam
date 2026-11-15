@@ -1,6 +1,12 @@
 #include "Game/DeepPlayerController.h"
 
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
+#include "Engine/World.h"
+#include "Game/DeepGameMode.h"
+#include "Game/DeepGameState.h"
+#include "InputKeyEventArgs.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
@@ -52,6 +58,7 @@ FString ADeepPlayerController::KeyHint(FName Action)
 		{ TEXT("Down"), TEXT("C") },
 		{ TEXT("Cut"), TEXT("Q") },
 		{ TEXT("Continue"), TEXT("Space") },
+		{ TEXT("Menu"), TEXT("Esc") },
 	};
 	const FString* Hint = Hints.Find(Action);
 	return Hint ? *Hint : FString(TEXT("?"));
@@ -244,6 +251,146 @@ void ADeepPlayerController::OnCutStop()
 	if (ADeepDiver* Diver = GetDiver())
 	{
 		Diver->SetCutHeld(false);
+	}
+}
+
+FString ADeepPlayerController::MenuItemLabel(EMenuItem Item)
+{
+	switch (Item)
+	{
+	case EMenuItem::Resume: return TEXT("RESUME");
+	case EMenuItem::Restart: return TEXT("RESTART THE RUN");
+	case EMenuItem::DiveAgain: return TEXT("DIVE AGAIN");
+	case EMenuItem::Quit: return TEXT("QUIT");
+	}
+	return FString();
+}
+
+bool ADeepPlayerController::InputKey(const FInputKeyEventArgs& Params)
+{
+	// Menus read raw key presses: they work while the world is paused and keep keys away from the diver.
+	if (Params.Event == IE_Pressed && !Params.Key.IsAnalog() && HandleMenuKey(Params.Key))
+	{
+		return true;
+	}
+	return Super::InputKey(Params);
+}
+
+void ADeepPlayerController::ClearDiverInput()
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->SetMoveInput(FVector2D::ZeroVector);
+		Diver->SetVerticalInput(0.f);
+		Diver->SetSprinting(false);
+		Diver->SetWinching(false);
+		Diver->SetCutHeld(false);
+	}
+}
+
+void ADeepPlayerController::SetPauseMenu(bool bOpen)
+{
+	bPauseMenu = bOpen;
+	MenuIndex = 0;
+	if (bOpen)
+	{
+		ClearDiverInput();
+	}
+	SetPause(bOpen);
+}
+
+bool ADeepPlayerController::HandleMenuKey(const FKey& Key)
+{
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	const ADeepDiver* Diver = GetDiver();
+	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
+	const bool bUp = Key == EKeys::Up || Key == EKeys::W;
+	const bool bDown = Key == EKeys::Down || Key == EKeys::S;
+	const bool bSelect = Key == EKeys::Enter || Key == EKeys::SpaceBar || Key == EKeys::E || Key == EKeys::LeftMouseButton;
+	const bool bMenuKey = Key == EKeys::Escape || Key == EKeys::P;
+
+	// The title: any key starts the run.
+	if (State && State->bOnTitle)
+	{
+		ClearDiverInput();
+		ServerStartRun();
+		return true;
+	}
+
+	// The win screen: dive again or quit.
+	if (Run && Run->GetState() == EDeepRunState::Won && !bPauseMenu)
+	{
+		const TArray<EMenuItem> Items = WinItems();
+		MenuIndex = FMath::Clamp(MenuIndex, 0, Items.Num() - 1);
+		if (bUp || bDown)
+		{
+			MenuIndex = (MenuIndex + (bDown ? 1 : Items.Num() - 1)) % Items.Num();
+		}
+		else if (bSelect && Run->CanLeaveReview())
+		{
+			ActivateMenuItem(Items[MenuIndex]);
+		}
+		return true;
+	}
+
+	// The pause menu.
+	if (bPauseMenu)
+	{
+		const TArray<EMenuItem> Items = PauseItems();
+		if (bMenuKey)
+		{
+			SetPauseMenu(false);
+		}
+		else if (bUp || bDown)
+		{
+			MenuIndex = (MenuIndex + (bDown ? 1 : Items.Num() - 1)) % Items.Num();
+		}
+		else if (bSelect)
+		{
+			ActivateMenuItem(Items[FMath::Clamp(MenuIndex, 0, Items.Num() - 1)]);
+		}
+		return true;
+	}
+	if (bMenuKey)
+	{
+		SetPauseMenu(true);
+		return true;
+	}
+	return false;
+}
+
+void ADeepPlayerController::ActivateMenuItem(EMenuItem Item)
+{
+	switch (Item)
+	{
+	case EMenuItem::Resume:
+		SetPauseMenu(false);
+		break;
+	case EMenuItem::Restart:
+	case EMenuItem::DiveAgain:
+		SetPauseMenu(false);
+		ClearDiverInput();
+		ServerRestartRun();
+		break;
+	case EMenuItem::Quit:
+		UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+		break;
+	}
+}
+
+void ADeepPlayerController::ServerStartRun_Implementation()
+{
+	if (ADeepGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeepGameMode>())
+	{
+		GameMode->StartRun();
+	}
+}
+
+void ADeepPlayerController::ServerRestartRun_Implementation()
+{
+	if (ADeepGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeepGameMode>())
+	{
+		GameMode->RestartRun();
 	}
 }
 

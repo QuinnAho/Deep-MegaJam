@@ -42,6 +42,7 @@ int32 UDeepCaptain::Urgency(FName Event)
 		{ DeepEvent::Patience50, 1 }, { DeepEvent::Overweight, 1 }, { DeepEvent::FirstSalvage, 1 }, { DeepEvent::DiveStart, 1 },
 		{ DeepEvent::TetherTaut, 1 }, { DeepEvent::WinchStart, 1 },
 		{ DeepEvent::MonsterFirstHeard, 2 }, { DeepEvent::MonsterRepelled, 2 }, { DeepEvent::MonsterNear, 1 },
+		{ DeepEvent::RelicSeen, 2 }, { DeepEvent::RelicGrabbed, 2 }, { DeepEvent::RelicWinch, 1 }, { DeepEvent::Title, 0 },
 	};
 	const int32* Found = Table.Find(Event);
 	return Found ? *Found : 0;

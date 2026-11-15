@@ -14,6 +14,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptainLines.h"
 #include "World/DeepArena.h"
+#include "World/DeepSalvage.h"
 
 UDeepRunComponent::UDeepRunComponent()
 {
@@ -31,8 +32,26 @@ FString UDeepRunComponent::StateName(EDeepRunState InState)
 	case EDeepRunState::Dead: return TEXT("dead");
 	case EDeepRunState::Settling: return TEXT("settling");
 	case EDeepRunState::Descending: return TEXT("descending");
+	case EDeepRunState::Won: return TEXT("won");
 	}
 	return TEXT("unknown");
+}
+
+bool UDeepRunComponent::IsOnTitle() const
+{
+	const ADeepGameState* GameState = GetGameState();
+	return GameState && GameState->bOnTitle;
+}
+
+bool UDeepRunComponent::CanSwim() const
+{
+	return (State == EDeepRunState::Tethered || State == EDeepRunState::Cut) && !IsOnTitle();
+}
+
+bool UDeepRunComponent::CarriesRelic() const
+{
+	const ADeepDiver* Diver = GetDiver();
+	return Diver && Diver->GetCargo().ContainsByPredicate([](const FDeepCargoItem& Item) { return Item.Size == EDeepSalvageSize::Relic; });
 }
 
 float UDeepRunComponent::GetPatienceFraction() const
@@ -66,7 +85,7 @@ bool UDeepRunComponent::IsDiverHome() const
 void UDeepRunComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if (GetOwner()->HasAuthority() && !bStarted)
+	if (GetOwner()->HasAuthority() && !bStarted && !IsOnTitle())
 	{
 		StartDive(EDiveStart::First);
 	}
@@ -293,6 +312,11 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 	{
 		return;
 	}
+	if (IsOnTitle())
+	{
+		// The title screen is up: the first dive waits for a key.
+		return;
+	}
 	if (!bStarted)
 	{
 		StartDive(EDiveStart::First);
@@ -300,6 +324,10 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
 	StepMonsterWires(Dt);
+	if (CanSwim())
+	{
+		StepRelicSeen();
+	}
 
 	switch (State)
 	{
@@ -323,7 +351,8 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 		const bool bWinching = Diver->IsWinching();
 		if (bWinching && !bWasWinching && !bHome)
 		{
-			FireChatter(DeepEvent::WinchStart);
+			// Winching the relic is the loudest thing in the trench; the Captain says so.
+			FireChatter(CarriesRelic() ? DeepEvent::RelicWinch : DeepEvent::WinchStart);
 		}
 		bWasWinching = bWinching;
 
@@ -384,6 +413,7 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 		}
 		break;
 	case EDeepRunState::Settling:
+	case EDeepRunState::Won:
 		StateTimeLeft = FMath::Max(0.f, StateTimeLeft - Dt);
 		break;
 	case EDeepRunState::Descending:
@@ -414,6 +444,7 @@ void UDeepRunComponent::StartDive(EDiveStart Reason)
 	{
 		bFirstSalvageThisRun = true;
 		bMonsterHeardThisRun = false;
+		bRelicSeenThisRun = false;
 	}
 	NoiseOwed = 0.f;
 	bSaidNearThisApproach = false;
@@ -460,7 +491,7 @@ void UDeepRunComponent::CutTether(bool bRequested)
 void UDeepRunComponent::CutTetherFor(const TCHAR* Event)
 {
 	ADeepDiver* Diver = GetDiver();
-	if (State != EDeepRunState::Tethered || !Diver || !Diver->HasAuthority())
+	if (State != EDeepRunState::Tethered || !Diver || !Diver->HasAuthority() || IsOnTitle())
 	{
 		return;
 	}
@@ -514,6 +545,7 @@ void UDeepRunComponent::ChargeFee(int32 Fee)
 	if (ADeepGameState* GameState = GetGameState())
 	{
 		GameState->Credits = UDeepRules::ApplyFee(GameState->Credits, Fee);
+		GameState->TotalFees += FMath::Max(0, Fee);
 	}
 	LastFee = Fee;
 	LastFeeTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
@@ -550,6 +582,7 @@ void UDeepRunComponent::Bank()
 	}
 
 	const FDeepSettlement Settled = UDeepRules::Settle(Gross, Amounts, Economy);
+	const bool bRelic = CarriesRelic();
 	FDeepSettlementReport Report;
 	Report.bValid = true;
 	Report.Gross = Settled.Gross;
@@ -562,6 +595,9 @@ void UDeepRunComponent::Bank()
 
 	if (GameState)
 	{
+		GameState->TotalGross += Settled.Gross;
+		GameState->TotalDirectorCut += Settled.DirectorCut;
+		GameState->TotalFees += Settled.Fees;
 		GameState->Credits = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(FMath::Max(0, GameState->Credits)) + Settled.Net));
 		const FDeepHullPurchase Hull = UDeepRules::TryBuyHull(GameState->Credits, GameState->HullRating, Economy);
 		GameState->Credits = Hull.Credits;
@@ -576,6 +612,11 @@ void UDeepRunComponent::Bank()
 	}
 	Settlement = Report;
 	Diver->ClearCargo();
+	if (bRelic)
+	{
+		Win();
+		return;
+	}
 	SetState(EDeepRunState::Settling);
 	StateTimeLeft = FMath::Max(0.f, Tuning.Run.SettlementMinSeconds);
 
@@ -587,6 +628,42 @@ void UDeepRunComponent::Bank()
 	if (Report.bHullBought)
 	{
 		Fire(DeepEvent::HullBought, Payload);
+	}
+}
+
+void UDeepRunComponent::Win()
+{
+	ADeepGameState* GameState = GetGameState();
+	if (GameState)
+	{
+		GameState->bWon = true;
+	}
+	SetState(EDeepRunState::Won);
+	StateTimeLeft = FMath::Max(0.f, UDeepTuningSettings::Get().Run.ReviewMinSeconds);
+	FDeepEventPayload Payload;
+	if (GameState)
+	{
+		const FDeepRunReview Review = GameState->BuildReview();
+		Payload.Gross = Review.Gross;
+		Payload.Cut = Review.DirectorCut;
+		Payload.Net = Review.Kept;
+	}
+	Fire(DeepEvent::Win, Payload);
+}
+
+void UDeepRunComponent::StepRelicSeen()
+{
+	const ADeepGameState* GameState = GetGameState();
+	ADeepDiver* Diver = GetDiver();
+	if (bRelicSeenThisRun || !Diver || !GameState || GameState->Stop < UDeepTuningSettings::Get().Arena.RelicStop || CarriesRelic())
+	{
+		return;
+	}
+	const ADeepSalvage* Relic = DeepArena::FindRelic(GetWorld());
+	if (Relic && UDeepRules::IsRelicSeen(Diver->GetPawnViewLocation(), Diver->GetControlRotation().Vector(), Relic->GetActorLocation(), UDeepTuningSettings::Get().Arena))
+	{
+		bRelicSeenThisRun = true;
+		Fire(DeepEvent::RelicSeen);
 	}
 }
 
@@ -623,7 +700,7 @@ void UDeepRunComponent::SetPatienceFraction(float Fraction)
 	PatienceSeconds = FMath::Clamp(Fraction, 0.f, 1.f) * UDeepTuningSettings::Get().Patience.MaxSeconds;
 }
 
-void UDeepRunComponent::ResetRun()
+void UDeepRunComponent::ResetRun(bool bToTitle)
 {
 	ADeepDiver* Diver = GetDiver();
 	if (!Diver || !Diver->HasAuthority())
@@ -632,16 +709,38 @@ void UDeepRunComponent::ResetRun()
 	}
 	if (ADeepGameState* GameState = GetGameState())
 	{
-		GameState->Credits = FMath::Max(0, UDeepTuningSettings::Get().Economy.StartingCredits);
-		GameState->HullRating = 1;
-		GameState->Stop = 1;
-		GameState->DiverNumber = 1;
+		GameState->ResetRun();
+		GameState->bOnTitle = bToTitle;
 		DeepArena::ApplyStop(GetWorld(), 1);
 	}
+	// The serpent goes with the old run (it returns at stop 2).
+	if (UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>())
+	{
+		Brain->ResetForRun();
+	}
 	Diver->ClearCargo();
+	Diver->SetWinching(false);
 	Settlement = FDeepSettlementReport();
 	StateTimeLeft = 0.f;
+	BailoutAirSeconds = 0.f;
+	PatienceSeconds = UDeepTuningSettings::Get().Patience.MaxSeconds;
+	LastFee = 0;
+	LastFeeTime = -100.f;
+	LastRefillFraction = 0.f;
+	LastRefillTime = -100.f;
+	MonsterThreat01 = 0.f;
+	bLastDeathMonster = false;
+	bRelicSeenThisRun = false;
+	ChatterLastTime.Reset();
 	SetState(EDeepRunState::Tethered);
+	if (bToTitle)
+	{
+		// The first dive starts when the title is left (StepRun sees bStarted false).
+		bStarted = false;
+		DeepArena::RespawnSalvage(GetWorld());
+		Diver->ResetToStart();
+		return;
+	}
 	StartDive(EDiveStart::Reset);
 }
 
@@ -668,6 +767,13 @@ void UDeepRunComponent::NotifyPickup(const FDeepCargoItem& Item)
 		UDeepMonsterRules::ReportDiverNoise(Diver, Diver->GetActorLocation(), FMath::Max(1.f, GrabNoise), Diver);
 	}
 
+	if (Item.Size == EDeepSalvageSize::Relic)
+	{
+		bFirstSalvageThisRun = false;
+		bRelicSeenThisRun = true;
+		Fire(DeepEvent::RelicGrabbed);
+		return;
+	}
 	if (bFirstSalvageThisRun)
 	{
 		bFirstSalvageThisRun = false;

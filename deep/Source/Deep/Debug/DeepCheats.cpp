@@ -1,12 +1,18 @@
-// Console commands for testing. Add a new one with another FAutoConsoleCommandWithWorldAndArgs below;
+﻿// Console commands for testing. Add a new one with another FAutoConsoleCommandWithWorldAndArgs below;
 // names start with "Deep." and the command should end by logging state if it changes any.
 
 #include "CoreMinimal.h"
 #include "Debug/DeepStateReport.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
+#include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Game/DeepGameMode.h"
+#include "Game/DeepGameState.h"
+#include "Game/DeepPlayerController.h"
+#include "World/DeepArena.h"
+#include "World/DeepSalvage.h"
 #include "GameFramework/Controller.h"
 #include "HAL/IConsoleManager.h"
 #include "Sim/DeepTuningSettings.h"
@@ -15,6 +21,24 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepCheats, Log, All);
 
 namespace
 {
+	/** The server's DEEP game mode; also finds one spawned by hand in a test world (no AuthorityGameMode there). */
+	ADeepGameMode* FindGameMode(UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		if (ADeepGameMode* GameMode = World->GetAuthGameMode<ADeepGameMode>())
+		{
+			return GameMode;
+		}
+		for (TActorIterator<ADeepGameMode> It(World); It; ++It)
+		{
+			return *It;
+		}
+		return nullptr;
+	}
+
 	ADeepDiver* RequireDiver(UWorld* World, const TCHAR* Command)
 	{
 		ADeepDiver* Diver = DeepStateReport::FindDiver(World);
@@ -75,7 +99,7 @@ namespace
 				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.GotoStop <n>"));
 				return;
 			}
-			ADeepGameMode* GameMode = World ? World->GetAuthGameMode<ADeepGameMode>() : nullptr;
+			ADeepGameMode* GameMode = FindGameMode(World);
 			if (!GameMode)
 			{
 				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.GotoStop: needs the DEEP game mode on the server"));
@@ -203,6 +227,154 @@ namespace
 		TEXT("Deep.ResetRun: credits, hull, stop and diver number back to the start; a fresh dive at stop 1."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
+			// The game mode resets every diver; without one (bare test worlds) the diver resets the run itself.
+			if (ADeepGameMode* GameMode = FindGameMode(World))
+			{
+				GameMode->RestartRun();
+				DeepStateReport::LogState(World);
+				return;
+			}
 			WithRun(World, TEXT("Deep.ResetRun"), [](UDeepRunComponent& Run) { Run.ResetRun(); });
+		}));
+
+	ADeepGameMode* RequireGameMode(UWorld* World, const TCHAR* Command)
+	{
+		ADeepGameMode* GameMode = FindGameMode(World);
+		if (!GameMode)
+		{
+			UE_LOG(LogDeepCheats, Warning, TEXT("%s: needs the DEEP game mode on the server"), Command);
+		}
+		return GameMode;
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs TitleCommand(
+		TEXT("Deep.Title"),
+		TEXT("Deep.Title: resets the run and shows the title screen (nobody dives until Deep.Start or any key)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (ADeepGameMode* GameMode = RequireGameMode(World, TEXT("Deep.Title")))
+			{
+				GameMode->EnterTitle();
+				DeepStateReport::LogState(World);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs StartCommand(
+		TEXT("Deep.Start"),
+		TEXT("Deep.Start: leaves the title screen; the first dive starts (as if a key was pressed)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (ADeepGameMode* GameMode = RequireGameMode(World, TEXT("Deep.Start")))
+			{
+				GameMode->StartRun();
+				DeepStateReport::LogState(World);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs CreditsCommand(
+		TEXT("Deep.Credits"),
+		TEXT("Deep.Credits <n>: sets the company account (the next settlement buys a hull rating if this affords it)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+			if (!State || Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.Credits <n> (needs the DEEP game state)"));
+				return;
+			}
+			State->Credits = FMath::Max(0, FCString::Atoi(*Args[0]));
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs RelicCommand(
+		TEXT("Deep.Relic"),
+		TEXT("Deep.Relic: puts the diver 2 m from the relic, looking at it (stop 3; use Deep.GotoStop 3 first)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Relic"));
+			const ADeepSalvage* Relic = DeepArena::FindRelic(World);
+			if (!Diver || !Relic)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Relic: no relic in the world (it lies at stop %d)"), UDeepTuningSettings::Get().Arena.RelicStop);
+				return;
+			}
+			// Approach from the anchor's side so the line stays inside the tether; the eye level with the relic.
+			const FVector Anchor = Diver->GetTether() && Diver->GetTether()->HasAnchor() ? Diver->GetTether()->GetAnchorLocation() : Diver->GetActorLocation();
+			FVector Flat = Anchor - Relic->GetActorLocation();
+			Flat.Z = 0.f;
+			const FVector Back = Flat.IsNearlyZero() ? FVector(-1.f, 0.f, 0.f) : Flat.GetSafeNormal();
+			const FVector At = Relic->GetActorLocation() + Back * 200.f - FVector(0.f, 0.f, 55.f);
+			Diver->TeleportDiver(At);
+			const FRotator View = (-Back).Rotation();
+			Diver->SetActorRotation(FRotator(0.f, View.Yaw, 0.f));
+			if (AController* Controller = Diver->GetController())
+			{
+				Controller->SetControlRotation(FRotator(0.f, View.Yaw, 0.f));
+			}
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs GrabCommand(
+		TEXT("Deep.Grab"),
+		TEXT("Deep.Grab: the diver grabs what it is looking at (as the grab key)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Grab")))
+			{
+				Diver->Grab();
+				DeepStateReport::LogState(World);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs WinchCommand(
+		TEXT("Deep.Winch"),
+		TEXT("Deep.Winch <0|1>: holds or releases the winch (as the winch key)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Winch")))
+			{
+				Diver->SetWinching(Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0);
+				DeepStateReport::LogState(World);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs WinCommand(
+		TEXT("Deep.Win"),
+		TEXT("Deep.Win: gives the diver the relic and banks it: straight to the performance review."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			FDeepSalvageKind Kind;
+			if (!UDeepTuningSettings::Get().FindSalvageKind(EDeepSalvageSize::Relic, Kind))
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Win: no relic salvage kind is tuned"));
+				return;
+			}
+			WithRun(World, TEXT("Deep.Win"), [&Kind](UDeepRunComponent& Run)
+			{
+				if (ADeepDiver* Diver = Cast<ADeepDiver>(Run.GetOwner()))
+				{
+					FDeepCargoItem Item;
+					Item.Size = EDeepSalvageSize::Relic;
+					Item.Kg = Kind.Kg;
+					Item.Value = Kind.Value;
+					Diver->AddCargo(Item);
+				}
+				Run.Bank();
+			});
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MenuCommand(
+		TEXT("Deep.Menu"),
+		TEXT("Deep.Menu <0|1>: opens or closes the pause menu of the first local player."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepPlayerController* Player = World ? Cast<ADeepPlayerController>(World->GetFirstPlayerController()) : nullptr;
+			if (!Player)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Menu: no local DEEP player controller"));
+				return;
+			}
+			Player->SetPauseMenu(Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0);
+			DeepStateReport::LogState(World);
 		}));
 }
