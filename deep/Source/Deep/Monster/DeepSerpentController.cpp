@@ -541,6 +541,18 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 		Aim = UDeepMonsterRules::WellAimPoint(State, Well, Head, DiverEnd, Aim, WellSide, RiseMps, Tuning);
 	}
 	Body->SwimToward(Aim, Speed, Turn, DeltaSeconds);
+	if (bInWell)
+	{
+		// The path itself stays in the shaft: a fast turn (10 m/s recoil, a hunt) swings wider than any aim, and the
+		// DEEPWELL log showed the head 6 m off the axis with a third of the body in the stone. The head slides along the
+		// wall instead; the body follows its path.
+		const FVector Path = Body->GetActorLocation();
+		const FVector Kept = UDeepMonsterRules::KeepInWell(Well, Path, Tuning, Tuning.WellPathWallClearM);
+		if (!Kept.Equals(Path, 1.0))
+		{
+			Body->SetActorLocation(Kept);
+		}
+	}
 }
 
 void ADeepSerpentController::UpdateWell(const ADeepDiver* Target, const FDeepMonsterTuning& Tuning, float DeltaSeconds)
@@ -553,15 +565,24 @@ void ADeepSerpentController::UpdateWell(const ADeepDiver* Target, const FDeepMon
 	if (!Target || !Body || !Well.bValid)
 	{
 		bInWell = false;
+		bHaveLastDiverZ = false;
 		return;
 	}
+	// The rise from the diver's own movement: the winch moves the diver without a velocity.
 	const FVector Diver = Target->GetActorLocation();
-	const float Alpha = FMath::Clamp(DeltaSeconds * 2.f, 0.f, 1.f);
-	RiseMps = FMath::Lerp(RiseMps, static_cast<float>(Target->GetVelocity().Z / CmPerM), Alpha);
+	if (bHaveLastDiverZ && DeltaSeconds > KINDA_SMALL_NUMBER)
+	{
+		const float Measured = static_cast<float>((Diver.Z - LastDiverZ) / CmPerM) / DeltaSeconds;
+		const float Alpha = FMath::Clamp(DeltaSeconds * 2.f, 0.f, 1.f);
+		RiseMps = FMath::Lerp(RiseMps, FMath::Clamp(Measured, -20.f, 20.f), Alpha);
+	}
+	LastDiverZ = Diver.Z;
+	bHaveLastDiverZ = true;
 
 	if (!bOn || !UDeepMonsterRules::IsInWell(Well, Diver))
 	{
 		bInWell = false;
+		EnterWaitS = 0.f;
 		return;
 	}
 	if (bInWell)
@@ -573,23 +594,32 @@ void ADeepSerpentController::UpdateWell(const ADeepDiver* Target, const FDeepMon
 	{
 		return;
 	}
-	bInWell = true;
-	WellSide = FVector2D(FMath::FRandRange(-1.f, 1.f), FMath::FRandRange(-1.f, 1.f)).GetSafeNormal();
-	if (WellSide.IsNearlyZero())
-	{
-		WellSide = FVector2D(1.0, 0.0);
-	}
 	const FVector Head = Body->GetHeadLocation();
-	if (!UDeepMonsterRules::IsInWell(Well, Head, Tuning.WellWallClearM * CmPerM * 0.5))
+	if (UDeepMonsterRules::IsInWell(Well, Head, Tuning.WellWallClearM * CmPerM * 0.5))
 	{
-		// It was out in the rock round the shaft, where nobody can see it: it is now down in the shaft below the diver,
-		// head up, body hanging down the shaft. Out of view, like the first sight's start.
-		const FVector Below(Well.AxisCm.X - WellSide.X * 100.0, Well.AxisCm.Y - WellSide.Y * 100.0,
-			Diver.Z - UDeepMonsterRules::WellHoldBelowM(RiseMps, Tuning) * CmPerM);
-		const FVector Hold = UDeepMonsterRules::KeepInWell(Well, Below, Tuning);
-		Body->PlaceHead(Hold, FVector::UpVector);
-		UE_LOG(LogDeepSerpent, Log, TEXT("Serpent enters the well %.1f m below the diver (%s)"), (Diver.Z - Hold.Z) / CmPerM, *UDeepMonsterRules::StateName(State));
+		bInWell = true;
+		return;
 	}
+	// It is out in the rock round the shaft, where nobody can see it: it comes into the shaft below the diver, head up,
+	// body hanging down the shaft, out of view like the first sight's start. While the diver's beam is on that spot it
+	// waits (WellEnterWaitS at most), so it is not seen to appear.
+	FVector2D Side(FMath::FRandRange(-1.f, 1.f), FMath::FRandRange(-1.f, 1.f));
+	WellSide = Side.IsNearlyZero() ? FVector2D(1.0, 0.0) : Side.GetSafeNormal();
+	const FVector Below(Well.AxisCm.X - WellSide.X * 100.0, Well.AxisCm.Y - WellSide.Y * 100.0,
+		Diver.Z - UDeepMonsterRules::WellHoldBelowM(RiseMps, Tuning) * CmPerM);
+	const FVector Hold = UDeepMonsterRules::KeepInWell(Well, Below, Tuning);
+	const USpotLightComponent* Lamp = Target->IsLampOn() ? Target->FindComponentByClass<USpotLightComponent>() : nullptr;
+	const bool bSeen = Lamp && UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), Lamp->OuterConeAngle,
+		Lamp->AttenuationRadius / CmPerM, Hold, UDeepMonsterSettings::Get().Body.HeadRadiusM + Tuning.BeamLeniencyM);
+	EnterWaitS += DeltaSeconds;
+	if (bSeen && EnterWaitS < Tuning.WellEnterWaitS)
+	{
+		return;
+	}
+	bInWell = true;
+	Body->PlaceHead(Hold, FVector::UpVector);
+	UE_LOG(LogDeepSerpent, Log, TEXT("Serpent enters the well %.1f m below the diver (%s, rising %.1f m/s, %s)"), (Diver.Z - Hold.Z) / CmPerM,
+		*UDeepMonsterRules::StateName(State), RiseMps, bSeen ? TEXT("in the beam after waiting") : TEXT("out of the beam"));
 }
 
 void ADeepSerpentController::DebugWell(const ADeepDiver* Target, float DeltaSeconds)

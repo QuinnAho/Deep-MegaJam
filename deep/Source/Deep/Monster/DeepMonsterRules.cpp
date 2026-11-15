@@ -330,13 +330,13 @@ float UDeepMonsterRules::WellAxisDistanceM(const FDeepWell& Well, const FVector&
 	return static_cast<float>(FVector2D::Distance(FVector2D(PointCm.X, PointCm.Y), Well.AxisCm) / CmPerM);
 }
 
-FVector UDeepMonsterRules::KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning)
+FVector UDeepMonsterRules::KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning, float WallClearM)
 {
 	if (!Well.bValid)
 	{
 		return AimCm;
 	}
-	const double MaxOff = FMath::Max(0.0, Well.RadiusCm - Tuning.WellWallClearM * CmPerM);
+	const double MaxOff = FMath::Max(0.0, Well.RadiusCm - (WallClearM >= 0.f ? WallClearM : Tuning.WellWallClearM) * CmPerM);
 	FVector2D Off = FVector2D(AimCm.X, AimCm.Y) - Well.AxisCm;
 	if (Off.Size() > MaxOff)
 	{
@@ -387,9 +387,10 @@ FVector UDeepMonsterRules::WellAimPoint(EDeepMonsterState State, const FDeepWell
 	}
 	case EDeepMonsterState::Recoil:
 	{
-		// Back down the shaft, not through its wall: the head turns down and it dives for the floor.
-		const FVector2D Mid = Well.AxisCm + (FVector2D(HeadCm.X, HeadCm.Y) - Well.AxisCm) * 0.5;
-		Aim = FVector(Mid.X, Mid.Y, Well.FloorZCm);
+		// Back down the shaft, not through its wall: the head turns down and it dives for the bottom of the axis. A fixed
+		// point, so it arrives and stops there; an aim that moved with the head made it circle at 10 m/s at the floor and
+		// swing a third of the body into the stone (DEEPWELL log, Nov 15).
+		Aim = FVector(Well.AxisCm.X, Well.AxisCm.Y, Well.FloorZCm);
 		break;
 	}
 	default:

@@ -125,6 +125,9 @@ private:
 	FVector2D WellSide = FVector2D(1.0, 0.0);
 	float WellLogAccumS = 0.f;
 	float WellClockS = 0.f;
+	double LastDiverZ = 0.0;
+	bool bHaveLastDiverZ = false;
+	float EnterWaitS = 0.f;
 
 public:
 	/** True while it steers inside the relic's shaft (tests, logs). */

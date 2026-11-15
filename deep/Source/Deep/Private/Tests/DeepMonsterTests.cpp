@@ -734,6 +734,8 @@ bool FDeepMonsterWellTest::RunTest(const FString& Parameters)
 	const FVector LurkAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Lurk, Well, Below, Diver, OpenWater, Side, 4.f, Tuning);
 	TestTrue(TEXT("It lurks below the diver"), LurkAim.Z < Diver.Z - 2.f * Tuning.BiteReachM * 100.0);
 	TestTrue(TEXT("A point outside is moved in"), UDeepMonsterRules::IsInWell(Well, UDeepMonsterRules::KeepInWell(Well, OpenWater, Tuning)));
+	const FVector PathKept = UDeepMonsterRules::KeepInWell(Well, OpenWater, Tuning, Tuning.WellPathWallClearM);
+	TestTrue(TEXT("The path is held off the wall by its own clearance"), FMath::IsNearlyEqual(FVector2D::Distance(FVector2D(PathKept.X, PathKept.Y), Well.AxisCm), Well.RadiusCm - Tuning.WellPathWallClearM * 100.0, 1.0));
 
 	// Timing kept: from the hold depth, closing at stalk speed less the rise, the stalk takes the open-water time.
 	const float OpenS = (Tuning.LurkRadiusM - Tuning.BiteReachM) / Tuning.StalkSpeedMps;

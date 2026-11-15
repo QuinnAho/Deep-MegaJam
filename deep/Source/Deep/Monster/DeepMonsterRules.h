@@ -95,7 +95,7 @@ public:
 	/** Horizontal distance from the shaft's axis (m). */
 	static float WellAxisDistanceM(const FDeepWell& Well, const FVector& PointCm);
 	/** The point moved inside the shaft: at most radius - WellWallClearM off the axis, at least WellFloorClearM above its floor. */
-	static FVector KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning);
+	static FVector KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning, float WallClearM = -1.f);
 	/**
 	 * How far below a diver who rises at RiseMps it lurks in the shaft (m): far enough that a stalk from there takes as
 	 * long as one from the lurk radius in open water ((LurkRadiusM - BiteReachM) / StalkSpeedMps) at the closing speed it

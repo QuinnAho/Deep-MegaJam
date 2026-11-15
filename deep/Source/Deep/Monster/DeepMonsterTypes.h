@@ -234,17 +234,25 @@ struct FDeepMonsterTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
 	bool bWellSteering = true;
 
-	/** Its path keeps this far in from the shaft's wall (the body is up to 0.7 m thick and weaves 0.6 m). */
+	/** Its path keeps this far in from the shaft's wall (the body is up to 0.7 m thick and weaves 0.6 m; at 1.6 m the recoil's turns at the floor still put a third of the body in the stone). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
-	float WellWallClearM = 1.6f;
+	float WellWallClearM = 2.2f;
 
 	/** And this far above the shaft's floor. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
 	float WellFloorClearM = 1.5f;
 
+	/** The head's path itself is held this far in from the wall (a fast turn swings wider than any aim): its thickness and a little. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellPathWallClearM = 1.f;
+
 	/** It enters the shaft (from the rock round it, out of sight) once the diver is this far above its floor, so there is a below to come up from. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
-	float WellEnterAboveFloorM = 6.f;
+	float WellEnterAboveFloorM = 12.f;
+
+	/** If the diver's beam is on the spot where it would come into the shaft, it waits at most this long (s) for the beam to move. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellEnterWaitS = 2.f;
 
 	/** While it lurks it circles this far off the shaft's axis, below the diver. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
