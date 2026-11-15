@@ -51,6 +51,27 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FVector WinchStepToAirlock(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);
 
+	/**
+	 * Where the winch heads next, all in the sub's local cm. BlockedCm is the hull's collision box grown by the diver's
+	 * capsule (so a centre outside it does not touch the hull). Straight to Via when that line is clear; else, over the
+	 * hull: sideways out past its edge; beside it (or caught in it): straight down below it. Each leg stays outside
+	 * BlockedCm, so the winch goes round and under the hull and never through it.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
+	static FVector WinchRouteTarget(const FVector& FromCm, const FVector& ViaCm, const FBox& BlockedCm, float ClearCm);
+
+	/** WinchStepToAirlock routed by WinchRouteTarget round the hull (sub-local cm). Does nothing once home. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
+	static FVector WinchStepAroundHull(const FVector& DiverCm, const FVector& AnchorCm, const FBox& BlockedCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);
+
+	/**
+	 * A swimmer touching the side of the hull (sub-local cm; HullCm = the hull's collision box): the part of the
+	 * velocity that pushes into the side turns downward, so the diver slides down the side and under the hull instead
+	 * of pinning on it. Unchanged when not beside the hull or not pushing into it. Never faster than the input.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Swim")
+	static FVector HullSlideVelocity(const FVector& LocalCm, const FVector& Velocity, const FBox& HullCm, float RadiusCm, float HalfHeightCm, float ContactCm);
+
 	/** True when the diver is within WinchArriveM of the anchor (home). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static bool IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning);

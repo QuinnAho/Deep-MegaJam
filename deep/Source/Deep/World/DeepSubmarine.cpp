@@ -267,6 +267,22 @@ bool ADeepSubmarine::IsInHatchColumn(const FVector& WorldCm) const
 	return UDeepRules::InHatchColumn(GetActorTransform().InverseTransformPosition(WorldCm), UDeepTuningSettings::Get().Sub);
 }
 
+FBox ADeepSubmarine::GetSolidBoundsLocal(bool bHullOnly) const
+{
+	FBox Box(ForceInit);
+	TArray<UStaticMeshComponent*> Shapes;
+	GetComponents<UStaticMeshComponent>(Shapes);
+	for (UStaticMeshComponent* Shape : Shapes)
+	{
+		const bool bHull = Deck.Contains(Shape) || Walls.Contains(Shape) || Shape == Ceiling.Get();
+		if (Shape && Shape->IsCollisionEnabled() && (bHull || !bHullOnly) && Shape->GetAttachParent() == Root)
+		{
+			Box += Shape->CalcBounds(Shape->GetRelativeTransform()).GetBox();
+		}
+	}
+	return Box;
+}
+
 bool ADeepSubmarine::IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const
 {
 	return FVector::DistXY(WorldCm, PointCm) <= UDeepTuningSettings::Get().Sub.UseRangeM * UDeepRules::CmPerM;

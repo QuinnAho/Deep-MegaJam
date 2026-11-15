@@ -108,6 +108,83 @@ FVector UDeepRules::WinchStepToAirlock(const FVector& DiverCm, const FVector& An
 	return DiverCm + ToVia * (FMath::Min(StepCm, DistanceCm) / DistanceCm);
 }
 
+FVector UDeepRules::WinchRouteTarget(const FVector& FromCm, const FVector& ViaCm, const FBox& BlockedCm, float ClearCm)
+{
+	const FVector Span = ViaCm - FromCm;
+	if (!BlockedCm.IsValid || Span.IsNearlyZero() || !FMath::LineBoxIntersection(BlockedCm, FromCm, ViaCm, Span))
+	{
+		return ViaCm;
+	}
+	const FBox Out = BlockedCm.ExpandBy(FMath::Max(1.f, ClearCm));
+	const bool bOverFootprint = FromCm.X > BlockedCm.Min.X && FromCm.X < BlockedCm.Max.X && FromCm.Y > BlockedCm.Min.Y && FromCm.Y < BlockedCm.Max.Y;
+	if (bOverFootprint && FromCm.Z >= BlockedCm.Max.Z)
+	{
+		// Over the hull: out sideways past the nearest edge, at the same height.
+		const double ToMinX = FromCm.X - BlockedCm.Min.X;
+		const double ToMaxX = BlockedCm.Max.X - FromCm.X;
+		const double ToMinY = FromCm.Y - BlockedCm.Min.Y;
+		const double ToMaxY = BlockedCm.Max.Y - FromCm.Y;
+		const double Nearest = FMath::Min(FMath::Min(ToMinX, ToMaxX), FMath::Min(ToMinY, ToMaxY));
+		FVector Side = FromCm;
+		if (Nearest == ToMinX) { Side.X = Out.Min.X; }
+		else if (Nearest == ToMaxX) { Side.X = Out.Max.X; }
+		else if (Nearest == ToMinY) { Side.Y = Out.Min.Y; }
+		else { Side.Y = Out.Max.Y; }
+		return Side;
+	}
+	// Beside the hull (or caught under its edge): straight down until the line to Via passes under it.
+	return FVector(FromCm.X, FromCm.Y, FMath::Min(FromCm.Z - ClearCm, Out.Min.Z));
+}
+
+FVector UDeepRules::WinchStepAroundHull(const FVector& DiverCm, const FVector& AnchorCm, const FBox& BlockedCm, float DeltaSeconds, const FDeepTetherTuning& Tuning)
+{
+	if (IsHome(DiverCm, AnchorCm, Tuning))
+	{
+		return DiverCm;
+	}
+	const float BelowM = FMath::Clamp(Tuning.WinchApproachBelowM, 0.f, FMath::Max(0.f, Tuning.WinchArriveM - 0.5f));
+	const FVector Via = AnchorCm - FVector(0.f, 0.f, BelowM * CmPerM);
+	const FVector Target = WinchRouteTarget(DiverCm, Via, BlockedCm, FMath::Max(0.f, Tuning.WinchHullClearM) * CmPerM);
+	const FVector ToTarget = Target - DiverCm;
+	const float DistanceCm = static_cast<float>(ToTarget.Size());
+	const float StepCm = FMath::Max(0.f, Tuning.WinchSpeedMps * DeltaSeconds) * CmPerM;
+	if (StepCm <= 0.f || DistanceCm <= UE_KINDA_SMALL_NUMBER)
+	{
+		return DiverCm;
+	}
+	return DiverCm + ToTarget * (FMath::Min(StepCm, DistanceCm) / DistanceCm);
+}
+
+FVector UDeepRules::HullSlideVelocity(const FVector& LocalCm, const FVector& Velocity, const FBox& HullCm, float RadiusCm, float HalfHeightCm, float ContactCm)
+{
+	if (!HullCm.IsValid || Velocity.IsNearlyZero())
+	{
+		return Velocity;
+	}
+	// Level with the side faces: the capsule overlaps the hull's height, down to ContactCm under its bottom.
+	if (LocalCm.Z - HalfHeightCm >= HullCm.Max.Z || LocalCm.Z + HalfHeightCm <= HullCm.Min.Z - ContactCm)
+	{
+		return Velocity;
+	}
+	const FVector2D At(LocalCm.X, LocalCm.Y);
+	const FVector2D Closest(FMath::Clamp(At.X, HullCm.Min.X, HullCm.Max.X), FMath::Clamp(At.Y, HullCm.Min.Y, HullCm.Max.Y));
+	const FVector2D Off = At - Closest;
+	const double Gap = Off.Size();
+	if (Gap <= UE_KINDA_SMALL_NUMBER || Gap > RadiusCm + ContactCm)
+	{
+		// Under or over the hull, or clear of its sides.
+		return Velocity;
+	}
+	const FVector Out(Off.X / Gap, Off.Y / Gap, 0.0);
+	const double Into = -FVector::DotProduct(Velocity, Out);
+	if (Into <= 0.0)
+	{
+		return Velocity;
+	}
+	const FVector Slid = Velocity + Out * Into - FVector::UpVector * Into;
+	return Slid.GetClampedToMaxSize(Velocity.Size());
+}
+
 bool UDeepRules::IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning)
 {
 	// A centimetre of slack so a winch that stopped exactly at the arrive distance counts as home.

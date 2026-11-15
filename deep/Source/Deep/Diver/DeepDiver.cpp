@@ -187,7 +187,17 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	const FVector Right = FRotationMatrix(View).GetScaledAxis(EAxis::Y);
 	const FVector Wish = Forward * MoveInput.Y + Right * MoveInput.X + FVector::UpVector * VerticalInput;
 
-	const FVector VelocityMps = UDeepRules::SwimVelocityMps(Wish, bSprinting, GetWeight(), UDeepTuningSettings::Get().Swim);
+	FVector VelocityMps = UDeepRules::SwimVelocityMps(Wish, bSprinting, GetWeight(), UDeepTuningSettings::Get().Swim);
+	if (const ADeepSubmarine* Sub = Tether->GetSubmarine())
+	{
+		// Pushing into the side of the hull slides the diver down it and under, toward the hatch, instead of pinning.
+		const FTransform& SubFrame = Sub->GetActorTransform();
+		const FVector Local = UDeepRules::HullSlideVelocity(SubFrame.InverseTransformPosition(GetActorLocation()),
+			SubFrame.InverseTransformVectorNoScale(VelocityMps), Sub->GetSolidBoundsLocal(true),
+			GetCapsuleComponent()->GetScaledCapsuleRadius(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight(),
+			UDeepTuningSettings::Get().Swim.HullContactM * UDeepRules::CmPerM);
+		VelocityMps = SubFrame.TransformVectorNoScale(Local);
+	}
 	const float SpeedCm = static_cast<float>(VelocityMps.Size()) * UDeepRules::CmPerM;
 	if (SpeedCm > KINDA_SMALL_NUMBER)
 	{

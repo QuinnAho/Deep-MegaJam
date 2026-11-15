@@ -50,6 +50,12 @@ public:
 	/** In the hatch opening (any height). */
 	bool IsInHatchColumn(const FVector& WorldCm) const;
 
+	/**
+	 * The box (sub-local cm) round every shape that has collision: each is a visible engine cube, so this is the
+	 * visible solid hull and nothing more. bHullOnly: the box hull (deck, walls, ceiling) without the tower on top.
+	 */
+	FBox GetSolidBoundsLocal(bool bHullOnly) const;
+
 	/** Horizontal distance to a deck point is within the use range. */
 	bool IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const;
 

@@ -101,6 +101,10 @@ struct FDeepTetherTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchApproachBelowM = 2.f;
 
+	/** The winch keeps the diver's capsule this far clear of the hull's collision while it routes round and under it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
+	float WinchHullClearM = 0.3f;
+
 	/** A cable, not a rod. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float LineThicknessCm = 1.5f;
@@ -159,8 +163,16 @@ struct FDeepSwimTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Swim")
 	float GrabConeDeg = 45.f;
 
+	/** Scale on the mouse look action. One mouse count turns 0.07 (axis config) x 2.5 (legacy scale) x this degrees. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Swim")
 	float LookSensitivity = 1.f;
+
+	/**
+	 * A swimmer within this far of the hull's side who pushes into it slides down it and under the hull (toward the
+	 * hatch) instead of being stopped by it.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Swim")
+	float HullContactM = 0.15f;
 };
 
 USTRUCT(BlueprintType)
@@ -760,22 +772,26 @@ struct FDeepSubTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float RoomLightRadiusM = 9.f;
 
-	/** Where a diver stands at the start of a run and after a respawn (X, Y on the deck), and the view pitch. */
+	/**
+	 * Where a diver stands at the start of a run and after a respawn (X, Y on the deck), and the view pitch. The start,
+	 * the enter stand, the console and the helm all sit along the +Y side, so no straight walk between them crosses the
+	 * hatch (Deep.World.SubRoomLayout checks it).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D RoomStartM = FVector2D(-3.4f, 0.f);
+	FVector2D RoomStartM = FVector2D(-3.4f, 1.5f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float RoomStartPitchDeg = -22.f;
 
 	/** Where a diver who comes up through the hatch is put on the deck. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D EnterStandM = FVector2D(-1.5f, 0.f);
+	FVector2D EnterStandM = FVector2D(-2.8f, 1.3f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	FVector2D ConsoleM = FVector2D(-1.6f, 1.75f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D HelmM = FVector2D(3.7f, 0.f);
+	FVector2D HelmM = FVector2D(3.7f, 1.5f);
 
 	/** The console or the helm can be used from this far (horizontal). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
