@@ -20,7 +20,7 @@ How a run flows:
 1. Aboard (Patience frozen, `idle_inside`): walk; E near the console = `UseConsole` (cargo: `Bank` -> Settling -> continue -> Aboard; none: buy the next gate if affordable); E near the helm = `TakeHelm` (`helm_take`). Falling into the open hatch = `LeaveSub` -> `StartDive(Hatch)`: Tethered, flying, salvage respawned, view pitched down to at least `Arena.HatchDropPitchDeg`, `dive_start`.
 2. Helm (`StepHelm`, server): input > 0 dives at `DriveSpeedMps`, never past `DepthLimitM` (`helm_depth_limit`), `SubDepthM` changes, `ApplySubDepth` moves the root. Released within `ParkSnapM` of a stop: `Park` (`descend_stop2/3` first time, else `helm_arrive`). `Deep.Drive` uses the autopilot.
 3. In the water: controller input -> diver Tick -> `SwimVelocityMps`. Tether after physics. Grab -> cargo, `NotifyPickup`. Patience drains (x2 hunted) and cuts at zero (`CutTetherFor` is the one Cut path); bailout air; death -> Dead -> `Respawn` aboard (DiverNumber+1).
-4. Home = up through the hatch or arriving at the anchor (`ReachedHatch`) -> `EnterSub` (cut: re-tether fee). Banking the relic at the console -> Won (review).
+4. Home = up through the hatch or arriving at the anchor (`ReachedHatch`) -> `EnterSub` (cut: re-tether fee). The view is levelled to `Arena.AboardPitchDeg`. Banking the relic at the console -> Won (review).
 5. The serpent (stop 2+): see `Monster/README.md`; brain events are bound by each diver's run component.
 
 Add a rule: a `static` UFUNCTION(BlueprintPure) in `UDeepRules`, numbers in a tuning struct, a test with a locally built tuning struct.
