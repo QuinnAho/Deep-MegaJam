@@ -45,7 +45,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-034 | The monster is built on the dragon from Quinn's Dragon Cave pack; any Megascans asset may be used | Decided (Quinn, about 2:56 AM Nov 15) |
 | D-035 | The last ascent: the winch is slower with the relic, and the relic's shaft is straight under the hatch | In the integration branch (engineer, 6:45 AM Nov 15); Quinn can overrule |
 | D-036 | Packs stay where they are installed, agents link to them, and the cook takes only what is used | Decided (orchestrator, 6:55 AM Nov 15) |
-| D-037 | The relic becomes a real object, and the well holds its light | Proposed, in work (orchestrator, 8:10 AM Nov 15); Quinn can overrule |
+| D-037 | The relic becomes a real object, and the well holds its light | In the integration branch (8:56 AM Nov 15); Quinn can overrule |
 
 ## Open
 
@@ -61,7 +61,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 ## Proposed
 
 ### D-037 The relic becomes a real object, and the well holds its light
-- **Status:** Proposed. In work on `polish/dressing`; Quinn can overrule.
+- **Status:** Built, in the integration branch (`5ae5f0b`, 8:56 AM Nov 15). Quinn can overrule.
 - **Date:** 2026-11-15, 8:10 AM EST
 - **Who:** The orchestrator, after looking at the dressing lane's frames of the 500 m site.
 - **What was wrong:** The relic is a white glowing ring with a light of 12,000 units and a reach of 25 m (`Arena.RelicLightIntensity`, `RelicLightRadiusM`). Those numbers were set on Saturday night so that a player could find it across the sea floor. Since D-035 it lies in a shaft straight under the hatch. Two metres from it the light burns the pit to yellow-green and the frame reads as a debug view (`devlog/media/2026-11-15-dressing-500-bottom.png`). Every winning player comes here.
@@ -72,6 +72,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
   - How the relic plays does not change: its weight, its grab range, its place under the hatch and a clear winch path up the shaft.
 - **Why:** D-029 puts looks level with gameplay, and this is the climax frame. The old job of the light, finding the relic across the floor, ended with D-035.
 - **What follows:** For its second pass the dressing lane owns the whole 500 m site, including the relic's light numbers, its mesh and the pit's surface.
+- **As built:** The relic is the pack's carved stone sphere (`SM_StoneworksSphere01`). Its light is 1,200 units over 7 m, amber, down from 12,000 over 25 m. A narrow shadowed spot sends a beam up the shaft, which is lined with cut stone. Weight, grab and winch path are unchanged; `Deep.Sim.Monster` (with `LastAscent`) and `Deep.Sim.Rules.ReviewAndRelic` pass. Frames: `devlog/media/2026-11-15-well-*.png`.
 
 ### D-035 The last ascent: a slower winch with the relic, and a shaft under the hatch
 - **Status:** In the integration branch. Quinn has not seen it and can overrule any number.

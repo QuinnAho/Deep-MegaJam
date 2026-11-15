@@ -5,30 +5,42 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 8:50 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 9:00 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` on origin at `6746147`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (first pass), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, the first pass of rock and ruin (the placement loader, the cook hook, floor rock at every stop), and a texture limit for the build. Full suite 71 of 71; packaged and smoke-tested at `6746147`, zip 762 MB. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
-- Known fault in that build: the rock wears the engine's default grey material, because the dressing lane's two materials lack the Nanite usage flag. The fix is that lane's first job in its second pass. The dragon's head is correct in the packaged game.
+- `polish/integration` on origin at `5ae5f0b`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (first pass), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), and a texture limit for the build. Full suite 71 of 71; packaged and smoke-tested at `5ae5f0b`, zip 762 MB. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
+- The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Running now (both Opus at high, both resumed with a written review)**
+**Running now (both Opus at high)**
 
 Their reports go to the session that started them, so a new session checks the branches.
 
-- `polish/dragon` in `.wt\pkg`, second pass since 8:30 AM (time box 9:50 AM). The compile fix is done and merged. Now the bite, readable in the game's own light; the skin at arm's length; the shoulder. It may not edit the lamp's code. Frames `devlog/media/2026-11-15-dragon2-*.png`.
-- `polish/dressing` in `.wt\dev`, second pass since 8:09 AM (time box 9:45 AM). First: the Nanite usage flag on its two skin materials. Then the 500 m well as one composition (D-037): the relic as a real object from the pack, its light held by the shaft so that it glows out of the mouth, upright stone that takes the lamp, a lined shaft, a bottom that does not burn out. Then the trench wall: rock sunk into the face, or cut. The lamp's code is its lane this pass. Frames `devlog/media/2026-11-15-well-*.png`.
-- When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
+- `polish/dragon` in `.wt\pkg`, second pass since 8:30 AM (the first engineer, resumed with a written review; time box 9:50 AM). The bite, readable in the game's own light; the skin at arm's length (no white burn, no sparkle); the shoulder; one frame with ray tracing off. It may not edit the lamp's code. Frames `devlog/media/2026-11-15-dragon2-*.png`.
+- `polish/rope` in `.wt\dev`, since 8:58 AM (a fresh engineer; time box 10:25 AM). The tether as a rope that sags, goes taut and visibly parts when cut (it is a stretched cylinder today); bubbles tied to the breath, the hatch and the winch; a silt puff on the bed; the harpoon line as the same rope. Materials and Niagara systems go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-rope-*.png`.
+- When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, take a frame from the packaged game, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
 - Scripts for this are in the session's scratch folder and are worth rewriting if lost: one runs `verify`, then `package` and `smoke` inside the Unreal slot and `zip` after it; one takes a frame from the packaged game with `-DeepShot`.
-- Free checkout: `.wt\text`. The writer's draft of the itch.io page is in `devlog/itch-page.md` and the status of every submission requirement is in `01 - Jam/Submission Checklist.md` (both in `main`). **Not yet met, by risk:** no 30 to 60 s gameplay video; no itch.io page; nobody has played by hand; no run on a second machine; the Official Rules PDF is unread; team name and Epic account emails; no public dev log link (Glass Box needs one). After both second passes are in, have an agent record a scripted run as a fallback video.
+- A resumed engineer with a long history costs more per minute than a fresh one (691k tokens for the 42-minute second pass on the well, 492k for the 66-minute first). Resume for a review of the same work; start fresh for new work.
+
+**Left over from the well pass (small, not assigned)**
+
+- A fine smear across the trench rock while the submarine moves. The cause is not proved; the dragon lane found the same kind of fault on the serpent's body (no motion vectors on a mesh whose component never moves).
+- The beam up the relic's shaft has a hard edge and starts at a small bright square.
+- The gate at 500 m was not checked in a frame. The gate rows were added after that lane's last test run; the merge gate has run since.
+- `T_StoneDebris01_ORM` does not fit the skin's sampler and is left out, with a warning in the log.
+- Pack pieces have no collision. They are kept 1.5 m clear of every diver's path, but a diver who strays can swim through a pillar.
+
+**Not yet met for the submission, by risk**
+
+No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. Free checkout: `.wt\text`.
 
 **The build's size (the limit is 1 GB zipped)**
 
-- `deep/Config/DefaultDeviceProfiles.ini` limits plain world and character textures to 2048 and drops the top mip of every virtual texture (`LODBias_VT=1`). Without it the zip was 1,318 MB. With it: 679 MB before the dragon's head and 762 MB with it.
+- `deep/Config/DefaultDeviceProfiles.ini` limits plain world and character textures to 2048 and drops the top mip of every virtual texture (`LODBias_VT=1`). Without it the zip was 1,318 MB. With it: 762 MB with the dragon's head and both rock passes.
 - If more packs arrive and the zip nears the limit, `LODBias_VT=2` is the next step. Never use a flat `MaxLODSize_VT`: the pack's big textures are grids of 4096 tiles and it shrinks each tile to 256 pixels.
 - `tools/jam.json` still has the placeholder team name, so the zip is called `TeamName_DEEP.zip`.
 
