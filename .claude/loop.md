@@ -26,7 +26,7 @@ Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on 
 | The branch touches | Gate |
 |---|---|
 | Only notes: `deep-claude-brain/`, `devlog/`, `.claude/`, `*.md` | None. |
-| Only scripts in `tools/` | Run the changed script once. `verify` only if build or test logic in `ue.ps1` changed. |
+| Only scripts in `tools/` | The agent's own run of the changed script is enough. `verify` only if build or test logic in `ue.ps1` changed. |
 | Text data in `deep/Content/Data`, or any C++ in `deep/Source` | `verify`: build plus all tests, about a minute. |
 | Cooking: `deep/Config`, `Deep.uproject`, `*.Build.cs`, `*.Target.cs`, plugins, a new content folder | `verify` at merge. Package and smoke before the next checkpoint. |
 
