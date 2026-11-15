@@ -854,6 +854,12 @@ void ADeepSerpent::UpdateGlow(float Dt)
 		{
 			Target = FMath::Clamp(Tuning.GlowPassFraction, 0.f, 1.f);
 		}
+		else if (State == EDeepMonsterState::Recoil)
+		{
+			// The flinch flares its spots (UpdateMarks) and its light with them, then both die: the lamp's hit reads
+			// even though the lamp dims itself for a body this close.
+			Target = FMath::Clamp(Flinch01, 0.f, 1.f);
+		}
 	}
 	const float Rate = Target > Glow01 ? Tuning.GlowAttack : Tuning.GlowRelease;
 	Glow01 = FMath::FInterpTo(Glow01, Target, Dt, Rate);

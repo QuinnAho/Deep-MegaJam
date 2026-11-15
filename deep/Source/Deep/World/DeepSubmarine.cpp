@@ -398,12 +398,18 @@ void ADeepSubmarine::LayOut()
 			continue;
 		}
 		const double Y = Index == 0 ? StripY : -StripY;
-		Place(StripFixtures[Index], FVector(-60.0, Y, H * 0.5 - 4.0), FVector(520.0, 14.0, 8.0));
-		Strips[Index]->SetRelativeLocation(FVector(-60.0, Y, H * 0.5 - 9.0));
+		// From 30 cm off the aft wall to 2 m forward of the hatch (opening pass: they ended 20 cm forward of the start
+		// spot, so the walls round it were black). Look.StripIntensity keeps the old brightness per metre.
+		const double AftX = -L + 30.0;
+		const double ForeX = 200.0;
+		const double MidX = (AftX + ForeX) * 0.5;
+		const double Len = ForeX - AftX;
+		Place(StripFixtures[Index], FVector(MidX, Y, H * 0.5 - 4.0), FVector(Len + 20.0, 14.0, 8.0));
+		Strips[Index]->SetRelativeLocation(FVector(MidX, Y, H * 0.5 - 9.0));
 		Strips[Index]->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
 		// Pitched down, the light's height axis runs along the room.
 		Strips[Index]->SetSourceWidth(10.f);
-		Strips[Index]->SetSourceHeight(500.f);
+		Strips[Index]->SetSourceHeight(static_cast<float>(Len));
 	}
 	// The practicals face out of their screens.
 	ConsoleLight->SetRelativeLocation(FVector(C.X, C.Y - 12.0, DeckTop + 100.0));
@@ -799,6 +805,19 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	if (Strips.IsValidIndex(2))
 	{
 		Strips[2]->SetVisibility(GNoseStrip != 0 && !UDeepTuningSettings::Get().Arena.bGreyBox);
+	}
+	// While a diver reads the settlement card, the console screen behind it dims, so its graph does not run through
+	// the numbers (the card sits over the screen from where a player stands to bank).
+	if (UMaterialInstanceDynamic* Screen = ConsoleScreen ? Cast<UMaterialInstanceDynamic>(ConsoleScreen->GetMaterial(0)) : nullptr)
+	{
+		bool bSettling = false;
+		for (TActorIterator<APawn> It(GetWorld()); It && !bSettling; ++It)
+		{
+			const UDeepRunComponent* Run = It->FindComponentByClass<UDeepRunComponent>();
+			bSettling = Run && Run->GetState() == EDeepRunState::Settling;
+		}
+		ConsoleGlowScale = FMath::FInterpTo(ConsoleGlowScale, bSettling ? Look.ScreenGlowUnderCard : 1.f, DeltaSeconds, 6.f);
+		Screen->SetScalarParameterValue(TEXT("Glow"), Look.ScreenGlow * ConsoleGlowScale);
 	}
 	TickHelmLook(DeltaSeconds);
 }

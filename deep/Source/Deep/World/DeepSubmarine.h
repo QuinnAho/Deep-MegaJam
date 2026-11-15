@@ -109,6 +109,8 @@ protected:
 	float OutsideFog = 0.f;
 	float DriveSpeedMps = 0.f;
 	float LastDepthM = -1.f;
+	/** The console screen's glow fraction (eased): dims under the settlement card. */
+	float ConsoleGlowScale = 1.f;
 	bool bHelmManned = false;
 	bool bWasParked = true;
 	float SettleAge = 100.f;
