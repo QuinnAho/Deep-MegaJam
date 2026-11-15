@@ -37,6 +37,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Tether")
 	FDeepRopeTuning Rope;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Tether")
+	FDeepBubbleTuning Bubbles;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Diver")
 	FDeepWeightTuning Weight;
 

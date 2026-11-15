@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
+#include "World/DeepBubblesComponent.h"
 #include "World/DeepRopeComponent.h"
 #include "EngineUtils.h"
 #include "Game/DeepGameState.h"
@@ -67,6 +68,10 @@ ADeepDiver::ADeepDiver()
 	TetherLine = CreateDefaultSubobject<UDeepRopeComponent>(TEXT("TetherLine"));
 	TetherLine->SetupAttachment(GetCapsuleComponent());
 	Tether->SetLineRope(TetherLine);
+
+	// Air bubbles: breath, the hatch entry, the winch (World/DeepBubblesComponent).
+	Bubbles = CreateDefaultSubobject<UDeepBubblesComponent>(TEXT("Bubbles"));
+	Bubbles->SetupAttachment(GetCapsuleComponent());
 }
 
 void ADeepDiver::BeginPlay()
