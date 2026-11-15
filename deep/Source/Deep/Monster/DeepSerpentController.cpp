@@ -12,6 +12,8 @@
 #include "Monster/DeepMonsterSettings.h"
 #include "Monster/DeepSerpent.h"
 #include "World/DeepCavern.h"
+#include "World/DeepArena.h"
+#include "World/DeepArenaRoot.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Hearing.h"
 #include "Perception/AISense_Hearing.h"
@@ -62,6 +64,9 @@ void ADeepSerpentController::OnPossess(APawn* InPawn)
 	bFirstSightDone = false;
 	PassPoints.Reset();
 	PassLeg = 0;
+	TauntsLeft = UDeepMonsterSettings::Get().Behaviour.TauntCount;
+	TauntsDone = 0;
+	TauntLeg = 0;
 }
 
 void ADeepSerpentController::HandlePerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
@@ -70,7 +75,83 @@ void ADeepSerpentController::HandlePerceptionUpdated(AActor* Actor, FAIStimulus 
 	{
 		PendingNoise += FMath::Max(0.f, Stimulus.Strength);
 		HeardTotal += FMath::Max(0.f, Stimulus.Strength);
+		if (Stimulus.Strength > HeardLoudest)
+		{
+			HeardLoudest = Stimulus.Strength;
+			HeardAt = Stimulus.StimulusLocation;
+		}
 	}
+}
+
+FQuat ADeepSerpentController::RootRotation() const
+{
+	const ADeepArenaRoot* Root = DeepArena::FindArenaRoot(GetWorld());
+	return Root ? Root->GetActorQuat() : FQuat::Identity;
+}
+
+bool ADeepSerpentController::BeginTaunt(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning)
+{
+	const ADeepSerpent* Body = GetSerpent();
+	if (!Body || !Diver)
+	{
+		return false;
+	}
+	FVector Eye;
+	FRotator View;
+	Diver->GetActorEyesViewPoint(Eye, View);
+	// It comes in on the side it is already on, so the first beat is a swing out to the edge of the light, not a teleport.
+	const FVector Diver0 = Diver->GetActorLocation();
+	const FVector F = View.Vector();
+	const FVector R = FVector::CrossProduct(FVector::UpVector, FVector(F.X, F.Y, 0.0)).GetSafeNormal();
+	const float Side = FVector::DotProduct(Body->GetHeadLocation() - Diver0, R) >= 0.0 ? 1.f : -1.f;
+	TArray<FVector> Points;
+	UDeepMonsterRules::TauntPath(Diver0, BitePoint(Diver, Tuning), F, Side, Tuning, Points);
+	const FQuat Inv = RootRotation().Inverse();
+	TauntOffsets.Reset();
+	for (const FVector& P : Points)
+	{
+		TauntOffsets.Add(Inv.RotateVector(P - Diver0));
+	}
+	TauntDiver = Diver;
+	TauntLeg = 0;
+	return true;
+}
+
+FVector ADeepSerpentController::TauntPoint(int32 Index) const
+{
+	const ADeepDiver* Diver = TauntDiver.Get();
+	if (!Diver || !TauntOffsets.IsValidIndex(Index))
+	{
+		return GetPawn() ? GetPawn()->GetActorLocation() : FVector::ZeroVector;
+	}
+	return Diver->GetActorLocation() + RootRotation().RotateVector(TauntOffsets[Index]);
+}
+
+void ADeepSerpentController::Call(uint8 Kind, const TCHAR* Why, const FDeepMonsterTuning& Tuning)
+{
+	ADeepSerpent* Body = GetSerpent();
+	if (!Body)
+	{
+		return;
+	}
+	Body->Call(Kind);
+	SinceCallS = 0.f;
+	const ADeepDiver* Diver = Focus.Get();
+	const float DistM = Diver ? static_cast<float>(FVector::Dist(Body->GetHeadLocation(), Diver->GetActorLocation())) / CmPerM : -1.f;
+	const float Gain = DistM >= 0.f ? UDeepMonsterRules::VoiceGain(DistM, Tuning.VoiceInnerM, Tuning.CallFalloffM) * Tuning.CallVolume : 0.f;
+	UE_LOG(LogDeepSerpent, Log, TEXT("DEEPMONSTER_CALL {\"why\":\"%s\",\"kind\":%d,\"state\":\"%s\",\"distance_m\":%.1f,\"volume\":%.2f}"),
+		Why, Kind, *UDeepMonsterRules::StateName(State), DistM, Gain);
+}
+
+void ADeepSerpentController::LogTauntBeat(const TCHAR* Beat, const FDeepMonsterTuning& Tuning) const
+{
+	const ADeepSerpent* Body = GetSerpent();
+	const ADeepDiver* Diver = Focus.Get();
+	const float DistM = Body && Diver ? static_cast<float>(FVector::Dist(Body->GetHeadLocation(), Diver->GetActorLocation())) / CmPerM : -1.f;
+	const float Drone = DistM >= 0.f ? UDeepMonsterRules::VoiceGain(DistM, Tuning.VoiceInnerM, Tuning.DroneFalloffM)
+		* FMath::Lerp(Tuning.DroneVolumeCalm, Tuning.DroneVolumeNear, Threat01) : 0.f;
+	UE_LOG(LogDeepSerpent, Log, TEXT("DEEPMONSTER_TAUNT {\"beat\":\"%s\",\"taunt\":%d,\"left\":%d,\"distance_m\":%.1f,\"tether_m\":%.1f,\"drone_volume\":%.2f}"),
+		Beat, TauntsDone, TauntsLeft, DistM, TetherDistanceM, Drone);
 }
 
 void ADeepSerpentController::Tick(float DeltaSeconds)
@@ -253,7 +334,7 @@ bool ADeepSerpentController::IsHeadLit(const TArray<ADeepDiver*>& Divers, const 
 			continue;
 		}
 		const USpotLightComponent* Lamp = Diver->FindComponentByClass<USpotLightComponent>();
-		if (Lamp && UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), Lamp->OuterConeAngle,
+		if (Lamp && UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), Tuning.BeamHalfAngleDeg,
 			Lamp->AttenuationRadius / CmPerM, Head, TargetRadiusM))
 		{
 			return true;
@@ -294,6 +375,8 @@ void ADeepSerpentController::EnterState(EDeepMonsterState NewState, const FDeepM
 		LitSeconds = 0.f;
 		DebugLitS = 0.f;
 		Noise *= Tuning.NoiseKeptOnRecoil;
+		// Driven off, it comes back to watch before it bites again.
+		TauntsLeft = FMath::Max(TauntsLeft, Tuning.TauntsAfterRecoil);
 	}
 }
 
@@ -313,6 +396,20 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	// ---- What it heard (perception callbacks and cheats since the last step), then decay.
 	Noise = UDeepMonsterRules::NoiseStep(Noise, PendingNoise, Dt, Tuning);
 	PendingNoise = 0.f;
+	SinceCallS += Dt;
+	HeardTurnLeftS = FMath::Max(0.f, HeardTurnLeftS - Dt);
+	const float Heard = HeardLoudest;
+	HeardLoudest = 0.f;
+	if (Heard >= Tuning.AnswerNoise)
+	{
+		// It turns toward what it heard (while it circles), and answers if it has not called for a while.
+		TurnToward = HeardAt;
+		HeardTurnLeftS = Tuning.HeardTurnS;
+		if (UDeepMonsterRules::ShouldAnswer(Heard, SinceCallS, Tuning))
+		{
+			Call(ADeepSerpent::CallAnswer, TEXT("answer"), Tuning);
+		}
+	}
 
 	// ---- Who it is after. Locked in while it bites, hunts or flees.
 	TArray<ADeepDiver*> Divers;
@@ -357,7 +454,28 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 		PassClosestM = FMath::Min(PassClosestM, DiverDistanceM);
 		In.bPassComplete = PassLeg >= PassPoints.Num() && DiverDistanceM >= Tuning.PassEndM;
 	}
+	// Taunts are staged for a player's eyes, like the first sight: test divers and cheat spawns keep the old rules.
+	const bool bCanTaunt = Target && Target->IsPlayerControlled() && !Brain->IsForcedSpawn();
+	In.TauntsLeft = bCanTaunt ? TauntsLeft : 0;
+	if (State == EDeepMonsterState::Taunt)
+	{
+		In.bTauntComplete = TauntLeg >= TauntOffsets.Num();
+	}
 	FDeepMonsterStep Result = UDeepMonsterRules::NextState(In, Tuning);
+	if (Result.bTauntStarted)
+	{
+		if (BeginTaunt(Target, Tuning))
+		{
+			TauntsLeft = FMath::Max(0, TauntsLeft - 1);
+			++TauntsDone;
+		}
+		else
+		{
+			TauntsLeft = 0;
+			Result = FDeepMonsterStep();
+			Result.Next = State;
+		}
+	}
 	if (Result.bPassStarted && !BeginPass(Target, Tuning))
 	{
 		// Nowhere to stage it: skip the first sight and stay put this step.
@@ -378,6 +496,20 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	{
 		EnterState(Result.Next, Tuning);
 	}
+	if (In.State == EDeepMonsterState::Taunt && Result.Next == EDeepMonsterState::Stalk)
+	{
+		// The taunt does not calm it: after the last one it strikes.
+		Noise = FMath::Max(Noise, Tuning.StalkNoise);
+		LogTauntBeat(TEXT("gone"), Tuning);
+	}
+	if (Result.bTauntStarted)
+	{
+		LogTauntBeat(TEXT("start"), Tuning);
+	}
+	if (Result.bBiteStarted)
+	{
+		Call(ADeepSerpent::CallStrike, TEXT("strike"), Tuning);
+	}
 
 	// Events last, after the state is consistent, so listeners that read it see the new state.
 	// The first sight starts with a sound: the run's first-heard line (the run component says it once per run), so
@@ -386,7 +518,7 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	{
 		Brain->OnStalkStarted.Broadcast(Target);
 	}
-	if (Result.Changed(In.State) && Result.Next == EDeepMonsterState::Stalk)
+	if (Result.Changed(In.State) && Result.Next == EDeepMonsterState::Stalk && In.State != EDeepMonsterState::Taunt)
 	{
 		Brain->OnStalkStarted.Broadcast(Target);
 	}
@@ -443,7 +575,35 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	case EDeepMonsterState::Lurk:
 		Aim = UDeepMonsterRules::OrbitAimPoint(Middle, Head, LurkRadiusCm(Target, Tuning) / CmPerM, Tuning.LurkLeadDeg);
 		Speed = Tuning.LurkSpeedMps;
+		if (HeardTurnLeftS > 0.f && !TurnToward.IsZero())
+		{
+			// It heard something: it turns and swims toward it for a moment.
+			Aim = TurnToward;
+			Turn = Tuning.TurnRateDegPerS * 1.5f;
+		}
 		break;
+
+	case EDeepMonsterState::Taunt:
+	{
+		// Edge of the light, brush past the line, back into the dark. Each beat logs once; the brush calls.
+		if (TauntLeg < TauntOffsets.Num())
+		{
+			Aim = TauntPoint(TauntLeg);
+			if (FVector::Dist(Head, Aim) < 250.f)
+			{
+				static const TCHAR* Beats[] = { TEXT("edge"), TEXT("brush"), TEXT("withdraw") };
+				LogTauntBeat(Beats[FMath::Clamp(TauntLeg, 0, 2)], Tuning);
+				if (TauntLeg == 1)
+				{
+					Call(ADeepSerpent::CallTaunt, TEXT("taunt"), Tuning);
+				}
+				++TauntLeg;
+			}
+		}
+		Speed = Tuning.TauntSpeedMps;
+		Turn = Tuning.TurnRateDegPerS * 1.5f;
+		break;
+	}
 
 	case EDeepMonsterState::Stalk:
 	{
@@ -641,7 +801,7 @@ void ADeepSerpentController::UpdateWell(const ADeepDiver* Target, const FDeepMon
 		Diver.Z - UDeepMonsterRules::WellHoldBelowM(RiseMps, Tuning) * CmPerM);
 	const FVector Hold = UDeepMonsterRules::KeepInWell(Well, Below, Tuning);
 	const USpotLightComponent* Lamp = Target->IsLampOn() ? Target->FindComponentByClass<USpotLightComponent>() : nullptr;
-	const bool bSeen = Lamp && UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), Lamp->OuterConeAngle,
+	const bool bSeen = Lamp && UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), Tuning.BeamHalfAngleDeg,
 		Lamp->AttenuationRadius / CmPerM, Hold, UDeepMonsterSettings::Get().Body.HeadRadiusM + Tuning.BeamLeniencyM);
 	EnterWaitS += DeltaSeconds;
 	if (bSeen && EnterWaitS < Tuning.WellEnterWaitS)

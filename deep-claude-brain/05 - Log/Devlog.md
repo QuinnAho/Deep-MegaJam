@@ -1042,3 +1042,8 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
   - `devlog/media/2026-11-15-serpent-physics-side-0.0s.png`, `-side-0.4s.png` and `-side-0.8s.png`: straight, then the head turns and the neck bends after it while the rest stays put;
   - `-cavern.png`: game light at stop 2, the body in the lamp beam;
   - `-face.png`: the code head with the jaw open.
+
+### 5:30 PM  The serpent taunts, calls and hears more (rescope/monster, lane G)
+- What happened: Quinn asked for a monster that taunts and can be heard. Before it bites, it now comes to the edge of the lamp twice, brushes past the line without biting, calls, and slips back into the dark. A drone, click trains and three synthesised calls play from its head in 3D on every machine. It hears pings, harpoon shots, hull knocks and a sub driven hard, from up to 260 m, and it answers each loud sound with a call.
+- Why it matters: before this change the threat was a number on a non-spatial loop. Now the player can tell where it is by ear and feels watched before the strike. Taunts cannot cut the air line, because only Stalk and Bite bite it.
+- Evidence: build green. Deep.Sim.Monster 14/14 (new: Taunt, Hearing), Deep.Sim.Audio 8/8 (the new built-ins pass the peak and seam checks), Deep.World.Monster 3/3. S3-serpent PASS on 8027 (second run; the first lost its diver at 5 fps with 1.5 GB free). Frame: `devlog/media/2026-11-15-rescope-monster-taunt.png` (staged with a cheat). Lane note: `05 - Log/Lane Notes/rescope-monster.md`. Nobody has listened to it yet.

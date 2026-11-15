@@ -119,6 +119,12 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		{
 			Out.Next = EDeepMonsterState::Hunt;
 		}
+		else if (In.TauntsLeft > 0 && In.TetherDistanceM <= Tuning.TauntStartM)
+		{
+			// Not yet: it shows itself and withdraws first, so the player feels watched before it strikes.
+			Out.Next = EDeepMonsterState::Taunt;
+			Out.bTauntStarted = true;
+		}
 		else if (In.TetherDistanceM <= Tuning.BiteReachM)
 		{
 			Out.Next = EDeepMonsterState::Bite;
@@ -127,6 +133,23 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		else if (In.Noise < Tuning.CalmNoise)
 		{
 			Out.Next = EDeepMonsterState::Lurk;
+		}
+		break;
+
+	case EDeepMonsterState::Taunt:
+		if (In.LitSeconds >= Tuning.TauntLitToRecoilS)
+		{
+			Out.Next = EDeepMonsterState::Recoil;
+			Out.bRepelled = true;
+		}
+		else if (!In.bDiverTethered)
+		{
+			Out.Next = EDeepMonsterState::Hunt;
+		}
+		else if (In.bTauntComplete || In.StateSeconds >= Tuning.TauntMaxS)
+		{
+			// Back into the dark, and still coming: the stalk goes on (a taunt never bites, never calms it).
+			Out.Next = EDeepMonsterState::Stalk;
 		}
 		break;
 
@@ -517,8 +540,81 @@ FString UDeepMonsterRules::StateName(EDeepMonsterState State)
 	case EDeepMonsterState::Bite: return TEXT("Bite");
 	case EDeepMonsterState::Hunt: return TEXT("Hunt");
 	case EDeepMonsterState::Pass: return TEXT("Pass");
+	case EDeepMonsterState::Taunt: return TEXT("Taunt");
 	}
 	return TEXT("Unknown");
+}
+
+// ---------------------------------------------------------------- hearing, voice, taunt (lane G, Nov 15)
+
+float UDeepMonsterRules::NoiseForEvent(FName Event, float ImpactMps, const FDeepMonsterTuning& Tuning)
+{
+	if (Event == FName(TEXT("sonar_ping")))
+	{
+		return Tuning.PingNoise;
+	}
+	if (Event == FName(TEXT("harpoon_fired")))
+	{
+		return Tuning.HarpoonNoise;
+	}
+	if (Event == FName(TEXT("hull_hit")))
+	{
+		return Tuning.HullKnockNoise + Tuning.HullKnockNoisePerMps * FMath::Max(0.f, ImpactMps);
+	}
+	return 0.f;
+}
+
+float UDeepMonsterRules::HelmNoise(float DriveSpeedMps, float FullSpeedMps, float DeltaSeconds, const FDeepMonsterTuning& Tuning)
+{
+	if (FullSpeedMps <= KINDA_SMALL_NUMBER || DeltaSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	const float Throttle = FMath::Clamp(FMath::Abs(DriveSpeedMps) / FullSpeedMps, 0.f, 1.f);
+	return Tuning.HelmNoisePerS * Throttle * DeltaSeconds;
+}
+
+bool UDeepMonsterRules::ShouldAnswer(float HeardNoise, float SinceLastCallS, const FDeepMonsterTuning& Tuning)
+{
+	return HeardNoise >= Tuning.AnswerNoise && SinceLastCallS >= Tuning.AnswerCooldownS;
+}
+
+float UDeepMonsterRules::VoiceGain(float DistanceM, float InnerM, float FalloffM)
+{
+	if (DistanceM <= InnerM)
+	{
+		return 1.f;
+	}
+	if (FalloffM <= KINDA_SMALL_NUMBER)
+	{
+		return 0.f;
+	}
+	return FMath::Clamp(1.f - (DistanceM - InnerM) / FalloffM, 0.f, 1.f);
+}
+
+float UDeepMonsterRules::ClickEveryS(EDeepMonsterState State, float Threat01, const FDeepMonsterTuning& Tuning)
+{
+	const bool bClose = State == EDeepMonsterState::Stalk || State == EDeepMonsterState::Taunt || State == EDeepMonsterState::Bite
+		|| State == EDeepMonsterState::Hunt || State == EDeepMonsterState::Pass;
+	const float Near = bClose ? 1.f : FMath::Clamp(Threat01, 0.f, 1.f);
+	return FMath::Lerp(Tuning.ClickEveryCalmS, Tuning.ClickEveryNearS, Near);
+}
+
+void UDeepMonsterRules::TauntPath(const FVector& DiverCm, const FVector& BitePointCm, const FVector& ViewForward, float Side,
+	const FDeepMonsterTuning& Tuning, TArray<FVector>& OutPoints)
+{
+	OutPoints.Reset();
+	FVector F = ViewForward;
+	F.Z = 0.f;
+	F = F.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const FVector R = FVector::CrossProduct(FVector::UpVector, F).GetSafeNormal() * (Side >= 0.f ? 1.f : -1.f);
+	// 1. The edge of the light: ahead and to the side, at TauntEdgeM, where the lamp's cone ends and the dark begins.
+	OutPoints.Add(DiverCm + (F * 0.8f + R * 0.6f).GetSafeNormal() * (Tuning.TauntEdgeM * CmPerM));
+	// 2. The brush: across the line, TauntBrushM off the bite point on the other side, never inside the bite reach.
+	const float BrushM = FMath::Max(Tuning.TauntBrushM, Tuning.BiteReachM + 1.f);
+	OutPoints.Add(BitePointCm - R * (BrushM * CmPerM));
+	// 3. Back into the dark, away on the far side.
+	OutPoints.Add(DiverCm + (-R * 0.8f - F * 0.6f).GetSafeNormal() * (Tuning.TauntWithdrawM * CmPerM));
 }
 
 void UDeepMonsterRules::ReportDiverNoise(UObject* WorldContextObject, FVector LocationCm, float Loudness, AActor* Instigator)

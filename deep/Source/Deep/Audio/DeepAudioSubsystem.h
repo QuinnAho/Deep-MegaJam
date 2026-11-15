@@ -55,6 +55,14 @@ public:
 	/** PlayEvent with the row's volume and pitch scaled (the sonar's proximity tone rises and quickens). */
 	bool PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce = false);
 
+	/** The bus gain a row of this group gets now (group * master * duck; 0 muted). For sounds played outside the table. */
+	float BusGain(FName Group) const;
+	/**
+	 * Plays a built-in on a component of its own attached to Parent, spatialised with a linear falloff (InnerM, then 0
+	 * over FalloffM). Returns the component (the caller keeps it; stop it to end a loop). Null where audio cannot play.
+	 */
+	UAudioComponent* PlaySpatial(FName Builtin, class USceneComponent* Parent, float Volume, float Pitch, float InnerM, float FalloffM);
+
 	void SetMuted(bool bInMuted);
 	bool IsMuted() const { return bMuted; }
 

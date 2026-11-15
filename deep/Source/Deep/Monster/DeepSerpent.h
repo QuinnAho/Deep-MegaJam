@@ -91,8 +91,42 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
+	// ---- Its voice (lane G, Nov 15): spatialised, synthesised, on every machine from replicated state ----
+	static constexpr uint8 CallAnswer = 0;
+	static constexpr uint8 CallTaunt = 1;
+	static constexpr uint8 CallStrike = 2;
+	/** Server: a call every machine plays at the head (replicated serial + kind). */
+	void Call(uint8 Kind);
+	/** Local: the voice's last played level (after distance and the creature bus) and distance to the listener (m). */
+	float GetVoiceDroneVolume() const { return VoiceDroneVolume; }
+	float GetVoiceListenerM() const { return VoiceListenerM; }
+	int32 GetCallsPlayed() const { return CallsPlayed; }
+
 protected:
 	virtual void BeginPlay() override;
+
+	void TickVoice(float Dt);
+	void PlayVoice(TObjectPtr<class UAudioComponent>& Slot, FName Builtin, float Volume, float FalloffM, const TCHAR* What);
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UAudioComponent> DroneAudio;
+	UPROPERTY(Transient)
+	TObjectPtr<class UAudioComponent> CallAudio;
+	UPROPERTY(Transient)
+	TObjectPtr<class UAudioComponent> ClickAudio;
+
+	UPROPERTY(Replicated)
+	uint8 CallSerial = 0;
+	UPROPERTY(Replicated)
+	uint8 CallKind = 0;
+
+	uint8 SeenCallSerial = 0;
+	bool bVoiceReady = false;
+	float ClickTimerS = 2.f;
+	float VoiceDroneVolume = 0.f;
+	float VoiceListenerM = -1.f;
+	int32 CallsPlayed = 0;
+	int32 VoiceVariant = 0;
 
 	/** Adds the head position to the trail when it has moved far enough; trims the trail to the body length. */
 	void RecordTrail();

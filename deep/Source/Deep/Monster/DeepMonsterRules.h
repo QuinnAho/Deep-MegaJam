@@ -115,6 +115,36 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FString StateName(EDeepMonsterState State);
 
+	// ---- Hearing, voice, taunt (lane G, Nov 15) ----
+
+	/** Noise units a bus event makes where it happens: sonar_ping, harpoon_fired, hull_hit (+ per m/s of impact). 0 = silent. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float NoiseForEvent(FName Event, float ImpactMps, const FDeepMonsterTuning& Tuning);
+
+	/** Noise the sub makes this step when driven at the helm: HelmNoisePerS at full speed, scaled by throttle. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float HelmNoise(float DriveSpeedMps, float FullSpeedMps, float DeltaSeconds, const FDeepMonsterTuning& Tuning);
+
+	/** It answers a heard sound with a call: loud enough, and its last call long enough ago. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static bool ShouldAnswer(float HeardNoise, float SinceLastCallS, const FDeepMonsterTuning& Tuning);
+
+	/** The voice's level by distance: 1 inside InnerM, then linear to 0 over FalloffM (the engine attenuation uses the same curve). */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float VoiceGain(float DistanceM, float InnerM, float FalloffM);
+
+	/** Seconds between click trains: slow while it circles, fast once it comes in. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float ClickEveryS(EDeepMonsterState State, float Threat01, const FDeepMonsterTuning& Tuning);
+
+	/**
+	 * The taunt's three beats (world cm): the edge of the light (TauntEdgeM ahead and to Side of the view), the brush
+	 * (TauntBrushM past the bite point on the other side, never inside BiteReachM), the withdraw (TauntWithdrawM out
+	 * into the dark behind the far side).
+	 */
+	static void TauntPath(const FVector& DiverCm, const FVector& BitePointCm, const FVector& ViewForward, float Side,
+		const FDeepMonsterTuning& Tuning, TArray<FVector>& OutPoints);
+
 	// ---- The well (pure; world cm; not Blueprint: FDeepWell is a plain struct) ----
 
 	/** Inside the shaft: within its radius less MarginCm of the axis, and between its floor and top. */

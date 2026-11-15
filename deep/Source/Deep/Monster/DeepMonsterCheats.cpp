@@ -156,6 +156,35 @@ namespace
 			}
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs MonsterTauntCommand(
+		TEXT("Deep.Monster.Taunt"),
+		TEXT("Deep.Monster.Taunt [n]: sets the taunts it makes before it bites (default 1) and the noise to start a stalk. Logs DEEPMONSTER_TAUNT per beat."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Taunt"));
+			ADeepSerpentController* Mind = Brain ? Brain->GetSerpentController() : nullptr;
+			if (!Mind)
+			{
+				return;
+			}
+			Mind->SetTauntsLeft(Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 1);
+			UE_LOG(LogDeepMonsterCheats, Display, TEXT("DEEPMONSTER_TAUNTS {\"left\":%d,\"done\":%d,\"leg\":%d}"),
+				Mind->GetTauntsLeft(), Mind->GetTauntsDone(), Mind->GetTauntLeg());
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterCallCommand(
+		TEXT("Deep.Monster.Call"),
+		TEXT("Deep.Monster.Call [kind]: the serpent calls now (0 answer, 1 taunt, 2 strike) on every machine."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Call"));
+			ADeepSerpentController* Mind = Brain ? Brain->GetSerpentController() : nullptr;
+			if (ADeepSerpent* Body = Mind ? Mind->GetSerpent() : nullptr)
+			{
+				Body->Call(static_cast<uint8>(FMath::Clamp(Args.Num() > 0 ? FCString::Atoi(*Args[0]) : 1, 0, 2)));
+			}
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs MonsterFirstSightCommand(
 		TEXT("Deep.Monster.FirstSight"),
 		TEXT("The first sight now: the first-heard sound, then one slow pass across the diver's lamp at the edge of its reach, then it leaves and hunts as normal."),

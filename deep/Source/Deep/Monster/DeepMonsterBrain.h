@@ -106,6 +106,14 @@ protected:
 private:
 	int32 CurrentStop() const;
 
+	/** Server: bus events it can hear (sonar_ping, harpoon_fired, hull_hit) become hearing stimuli where they happen. */
+	void HandleBusEvent(FName Event, const struct FDeepEventPayload& Payload);
+	/** Server: a sub driven hard at the helm is loud. */
+	void HearHelm(float DeltaSeconds);
+	FDelegateHandle BusHandle;
+	float HelmNoiseAccum = 0.f;
+	float HelmClockS = 0.f;
+
 	TWeakObjectPtr<ADeepSerpent> Serpent;
 	TSet<TWeakObjectPtr<const ADeepDiver>> CutDivers;
 	/** Spawned by cheat or test: stays even below FirstStop. */
