@@ -42,3 +42,6 @@ deep/Content/DragonCave
 
 # Sound files from Quinn's brother, waiting to be imported (D-040). The imported assets go in deep/Content/DeepAudio.
 audio-drop/
+
+# Free models Quinn downloads (D-049; the vault note Polish - Sub Assets), waiting to be imported. Never committed.
+asset-drop/

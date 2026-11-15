@@ -57,6 +57,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-046 | The serpent is one model again, and its body moves by physics, dragged by the head | Quinn, about 2:36 PM Nov 15; being built on `polish/serpent-look` |
 | D-047 | The harpoon kicks the diver back when it fires | Quinn's ask, about 3:22 PM Nov 15; in the integration build since 3:40 PM (`cee150a`); one word from him takes it out |
 | D-048 | The re-scope: the sub is piloted on every axis, the cave is generated, the screen goes quiet, the line is the air, the room is dressed; the freeze moves to 6:45 PM | Quinn's ask, about 3:50 PM Nov 15; five lanes building since about 4:15 PM; replaces D-038's 5:30 PM freeze |
+| D-049 | Quinn's second round: a lamp you can see by and better light in the fog, a serpent that taunts, is heard and hears more, a readable helm, bends you can fly; the helm keeps its sonar for now | Quinn's asks, about 5:00 PM Nov 15; two lanes building since about 5:10 PM |
 
 ## Open
 
@@ -70,6 +71,22 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-049 Quinn's second round: a lamp you can see by, a serpent you can hear that taunts and listens, a helm you can read, bends you can fly
+- **Status:** Quinn's asks, about 5:00 PM Nov 15. Two lanes started at about 5:10 PM from `ea92861`: the light on `rescope/light` and the serpent on `rescope/monster` (rows 98 and 99 in [[Agent Runs]]). The HUD lane resumed for the helm readout, and the cave lane got the limit on the bends. Each merges after a diff review, verify and its own playthroughs (D-045). The freeze stays at 6:45 PM.
+- **Date:** 2026-11-15, about 5:00 PM EST
+- **Who:** Quinn asked. The lanes, the bend limit and the radar default are the orchestrator's; one word from him changes any of them.
+- **His words:** "also the falshlight does not have a big enough cone you cant see anythign really, also i think we need a better way of controlling the sub also teh monster needs to be taunting the player in order to make iti good make sure you can here it and it can hear you better" Then: "also the landscape is sitill bad, im htinking the radar could be when your swimming instead of the sub also The light propagation withing the fog seems a littel weird i would like to make this better"
+- **What it changes:**
+  - **Lamp and fog:** a wider cone with a usable pool of light, falloff into real dark, forward scatter in the water without glare at the eye, and no light through rock.
+  - **Serpent:** heard before it is seen, from where it really is, louder as it closes. It hears the ping, the harpoon, fast swimming, knocks, the winch and a sub at high throttle from further away, answers with a call and turns toward the noise. It shows itself and withdraws two or three times before it strikes, and a taunt never bites. Its seen-in-the-beam check gets its own angle, at today's value, so the wider lamp does not change when it counts as lit.
+  - **Helm:** a seated readout of the throttle notch, the ballast and the heading, because the levers cannot be seen from the seat, and a hint that says the ballast is a lever.
+  - **Cave:** where the passage is tight, its centre drifts at most about 0.5 m per metre of depth, with no steps. At full flood (2.6 m/s) a bend then sweeps sideways at about 1.3 m/s, which slow ahead (1.33 m/s) can follow.
+  - **Radar:** the diver's ping (V, D-043) is already the swimmer's radar. The helm's sonar stays on by default; `Deep.Hud.HelmSonar 0` hides it.
+- **Why:** Quinn could not see by the lamp, the light in the fog looked wrong, the serpent did not frighten because it never taunted and could not be heard, and the landscape was still bad. The helm lane showed that a full-flood dive with no steering breaches the hull by 240 m, so the bends must be flyable and the levers readable.
+- **Challenged:** moving the radar off the sub now. An inertial sub flown through bends in the dark, with no sonar, may be a descent no one can finish. It waits until Quinn has seen the new light and cave; then it is one switch.
+- **Not done, on purpose:** a helm that centres itself in the passage, and a bot that drives the levers in the scripted playthroughs, which keep the old direct path (no time); sound files (the serpent stays synthesised in code); a taunt that bites.
+- **Fallback:** a lane that misses its gate is left out or switched off. The packaged floor is still `cee150a`.
 
 ### D-048 The re-scope: the sub is piloted, the cave is generated, the screen goes quiet, the line is the air
 - **Status:** Quinn's ask, about 3:50 PM Nov 15. Five lanes started at about 4:15 PM, each an Opus engineer on its own branch from integration `cee150a` (rows 92 to 96 in [[Agent Runs]]). Each lane merges into integration only after a diff review, verify and its own playthroughs (D-045); nothing reaches `main` without his "merge". It replaces the 5:30 PM freeze of D-038.
