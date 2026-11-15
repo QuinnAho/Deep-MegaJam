@@ -469,12 +469,48 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
 	float RelicReachMarginM = 3.f;
 
-	/** The relic's own light: bright and wide, so it is the brightest thing in the trench. */
+	/**
+	 * The relic's own light, a warm glow over it. Small and contained by the shaft (D-037): at 12000 over 25 m it lit the
+	 * whole pit yellow-green and burned the frame; the beacon below does the job of being seen from the hatch.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
-	float RelicLightIntensity = 12000.f;
+	float RelicLightIntensity = 1200.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
-	float RelicLightRadiusM = 25.f;
+	float RelicLightRadiusM = 7.f;
+
+	/** Amber (style guide 3: salvage glints may be amber). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	FLinearColor RelicLightColor = FLinearColor(1.f, 0.62f, 0.27f);
+
+	/**
+	 * The beacon: a narrow spot from the relic straight up the shaft, scattering in the volumetric fog, so a column of
+	 * light rises out of the well's mouth and the player finds it with the lamp off. Shadowed, so the shaft holds it.
+	 * Recipe: Epic, "Volumetric Fog": a light adds to the fog by its Volumetric Scattering Intensity; shadowed spots cost
+	 * about three times unshadowed ones; fog is only computed within the fog's view distance (40 m at 500 m).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicBeaconIntensity = 200000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicBeaconConeDeg = 6.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicBeaconRangeM = 100.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	float RelicBeaconScattering = 20.f;
+
+	/** The relic's shape: a pack mesh (cooked through PackAssets.csv), worn with the dressing skin. Falls back to basic shapes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	FSoftObjectPath RelicMesh = FSoftObjectPath(TEXT("/Game/DragonCave/Meshes/SM_StoneworksSphere01.SM_StoneworksSphere01"));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	FSoftObjectPath RelicMaterial = FSoftObjectPath(TEXT("/Game/Deep/Dressing/M_DressSilt.M_DressSilt"));
+
+	/** The instance the relic's skin takes its textures from (the Stoneworks mesh carries the bare master). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")
+	FSoftObjectPath RelicTextures = FSoftObjectPath(TEXT("/Game/DragonCave/Materials/MI_Sphere01.MI_Sphere01"));
 
 	/** relic_seen: the diver is this close, or ... */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Relic")

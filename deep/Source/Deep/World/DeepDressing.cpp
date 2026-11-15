@@ -12,6 +12,9 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture.h"
+#include "RenderUtils.h"
+#include "RHIGlobals.h"
+#include "RHI.h"
 #include "Math/RandomStream.h"
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
@@ -92,6 +95,7 @@ TArray<FDeepDressRow> DeepDressing::ParseRows(const FString& Csv, TArray<FString
 		Row.Id = Str(Cells, TEXT("id"));
 		Row.Mesh = Str(Cells, TEXT("mesh"));
 		Row.Material = Str(Cells, TEXT("material"));
+		Row.Tex = Str(Cells, TEXT("tex"));
 		auto Fail = [&](const FString& Why)
 		{
 			if (OutErrors)
@@ -159,6 +163,10 @@ TArray<FDeepDressRow> DeepDressing::ParseRows(const FString& Csv, TArray<FString
 		{
 			Row.Ref = EDeepDressRef::Depth;
 		}
+		else if (Ref == TEXT("shaft"))
+		{
+			Row.Ref = EDeepDressRef::Shaft;
+		}
 		else
 		{
 			Fail(FString::Printf(TEXT("unknown ref '%s' for parent root"), *Ref));
@@ -181,6 +189,7 @@ TArray<FDeepDressRow> DeepDressing::ParseRows(const FString& Csv, TArray<FString
 		Row.ScaleMax = FMath::Max(Row.ScaleMin, Num(Cells, TEXT("scale_max"), Row.ScaleMin));
 		Row.Seed = FMath::RoundToInt(Num(Cells, TEXT("seed"), 0.f));
 		Row.Silt = Num(Cells, TEXT("silt"), -1.f);
+		Row.Sat = Num(Cells, TEXT("sat"), -1.f);
 		Out.Add(MoveTemp(Row));
 	}
 	return Out;
@@ -268,6 +277,58 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 		return FTransform(Rot.Quaternion(), FVector(-(Relief + Out_) * Cm, Along * Cm, -Depth * Cm), FVector(Scale));
 	};
 
+	// The relic's shaft: the piece stands against the shaft's wall at (angle, depth below the anchor), its +X outward, its
+	// inner face Out metres in front of the rock. The wall's radius at that depth is found on the bed's own function.
+	if (Row.Ref == EDeepDressRef::Shaft && Row.Parent == EDeepDressParent::Root)
+	{
+		auto MakeShaft = [&](float AngleDeg, float DepthM, float OutM, const FRotator& Jitter, float Scale) -> FTransform
+		{
+			const double A = FMath::DegreesToRadians(AngleDeg);
+			const FVector2D Dir(FMath::Cos(A), FMath::Sin(A));
+			double Lo = 0.0;
+			double Hi = 14.0;
+			for (int32 Step = 0; Step < 32 && Context.BedBelowM; ++Step)
+			{
+				const double Mid = 0.5 * (Lo + Hi);
+				(Context.BedBelowM(Dir * Mid) > DepthM ? Lo : Hi) = Mid;
+			}
+			const FQuat Q = FRotator(Jitter.Pitch, AngleDeg + Jitter.Yaw, Jitter.Roll).Quaternion();
+			const double PivotR = (Lo - OutM) * Cm - Context.MeshBox.Min.X * Scale;
+			FVector Loc = Context.AnchorCm + FVector(Dir.X * PivotR, Dir.Y * PivotR, 0.0);
+			Loc.Z = Context.AnchorCm.Z - DepthM * Cm - Q.RotateVector(Context.MeshBox.GetCenter() * Scale).Z;
+			return FTransform(Q, Loc, FVector(Scale));
+		};
+		// Standing out of the wall by at most DressingLowM, a piece lies against the rock, which collides.
+		const bool bAgainstWall = Row.XM * Cm <= Context.LowCm;
+		FRandomStream Rng(Row.Seed != 0 ? Row.Seed : int32(GetTypeHash(Row.Id)));
+		const int32 Count = Row.Kind == EDeepDressKind::Place ? 1 : Row.Count;
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			FTransform T;
+			if (Row.Kind == EDeepDressKind::Place)
+			{
+				T = MakeShaft(Row.YM, Row.ZM, Row.XM, FRotator(Row.Pitch, Row.Yaw, Row.Roll), Row.Scale);
+			}
+			else
+			{
+				const float Scale = Row.Scale * Rng.FRandRange(Row.ScaleMin, Row.ScaleMax);
+				const FRotator Jitter(Row.Pitch * Rng.FRandRange(-1.f, 1.f), Row.Yaw * Rng.FRandRange(-1.f, 1.f), Row.Roll * Rng.FRandRange(-1.f, 1.f));
+				T = MakeShaft(Row.YM + Rng.FRandRange(0.f, 360.f), FMath::Lerp(Row.ZM, Row.ZToM, Rng.FRand()), Row.XM, Jitter, Scale);
+			}
+			if (!bAgainstWall && Blocks(T, Context.MeshBox, Context.Clear))
+			{
+				++Rejected;
+				continue;
+			}
+			Out.Add(T);
+		}
+		if (OutRejected)
+		{
+			*OutRejected = Rejected;
+		}
+		return Out;
+	}
+
 	const bool bWall = Row.Parent == EDeepDressParent::Trench;
 	if (Row.Kind == EDeepDressKind::Place)
 	{
@@ -326,6 +387,16 @@ TArray<FTransform> DeepDressing::Expand(const FDeepDressRow& Row, const FDeepDre
 
 namespace
 {
+	/**
+	 * Streams virtually: the asset asks for it and the platform has it. Not IsCurrentlyVirtualTextured(): in an uncooked game
+	 * that reads false until the texture's data is built, so the same set picked the plain skin on one load and the VT
+	 * one on the next, and a VT texture in a plain sampler came out black (the well's lining, pass two).
+	 */
+	bool IsVirtual(const UTexture* Tex)
+	{
+		return Tex && Tex->VirtualTextureStreaming && UseVirtualTexturing(GMaxRHIShaderPlatform);
+	}
+
 	/** Which sampler a texture needs: 0 colour (sRGB), 1 linear colour, 2 masks, 3 normal; +4 when virtual. */
 	int32 SamplerClass(const UTexture* Tex)
 	{
@@ -342,11 +413,11 @@ namespace
 		{
 			Class = 1;
 		}
-		return Class + (Tex->IsCurrentlyVirtualTextured() ? 4 : 0);
+		return Class + (IsVirtual(Tex) ? 4 : 0);
 	}
 }
 
-UMaterialInterface* DeepDressing::Skin(UMaterialInterface* Master, UMaterialInterface* Original, float Silt, UObject* Outer)
+UMaterialInterface* DeepDressing::Skin(UMaterialInterface* Master, UMaterialInterface* Original, float Silt, UObject* Outer, float Saturation)
 {
 	UTexture* Probe = nullptr;
 	if (!Master || !Master->GetTextureParameterValue(FHashedMaterialParameterInfo(FName(TEXT("BaseColorMap"))), Probe))
@@ -354,8 +425,12 @@ UMaterialInterface* DeepDressing::Skin(UMaterialInterface* Master, UMaterialInte
 		// A plain override: the mesh wears it as it is.
 		return Master;
 	}
-	// Some pack textures stream virtually and need the master's VT twin (<master>VT): pick by the slot's base colour.
-	if (Original && Probe)
+	// The pack's own textures, matched by the pack's names (_BC, _N, _ORM). A pack master has several texture parameters
+	// and only some are set by an instance: the instance's own values win over the master's defaults (MI_Sphere01's
+	// T_Stoneworks_BC was lost behind a default _BC of the master, and the Stoneworks stone came out black).
+	TMap<FName, UTexture*> Found;
+	TSet<FName> FromInstance;
+	if (Original)
 	{
 		TArray<FMaterialParameterInfo> Infos;
 		TArray<FGuid> Ids;
@@ -363,21 +438,41 @@ UMaterialInterface* DeepDressing::Skin(UMaterialInterface* Master, UMaterialInte
 		for (const FMaterialParameterInfo& Info : Infos)
 		{
 			UTexture* Tex = nullptr;
-			if (Original->GetTextureParameterValue(Info, Tex) && Tex && Tex->GetName().EndsWith(TEXT("_BC")))
+			if (!Original->GetTextureParameterValue(Info, Tex) || !Tex)
 			{
-				if (Tex->IsCurrentlyVirtualTextured() != Probe->IsCurrentlyVirtualTextured())
-				{
-					const FString Package = FPackageName::ObjectPathToPackageName(Master->GetPathName());
-					const FString Name = FPackageName::GetShortName(Package);
-					const FString TwinName = Name.EndsWith(TEXT("VT")) ? Name.LeftChop(2) : Name + TEXT("VT");
-					const FString Twin = FPackageName::GetLongPackagePath(Package) / TwinName + TEXT(".") + TwinName;
-					if (UMaterialInterface* Other = LoadObject<UMaterialInterface>(nullptr, *Twin, nullptr, LOAD_NoWarn | LOAD_Quiet))
-					{
-						Master = Other;
-					}
-				}
-				break;
+				continue;
 			}
+			const FString Name = Tex->GetName();
+			const FName Slot = Name.EndsWith(TEXT("_BC")) ? FName(TEXT("BaseColorMap"))
+				: Name.EndsWith(TEXT("_N")) ? FName(TEXT("NormalMap"))
+				: Name.EndsWith(TEXT("_ORM")) ? FName(TEXT("ORMMap"))
+				: NAME_None;
+			if (Slot.IsNone())
+			{
+				continue;
+			}
+			UTexture* Overridden = nullptr;
+			const bool bOwn = Original->GetTextureParameterValue(Info, Overridden, /*bOveriddenOnly*/ true) && Overridden == Tex;
+			if (!Found.Contains(Slot) || (bOwn && !FromInstance.Contains(Slot)))
+			{
+				Found.Add(Slot, Tex);
+				if (bOwn)
+				{
+					FromInstance.Add(Slot);
+				}
+			}
+		}
+	}
+	// Some pack textures stream virtually and need the master's VT twin (<master>VT): pick by the base colour.
+	if (UTexture* const* Base = Found.Find(FName(TEXT("BaseColorMap"))); Base && Probe && IsVirtual(*Base) != IsVirtual(Probe))
+	{
+		const FString Package = FPackageName::ObjectPathToPackageName(Master->GetPathName());
+		const FString Name = FPackageName::GetShortName(Package);
+		const FString TwinName = Name.EndsWith(TEXT("VT")) ? Name.LeftChop(2) : Name + TEXT("VT");
+		const FString Twin = FPackageName::GetLongPackagePath(Package) / TwinName + TEXT(".") + TwinName;
+		if (UMaterialInterface* Other = LoadObject<UMaterialInterface>(nullptr, *Twin, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			Master = Other;
 		}
 	}
 	UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Master, Outer);
@@ -385,44 +480,28 @@ UMaterialInterface* DeepDressing::Skin(UMaterialInterface* Master, UMaterialInte
 	{
 		Dynamic->SetScalarParameterValue(TEXT("SiltAmount"), Silt);
 	}
-	if (!Original)
+	if (Saturation >= 0.f)
 	{
-		return Dynamic;
+		Dynamic->SetScalarParameterValue(TEXT("Saturation"), Saturation);
 	}
-	// The pack's own textures go into the skin, matched by the pack's names (_BC, _N, _ORM).
-	TArray<FMaterialParameterInfo> Infos;
-	TArray<FGuid> Ids;
-	Original->GetAllTextureParameterInfo(Infos, Ids);
-	for (const FMaterialParameterInfo& Info : Infos)
+	for (const TPair<FName, UTexture*>& Pair : Found)
 	{
-		UTexture* Tex = nullptr;
-		if (!Original->GetTextureParameterValue(Info, Tex) || !Tex)
-		{
-			continue;
-		}
-		const FString Name = Tex->GetName();
-		const FName Slot = Name.EndsWith(TEXT("_BC")) ? FName(TEXT("BaseColorMap"))
-			: Name.EndsWith(TEXT("_N")) ? FName(TEXT("NormalMap"))
-			: Name.EndsWith(TEXT("_ORM")) ? FName(TEXT("ORMMap"))
-			: NAME_None;
-		if (Slot.IsNone())
-		{
-			continue;
-		}
 		UTexture* Default = nullptr;
-		Master->GetTextureParameterValue(FHashedMaterialParameterInfo(Slot), Default);
-		if (Default && SamplerClass(Default) != SamplerClass(Tex))
+		Master->GetTextureParameterValue(FHashedMaterialParameterInfo(Pair.Key), Default);
+		const bool bMasterVT = Master->GetName().EndsWith(TEXT("VT"));
+		if ((Default && SamplerClass(Default) % 4 != SamplerClass(Pair.Value) % 4) || IsVirtual(Pair.Value) != bMasterVT)
 		{
 			// A texture of another kind would sample wrong: keep the default and say so once.
 			static TSet<FString> Warned;
+			const FString Name = Pair.Value->GetName();
 			if (!Warned.Contains(Name))
 			{
 				Warned.Add(Name);
-				UE_LOG(LogDeepDressing, Warning, TEXT("DEEPDRESS %s does not fit %s's sampler (%d, wants %d): left out"), *Name, *Slot.ToString(), SamplerClass(Tex), SamplerClass(Default));
+				UE_LOG(LogDeepDressing, Warning, TEXT("DEEPDRESS %s does not fit %s's sampler (%d, wants %d): left out"), *Name, *Pair.Key.ToString(), SamplerClass(Pair.Value), Default ? SamplerClass(Default) : -1);
 			}
 			continue;
 		}
-		Dynamic->SetTextureParameterValue(Slot, Tex);
+		Dynamic->SetTextureParameterValue(Pair.Key, Pair.Value);
 	}
 	return Dynamic;
 }
@@ -432,7 +511,7 @@ TArray<FName> DeepDressing::PackagesToCook(const FString& DressingCsv, const FSt
 	TSet<FString> Set;
 	for (const FDeepDressRow& Row : ParseRows(DressingCsv))
 	{
-		for (const FString& Path : { Row.Mesh, Row.Material })
+		for (const FString& Path : { Row.Mesh, Row.Material, Row.Tex })
 		{
 			const FString P = NormalisePackage(Path);
 			if (!P.IsEmpty())
@@ -583,7 +662,7 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 	for (int32 RowIndex = 0; RowIndex < Rows.Num(); ++RowIndex)
 	{
 		const FDeepDressRow& Row = Rows[RowIndex];
-		const FString Key = FString::Printf(TEXT("%s|%s|%.3f|%d|%d|%d"), *Row.Mesh, *Row.Material, Row.Silt, int32(Row.Parent), Row.Stop, Row.HidesBelowStop() ? 1 : 0);
+		const FString Key = FString::Printf(TEXT("%s|%s|%s|%.3f|%.3f|%d|%d|%d"), *Row.Mesh, *Row.Material, *Row.Tex, Row.Silt, Row.Sat, int32(Row.Parent), Row.Stop, Row.HidesBelowStop() ? 1 : 0);
 		if (const int32* Existing = GroupByKey.Find(Key))
 		{
 			Groups[*Existing].RowIndices.Add(RowIndex);
@@ -617,9 +696,13 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 		C->SetStaticMesh(Mesh);
 		if (Material)
 		{
+			// Some pack meshes (the Stoneworks set) carry the bare VT master in their slot, with none of the set's
+			// textures: the skin then took its defaults and the stone rendered black (unlit 500 m frame). `tex` names
+			// an instance that has them.
+			UMaterialInterface* TexSource = Row.Tex.IsEmpty() ? nullptr : LoadObject<UMaterialInterface>(nullptr, *Row.Tex, nullptr, LOAD_NoWarn | LOAD_Quiet);
 			for (int32 Slot = 0; Slot < C->GetNumMaterials(); ++Slot)
 			{
-				C->SetMaterial(Slot, DeepDressing::Skin(Material, Mesh->GetMaterial(Slot), Row.Silt, C));
+				C->SetMaterial(Slot, DeepDressing::Skin(Material, TexSource ? TexSource : Mesh->GetMaterial(Slot), Row.Silt, C, Row.Sat));
 			}
 		}
 		C->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
@@ -627,6 +710,9 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 		C->SetGenerateOverlapEvents(false);
 		C->SetCanEverAffectNavigation(false);
 		C->SetCastShadow(true);
+		// Trench rock streams past at 8 m/s: new pieces showed a low mip, magnified into a blocky checker, before the
+		// streamer caught up (pass-one drive frames). Their few textures stay at full mip.
+		C->bForceMipStreaming = Row.Parent == EDeepDressParent::Trench;
 		const bool bOnTrench = Row.Parent == EDeepDressParent::Trench && Trench;
 		C->SetupAttachment(bOnTrench ? Trench : Root.Get());
 		C->RegisterComponent();

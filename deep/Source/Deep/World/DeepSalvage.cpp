@@ -1,7 +1,10 @@
 #include "World/DeepSalvage.h"
 
 #include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "World/DeepDressing.h"
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -47,6 +50,55 @@ ADeepSalvage::ADeepSalvage()
 	Glint->SetupAttachment(Root);
 	Glint->SetMobility(EComponentMobility::Movable);
 	Glint->SetCastShadows(false);
+
+	RelicMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RelicMesh"));
+	RelicMesh->SetupAttachment(RelicPivot);
+	RelicMesh->SetMobility(EComponentMobility::Movable);
+	RelicMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RelicMesh->SetVisibility(false);
+
+	// A spot light's beam is its +X: pitch 90 points it straight up the shaft.
+	Beacon = CreateDefaultSubobject<USpotLightComponent>(TEXT("Beacon"));
+	Beacon->SetupAttachment(Root);
+	Beacon->SetMobility(EComponentMobility::Movable);
+	Beacon->SetRelativeRotation(FRotator(90.f, 0.f, 0.f));
+	Beacon->SetCastShadows(true);
+	Beacon->SetCastVolumetricShadow(true);
+	Beacon->SetVisibility(false);
+}
+
+bool ADeepSalvage::ApplyRelicMesh()
+{
+	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
+	UStaticMesh* Mesh = IsRelic() && !Arena.RelicMesh.IsNull() ? Cast<UStaticMesh>(Arena.RelicMesh.TryLoad()) : nullptr;
+	RelicMesh->SetVisibility(Mesh != nullptr);
+	if (!Mesh)
+	{
+		return false;
+	}
+	if (RelicMesh->GetStaticMesh() != Mesh)
+	{
+		RelicMesh->SetStaticMesh(Mesh);
+		UMaterialInterface* Skin = Arena.RelicMaterial.IsNull() ? nullptr : Cast<UMaterialInterface>(Arena.RelicMaterial.TryLoad());
+		UMaterialInterface* Textures = Arena.RelicTextures.IsNull() ? nullptr : Cast<UMaterialInterface>(Arena.RelicTextures.TryLoad());
+		for (int32 Slot = 0; Skin && Slot < RelicMesh->GetNumMaterials(); ++Slot)
+		{
+			// Little silt: it was handled, it is the one thing down here someone kept clean. Its bronze keeps some colour.
+			RelicMesh->SetMaterial(Slot, DeepDressing::Skin(Skin, Textures ? Textures : Mesh->GetMaterial(Slot), 0.1f, this, 0.8f));
+		}
+	}
+	// Fit the mesh's largest side to the relic's size, centred on the pivot (the grab collider is the hidden orb).
+	const FBox Box = Mesh->GetBoundingBox();
+	const double Fit = Kind.SizeM * UDeepRules::CmPerM / FMath::Max(1.0, Box.GetSize().GetMax());
+	RelicMesh->SetRelativeScale3D(FVector(Fit));
+	// It rests on the bed: the bed passes (half height - sink) under the pivot (ADeepAbyssFloor::RestPointM), and the
+	// mesh settles 8 cm into the silt.
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	const double HalfCm = Kind.SizeM * 1.1 * UDeepRules::CmPerM;
+	const double BedCm = -(HalfCm - 2.0 * HalfCm * FMath::Clamp(Look.SeabedSinkFraction, 0.f, 0.5f));
+	RelicMesh->SetRelativeLocation(FVector(-Box.GetCenter().X * Fit, -Box.GetCenter().Y * Fit, BedCm - Box.Min.Z * Fit - 8.0));
+	RelicPivot->SetRelativeLocation(FVector::ZeroVector);
+	return true;
 }
 
 void ADeepSalvage::BeginPlay()
@@ -137,11 +189,33 @@ void ADeepSalvage::ApplyKind()
 	}
 	SetActorTickEnabled(IsRelic());
 
+	// The pack relic replaces the shapes; the orb stays as the (hidden) grab collider.
+	if (ApplyRelicMesh())
+	{
+		Shown->SetVisibility(false);
+		for (UStaticMeshComponent* Part : RelicParts)
+		{
+			Part->SetVisibility(false);
+		}
+	}
+
 	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
 	Glint->SetRelativeLocation(FVector(0.f, 0.f, Kind.SizeM * UDeepRules::CmPerM));
 	Glint->SetIntensity(IsRelic() ? Arena.RelicLightIntensity : Arena.SalvageGlintIntensity * GlintScale);
 	Glint->SetAttenuationRadius((IsRelic() ? Arena.RelicLightRadiusM : Arena.SalvageGlintRadiusM) * UDeepRules::CmPerM);
-	Glint->SetLightColor(Kind.Color);
+	Glint->SetLightColor(IsRelic() ? Arena.RelicLightColor : Kind.Color);
+
+	Beacon->SetVisibility(IsRelic() && Arena.RelicBeaconIntensity > 0.f);
+	if (IsRelic())
+	{
+		Beacon->SetRelativeLocation(FVector(0.f, 0.f, Kind.SizeM * UDeepRules::CmPerM * 0.6f));
+		Beacon->SetIntensity(Arena.RelicBeaconIntensity);
+		Beacon->SetInnerConeAngle(Arena.RelicBeaconConeDeg * 0.4f);
+		Beacon->SetOuterConeAngle(Arena.RelicBeaconConeDeg);
+		Beacon->SetAttenuationRadius(Arena.RelicBeaconRangeM * UDeepRules::CmPerM);
+		Beacon->SetVolumetricScatteringIntensity(Arena.RelicBeaconScattering);
+		Beacon->SetLightColor(Arena.RelicLightColor);
+	}
 }
 
 void ADeepSalvage::SetGlintScale(float Scale)
@@ -160,8 +234,8 @@ void ADeepSalvage::SetGlintScale(float Scale)
 void ADeepSalvage::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	// The relic turns slowly and bobs, so it reads as alive among the dead scrap.
-	if (IsRelic() && RelicPivot)
+	// The shape-built relic turns slowly and bobs, so it reads as alive among the dead scrap. The pack relic lies still.
+	if (IsRelic() && RelicPivot && !(RelicMesh && RelicMesh->IsVisible()))
 	{
 		RelicPivot->AddLocalRotation(FRotator(0.f, 40.f * DeltaSeconds, 0.f));
 		const float Bob = FMath::Sin(GetWorld()->GetTimeSeconds() * 1.5f) * 12.f;
