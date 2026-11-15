@@ -7,6 +7,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArenaRoot.h"
+#include "World/DeepCavern.h"
 #include "World/DeepDressing.h"
 #include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
@@ -209,6 +210,15 @@ namespace DeepArena
 			if (ADeepAbyssFloor* Floor = World->SpawnActor<ADeepAbyssFloor>(ArenaAnchor(World), FRotator::ZeroRotator, SpawnParams()))
 			{
 				HangFromRoot(World, Floor);
+			}
+		}
+
+		if (!FindFirst<ADeepCavern>(World))
+		{
+			// Rock walls and a roof round the arena, built round the same anchor and hung the same way (ADeepCavern).
+			if (ADeepCavern* Cavern = World->SpawnActor<ADeepCavern>(ArenaAnchor(World), FRotator::ZeroRotator, SpawnParams()))
+			{
+				HangFromRoot(World, Cavern);
 			}
 		}
 

@@ -14,6 +14,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepArena.h"
+#include "World/DeepCookKey.h"
 #include "World/DeepSubmarine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepShaft, Log, All);
@@ -185,8 +186,9 @@ void ADeepShaft::Build()
 		const FVector P0 = Vertices[0], P1 = Vertices[Cols], P2 = Vertices[1];
 		const FVector Face = FVector::CrossProduct(P1 - P2, P0 - P2);
 		const bool bFlip = FVector::DotProduct(Face, Normals[0]) < 0.0;
-		// In pieces of at most PieceRows rows, each its own component: a whole stretch as one body (36k triangles) did
-		// not answer a single trace in this engine (Chaos, 5.9 preview; found by Deep.World.Cave.Tube), the pieces do.
+		// In pieces of at most PieceRows rows, each its own component with its own cook key (World/DeepCookKey.h): in
+		// editor builds every complex-only procedural mesh shares one cached collision mesh unless its simple geometry
+		// differs, so whole stretches answered traces with another mesh's rock (found by Deep.World.Cave.Tube).
 		// Neighbouring pieces share their boundary row, so the rock has no seam.
 		constexpr int32 PieceRows = 48;
 		for (int32 J0 = 0; J0 < Rows - 1; J0 += PieceRows)
@@ -227,6 +229,10 @@ void ADeepShaft::Build()
 			Tube->SetCanEverAffectNavigation(false);
 			Tube->SetCastShadow(false);
 			Tube->RegisterComponent();
+			// Its own collision cook key (World/DeepCookKey.h), 40 m out in the rock behind its first row.
+			const FVector KeyFrom = PieceVertices[0];
+			const FVector KeyOut = (KeyFrom - FVector(Centres[J0].X, Centres[J0].Y, 0.0) * UDeepRules::CmPerM).GetSafeNormal2D();
+			DeepCookKey::Apply(Tube, KeyFrom + KeyOut * 40.0 * UDeepRules::CmPerM, DeepCookKey::Hash(PieceVertices, Tris, uint32(K)));
 			Tube->CreateMeshSection(0, PieceVertices, Tris, PieceNormals, PieceUV0, TArray<FColor>(), PieceTangents, /*bCreateCollision*/ true);
 			if (Material)
 			{

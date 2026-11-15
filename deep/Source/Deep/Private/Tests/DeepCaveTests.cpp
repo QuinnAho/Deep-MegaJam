@@ -18,7 +18,9 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepEventBus.h"
+#include "World/DeepAbyssFloor.h"
 #include "World/DeepArena.h"
+#include "World/DeepCavern.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 
@@ -337,6 +339,40 @@ bool FDeepCaveTubeTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("Rock all round"), Hits, 8);
 	TestEqual(TEXT("The world's Visibility trace meets the shaft first, all round"), WorldHits, 8);
+
+	// The other two procedural bodies in the same world, each with its own cook key (World/DeepCookKey.h): before the
+	// keys they all shared one cached collision mesh in the editor, and only one of them answered traces.
+	ADeepAbyssFloor* Floor = nullptr;
+	for (TActorIterator<ADeepAbyssFloor> It(W.World); It && !Floor; ++It) { Floor = *It; }
+	ADeepCavern* Cavern = nullptr;
+	for (TActorIterator<ADeepCavern> It(W.World); It && !Cavern; ++It) { Cavern = *It; }
+	UTEST_NOT_NULL(TEXT("The arena's sea bed is in the shaft's world"), Floor);
+	UTEST_NOT_NULL(TEXT("The arena's caverns are in the shaft's world"), Cavern);
+	UProceduralMeshComponent* Bed = Floor->FindComponentByClass<UProceduralMeshComponent>();
+	UTEST_NOT_NULL(TEXT("The bed's mesh"), Bed);
+	Bed->bUseAsyncCooking = false;
+	Floor->Build(ADeepAbyssFloor::RestPointsFromTuning());
+	Bed->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	const FBoxSphereBounds BedBounds = Bed->Bounds;
+	FHitResult BedHit;
+	const FVector BedFrom = BedBounds.Origin + FVector(0.0, 0.0, BedBounds.BoxExtent.Z + 100.0);
+	TestTrue(TEXT("The sea bed answers a trace down"), Bed->LineTraceComponent(BedHit, BedFrom, BedFrom - FVector(0.0, 0.0, BedBounds.BoxExtent.Z * 2.0 + 200.0), FCollisionQueryParams(TEXT("DeepCaveTest"), true)));
+	Cavern->Build(/*bAsyncCook*/ false);
+	Cavern->UpdateShells(2, false);
+	UProceduralMeshComponent* Shell = Cavern->GetShell(2);
+	UTEST_NOT_NULL(TEXT("A stop 2 cavern"), Shell);
+	const FBoxSphereBounds ShellBounds = Shell->Bounds;
+	FHitResult ShellHit;
+	TestTrue(TEXT("The stop 2 cavern's wall answers a trace out from its middle"), Shell->LineTraceComponent(ShellHit, ShellBounds.Origin, ShellBounds.Origin + FVector(ShellBounds.BoxExtent.X * 2.0 + 100.0, 0.0, 0.0), FCollisionQueryParams(TEXT("DeepCaveTest"), true)));
+	AddInfo(FString::Printf(TEXT("Bed hit %.1f m down, stop 2 wall %.1f m out"), BedHit.Distance / UDeepRules::CmPerM, ShellHit.Distance / UDeepRules::CmPerM));
+	int32 StillHits = 0;
+	for (UProceduralMeshComponent* Piece : FirstStretch)
+	{
+		FHitResult Hit;
+		const FVector Out = W.Sub->GetActorLocation() + W.Sub->GetActorForwardVector() * (Tuning.Cave.CavernRadiusM + 30.f) * UDeepRules::CmPerM;
+		StillHits += Piece->LineTraceComponent(Hit, W.Sub->GetActorLocation(), Out, FCollisionQueryParams(TEXT("DeepCaveTest"), true)) ? 1 : 0;
+	}
+	TestTrue(TEXT("With the bed and cavern rebuilt, the shaft still answers"), StillHits > 0);
 
 	// Shaft off: no rock at all.
 	FShaftScope Off(0);

@@ -25,6 +25,7 @@
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArena.h"
 #include "World/DeepArenaRoot.h"
+#include "World/DeepCavern.h"
 #include "World/DeepSubmarine.h"
 
 #if WITH_EDITOR
@@ -662,7 +663,8 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 	for (int32 RowIndex = 0; RowIndex < Rows.Num(); ++RowIndex)
 	{
 		const FDeepDressRow& Row = Rows[RowIndex];
-		const FString Key = FString::Printf(TEXT("%s|%s|%s|%.3f|%.3f|%d|%d|%d"), *Row.Mesh, *Row.Material, *Row.Tex, Row.Silt, Row.Sat, int32(Row.Parent), Row.Stop, Row.HidesBelowStop() ? 1 : 0);
+		const bool bCaveRow = Row.Id.StartsWith(TEXT("cave_"));
+		const FString Key = FString::Printf(TEXT("%s|%s|%s|%.3f|%.3f|%d|%d|%d|%d"), *Row.Mesh, *Row.Material, *Row.Tex, Row.Silt, Row.Sat, int32(Row.Parent), Row.Stop, Row.HidesBelowStop() ? 1 : 0, bCaveRow ? 1 : 0);
 		if (const int32* Existing = GroupByKey.Find(Key))
 		{
 			Groups[*Existing].RowIndices.Add(RowIndex);
@@ -723,6 +725,7 @@ int32 ADeepDressing::LoadFromString(const FString& Csv)
 		Group.Component = C;
 		Group.Stop = Row.Stop;
 		Group.bHideBelow = Row.HidesBelowStop();
+		Group.bCave = bCaveRow;
 		Group.Parent = Row.Parent;
 		Group.RowIndices.Add(RowIndex);
 		GroupByKey.Add(Key, Groups.Add(Group));
@@ -796,6 +799,7 @@ void ADeepDressing::Refresh()
 		bVisible &= !(Group.bHideBelow && bBelowStop);
 		bVisible &= Group.Parent != EDeepDressParent::Trench || bHelmView;
 		bVisible &= CVarDeepDressingHide.GetValueOnGameThread() == 0;
+		bVisible &= !Group.bCave || ADeepCavern::IsOn();
 		if (Group.Component->IsVisible() != bVisible)
 		{
 			Group.Component->SetVisibility(bVisible);
