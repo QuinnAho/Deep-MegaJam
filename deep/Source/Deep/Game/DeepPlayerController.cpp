@@ -91,7 +91,7 @@ void ADeepPlayerController::BuildInputObjects()
 
 	Mapping->MapKey(SprintAction, EKeys::LeftShift);
 	Mapping->MapKey(GrabAction, EKeys::E);
-	Mapping->MapKey(GrabAction, EKeys::LeftMouseButton);
+	// Left mouse is the harpoon (UDeepHarpoonComponent maps it itself).
 	Mapping->MapKey(DropAction, EKeys::G);
 	Mapping->MapKey(WinchAction, EKeys::R);
 	Mapping->MapKey(LampAction, EKeys::F);

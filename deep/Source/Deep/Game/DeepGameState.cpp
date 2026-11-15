@@ -9,4 +9,6 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(ADeepGameState, Credits);
 	DOREPLIFETIME(ADeepGameState, HullRating);
 	DOREPLIFETIME(ADeepGameState, DiverNumber);
+	DOREPLIFETIME(ADeepGameState, HullDamage);
+	DOREPLIFETIME(ADeepGameState, HullRepairsOwed);
 }

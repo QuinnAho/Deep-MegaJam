@@ -11,6 +11,7 @@
 #include "Misc/ScopeExit.h"
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
+#include "Harpoon/DeepHarpoonHUD.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptain.h"
@@ -65,6 +66,7 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawThreat(*Run, GetWorld()->GetRealTimeSeconds());
 		DrawPrompts(Diver);
+		DeepHarpoonHUD::Draw(this, Canvas, Diver, S, Font, BigFont);
 		if (Run->IsBiteAlarmOn())
 		{
 			DrawBiteAlarm(*Run, GetWorld()->GetRealTimeSeconds());
