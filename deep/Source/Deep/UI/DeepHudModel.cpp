@@ -56,10 +56,11 @@ namespace DeepHudModel
 		case EDeepHudMode::Aboard:
 			return ObjectPrompts | Subtitle | Feedback | ControlsHint;
 		case EDeepHudMode::Helm:
-			return HelmGauge | Subtitle | Feedback | ControlsHint | (In.bSonar ? Sonar : None);
+			return HelmGauge | Hull | Subtitle | Feedback | ControlsHint | (In.bSonar ? Sonar : None);
 		case EDeepHudMode::Water:
-			return Depth | Cargo | Patience | Reticle | Threat | WaterPrompts | Subtitle | Feedback | ControlsHint
-				| (In.bBiteAlarm ? BiteAlarm : None) | (In.bCarryingOrCut ? HatchMarker : None);
+			// The bite alarm takes the top of the screen: the controls hint gives way to it.
+			return Depth | Cargo | Patience | Reticle | Threat | WaterPrompts | Subtitle | Feedback
+				| (In.bBiteAlarm ? BiteAlarm : ControlsHint) | (In.bCarryingOrCut ? HatchMarker : None);
 		case EDeepHudMode::Cut:
 			return Depth | Cargo | Bailout | Reticle | Threat | HatchMarker | WaterPrompts | Subtitle | Feedback
 				| (In.bBiteAlarm ? BiteAlarm : None);
@@ -159,6 +160,47 @@ namespace DeepHudModel
 		const float T = Duration > 0.f ? static_cast<float>((Now - StartTime) / Duration) : 1.f;
 		return FMath::Lerp(From, To, EaseOutCubic(T));
 	}
+
+	EBarTone BarTone(float Fraction01, float WarnAt, float DangerAt)
+	{
+		if (Fraction01 <= DangerAt)
+		{
+			return EBarTone::Danger;
+		}
+		return Fraction01 <= WarnAt ? EBarTone::Warn : EBarTone::Normal;
+	}
+
+	void FHullBar::Step(float Hull01, double Now)
+	{
+		const float H = FMath::Clamp(Hull01, 0.f, 1.f);
+		Fill.Duration = DeepHudStyle::BarLerp;
+		if (Last < 0.f)
+		{
+			Fill.Set(H, Now);
+			Last = H;
+			return;
+		}
+		if (H < Last - KINDA_SMALL_NUMBER)
+		{
+			// A hit: the ghost spans from the new value up to where the bar stood, or to the top of a ghost still showing.
+			GhostTop = GhostAlpha(Now) > 0.f ? FMath::Max(GhostTop, Last) : Last;
+			HitTime = Now;
+		}
+		Fill.Set(H, Now);
+		Last = H;
+	}
+
+	float FHullBar::GhostAlpha(double Now) const
+	{
+		const float T = static_cast<float>((Now - HitTime) / DeepHudStyle::GhostFade);
+		return T >= 1.f ? 0.f : 1.f - EaseOutCubic(T);
+	}
+
+	float FHullBar::FlashAlpha(double Now) const
+	{
+		const double Since = Now - HitTime;
+		return Since >= 0.0 && Since < DeepHudStyle::HitFlash ? 1.f : 0.f;
+	}
 }
 
 // The helm layout. Numbers are the style guide's grid (DeepHudStyle: Margin 48, Pad 16, Grid 8) and the sizes the
@@ -201,7 +243,7 @@ namespace DeepHudLayout
 
 	FDeepHudRect SubtitleMax(FVector2f Local, int32 Lines)
 	{
-		const float W = FMath::Min(960.f, Local.X - 2.f * (Margin + 320.f + Grid * 3.f));
+		const float W = FMath::Min(960.f, Local.X - 2.f * (Margin + DeepHudStyle::WaterPanelW + Grid * 3.f));
 		const float H = Pad * 2.f + LabelH + Grid + FMath::Max(1, Lines) * BodyH;
 		return { Local.X * 0.5f - W * 0.5f, Local.Y - Margin - H, W, H };
 	}
@@ -211,5 +253,32 @@ namespace DeepHudLayout
 		// Header row on top, footer row below, a grid of air round the rim for the ring labels.
 		Radius = Panel.W * 0.5f - Pad - Grid * 2.f;
 		Centre = FVector2f(Panel.X + Panel.W * 0.5f, Panel.Y + Pad + LabelH + Grid * 2.f + Radius);
+	}
+
+	FDeepHudRect DepthPanel(FVector2f Local)
+	{
+		return { Margin, Local.Y - Margin - DeepHudStyle::WaterPanelH, DeepHudStyle::WaterPanelW, DeepHudStyle::WaterPanelH };
+	}
+
+	FDeepHudRect CargoPanel(FVector2f Local)
+	{
+		return { Local.X - Margin - DeepHudStyle::WaterPanelW, Local.Y - Margin - DeepHudStyle::WaterPanelH, DeepHudStyle::WaterPanelW, DeepHudStyle::WaterPanelH };
+	}
+
+	FGaugeLabels GaugeLabels(float GaugeX, float SubY, float LimitY, FVector2f SubSize, FVector2f LimitSize, float PanelRight)
+	{
+		FGaugeLabels Out;
+		// SUB rides beside its arrow (the arrow spans GaugeX + 4 .. + 16).
+		Out.Sub = { GaugeX + 24.f, SubY - SubSize.Y * 0.5f, SubSize.X, SubSize.Y };
+		// LIMIT sits just above its line, a little right of the gauge.
+		Out.Limit = { GaugeX + 32.f, LimitY - LimitSize.Y - 2.f, LimitSize.X, LimitSize.Y };
+		// Touching counts: keep a grid step of air between them vertically before calling it clear.
+		const FDeepHudRect SubAir = { Out.Sub.X - Grid, Out.Sub.Y - Grid, Out.Sub.W + Grid * 2.f, Out.Sub.H + Grid * 2.f };
+		if (SubAir.Overlaps(Out.Limit))
+		{
+			Out.Limit.X = FMath::Min(Out.Sub.Right() + Grid * 2.f, PanelRight - Pad - LimitSize.X);
+			Out.bShifted = true;
+		}
+		return Out;
 	}
 }

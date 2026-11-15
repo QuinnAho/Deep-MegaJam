@@ -16,7 +16,7 @@ namespace
 
 	const FSlateColorBrush& White()
 	{
-		static const FSlateColorBrush Brush(FLinearColor::White);
+		static const FSlateColorBrush Brush(BrushBase());
 		return Brush;
 	}
 
@@ -51,10 +51,21 @@ namespace
 		switch (Tone)
 		{
 		case EDeepHudTone::Primary: return Primary(A);
-		case EDeepHudTone::Warning: return Amber(A);
+		case EDeepHudTone::Warning: return Warn(A);
 		case EDeepHudTone::Danger: return Alert(A);
-		case EDeepHudTone::Dim: return Secondary(0.55f * A);
+		case EDeepHudTone::Dim: return Secondary(DimAlpha * A);
 		default: return Secondary(A);
+		}
+	}
+
+	/** A bar's fill by the spec's thresholds: primary, amber at half, alert at a quarter. */
+	FLinearColor BarColor(float Fraction01, float A)
+	{
+		switch (DeepHudModel::BarTone(Fraction01))
+		{
+		case DeepHudModel::EBarTone::Danger: return Alert(A);
+		case DeepHudModel::EBarTone::Warn: return Warn(A);
+		default: return Primary(A);
 		}
 	}
 }
@@ -99,7 +110,7 @@ struct SDeepHud::FPainter
 	void Panel(float X, float Y, float W, float H, float A) const
 	{
 		Box(X, Y, W, H, PanelFill(A));
-		Outline(X, Y, W, H, Primary(0.6f * A));
+		Outline(X, Y, W, H, Primary(HairlineAlpha * A));
 	}
 
 	FVector2f TextSize(const FString& Text, const FSlateFontInfo& Info) const
@@ -140,6 +151,43 @@ struct SDeepHud::FPainter
 		FSlateDrawElement::MakeLines(Out, Layer + 1, Geo.ToPaintGeometry(), Points, ESlateDrawEffect::None, Color, true, Thickness);
 	}
 
+	// Marks with no panel behind them (the reticle, the aim brackets, the hatch marker and their labels) carry a dark
+	// edge one pixel wide in Shade at OutlineAlpha, drawn a layer under the mark, so they hold their contrast over the
+	// lamp's glow in any palette.
+	FLinearColor EdgeOf(const FLinearColor& Color) const { return Shade(OutlineAlpha * Color.A); }
+
+	void MarkBox(float X, float Y, float W, float H, const FLinearColor& Color) const
+	{
+		Box(X - Hair, Y - Hair, W + Hair * 2.f, H + Hair * 2.f, EdgeOf(Color));
+		Box(X, Y, W, H, Color);
+	}
+
+	void MarkLines(const TArray<FVector2f>& Points, const FLinearColor& Color, float Thickness) const
+	{
+		if (Color.A <= 0.001f || Points.Num() < 2)
+		{
+			return;
+		}
+		FSlateDrawElement::MakeLines(Out, Layer, Geo.ToPaintGeometry(), Points, ESlateDrawEffect::None, EdgeOf(Color), true, Thickness + Hair * 2.f);
+		Lines(Points, Color, Thickness);
+	}
+
+	/** Text with the dark edge: the shade one pixel down and right, a layer under the text. */
+	float MarkText(const FString& String, float X, float Y, const FSlateFontInfo& Info, const FLinearColor& Color) const
+	{
+		const FVector2f S = TextSize(String, Info);
+		if (Color.A > 0.001f && !String.IsEmpty())
+		{
+			FSlateDrawElement::MakeText(Out, Layer, Geo.ToPaintGeometry(S, FSlateLayoutTransform(FVector2f(X + Hair, Y + Hair))), String, Info, ESlateDrawEffect::None, EdgeOf(Color));
+		}
+		return Text(String, X, Y, Info, Color);
+	}
+
+	float MarkTextCentre(const FString& String, float CX, float Y, const FSlateFontInfo& Info, const FLinearColor& Color) const
+	{
+		return MarkText(String, CX - TextSize(String, Info).X * 0.5f, Y, Info, Color);
+	}
+
 	/** An arc around a centre: from 12 o'clock clockwise, Fraction of a turn. */
 	void Arc(FVector2f C, float R, float Fraction, const FLinearColor& Color, float Thickness) const
 	{
@@ -153,15 +201,22 @@ struct SDeepHud::FPainter
 		Lines(P, Color, Thickness);
 	}
 
-	/** Four corner brackets around a centre. */
-	void Brackets(FVector2f C, float Half, float Arm, const FLinearColor& Color) const
+	/** Four corner brackets around a centre, with the dark edge (they have no panel); filled draws each corner as a solid square of the arm's size (latched). */
+	void Brackets(FVector2f C, float Half, float Arm, const FLinearColor& Color, bool bFilled = false) const
 	{
 		for (const float SX : { -1.f, 1.f })
 		{
 			for (const float SY : { -1.f, 1.f })
 			{
 				const FVector2f Corner = C + FVector2f(SX * Half, SY * Half);
-				Lines({ Corner - FVector2f(SX * Arm, 0.f), Corner, Corner - FVector2f(0.f, SY * Arm) }, Color, 1.f);
+				if (bFilled)
+				{
+					MarkBox(SX > 0.f ? Corner.X - Arm : Corner.X, SY > 0.f ? Corner.Y - Arm : Corner.Y, Arm, Arm, Color);
+				}
+				else
+				{
+					MarkLines({ Corner - FVector2f(SX * Arm, 0.f), Corner, Corner - FVector2f(0.f, SY * Arm) }, Color, 1.5f);
+				}
 			}
 		}
 	}
@@ -318,6 +373,10 @@ void SDeepHud::Advance(const FDeepHudFrame& InFrame, double RealNow, float Delta
 	Tether.Set(Frame.TetherLengthM > 0.f ? FMath::Clamp(Frame.TetherLeftM / Frame.TetherLengthM, 0.f, 1.f) : 0.f, Now, 0.02f);
 	Air.Duration = BarLerp;
 	Air.Set(Frame.AirMax > 0.f ? FMath::Clamp(Frame.AirSeconds / Frame.AirMax, 0.f, 1.f) : 0.f, Now, 0.02f);
+	if (Frame.Hull01 >= 0.f)
+	{
+		HullBar.Step(Frame.Hull01, Now);
+	}
 
 	// The controls hint: once per mode per run.
 	if ((Frame.Panels & EDeepHudPanel::ControlsHint) && Frame.Hint.Num() > 0 && !HintShown.Contains(Frame.Mode))
@@ -369,14 +428,16 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		const float T = FMath::Clamp(Frame.Threat01, 0.f, 1.f);
 		const float Hz = FMath::Lerp(0.5f, 1.6f, T);
 		const float Pulse = 0.5f + 0.5f * FMath::Sin(static_cast<float>(Now) * Hz * 2.f * PI);
-		const float Base = TA * T * T * (0.30f + 0.20f * Pulse);
+		// At the border: ThreatEdgeMin at the least threat up to ThreatEdgeMax at the most, breathing a little; it falls
+		// to nothing inward. Strips overlap only in the corners.
+		const float Base = TA * FMath::Lerp(ThreatEdgeMin, ThreatEdgeMax, T * T) * (0.8f + 0.2f * Pulse);
 		const float Edge = FMath::Lerp(64.f, 240.f, T);
 		constexpr int32 Strips = 16;
 		const float Step = Edge / Strips;
 		for (int32 I = 0; I < Strips; ++I)
 		{
 			const float Fall = FMath::Square(1.f - static_cast<float>(I) / Strips);
-			const FLinearColor C = Alert(Base * Fall * 0.35f);
+			const FLinearColor C = Alert(Base * Fall);
 			const float O = I * Step;
 			P.Box(0.f, O, L.X, Step, C);
 			P.Box(0.f, L.Y - O - Step, L.X, Step, C);
@@ -400,7 +461,7 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 				// Whole-unit edges, so neighbouring bands neither overlap (a dark line) nor leave a gap.
 				const float Y0 = FMath::RoundToFloat(I * BandH);
 				const float Y1 = FMath::RoundToFloat((I + 1) * BandH);
-				P.Box(0.f, Y0, L.X, Y1 - Y0, FLinearColor(0.f, 0.f, 0.f, TA * VeilA));
+				P.Box(0.f, Y0, L.X, Y1 - Y0, Shade(TA * VeilA));
 			}
 		}
 		// A screen over the title (settings, credits, quit): the words step back under its card.
@@ -434,94 +495,65 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 	}
 
-	// ------------------------------------------------ the water: depth and the tether, bottom left
+	// ------------------------------------------------ the water: depth, bottom left (spec A: 280 x 128, no zone, no tether text)
 	if (const float DA = A(EDeepHudPanel::Depth); DA > 0.f)
 	{
-		const float W = 320.f;
-		const float H = 176.f;
-		const float X = Margin;
-		const float Y = L.Y - Margin - H + SlideOf(DA);
-		P.Panel(X, Y, W, H, DA);
-		float CY = Y + Pad;
-		P.Text(TEXT("DEPTH"), X + Pad, CY, LabelFont, Secondary(DA));
-		P.TextRight(Frame.Zone.ToUpper(), X + W - Pad, CY, LabelFont, Secondary(0.6f * DA));
-		CY += LabelH;
+		FDeepHudRect R = DeepHudLayout::DepthPanel(L);
+		R.Y += SlideOf(DA);
+		P.Panel(R.X, R.Y, R.W, R.H, DA);
+		const float CY = R.Y + Pad;
+		P.Text(TEXT("DEPTH"), R.X + Pad, CY, LabelFont, Secondary(DA));
 		const FString Number = FString::Printf(TEXT("%.0f"), Depth.Value(Now));
-		const float NW = P.Text(Number, X + Pad - 4.f, CY - 10.f, DepthFont, Primary(DA));
-		P.Text(TEXT("m"), X + Pad + NW + Grid, CY + 30.f, ReadoutFont, Primary(0.7f * DA));
-		CY = Y + H - Pad - 4.f - Grid - LabelH;
-		if (Frame.bTether)
+		// Light 72 sits up into the label's leading so its digits clear the strain line; the unit shares its baseline.
+		const float NW = P.Text(Number, R.X + Pad - 4.f, CY + LabelH - 12.f, DepthFont, Primary(DA));
+		P.Text(TEXT("m"), R.X + Pad + NW + Grid, CY + LabelH + 28.f, ReadoutFont, Primary(UnitAlpha * DA));
+		// The tether's strain: a 2 px line along the panel's foot, only once it pulls; alert when taut.
+		if (Frame.bTether && Frame.TetherStrain > StrainShowAt)
 		{
-			const EDeepHudTone Tone = Frame.bTaut ? EDeepHudTone::Danger : (Frame.TetherStrain > 0.75f ? EDeepHudTone::Warning : EDeepHudTone::Normal);
-			P.Text(Frame.bTaut ? TEXT("TETHER  TAUT") : TEXT("TETHER"), X + Pad, CY, LabelFont, ToneColor(Tone, DA));
-			P.TextRight(FString::Printf(TEXT("%.0f / %.0f m"), Frame.TetherLeftM, Frame.TetherLengthM), X + W - Pad, CY, MonoFont, ToneColor(Tone, DA));
-			const float BarY = CY + LabelH + Grid;
-			const float BarW = W - Pad * 2.f;
-			P.Box(X + Pad, BarY, BarW, 2.f, Secondary(0.18f * DA));
-			P.Box(X + Pad, BarY, BarW * Tether.Value(Now), 2.f, Tone == EDeepHudTone::Normal ? Primary(DA) : ToneColor(Tone, DA));
-		}
-		else
-		{
-			P.Text(TEXT("TETHER  CUT"), X + Pad, CY, LabelFont, Alert(DA));
+			const bool bAlert = Frame.bTaut || Frame.TetherStrain > StrainAlertAt;
+			const float Show = FMath::Clamp((Frame.TetherStrain - StrainShowAt) / (1.f - StrainShowAt), 0.f, 1.f);
+			const float LineA = DA * (bAlert ? 1.f : FMath::Lerp(0.45f, 1.f, Show));
+			P.Box(R.X + Pad, R.Y + StrainLineY, R.W - Pad * 2.f, 2.f, bAlert ? Alert(LineA) : Primary(LineA));
 		}
 	}
 
-	// ------------------------------------------------ cargo, lamp and harpoon, bottom right
+	// ------------------------------------------------ cargo, bottom right (spec A: 280 x 128; kilograms, credits, too heavy)
 	if (const float CA = A(EDeepHudPanel::Cargo); CA > 0.f)
 	{
-		const float W = 320.f;
-		const float H = 176.f;
-		const float X = L.X - Margin - W;
-		const float Y = L.Y - Margin - H + SlideOf(CA);
-		P.Panel(X, Y, W, H, CA);
-		float CY = Y + Pad;
-		P.Text(TEXT("CARGO"), X + Pad, CY, LabelFont, Secondary(CA));
-		if (Frame.bOverloaded)
-		{
-			P.TextRight(TEXT("TOO HEAVY"), X + W - Pad, CY, LabelFont, Amber(CA));
-		}
-		CY += LabelH + Grid;
-		const FLinearColor KgColor = Frame.bOverloaded ? Amber(CA) : Primary(CA);
-		const float KW = P.Text(FString::Printf(TEXT("%.0f"), CargoKg.Value(Now)), X + Pad, CY, ReadoutFont, KgColor);
-		P.Text(TEXT("kg"), X + Pad + KW + 6.f, CY + 10.f, BodyFont, Secondary(0.7f * CA));
+		FDeepHudRect R = DeepHudLayout::CargoPanel(L);
+		R.Y += SlideOf(CA);
+		P.Panel(R.X, R.Y, R.W, R.H, CA);
+		float CY = R.Y + Pad;
+		P.Text(TEXT("CARGO"), R.X + Pad, CY, LabelFont, Secondary(CA));
+		CY += LabelH + Grid * 0.5f;
+		const float ReadH = P.TextSize(TEXT("0"), ReadoutFont).Y;
+		const float UnitY = CY + ReadH - BodyH - 3.f;
+		const float KW = P.Text(FString::Printf(TEXT("%.0f"), CargoKg.Value(Now)), R.X + Pad, CY, ReadoutFont, Frame.bOverloaded ? Warn(CA) : Primary(CA));
+		P.Text(TEXT("kg"), R.X + Pad + KW + 6.f, UnitY, BodyFont, Secondary(UnitAlpha * CA));
 		const FString Value = FString::Printf(TEXT("%.0f"), CargoValue.Value(Now));
 		const float CrW = P.TextSize(TEXT("cr"), BodyFont).X;
-		P.TextRight(Value, X + W - Pad - CrW - 6.f, CY, ReadoutFont, Primary(CA));
-		P.TextRight(TEXT("cr"), X + W - Pad, CY + 10.f, BodyFont, Secondary(0.7f * CA));
-		CY = Y + H - Pad - LabelH * 2.f - Grid;
-		P.Box(X + Pad, CY - Grid, W - Pad * 2.f, P.Hair, Secondary(0.15f * CA));
-		FString Harpoon;
-		EDeepHudTone HTone = EDeepHudTone::Normal;
-		switch (Frame.Harpoon)
+		P.TextRight(Value, R.Right() - Pad - CrW - 6.f, CY, ReadoutFont, Secondary(CA));
+		P.TextRight(TEXT("cr"), R.Right() - Pad, UnitY, BodyFont, Secondary(UnitAlpha * CA));
+		if (Frame.bOverloaded)
 		{
-		case 0: Harpoon = TEXT("READY"); HTone = EDeepHudTone::Primary; break;
-		case 1: Harpoon = TEXT("IN FLIGHT"); break;
-		case 2: Harpoon = TEXT("LATCHED"); HTone = EDeepHudTone::Primary; break;
-		default: Harpoon = TEXT("SPENT"); HTone = EDeepHudTone::Dim; break;
+			P.Text(TEXT("TOO HEAVY"), R.X + Pad, R.Bottom() - Pad - LabelH, LabelFont, Warn(CA));
 		}
-		P.Text(TEXT("HARPOON"), X + Pad, CY, LabelFont, Secondary(0.6f * CA));
-		P.TextRight(Harpoon, X + W - Pad, CY, LabelFont, ToneColor(HTone, CA));
-		CY += LabelH + Grid * 0.5f;
-		P.Text(TEXT("LAMP"), X + Pad, CY, LabelFont, Secondary(0.6f * CA));
-		P.TextRight(!Frame.bHasLamp ? TEXT("NOT OWNED") : (Frame.bLampOn ? TEXT("ON") : TEXT("OFF")), X + W - Pad, CY, LabelFont,
-			ToneColor(!Frame.bHasLamp ? EDeepHudTone::Dim : (Frame.bLampOn ? EDeepHudTone::Primary : EDeepHudTone::Normal), CA));
 	}
 
-	// ------------------------------------------------ the Captain's patience, top centre
+	// ------------------------------------------------ the Captain's patience, top centre (spec A: 480 x 44)
 	if (const float PA = A(EDeepHudPanel::Patience); PA > 0.f)
 	{
-		const float W = 480.f;
+		const float W = PatienceW;
 		const float X = Centre.X - W * 0.5f;
 		const float Y = Margin - SlideOf(PA);
 		const float F = Patience.Value(Now);
-		const EDeepHudTone Tone = Frame.Patience01 <= 0.25f ? EDeepHudTone::Danger : (Frame.Patience01 <= 0.5f ? EDeepHudTone::Warning : EDeepHudTone::Primary);
 		P.TextCentre(TEXT("THE CAPTAIN'S PATIENCE"), Centre.X, Y, LabelFont, Secondary(PA));
 		const float BarY = Y + LabelH + Grid;
-		P.Box(X, BarY, W, 4.f, Secondary(0.18f * PA));
-		P.Box(X, BarY, W * F, 4.f, ToneColor(Tone, PA));
+		P.Box(X, BarY, W, 4.f, Secondary(TrackAlpha * PA));
+		P.Box(X, BarY, W * F, 4.f, BarColor(Frame.Patience01, PA));
 		for (const float Mark : Frame.PatienceMarks)
 		{
-			P.Box(X + W * Mark, BarY - 4.f, P.Hair, 12.f, Secondary(0.5f * PA));
+			P.Box(X + W * Mark, BarY + 2.f - BarTickPx * 0.5f, P.Hair, BarTickPx, Secondary(TickAlpha * PA));
 		}
 		if (Frame.RefillFraction > 0.f && Frame.SinceRefill < 1.2f)
 		{
@@ -546,19 +578,28 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	// ------------------------------------------------ reticle and harpoon aim
 	if (const float RA = A(EDeepHudPanel::Reticle); RA > 0.f)
 	{
-		P.Box(Centre.X - 2.f, Centre.Y - 2.f, 4.f, 4.f, Secondary(0.8f * RA));
-		if (Frame.AimKind != 0)
+		P.MarkBox(Centre.X - 2.f, Centre.Y - 2.f, 4.f, 4.f, Secondary(ReticleAlpha * RA));
+		// The harpoon has no row of its own in A: its state rides on the aim brackets. Ready: brackets by target.
+		// Latched: solid corners. Spent: the brackets dimmed, NO HARPOON.
+		const float MonoH = P.TextSize(TEXT("0"), MonoFont).Y;
+		if (Frame.Harpoon == 2)
 		{
+			P.Brackets(Centre, 18.f, 6.f, Primary(RA), true);
+			P.MarkText(TEXT("LATCHED"), Centre.X + 32.f, Centre.Y - MonoH * 0.5f, MonoFont, Primary(RA));
+		}
+		else if (Frame.AimKind != 0)
+		{
+			const bool bSpent = Frame.Harpoon == 3;
 			const bool bFar = Frame.AimKind == 4;
-			const FLinearColor C = Frame.AimKind == 3 ? Alert(RA) : (bFar ? Secondary(0.45f * RA) : Primary(RA));
-			P.Brackets(Centre, bFar ? 12.f : 18.f, 6.f, C);
-			P.Text(Frame.AimLabel, Centre.X + 32.f, Centre.Y - LabelH * 0.5f, MonoFont, C);
+			const FLinearColor C = bSpent || bFar ? Secondary(FarAlpha * RA) : (Frame.AimKind == 3 ? Alert(RA) : Primary(RA));
+			P.Brackets(Centre, 18.f, 6.f, C);
+			P.MarkText(bSpent ? FString(TEXT("NO HARPOON")) : Frame.AimLabel, Centre.X + 32.f, Centre.Y - MonoH * 0.5f, MonoFont, C);
 		}
 		// Cut loose: the hold fills a hairline under the reticle.
 		if (Frame.CutHold > 0.f)
 		{
 			const float W = 160.f;
-			P.TextCentre(TEXT("ASKING TO BE CUT LOOSE"), Centre.X, Centre.Y + 56.f, LabelFont, Alert(RA));
+			P.MarkTextCentre(TEXT("ASKING TO BE CUT LOOSE"), Centre.X, Centre.Y + 56.f, LabelFont, Alert(RA));
 			P.Box(Centre.X - W * 0.5f, Centre.Y + 56.f + LabelH + Grid, W, 2.f, Secondary(0.2f * RA));
 			P.Box(Centre.X - W * 0.5f, Centre.Y + 56.f + LabelH + Grid, W * Frame.CutHold, 2.f, Alert(RA));
 		}
@@ -571,19 +612,25 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		{
 			const FVector2f H = Frame.HatchPx * P.PxToLocal;
 			P.Brackets(H, 20.f, 8.f, Primary(HA));
-			P.TextCentre(Frame.HatchLabel, H.X, H.Y + 28.f, MonoFont, Primary(HA));
+			P.MarkTextCentre(Frame.HatchLabel, H.X, H.Y + 28.f, MonoFont, Primary(HA));
 		}
 		else
 		{
-			// At the screen edge, in the direction of home.
+			// At the screen edge, inset by the margin, in the direction of home. Top and bottom keep clear of the patience
+			// bar and the depth and cargo panels, so the chevron never lands on a readout.
 			const FVector2f D = Frame.HatchDir.GetSafeNormal();
-			const FVector2f Half = Centre - FVector2f(Margin * 3.f, Margin * 3.f);
-			const float K = FMath::Min(FMath::Abs(D.X) > 0.001f ? Half.X / FMath::Abs(D.X) : 1e6f, FMath::Abs(D.Y) > 0.001f ? Half.Y / FMath::Abs(D.Y) : 1e6f);
+			const float HalfX = Centre.X - Margin;
+			const float HalfY = Centre.Y - Margin - (D.Y < 0.f ? PatienceH : WaterPanelH) - Grid * 2.f;
+			const float K = FMath::Min(FMath::Abs(D.X) > 0.001f ? HalfX / FMath::Abs(D.X) : 1e6f, FMath::Abs(D.Y) > 0.001f ? HalfY / FMath::Abs(D.Y) : 1e6f);
 			const FVector2f Tip = Centre + D * K;
 			const FVector2f Side(-D.Y, D.X);
-			P.Lines({ Tip - D * 14.f + Side * 10.f, Tip, Tip - D * 14.f - Side * 10.f }, Primary(HA), 2.f);
+			// Two 14 px arms at right angles, 2 px.
+			const float Arm = 14.f * UE_INV_SQRT_2;
+			P.MarkLines({ Tip - D * Arm + Side * Arm, Tip, Tip - D * Arm - Side * Arm }, Primary(HA), 2.f);
+			const FVector2f LabelSize = P.TextSize(Frame.HatchLabel, MonoFont);
 			const FVector2f LabelAt = Tip - D * 40.f;
-			P.TextCentre(Frame.HatchLabel, LabelAt.X, LabelAt.Y - LabelH * 0.5f, MonoFont, Primary(HA));
+			const float LabelX = FMath::Clamp(LabelAt.X, Margin + LabelSize.X * 0.5f, L.X - Margin - LabelSize.X * 0.5f);
+			P.MarkTextCentre(Frame.HatchLabel, LabelX, LabelAt.Y - LabelSize.Y * 0.5f, MonoFont, Primary(HA));
 		}
 	}
 
@@ -596,7 +643,7 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		const float H = L.Y - Margin * 2.f;
 		P.Panel(X, Y, W, H, GA);
 		float CY = Y + Pad;
-		P.Text(TEXT("HELM"), X + Pad, CY, LabelFont, Amber(GA));
+		P.Text(TEXT("HELM"), X + Pad, CY, LabelFont, MachineAmber(GA));
 		P.TextRight(TEXT("DEPTH"), X + W - Pad, CY, LabelFont, Secondary(0.6f * GA));
 		CY += LabelH;
 		const FString Number = FString::Printf(TEXT("%.0f"), SubDepth.Value(Now));
@@ -621,15 +668,28 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 			P.Box(GX - 12.f, SY, 24.f, bHere ? 2.f : P.Hair, bHere ? Primary(GA) : Secondary(0.7f * GA));
 			P.TextRight(FString::Printf(TEXT("%.0f"), Frame.Stops[Index]), GX - 24.f, SY - LabelH * 0.5f, MonoFont, bHere ? Primary(GA) : Secondary(0.7f * GA));
 		}
-		P.Box(GX - 16.f, LimitY, 32.f + 40.f, P.Hair, Alert(GA));
-		P.Text(FString::Printf(TEXT("LIMIT %.0f"), Frame.LimitM), GX + 32.f, LimitY - LabelH - 2.f, LabelFont, Alert(GA));
+		// SUB stays with its arrow; LIMIT steps right past it when the sub nears the limit (DeepHudLayout::GaugeLabels).
+		const FString LimitText = FString::Printf(TEXT("LIMIT %.0f"), Frame.LimitM);
 		const float SubY = YAt(SubDepth.Value(Now));
-		P.Lines({ FVector2f(GX + 4.f, SubY), FVector2f(GX + 16.f, SubY - 7.f), FVector2f(GX + 16.f, SubY + 7.f), FVector2f(GX + 4.f, SubY) }, Amber(GA), 1.5f);
-		P.Text(TEXT("SUB"), GX + 24.f, SubY - LabelH * 0.5f, LabelFont, Amber(GA));
+		const DeepHudLayout::FGaugeLabels Labels = DeepHudLayout::GaugeLabels(GX, SubY, LimitY, P.TextSize(TEXT("SUB"), LabelFont),
+			P.TextSize(LimitText, LabelFont), X + W);
+		if (Labels.bShifted)
+		{
+			// The line in two parts: the gauge tick, then a rule under the moved label; the sub's arrow sits between.
+			P.Box(GX - 16.f, LimitY, 20.f, P.Hair, Alert(GA));
+			P.Box(Labels.Limit.X - Grid, LimitY, Labels.Limit.W + Grid, P.Hair, Alert(GA));
+		}
+		else
+		{
+			P.Box(GX - 16.f, LimitY, Labels.Limit.Right() - (GX - 16.f), P.Hair, Alert(GA));
+		}
+		P.Text(LimitText, Labels.Limit.X, Labels.Limit.Y, LabelFont, Alert(GA));
+		P.Lines({ FVector2f(GX + 4.f, SubY), FVector2f(GX + 16.f, SubY - 7.f), FVector2f(GX + 16.f, SubY + 7.f), FVector2f(GX + 4.f, SubY) }, MachineAmber(GA), 1.5f);
+		P.Text(TEXT("SUB"), Labels.Sub.X, Labels.Sub.Y, LabelFont, MachineAmber(GA));
 
 		CY = GBottom + Grid * 3.f;
 		P.Box(X + Pad, CY - Grid, W - Pad * 2.f, P.Hair, Secondary(0.15f * GA));
-		P.Text(Frame.HelmStatus.ToUpper(), X + Pad, CY, LabelFont, Frame.ParkedStop > 0 ? Primary(GA) : Amber(GA));
+		P.Text(Frame.HelmStatus.ToUpper(), X + Pad, CY, LabelFont, Frame.ParkedStop > 0 ? Primary(GA) : MachineAmber(GA));
 		CY += LabelH + Grid;
 		for (const FString& Line : P.Wrap(Frame.HelmReason, BodyFont, W - Pad * 2.f))
 		{
@@ -642,21 +702,45 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 	}
 
-	// ------------------------------------------------ the hull: a plain bar above the sonar, in the cave shaft (Shaft lane)
-	if (const float HA = A(EDeepHudPanel::Sonar); HA > 0.f && Frame.Hull01 >= 0.f)
+	// ------------------------------------------------ the hull, at the helm in the cave shaft (spec A, element 11: 400 x 48)
+	// HULL, an 8 px bar, the value. A hit eases the bar down, leaves a fading ghost of what was lost and flashes the
+	// hairline; at zero the bar gives way to HULL BREACH.
+	if (const float HA = A(EDeepHudPanel::Hull); HA > 0.f && Frame.Hull01 >= 0.f)
 	{
 		FDeepHudRect R = DeepHudLayout::HullSlot(L);
 		R.X -= SlideOf(HA);
-		P.Panel(R.X, R.Y, R.W, R.H, HA);
-		const FLinearColor Color = ToneColor(Frame.HullTone, HA);
-		const float RowY = R.Y + (R.H - LabelH) * 0.5f - 2.f;
-		P.Text(TEXT("HULL"), R.X + Pad, RowY, LabelFont, Frame.HullTone == EDeepHudTone::Normal ? Secondary(HA) : Color);
-		P.TextRight(FString::Printf(TEXT("%.0f%%"), FMath::Clamp(Frame.Hull01, 0.f, 1.f) * 100.f), R.Right() - Pad, RowY, MonoFont, Color);
+		const float Flash = HullBar.FlashAlpha(Now);
+		P.Box(R.X, R.Y, R.W, R.H, PanelFill(HA));
+		P.Outline(R.X, R.Y, R.W, R.H, Flash > 0.f ? Alert(HA) : Primary(HairlineAlpha * HA));
+		const float Hull = FMath::Clamp(Frame.Hull01, 0.f, 1.f);
+		const FLinearColor Color = BarColor(Hull, HA);
+		const float RowY = R.Y + (R.H - LabelH) * 0.5f;
+		const float MonoH = P.TextSize(TEXT("0"), MonoFont).Y;
+		P.Text(TEXT("HULL"), R.X + Pad, RowY, LabelFont, Secondary(HA));
+		P.TextRight(FString::Printf(TEXT("%.0f%%"), Hull * 100.f), R.Right() - Pad, R.Y + (R.H - MonoH) * 0.5f, MonoFont, Color);
 		const float BarX = R.X + Pad + P.TextSize(TEXT("HULL"), LabelFont).X + Pad;
 		const float BarW = FMath::Max(0.f, R.Right() - Pad - P.TextSize(TEXT("100%"), MonoFont).X - Pad - BarX);
-		const float BarY = R.Y + R.H * 0.5f - 1.f;
-		P.Box(BarX, BarY, BarW, 2.f, Secondary(0.18f * HA));
-		P.Box(BarX, BarY, BarW * FMath::Clamp(Frame.Hull01, 0.f, 1.f), 2.f, Frame.HullTone == EDeepHudTone::Normal ? Primary(HA) : Color);
+		const float BarY = R.Y + (R.H - HullBarPx) * 0.5f;
+		if (HullBar.IsBreach())
+		{
+			const float Pulse = 0.65f + 0.35f * FMath::Sin(static_cast<float>(Now) * 4.f * PI);
+			P.TextCentre(TEXT("HULL BREACH"), BarX + BarW * 0.5f, RowY, LabelFont, Alert(Pulse * HA));
+		}
+		else
+		{
+			const float Fill = FMath::Clamp(HullBar.Fill01(Now), 0.f, 1.f);
+			P.Box(BarX, BarY, BarW, HullBarPx, Secondary(TrackAlpha * HA));
+			if (const float GA = HullBar.GhostAlpha(Now); GA > 0.f && HullBar.GhostTop > Fill)
+			{
+				P.Box(BarX + BarW * Fill, BarY, BarW * (HullBar.GhostTop - Fill), HullBarPx, Secondary(GhostAlpha * GA * HA));
+			}
+			P.Box(BarX, BarY, BarW * Fill, HullBarPx, Color);
+			// Ticks where the colour changes: amber at half, alert at a quarter.
+			for (const float Mark : { BarDangerAt, BarWarnAt })
+			{
+				P.Box(BarX + BarW * Mark, BarY + HullBarPx * 0.5f - BarTickPx * 0.5f, P.Hair, BarTickPx, Secondary(TickAlpha * HA));
+			}
+		}
 	}
 
 	// ------------------------------------------------ the helm sonar: an amber scope, bottom left (Sonar lane)
@@ -677,33 +761,33 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 
 		// Header: the instrument's name in the helm's amber, its range on the right.
 		const float HY = R.Y + Pad;
-		P.Text(TEXT("SONAR"), R.X + Pad, HY, LabelFont, Amber(SA));
+		P.Text(TEXT("SONAR"), R.X + Pad, HY, LabelFont, MachineAmber(SA));
 		P.TextRight(FString::Printf(TEXT("RANGE %.0f m"), S.RangeM), R.Right() - Pad, HY, MonoFont, Secondary(0.6f * SA));
 
 		// The scope: rim, range rings with their metres, a faint cross on the bow and beam.
 		const float Near = S.Proximity01;
 		const float Pulse = 0.5f + 0.5f * FMath::Sin(static_cast<float>(Now) * FMath::Lerp(2.f, 9.f, Near) * 2.f * PI);
-		P.Arc(C, Radius, 1.f, Near > 0.f ? FMath::Lerp(Amber(SonarRimAlpha * SA), Alert((0.55f + 0.45f * Pulse) * SA), FMath::Min(1.f, Near * 1.5f)) : Amber(SonarRimAlpha * SA), Near > 0.f ? 2.f : 1.5f);
+		P.Arc(C, Radius, 1.f, Near > 0.f ? FMath::Lerp(MachineAmber(SonarRimAlpha * SA), Alert((0.55f + 0.45f * Pulse) * SA), FMath::Min(1.f, Near * 1.5f)) : MachineAmber(SonarRimAlpha * SA), Near > 0.f ? 2.f : 1.5f);
 		for (float Ring = S.RingStepM; Ring < S.RangeM - 0.5f; Ring += FMath::Max(1.f, S.RingStepM))
 		{
 			const float RR = Radius * Ring / S.RangeM;
-			P.Arc(C, RR, 1.f, Amber(SonarRingAlpha * SA), 1.f);
+			P.Arc(C, RR, 1.f, Secondary(SonarRingAlpha * SA), 1.f);
 		}
 		for (float Ring = S.RingStepM; Ring <= S.RangeM + 0.5f; Ring += FMath::Max(1.f, S.RingStepM))
 		{
 			const FVector2f LabelAt = At(135.f, Ring);
-			P.Text(FString::Printf(TEXT("%.0f"), Ring), LabelAt.X + 3.f, LabelAt.Y - 2.f, MonoFont, Amber(0.45f * SA));
+			P.Text(FString::Printf(TEXT("%.0f"), Ring), LabelAt.X + 3.f, LabelAt.Y - 2.f, MonoFont, Secondary(TickAlpha * SA));
 		}
-		P.Box(C.X - Radius, C.Y, Radius * 2.f, P.Hair, Amber(0.08f * SA));
-		P.Box(C.X, C.Y - Radius, P.Hair, Radius * 2.f, Amber(0.08f * SA));
-		P.Lines({ C + FVector2f(-5.f, -Radius - 9.f), C + FVector2f(0.f, -Radius - 2.f), C + FVector2f(5.f, -Radius - 9.f) }, Amber(0.7f * SA), 1.5f);
+		P.Box(C.X - Radius, C.Y, Radius * 2.f, P.Hair, Secondary(0.5f * SonarRingAlpha * SA));
+		P.Box(C.X, C.Y - Radius, P.Hair, Radius * 2.f, Secondary(0.5f * SonarRingAlpha * SA));
+		P.Lines({ C + FVector2f(-5.f, -Radius - 9.f), C + FVector2f(0.f, -Radius - 2.f), C + FVector2f(5.f, -Radius - 9.f) }, MachineAmber(0.7f * SA), 1.5f);
 
 		// The sweep line and its fading trail behind it.
 		for (int32 I = SonarTrailSteps; I >= 0; --I)
 		{
 			const float Back = SonarTrailDeg * I / SonarTrailSteps;
 			const float TA = I == 0 ? 0.9f : 0.22f * FMath::Square(1.f - static_cast<float>(I) / SonarTrailSteps);
-			P.Lines({ C, At(S.SweepDeg - Back, S.RangeM) }, Amber(TA * SA), I == 0 ? 1.5f : 3.f);
+			P.Lines({ C, At(S.SweepDeg - Back, S.RangeM) }, MachineAmber(TA * SA), I == 0 ? 1.5f : 3.f);
 		}
 
 		// Returns: neighbouring beams at about the same range join into a wall; a lone return is a speck.
@@ -723,14 +807,14 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 				const FDeepHudSonarReturn& Prev = Slice[(I + N - 1) % N];
 				const bool bJoinNext = Next.RangeM >= 0.f && Next.Strength > 0.01f && FMath::Abs(Next.RangeM - Here.RangeM) < S.JoinM;
 				const bool bJoinPrev = Prev.RangeM >= 0.f && Prev.Strength > 0.01f && FMath::Abs(Prev.RangeM - Here.RangeM) < S.JoinM;
-				const FLinearColor Col = Amber(SliceAlpha * FMath::Min(Here.Strength, bJoinNext ? Next.Strength : 1.f) * SA);
+				const FLinearColor Col = MachineAmber(SliceAlpha * FMath::Min(Here.Strength, bJoinNext ? Next.Strength : 1.f) * SA);
 				if (bJoinNext)
 				{
 					P.Lines({ HereAt, At(360.f * (I + 1) / N, Next.RangeM) }, Col, Thickness);
 				}
 				else if (!bJoinPrev)
 				{
-					P.Box(HereAt.X - Thickness, HereAt.Y - Thickness, Thickness * 2.f, Thickness * 2.f, Amber(SliceAlpha * Here.Strength * SA));
+					P.Box(HereAt.X - Thickness, HereAt.Y - Thickness, Thickness * 2.f, Thickness * 2.f, MachineAmber(SliceAlpha * Here.Strength * SA));
 				}
 			}
 		};
@@ -785,14 +869,14 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		// Footer: the nearest wall from the hull, the dim slice's depth, the bottom under the keel.
 		const float FY = C.Y + Radius + Grid * 2.f;
 		const FString Wall = S.ClearanceM >= 0.f ? FString::Printf(TEXT("WALL %.0f m"), S.ClearanceM) : FString(TEXT("WALL --"));
-		const FLinearColor WallColor = Near > 0.5f ? Alert(SA) : (Near > 0.f ? Amber(SA) : Secondary(0.8f * SA));
+		const FLinearColor WallColor = Near > 0.5f ? Alert(SA) : (Near > 0.f ? MachineAmber(SA) : Secondary(0.8f * SA));
 		P.Text(Wall, R.X + Pad, FY, MonoFont, WallColor);
 		P.TextRight(S.BedM >= 0.f ? FString::Printf(TEXT("BED %.0f m"), S.BedM) : FString(TEXT("BED --")), R.Right() - Pad, FY, MonoFont, Secondary(0.8f * SA));
 		const float LY = FY + LabelH + Grid;
-		P.Box(R.X + Pad, LY + LabelH * 0.5f, 20.f, SonarWallPx, Amber(SA));
+		P.Box(R.X + Pad, LY + LabelH * 0.5f, 20.f, SonarWallPx, MachineAmber(SA));
 		const float LW = P.Text(TEXT("AT DEPTH"), R.X + Pad + 28.f, LY, LabelFont, Secondary(0.6f * SA));
 		const float L2 = R.X + Pad + 28.f + LW + Grid * 3.f;
-		P.Box(L2, LY + LabelH * 0.5f, 20.f, SonarLowerPx, Amber(SonarLowerAlpha * SA));
+		P.Box(L2, LY + LabelH * 0.5f, 20.f, SonarLowerPx, MachineAmber(SonarLowerAlpha * SA));
 		P.Text(FString::Printf(TEXT("%.0f m BELOW"), S.LowerBelowM), L2 + 28.f, LY, LabelFont, Secondary(0.6f * SA));
 	}
 
@@ -911,12 +995,20 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		P.Box(0.f, 0.f, L.X, L.Y, PanelFill((Frame.Panels & Which) ? FMath::Max(CA, LeavingCards) : CA));
 		// Height from the same steps the layout uses.
 		const float RowH = 40.f;
-		float H = Pad * 2.f + 40.f;
+		// Spec A: the title in the heading face (wrapped if long); Net is the one 72 px number, unless the card has its own.
+		const FSlateFontInfo HeadingFont = Font(EFace::Heading);
+		const float HeadH = P.TextSize(TEXT("A"), HeadingFont).Y;
+		const TArray<FString> Title = P.Wrap(Frame.CardTitle.ToUpper(), HeadingFont, Width - Pad * 2.f);
+		const float TitleH = FMath::Max(1, Title.Num()) * HeadH + Grid * 2.f;
+		const FSlateFontInfo& BigFont = Frame.CardBig.IsEmpty() ? DepthFont : ReadoutFont;
+		const float BigTH = P.TextSize(TEXT("0"), BigFont).Y;
+		const float BigRowH = BigTH + Grid;
+		float H = Pad * 2.f + TitleH;
 		TArray<FString> Lead = P.Wrap(Frame.CardLead, BodyFont, Width - Pad * 2.f);
 		H += Lead.Num() * BodyH + (Lead.Num() > 0 ? Grid * 2.f : 0.f);
 		for (const FDeepHudRow& Row : Frame.Rows)
 		{
-			H += (Row.bBig ? 56.f : RowH) + (Row.bRuleAbove ? Grid * 2.f : 0.f);
+			H += (Row.bBig ? BigRowH : RowH) + (Row.bRuleAbove ? Grid * 2.f : 0.f);
 		}
 		if (!Frame.CardBig.IsEmpty())
 		{
@@ -935,9 +1027,13 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		float Y = FMath::Max(Margin, Centre.Y - H * 0.5f - 40.f) + SlideOf(CA);
 		P.Panel(X, Y, Width, H, CA);
 		float CY = Y + Pad;
-		P.Text(Frame.CardTitle.ToUpper(), X + Pad, CY, LabelFont, Primary(CA));
-		P.Box(X + Pad, CY + LabelH + Grid, (Width - Pad * 2.f) * Count, P.Hair, Primary(0.5f * CA));
-		CY += 40.f;
+		for (const FString& Line : Title)
+		{
+			P.Text(Line, X + Pad, CY, HeadingFont, Primary(CA));
+			CY += HeadH;
+		}
+		CY = Y + Pad + TitleH;
+		P.Box(X + Pad, CY - Grid, (Width - Pad * 2.f) * Count, P.Hair, Primary(HairlineAlpha * CA));
 		for (const FString& Line : Lead)
 		{
 			P.Text(Line, X + Pad, CY, BodyFont, Secondary(CA));
@@ -951,14 +1047,16 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		{
 			if (Row.bRuleAbove)
 			{
-				P.Box(X + Pad, CY + Grid * 0.5f, Width - Pad * 2.f, P.Hair, Secondary(0.3f * CA));
+				P.Box(X + Pad, CY + Grid * 0.5f, Width - Pad * 2.f, P.Hair, Secondary(0.34f * CA));
 				CY += Grid * 2.f;
 			}
-			const FSlateFontInfo& RowFont = Row.bBig ? ReadoutFont : BodyFont;
+			const FSlateFontInfo& RowFont = Row.bBig ? BigFont : BodyFont;
 			const FLinearColor C = Row.bBig && Row.Tone == EDeepHudTone::Normal ? Primary(CA) : ToneColor(Row.Tone, CA);
-			const float RH = Row.bBig ? 56.f : RowH;
+			const float RH = Row.bBig ? BigRowH : RowH;
 			const float TH = P.TextSize(TEXT("A"), RowFont).Y;
-			P.Text(Row.Label, X + Pad, CY + (RH - BodyH) * 0.5f, BodyFont, Row.bBig ? Secondary(CA) : C);
+			// A big row's label shares the number's baseline (Roboto's ascent is 0.79 of its line).
+			const float LabelY = Row.bBig ? CY + (RH - TH) * 0.5f + 0.79f * (TH - BodyH) : CY + (RH - BodyH) * 0.5f;
+			P.Text(Row.Label, X + Pad, LabelY, BodyFont, Row.bBig ? Secondary(CA) : C);
 			const FString Amount = !Row.Text.IsEmpty() ? Row.Text
 				: FString::Printf(TEXT("%s%d cr"), Row.bMinus ? TEXT("-") : TEXT(""), FMath::RoundToInt(Row.Amount * Count));
 			P.TextRight(Amount, X + Width - Pad, CY + (RH - TH) * 0.5f, RowFont, C);
@@ -1054,7 +1152,7 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	// ------------------------------------------------ the Captain: one radio line, lower third, last so nothing hides it
 	if (const float SA = SubtitleFade.Alpha(); SA > 0.f && !SubtitleShown.IsEmpty())
 	{
-		const float MaxW = FMath::Min(960.f, L.X - 2.f * (Margin + 320.f + Grid * 3.f));
+		const float MaxW = DeepHudLayout::SubtitleMax(L, 1).W;
 		const TArray<FString> Lines = P.Wrap(SubtitleShown, BodyFont, MaxW - Pad * 2.f - Grid * 2.f);
 		float Widest = P.TextSize(TEXT("CAPTAIN"), LabelFont).X + 40.f;
 		for (const FString& Line : Lines)
@@ -1066,14 +1164,14 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		const float X = Centre.X - W * 0.5f;
 		const float Y = L.Y - Margin - H + SlideOf(SA) * 0.5f;
 		P.Box(X, Y, W, H, PanelFill(SA));
-		P.Box(X, Y, 2.f, H, Amber(SA));
+		P.Box(X, Y, 2.f, H, MachineAmber(SA));
 		float CY = Y + Pad;
 		// The name tag, and three squelch bars that read as a radio.
-		const float TagW = P.Text(TEXT("CAPTAIN"), X + Pad + Grid, CY, LabelFont, Amber(SA));
+		const float TagW = P.Text(TEXT("CAPTAIN"), X + Pad + Grid, CY, LabelFont, MachineAmber(SA));
 		for (int32 Bar = 0; Bar < 3; ++Bar)
 		{
 			const float BH = 4.f + Bar * 4.f;
-			P.Box(X + Pad + Grid + TagW + Grid * 1.5f + Bar * 6.f, CY + LabelH - BH - 3.f, 3.f, BH, Amber(0.7f * SA));
+			P.Box(X + Pad + Grid + TagW + Grid * 1.5f + Bar * 6.f, CY + LabelH - BH - 3.f, 3.f, BH, MachineAmber(0.7f * SA));
 		}
 		CY += LabelH + Grid;
 		for (const FString& Line : Lines)

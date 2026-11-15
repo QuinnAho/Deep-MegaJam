@@ -25,6 +25,7 @@
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "Harpoon/DeepHarpoonSettings.h"
 #include "UI/DeepHudFrame.h"
+#include "UI/DeepHudStyle.h"
 #include "UI/DeepUserSettings.h"
 #include "UI/SDeepHud.h"
 
@@ -33,14 +34,14 @@ static TAutoConsoleVariable<int32> CVarDeepHudLegacy(
 
 namespace
 {
-	const FLinearColor TextColor(0.85f, 0.95f, 1.f);
-	const FLinearColor DimColor(0.6f, 0.7f, 0.75f, 0.85f);
-	const FLinearColor WarnColor(1.f, 0.6f, 0.15f);
-	const FLinearColor DangerColor(1.f, 0.2f, 0.15f);
-	const FLinearColor GoodColor(0.35f, 1.f, 0.55f);
-	const FLinearColor PanelColor(0.f, 0.02f, 0.04f, 0.85f);
-	const FLinearColor PatienceColor(0.25f, 0.85f, 0.95f);
-	const FLinearColor CaptainColor(1.f, 0.85f, 0.45f);
+	const FLinearColor TextColor = DeepHudStyle::Secondary();
+	const FLinearColor DimColor = DeepHudStyle::Secondary(DeepHudStyle::DimAlpha);
+	const FLinearColor WarnColor = DeepHudStyle::Warn();
+	const FLinearColor DangerColor = DeepHudStyle::Alert();
+	const FLinearColor GoodColor = DeepHudStyle::Primary();
+	const FLinearColor PanelColor = DeepHudStyle::PanelFill();
+	const FLinearColor PatienceColor = DeepHudStyle::Primary();
+	const FLinearColor CaptainColor = DeepHudStyle::MachineAmber();
 	constexpr float StatusScale = 0.8f;
 	constexpr float RowScale = 0.85f;
 
@@ -232,9 +233,9 @@ float ADeepHUD::DrawMenu(const TArray<FString>& Items, int32 Selected, float Y, 
 
 void ADeepHUD::DrawTitle(float RealNow)
 {
-	DrawRect(FLinearColor(0.f, 0.015f, 0.03f, 1.f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	DrawRect(DeepHudStyle::Shade(1.f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
 	// A thin tether line down the middle of the screen, into the dark.
-	DrawRect(FLinearColor(0.45f, 0.36f, 0.08f, 0.8f), Canvas->ClipX * 0.5f - 1.f * S, 0.f, 2.f * S, Canvas->ClipY * 0.16f);
+	DrawRect(DeepHudStyle::MachineAmber(0.5f), Canvas->ClipX * 0.5f - 1.f * S, 0.f, 2.f * S, Canvas->ClipY * 0.16f);
 
 	float W = 0.f, H = 0.f;
 	const float TitleScale = 4.2f;
@@ -290,8 +291,8 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 	// On the right, so the salvage below the start view stays in sight.
 	const float X = Canvas->ClipX - W - 16.f * S;
 	const float Top = Canvas->ClipY * 0.2f;
-	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.88f * Alpha), X, Top, W, H);
-	DrawRect(FLinearColor(CaptainColor.R, CaptainColor.G, CaptainColor.B, Alpha), X, Top, W, 3.f * S);
+	DrawRect(DeepHudStyle::Shade(0.88f * Alpha), X, Top, W, H);
+	DrawRect(DeepHudStyle::MachineAmber(Alpha), X, Top, W, 3.f * S);
 	float Y = Top + 10.f * S;
 	FLinearColor Head = CaptainColor;
 	Head.A = Alpha;
@@ -312,7 +313,7 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 
 void ADeepHUD::DrawPauseMenu()
 {
-	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.7f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	DrawRect(DeepHudStyle::Shade(0.7f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
 	float Y = Canvas->ClipY * 0.3f;
 	Y += TextCentered(TEXT("PAUSED"), CaptainColor, Y, BigFont, 1.6f) + 24.f * S;
 	TArray<FString> Labels;
@@ -333,7 +334,7 @@ void ADeepHUD::DrawReview(const UDeepRunComponent& Run)
 		return;
 	}
 	const FDeepRunReview Review = State->BuildReview();
-	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.94f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	DrawRect(DeepHudStyle::Shade(0.94f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
 	const float W = FMath::Min(Canvas->ClipX * 0.7f, 640.f * S);
 	const float X = (Canvas->ClipX - W) * 0.5f;
 	const float Line = 21.f * S;
@@ -480,7 +481,7 @@ void ADeepHUD::DrawPatience(const UDeepRunComponent& Run, float Now)
 	if (Fraction <= 0.1f)
 	{
 		// Last tenth: the bar flashes.
-		Color = FMath::Frac(Now * 3.f) < 0.5f ? DangerColor : FLinearColor(0.5f, 0.05f, 0.05f);
+		Color = FMath::Frac(Now * 3.f) < 0.5f ? DangerColor : DeepHudStyle::Alert(0.5f);
 	}
 	else if (Fraction <= 0.25f)
 	{
@@ -497,7 +498,7 @@ void ADeepHUD::DrawPatience(const UDeepRunComponent& Run, float Now)
 	DrawRect(Color, X, Y, W * Fraction, H);
 	for (const float Mark : Tuning.WarningFractions)
 	{
-		DrawRect(FLinearColor(1.f, 1.f, 1.f, 0.7f), X + W * Mark - 1.f * S, Y - 3.f * S, 2.f * S, H + 6.f * S);
+		DrawRect(DeepHudStyle::Secondary(0.7f), X + W * Mark - 1.f * S, Y - 3.f * S, 2.f * S, H + 6.f * S);
 	}
 
 	// A pickup refilled it: "+10%" beside the bar for a moment.
@@ -521,7 +522,7 @@ void ADeepHUD::DrawBailout(const ADeepDiver* Diver)
 	const bool bPulse = Air <= Tuning.WarnSeconds && FMath::Frac(RealNow * (bSlow ? 1.5f : 2.5f)) < 0.5f;
 
 	TextCentered(TEXT("TETHER CUT  -  SWIM UP INTO THE HATCH"), DangerColor, 14.f * S, nullptr, 1.f);
-	TextCentered(FString::Printf(TEXT("BAILOUT AIR  %.1f s"), Air), bPulse ? FLinearColor::White : DangerColor, 38.f * S, BigFont, 1.6f);
+	TextCentered(FString::Printf(TEXT("BAILOUT AIR  %.1f s"), Air), bPulse ? DeepHudStyle::Secondary() : DangerColor, 38.f * S, BigFont, 1.6f);
 
 	const float W = Canvas->ClipX * 0.34f;
 	const float H = 12.f * S;
@@ -611,7 +612,7 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 
 	// Centre dot, and the cut-loose hold progress under it.
 	const float Dot = 3.f * S;
-	DrawRect(FLinearColor(1.f, 1.f, 1.f, 0.6f), Canvas->ClipX * 0.5f - Dot * 0.5f, Canvas->ClipY * 0.5f - Dot * 0.5f, Dot, Dot);
+	DrawRect(DeepHudStyle::Secondary(0.6f), Canvas->ClipX * 0.5f - Dot * 0.5f, Canvas->ClipY * 0.5f - Dot * 0.5f, Dot, Dot);
 	const float Hold = Diver->GetCutHoldFraction();
 	if (Hold > 0.f)
 	{
@@ -642,7 +643,7 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 	if (!Banner.IsEmpty())
 	{
 		const bool bFlash = FMath::Frac(GetWorld()->GetRealTimeSeconds() * 2.f) < 0.5f;
-		TextCentered(Banner, bFlash ? FLinearColor::White : BannerColor, Canvas->ClipY * 0.28f, BigFont, 1.1f);
+		TextCentered(Banner, bFlash ? DeepHudStyle::Secondary() : BannerColor, Canvas->ClipY * 0.28f, BigFont, 1.1f);
 	}
 
 	// Controls, bottom left, two backed lines.
@@ -668,7 +669,7 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 	const float CX = 10.f * S;
 	const float CY = Canvas->ClipY - HA * 2.f - 12.f * S;
 	DrawRect(PanelColor, CX - 6.f * S, CY - 4.f * S, FMath::Max(WA, WB) + 12.f * S, HA * 2.f + 8.f * S);
-	const FLinearColor ControlsColor(0.85f, 0.92f, 0.95f);
+	const FLinearColor ControlsColor = DeepHudStyle::Secondary();
 	TextAt(ControlsA, ControlsColor, CX, CY, nullptr, ControlsScale);
 	TextAt(ControlsB, ControlsColor, CX, CY + HA, nullptr, ControlsScale);
 }
@@ -685,7 +686,7 @@ void ADeepHUD::DrawThreat(const UDeepRunComponent& Run, float RealNow)
 	const float Pulse = 0.5f + 0.5f * FMath::Sin(RealNow * Hz * 2.f * PI);
 	const float Alpha = Threat * Threat * (0.25f + 0.45f * Pulse);
 	const float Edge = FMath::Lerp(10.f, 46.f, Threat) * S;
-	const FLinearColor Red(0.85f, 0.03f, 0.02f, Alpha);
+	const FLinearColor Red = DeepHudStyle::Alert(Alpha);
 	DrawRect(Red, 0.f, 0.f, Canvas->ClipX, Edge);
 	DrawRect(Red, 0.f, Canvas->ClipY - Edge, Canvas->ClipX, Edge);
 	DrawRect(Red, 0.f, Edge, Edge, Canvas->ClipY - Edge * 2.f);
@@ -706,14 +707,14 @@ void ADeepHUD::DrawBiteAlarm(const UDeepRunComponent& Run, float RealNow)
 {
 	// Unmissable: a red wash, a full-width flashing band, the countdown and what to do.
 	const bool bFlash = FMath::Frac(RealNow * 3.f) < 0.5f;
-	DrawRect(FLinearColor(0.6f, 0.f, 0.f, bFlash ? 0.28f : 0.14f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	DrawRect(DeepHudStyle::Alert(bFlash ? 0.28f : 0.14f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
 	const float BandY = Canvas->ClipY * 0.24f;
 	const float BandH = 72.f * S;
-	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.85f), 0.f, BandY, Canvas->ClipX, BandH);
+	DrawRect(DeepHudStyle::Shade(0.85f), 0.f, BandY, Canvas->ClipX, BandH);
 	DrawRect(DangerColor, 0.f, BandY, Canvas->ClipX, 4.f * S);
 	DrawRect(DangerColor, 0.f, BandY + BandH - 4.f * S, Canvas->ClipX, 4.f * S);
 	float Y = BandY + 10.f * S;
-	Y += TextCentered(TEXT("IT HAS YOUR TETHER"), bFlash ? FLinearColor::White : DangerColor, Y, BigFont, 1.2f) + 4.f * S;
+	Y += TextCentered(TEXT("IT HAS YOUR TETHER"), bFlash ? DeepHudStyle::Secondary() : DangerColor, Y, BigFont, 1.2f) + 4.f * S;
 	TextCentered(FString::Printf(TEXT("LAMP ON IT  [%s]   -   CUT IN %.1f s"), *ADeepPlayerController::KeyHint(TEXT("Lamp")), Run.GetBiteAlarmLeft()), WarnColor, Y, nullptr, 1.1f);
 }
 
@@ -772,7 +773,7 @@ void ADeepHUD::DrawCaptain()
 
 void ADeepHUD::DrawDead(const UDeepRunComponent& Run)
 {
-	DrawRect(FLinearColor(0.12f, 0.f, 0.f, 0.82f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	DrawRect(DeepHudStyle::Shade(0.82f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
 	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
 	const int32 Number = State ? State->DiverNumber : 1;
 	const FDeepEconomyTuning& Economy = UDeepTuningSettings::Get().Economy;
@@ -794,7 +795,7 @@ void ADeepHUD::DrawSettlement(const UDeepRunComponent& Run)
 	const int32 Rows = 9 + Report.FeeLabels.Num();
 	const float H = Rows * Line + 40.f * S;
 	const float Top = 8.f * S;
-	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.9f), X, Top, W, H);
+	DrawRect(DeepHudStyle::Shade(0.9f), X, Top, W, H);
 	DrawRect(CaptainColor, X, Top, W, 3.f * S);
 
 	const float Pad = 22.f * S;
@@ -1005,7 +1006,7 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 		const float W = 420.f * S;
 		const float X = Canvas->ClipX - W - 16.f * S;
 		float PY = Canvas->ClipY * 0.2f;
-		DrawRect(FLinearColor(0.f, 0.03f, 0.02f, 0.9f), X, PY, W, 116.f * S);
+		DrawRect(DeepHudStyle::Shade(0.9f), X, PY, W, 116.f * S);
 		DrawRect(GoodColor, X, PY, W, 3.f * S);
 		PY += 10.f * S;
 		TextAt(TEXT("CONSOLE"), GoodColor, X + 16.f * S, PY, nullptr, 0.9f);
@@ -1026,10 +1027,10 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 	float CW = 0.f, CH = 0.f;
 	GetTextSize(Controls, CW, CH, Font, S * 0.62f);
 	DrawRect(PanelColor, 4.f * S, Canvas->ClipY - CH - 16.f * S, CW + 12.f * S, CH + 8.f * S);
-	TextAt(Controls, FLinearColor(0.85f, 0.92f, 0.95f), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.62f);
+	TextAt(Controls, DeepHudStyle::Secondary(), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.62f);
 
 	const float Dot = 3.f * S;
-	DrawRect(FLinearColor(1.f, 1.f, 1.f, 0.6f), Canvas->ClipX * 0.5f - Dot * 0.5f, Canvas->ClipY * 0.5f - Dot * 0.5f, Dot, Dot);
+	DrawRect(DeepHudStyle::Secondary(0.6f), Canvas->ClipX * 0.5f - Dot * 0.5f, Canvas->ClipY * 0.5f - Dot * 0.5f, Dot, Dot);
 }
 
 void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
@@ -1060,8 +1061,8 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 	const float GH = Canvas->ClipY * 0.62f;
 	auto YAt = [&](float M) { return GTop + GH * FMath::Clamp(M / Deepest, 0.f, 1.f); };
 	DrawRect(PanelColor, GX - 70.f * S, GTop - 30.f * S, 180.f * S, GH + 50.f * S);
-	DrawRect(FLinearColor(0.3f, 0.5f, 0.6f, 0.8f), GX, GTop, 6.f * S, GH);
-	DrawRect(FLinearColor(0.6f, 0.1f, 0.05f, 0.6f), GX, YAt(Limit), 6.f * S, GTop + GH - YAt(Limit));
+	DrawRect(DeepHudStyle::Secondary(0.5f), GX, GTop, 6.f * S, GH);
+	DrawRect(DeepHudStyle::Alert(0.45f), GX, YAt(Limit), 6.f * S, GTop + GH - YAt(Limit));
 	TextAt(TEXT("DEPTH"), DimColor, GX - 60.f * S, GTop - 26.f * S, nullptr, 0.7f);
 	for (int32 Stop = 1; Stop <= Tuning.NumStops(); ++Stop)
 	{
@@ -1070,17 +1071,24 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 		DrawRect(bHere ? GoodColor : TextColor, GX - 14.f * S, YAt(SD) - 1.f * S, 34.f * S, 3.f * S);
 		TextAt(FString::Printf(TEXT("%.0f"), SD), bHere ? GoodColor : TextColor, GX - 62.f * S, YAt(SD) - 10.f * S, nullptr, 0.7f);
 	}
+	// The same no-overlap rule as the Slate gauge (DeepHudLayout::GaugeLabels), worked in canvas pixels.
+	const FString LimitText = FString::Printf(TEXT("LIMIT %.0f"), Limit);
+	float SubW = 0.f, SubH = 0.f, LimW = 0.f, LimH = 0.f;
+	GetTextSize(TEXT("SUB"), SubW, SubH, Font.Get(), S * 0.65f);
+	GetTextSize(LimitText, LimW, LimH, Font.Get(), S * 0.65f);
+	const DeepHudLayout::FGaugeLabels Labels = DeepHudLayout::GaugeLabels(GX - 6.f * S, YAt(Depth), YAt(Limit) + 8.f * S,
+		FVector2f(SubW, SubH), FVector2f(LimW, LimH), Canvas->ClipX);
 	DrawRect(DangerColor, GX - 20.f * S, YAt(Limit) - 1.5f * S, 50.f * S, 3.f * S);
-	TextAt(FString::Printf(TEXT("LIMIT %.0f"), Limit), DangerColor, GX + 26.f * S, YAt(Limit) - 10.f * S, nullptr, 0.65f);
+	TextAt(LimitText, DangerColor, Labels.Limit.X, Labels.Limit.Y, nullptr, 0.65f);
 	DrawRect(CaptainColor, GX - 8.f * S, YAt(Depth) - 5.f * S, 22.f * S, 10.f * S);
-	TextAt(TEXT("SUB"), CaptainColor, GX + 18.f * S, YAt(Depth) - 10.f * S, nullptr, 0.65f);
+	TextAt(TEXT("SUB"), CaptainColor, Labels.Sub.X, Labels.Sub.Y, nullptr, 0.65f);
 
 	// The limit and why, always visible; a banner while the control pushes against it.
 	TextCentered(LimitReason(State), State->IsHullUpgraded() ? DimColor : WarnColor, 78.f * S, nullptr, 0.8f);
 	if (Run->IsHelmAtLimit())
 	{
 		const bool bFlash = FMath::Frac(GetWorld()->GetRealTimeSeconds() * 2.f) < 0.5f;
-		TextCentered(FString::Printf(TEXT("DEPTH LIMIT %.0f m - THE HELM WILL NOT GO DEEPER"), Limit), bFlash ? FLinearColor::White : DangerColor, Canvas->ClipY * 0.3f, BigFont, 1.f);
+		TextCentered(FString::Printf(TEXT("DEPTH LIMIT %.0f m - THE HELM WILL NOT GO DEEPER"), Limit), bFlash ? DeepHudStyle::Secondary() : DangerColor, Canvas->ClipY * 0.3f, BigFont, 1.f);
 	}
 
 	// What to do now.
@@ -1111,7 +1119,7 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 	float CW = 0.f, CH = 0.f;
 	GetTextSize(Controls, CW, CH, Font, S * 0.7f);
 	DrawRect(PanelColor, 4.f * S, Canvas->ClipY - CH - 16.f * S, CW + 12.f * S, CH + 8.f * S);
-	TextAt(Controls, FLinearColor(0.85f, 0.92f, 0.95f), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.7f);
+	TextAt(Controls, DeepHudStyle::Secondary(), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.7f);
 }
 
 // ---------------------------------------------------------------- the Slate HUD's frame
@@ -1321,7 +1329,8 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 		const EDeepHarpoonPhase Phase = Harpoon->GetPhase();
 		Frame.Harpoon = Phase == EDeepHarpoonPhase::Flying ? 1 : (Phase == EDeepHarpoonPhase::Latched ? 2 : (Harpoon->GetShotsLeft() > 0 ? 0 : 3));
 		Frame.HarpoonShots = Harpoon->GetShotsLeft();
-		if (Harpoon->IsReady() && Run->CanSwim())
+		// Aim while loaded or spent: a spent harpoon still shows the brackets, dimmed, with NO HARPOON (HUD spec A).
+		if ((Harpoon->IsReady() || Frame.Harpoon == 3) && Run->CanSwim())
 		{
 			FVector Origin, Direction;
 			if (Harpoon->GetView(Origin, Direction))
@@ -1610,6 +1619,7 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 			MakePrompt(TEXT("h4"), Key(TEXT("Winch")), TEXT("WINCH HOME"), TEXT("hold, loud")),
 			MakePrompt(TEXT("h5"), Key(TEXT("Lamp")), TEXT("LAMP"), Diver->HasFlashlight() ? FString() : FString(TEXT("needs the flashlight"))),
 			MakePrompt(TEXT("h6"), Key(TEXT("Cut")), TEXT("CUT LOOSE"), TEXT("hold")),
+			MakePrompt(TEXT("h7"), Key(TEXT("Ping")), TEXT("SONAR PING"), TEXT("outlines the walls")),
 		};
 		Frame.bHintDone = GameState->TotalGross > 0 || Diver->GetCargo().Num() > 0;
 	}
