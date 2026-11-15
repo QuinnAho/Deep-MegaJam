@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Debug/DeepStateReport.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepLamp.h"
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
@@ -126,6 +127,40 @@ namespace
 				Diver->TeleportDiver(FVector(FCString::Atof(*Args[0]), FCString::Atof(*Args[1]), FCString::Atof(*Args[2])));
 				DeepStateReport::LogState(World);
 			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HoverCommand(
+		TEXT("Deep.Hover"),
+		TEXT("Deep.Hover <metres>: moves the diver along its view so the first surface it looks at is that far from the eye (shots: the lamp at a known distance)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Hover"));
+			AController* Controller = Diver ? Diver->GetController() : nullptr;
+			if (!Diver || !Controller || Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.Hover <metres> (needs a controlled diver)"));
+				return;
+			}
+			const FVector Eye = Diver->GetPawnViewLocation();
+			const FVector Dir = Controller->GetControlRotation().Vector();
+			// The first of: anything with collision, and the sea bed's own surface (a trace from inside the bed misses it).
+			FHitResult Hit;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHover), true, Diver);
+			float HitCm = World->LineTraceSingleByChannel(Hit, Eye, Eye + Dir * 10000.f, ECC_Visibility, Params) ? static_cast<float>(Hit.Distance) : -1.f;
+			const float BedCm = DeepLamp::RayToBedCm(World, Eye, Dir, 10000.f);
+			if (BedCm >= 0.f && (HitCm < 0.f || BedCm < HitCm))
+			{
+				HitCm = BedCm;
+			}
+			if (HitCm < 0.f)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Hover: no surface within 100 m along the view"));
+				return;
+			}
+			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Hover: surface %.2f m along the view (%s)"), HitCm / 100.f, HitCm == BedCm ? TEXT("the bed's height field") : TEXT("collision"));
+			const FVector NewEye = Eye + Dir * HitCm - Dir * (FCString::Atof(*Args[0]) * 100.f);
+			Diver->TeleportDiver(Diver->GetActorLocation() + (NewEye - Eye));
+			DeepStateReport::LogState(World);
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs LookCommand(

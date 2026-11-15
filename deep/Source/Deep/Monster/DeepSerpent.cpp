@@ -536,6 +536,53 @@ FVector ADeepSerpent::GetHeadLocation() const
 	return HeadSocket ? HeadSocket->GetComponentLocation() : GetActorLocation();
 }
 
+void ADeepSerpent::GetDrawnSpheres(TArray<FSphere>& Out) const
+{
+	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
+	if (bTube && Tube && Tube->IsVisible())
+	{
+		// The tube's vertices are relative to the tube's location (absolute rotation and scale): world = location + vertex.
+		const int32 Sides = FMath::Max(8, Tuning.TubeSides / 4 * 4);
+		const int32 Row = Sides + 1;
+		const FVector Origin = Tube->GetComponentLocation();
+		for (int32 Start = 0; Start + Row <= TubeVerts.Num(); Start += Row)
+		{
+			FVector Centre = FVector::ZeroVector;
+			for (int32 j = 0; j < Sides; ++j)
+			{
+				Centre += TubeVerts[Start + j];
+			}
+			Centre /= Sides;
+			double RadiusSq = 0.0;
+			for (int32 j = 0; j < Sides; ++j)
+			{
+				RadiusSq = FMath::Max(RadiusSq, FVector::DistSquared(Centre, TubeVerts[Start + j]));
+			}
+			Out.Emplace(Origin + Centre, FMath::Sqrt(RadiusSq));
+		}
+	}
+	else
+	{
+		// The sphere fallback: unit spheres (100 cm across) scaled by the segment's width.
+		for (const FTransform& Segment : SegmentTransforms)
+		{
+			Out.Emplace(Segment.GetLocation(), Segment.GetScale3D().Y * 50.f);
+		}
+	}
+	// The head: three spheres from the neck cut to the snout along the socket's forward axis.
+	if (HeadSocket)
+	{
+		const FTransform Socket = HeadSocket->GetComponentTransform();
+		const FVector Forward = Socket.GetUnitAxis(EAxis::X);
+		const float RadiusCm = FMath::Max(Tuning.HeadRadiusM, Tuning.NeckRadiusM) * CmPerM;
+		for (int32 i = 0; i < 3; ++i)
+		{
+			const float AlongCm = FMath::Lerp(-HeadBackCm, HeadFrontCm, i / 2.f);
+			Out.Emplace(Socket.GetLocation() + Forward * AlongCm, RadiusCm);
+		}
+	}
+}
+
 FVector ADeepSerpent::GetEyeMidpoint() const
 {
 	return (EyeLeft->GetComponentLocation() + EyeRight->GetComponentLocation()) * 0.5f;

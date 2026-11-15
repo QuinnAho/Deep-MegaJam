@@ -536,6 +536,9 @@ function Invoke-Editor {
         return 0
     }
     if (Test-PortListening $McpPortEditor) { Write-Host ('  WARN: port {0} is already listening; MCP may fail to bind' -f $McpPortEditor) }
+    # -LiveCoding=0: an editor starts Live Coding by itself, and while it runs UnrealBuildTool refuses every build
+    # that uses the same installed engine ("Unable to build while Live Coding is active"), in every checkout on
+    # the machine. Agents never use Live Coding. (LiveCodingModule.cpp reads "-LiveCoding=" at start-up.)
     $argLine = '"{0}" -ModelContextProtocolStartServer -ModelContextProtocolPort={1} -LiveCoding=0' -f $UProject, $McpPortEditor
     try {
         $p = Start-Process -FilePath $EditorExe -ArgumentList $argLine -PassThru -ErrorAction Stop

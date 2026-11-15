@@ -64,6 +64,13 @@ public:
 	/** World positions of the body segments as last laid out (head excluded). Hit spheres for the harpoon. */
 	const TArray<FTransform>& GetSegmentTransforms() const { return SegmentTransforms; }
 
+	/**
+	 * Where the body is drawn, as spheres (world cm) that hold it: one per tube ring (centre and widest point of the ring
+	 * as drawn, so it includes the arm's-length clearance and the ridge), plus a few along the head. The serpent has no
+	 * collision by design, so a light that must know what it shines on (the diver's lamp) asks here. Appends to Out.
+	 */
+	void GetDrawnSpheres(TArray<FSphere>& Out) const;
+
 	/** Look state, for tests and DEEPMONSTER debugging. */
 	bool IsTubeBody() const { return bTube; }
 	int32 GetTubeVertexCount() const { return TubeVerts.Num(); }

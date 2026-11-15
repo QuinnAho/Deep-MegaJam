@@ -625,6 +625,20 @@ void UDeepRunComponent::StartDive(EDiveStart Reason)
 		{
 			// Salvage respawns every dive.
 			DeepArena::RespawnSalvage(GetWorld());
+			// Look only: through the hatch the diver faces at least this far down, at the bed and (at 500 m) the well's
+			// lip and its light, not at black water level with the eye. Never raises a view already lower.
+			const float DropPitch = Tuning.Arena.HatchDropPitchDeg;
+			if (AController* Controller = Diver->GetController(); Controller && DropPitch < 0.f)
+			{
+				FRotator View = Controller->GetControlRotation();
+				View.Pitch = FMath::Min(FRotator::NormalizeAxis(View.Pitch), DropPitch);
+				View.Roll = 0.f;
+				Controller->SetControlRotation(View);
+				if (APlayerController* Player = Cast<APlayerController>(Controller); Player && !Player->IsLocalController())
+				{
+					Player->ClientSetRotation(View);
+				}
+			}
 		}
 	}
 	bWasHome = IsDiverHome();

@@ -125,9 +125,15 @@ function Mcp([string]$verb, [string]$name, [string]$json) {
     }
 }
 function Call([string]$tool, [string]$json) {
-    $r = Mcp 'call' $tool $json
-    if (-not $r.Ok) { throw ('{0} failed: {1}' -f $tool, $r.Text) }
-    return $r
+    # The editor refuses tools while it runs a slow task (the first load of big assets, shader work) and says the
+    # call made no changes, so a retry is safe. Wait for it, up to a minute, rather than fail the scenario: on
+    # Nov 15 S10-relic and S3-serpent each failed once this way, on a cold editor and on the serpent's first load.
+    for ($try = 0; ; $try++) {
+        $r = Mcp 'call' $tool $json
+        if ($r.Ok) { return $r }
+        if ($r.Text -match 'running a slow task' -and $try -lt 30) { Start-Sleep -Milliseconds 2000; continue }
+        throw ('{0} failed: {1}' -f $tool, $r.Text)
+    }
 }
 function Get-State {
     $r = Call 'DeepToolset.DeepToolset.GetState' '{}'
