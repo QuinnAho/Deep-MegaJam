@@ -45,7 +45,20 @@ public:
 	/** Shots only: shows this state's motion and markings (threat 1) whatever the brain is doing; -1 = off. The brain is untouched. */
 	void SetPoseOverride(int32 InState) { PoseOverride = InState; }
 
-	FVector GetHeadLocation() const { return GetActorLocation(); }
+	/** The visible head: the head socket (the skull of a mesh head), which leads the actor in a lunge and trails it in a flinch. */
+	FVector GetHeadLocation() const;
+
+	/** World point between the eyes (tests: the gameplay head must sit at the visible head). */
+	FVector GetEyeMidpoint() const;
+
+	/** Rebuilds the head, eyes and materials from the settings and `Deep.Monster.MeshHead` (the switch calls it). */
+	void RefreshLook();
+
+	/** Look-dev: the body skin's or the mesh head's dynamic material (Deep.Monster.Param). */
+	UMaterialInstanceDynamic* GetLookMID(bool bHead) const { return bHead ? HeadMeshMID.Get() : SkinMID.Get(); }
+
+	/** `Deep.Monster.MeshHead` (default 1): 0 = always the code-built head. */
+	static bool IsMeshHeadAllowed();
 	FVector GetHeading() const { return Heading; }
 
 	/** World positions of the body segments as last laid out (head excluded). Hit spheres for the harpoon. */
@@ -71,7 +84,11 @@ protected:
 	void LayBody();
 
 	void SetupLook();
+	/** Places a mesh head from its landmarks; false (and nothing changed) when its mesh does not load. */
+	bool SetupMeshHead(const FDeepSerpentBodyTuning& Tuning);
 	void BuildHeadShells();
+	/** Body length behind the neck (metres): the whole length less the head in front of and behind the socket. */
+	float BodyLengthM() const;
 	void UpdateMotion(float Dt);
 	void BuildTube();
 	void UpdateEyes(float Dt);
@@ -142,6 +159,14 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> EyeMIDs;
 
+	/** The dorsal spikes: dark matte horn. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SpikeMID;
+
+	/** The mesh head's clip and grade (M_DragonHead). */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> HeadMeshMID;
+
 	/** Mood from the server: EDeepMonsterState as a byte, and the brain's threat 0..1. */
 	UPROPERTY(Replicated)
 	uint8 MoodState = 0;
@@ -173,6 +198,13 @@ protected:
 	float YawRateDegPerS = 0.f;
 	FVector LastHeading = FVector::ForwardVector;
 	float EyeShine[2] = { 0.f, 0.f };
+
+	// ---- Where the body meets the head (socket space, cm), set by SetupLook ----
+	/** Centre of the neck where the body starts; the body runs back from it along -X. */
+	FVector NeckCutLocalCm = FVector(-80.f, 0.f, 0.f);
+	/** Head length behind and in front of the socket (cm). */
+	float HeadBackCm = 80.f;
+	float HeadFrontCm = 120.f;
 
 	TArray<FVector> TubeVerts, TubeNormals, ShellVerts;
 	TArray<FVector2D> TubeUV0, TubeUV1;

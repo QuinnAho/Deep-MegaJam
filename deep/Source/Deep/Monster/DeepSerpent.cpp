@@ -5,7 +5,9 @@
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
+#include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
+#include "HAL/IConsoleManager.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -43,15 +45,35 @@ namespace
 		return Body.bTubeBody ? Body.HeadLengthM * (1.f - HeadBackFraction) : Body.HeadRadiusM * 0.3f;
 	}
 
-	float BodyLengthM(const FDeepSerpentBodyTuning& Body)
-	{
-		return FMath::Max(0.5f, Body.LengthM - HeadBackM(Body) - HeadFrontM(Body));
-	}
+	/** `Deep.Monster.MeshHead`: the switch for the pack head. Changing it rebuilds every serpent's look at once. */
+	int32 GMeshHeadAllowed = 1;
+	FAutoConsoleVariableRef CVarMeshHead(
+		TEXT("Deep.Monster.MeshHead"),
+		GMeshHeadAllowed,
+		TEXT("Deep.Monster.MeshHead <0|1>: 1 (default) = the serpent wears the mesh head from its settings (the Dragon Cave dragon) when it loads; 0 = the code-built head."),
+		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
+		{
+			if (!GEngine)
+			{
+				return;
+			}
+			for (const FWorldContext& Context : GEngine->GetWorldContexts())
+			{
+				if (UWorld* World = Context.World())
+				{
+					for (TActorIterator<ADeepSerpent> It(World); It; ++It)
+					{
+						It->RefreshLook();
+					}
+				}
+			}
+		}),
+		ECVF_Default);
 
 	/** Body radius at T (0 = neck, 1 = tail tip): a swell behind the head, then the taper. */
-	float RadiusAt(const FDeepSerpentBodyTuning& Body, float T)
+	float RadiusAt(const FDeepSerpentBodyTuning& Body, float T, float Swell = -1.f)
 	{
-		const float Peak = Body.NeckRadiusM * Body.BellySwell;
+		const float Peak = Body.NeckRadiusM * (Swell > 0.f ? Swell : Body.BellySwell);
 		constexpr float SwellEnd = 0.18f;
 		if (T < SwellEnd)
 		{
@@ -303,7 +325,9 @@ ADeepSerpent::ADeepSerpent()
 	Tube = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Tube"));
 	Tube->SetupAttachment(Root);
 	QuietMesh(Tube);
-	Tube->SetUsingAbsoluteLocation(true);
+	// The tube rides with the actor's location (not its rotation): its vertices are written relative to the head, so
+	// the renderer sees the body move with the head and its motion vectors are close to right. With the vertices in
+	// world space and the component still, temporal AA smeared the moving skin into streaks (dragon pass, Nov 15).
 	Tube->SetUsingAbsoluteRotation(true);
 	Tube->SetUsingAbsoluteScale(true);
 
@@ -399,6 +423,14 @@ void ADeepSerpent::SetupLook()
 		MouthMID = UMaterialInstanceDynamic::Create(SkinBase, this);
 		MouthMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.SkinColor * 0.25f);
 		MouthMID->SetScalarParameterValue(TEXT("WetCoat"), 0.3f);
+		// Dorsal spikes (mesh head): horn, matte and dark, so their flat faces never flash white in the lamp.
+		SpikeMID = UMaterialInstanceDynamic::Create(SkinBase, this);
+		SpikeMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.SkinColor * 0.6f);
+		SpikeMID->SetScalarParameterValue(TEXT("ScaleDepth"), 0.f);
+		SpikeMID->SetScalarParameterValue(TEXT("WetCoat"), 0.1f);
+		SpikeMID->SetScalarParameterValue(TEXT("Roughness"), 0.7f);
+		SpikeMID->SetScalarParameterValue(TEXT("GrooveRoughness"), 0.75f);
+		SpikeMID->SetScalarParameterValue(TEXT("Specular"), 0.15f);
 	}
 	if (UMaterialInterface* MarksBase = Cast<UMaterialInterface>(Tuning.MarksMaterial.TryLoad()))
 	{
@@ -410,7 +442,7 @@ void ADeepSerpent::SetupLook()
 		MarksMID->SetScalarParameterValue(TEXT("SpotSpacing"), Tuning.SpotSpacingM);
 	}
 
-	// ---- Eyes: the engine's unlit emissive material; dark until a lamp is on them.
+	// ---- Eyes: the engine's unlit emissive material; dark until a lamp is on them. A mesh head moves them to its eyes.
 	const FVector EyeOffsetCm = Tuning.EyeOffsetM * CmPerM;
 	EyeLeft->SetRelativeLocation(FVector(EyeOffsetCm.X, -EyeOffsetCm.Y, EyeOffsetCm.Z));
 	EyeRight->SetRelativeLocation(EyeOffsetCm);
@@ -439,22 +471,29 @@ void ADeepSerpent::SetupLook()
 		}
 	}
 
-	// ---- Head: a mesh at the socket if one is set, else the code-built wedge and jaw.
-	UStaticMesh* MeshHead = Tuning.HeadMesh.IsValid() ? Cast<UStaticMesh>(Tuning.HeadMesh.TryLoad()) : nullptr;
-	bMeshHead = bTube && MeshHead != nullptr;
+	// ---- Head: a mesh at the socket if one is set and loads, else the code-built wedge and jaw.
+	HeadBackCm = HeadBackM(Tuning) * CmPerM;
+	HeadFrontCm = HeadFrontM(Tuning) * CmPerM;
+	NeckCutLocalCm = FVector(-HeadBackCm, 0.f, 0.f);
+	bMeshHead = bTube && IsMeshHeadAllowed() && SetupMeshHead(Tuning);
+	HeadMeshComp->SetVisibility(bMeshHead);
 	if (bMeshHead)
 	{
-		HeadMeshComp->SetStaticMesh(MeshHead);
-		HeadMeshComp->SetRelativeTransform(FTransform(Tuning.HeadMeshRotation, Tuning.HeadMeshOffsetCm, Tuning.HeadMeshScale));
-		if (UMaterialInterface* HeadMaterial = Cast<UMaterialInterface>(Tuning.HeadMeshMaterial.TryLoad()))
+		// One skin: the body wears the dragon's own neck skin, graded like the head.
+		const FDeepSerpentMeshHead& H = Tuning.MeshHead;
+		if (UMaterialInterface* BodySkin = Cast<UMaterialInterface>(H.BodyMaterial.TryLoad()))
 		{
-			for (int32 Slot = 0; Slot < HeadMeshComp->GetNumMaterials(); ++Slot)
-			{
-				HeadMeshComp->SetMaterial(Slot, HeadMaterial);
-			}
+			SkinMID = UMaterialInstanceDynamic::Create(BodySkin, this);
+			SkinMID->SetVectorParameterValue(TEXT("PatchOrigin"), FLinearColor(H.PatchOrigin.X, H.PatchOrigin.Y, 0.f));
+			SkinMID->SetVectorParameterValue(TEXT("PatchSize"), FLinearColor(H.PatchSize.X, H.PatchSize.Y, 0.f));
+			SkinMID->SetVectorParameterValue(TEXT("PatchMetres"), FLinearColor(H.PatchMetres.X, H.PatchMetres.Y, 0.f));
+			SkinMID->SetScalarParameterValue(TEXT("ColorGain"), H.ColorGain);
+		}
+		else if (SkinMID && H.BodyScaleSizeM > 0.f)
+		{
+			SkinMID->SetScalarParameterValue(TEXT("ScaleSize"), H.BodyScaleSizeM);
 		}
 	}
-	HeadMeshComp->SetVisibility(bMeshHead);
 	HeadShell->SetVisibility(bTube && !bMeshHead);
 	JawShell->SetVisibility(bTube && !bMeshHead);
 	Tube->SetVisibility(bTube);
@@ -478,6 +517,92 @@ void ADeepSerpent::SetupLook()
 		Jaw->SetMaterial(0, SkinMID);
 		Body->SetMaterial(0, SkinMID);
 	}
+}
+
+bool ADeepSerpent::IsMeshHeadAllowed()
+{
+	return GMeshHeadAllowed != 0;
+}
+
+void ADeepSerpent::RefreshLook()
+{
+	SetupLook();
+	bTubeCreated = false;
+	LayBody();
+}
+
+FVector ADeepSerpent::GetHeadLocation() const
+{
+	return HeadSocket ? HeadSocket->GetComponentLocation() : GetActorLocation();
+}
+
+FVector ADeepSerpent::GetEyeMidpoint() const
+{
+	return (EyeLeft->GetComponentLocation() + EyeRight->GetComponentLocation()) * 0.5f;
+}
+
+float ADeepSerpent::BodyLengthM() const
+{
+	return FMath::Max(0.5f, UDeepMonsterSettings::Get().Body.LengthM - (HeadBackCm + HeadFrontCm) / CmPerM);
+}
+
+bool ADeepSerpent::SetupMeshHead(const FDeepSerpentBodyTuning& Tuning)
+{
+	const FDeepSerpentMeshHead& H = Tuning.MeshHead;
+	UStaticMesh* Mesh = H.Mesh.IsValid() ? Cast<UStaticMesh>(H.Mesh.TryLoad()) : nullptr;
+	if (!Mesh)
+	{
+		return false;
+	}
+
+	// The head's own frame from its landmarks: forward, right along the eye line (so the eyes come out level), up.
+	const FVector Forward = H.Forward.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	FVector Right = H.EyeRightCm - H.EyeLeftCm;
+	Right -= Forward * FVector::DotProduct(Right, Forward);
+	if (!Right.Normalize())
+	{
+		Right = FVector::CrossProduct(FVector::UpVector, Forward).GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	}
+	const FVector Up = FVector::CrossProduct(Forward, Right);
+	// That frame onto the socket's X, Y, Z; the skull point onto the socket's origin.
+	const FQuat ToSocket = FQuat(FMatrix(Forward, Right, Up, FVector::ZeroVector)).Inverse();
+	const float Scale = FMath::Max(0.0001f, H.Scale);
+	auto Place = [&](const FVector& MeshCm) { return ToSocket.RotateVector((MeshCm - H.SkullCm) * Scale); };
+
+	HeadMeshComp->SetStaticMesh(Mesh);
+	HeadMeshComp->SetRelativeTransform(FTransform(ToSocket, Place(FVector::ZeroVector), FVector(Scale)));
+	// The whole dragon is in the mesh: keep it out of distance-field and Lumen scene lighting, where the clip may not reach.
+	HeadMeshComp->bAffectDistanceFieldLighting = false;
+	HeadMeshComp->SetAffectDynamicIndirectLighting(false);
+	HeadMeshComp->SetCastShadow(true);
+
+	HeadMeshMID = nullptr;
+	if (UMaterialInterface* Base = Cast<UMaterialInterface>(H.Material.TryLoad()))
+	{
+		HeadMeshMID = UMaterialInstanceDynamic::Create(Base, this);
+		HeadMeshMID->SetVectorParameterValue(TEXT("CutOrigin"), FLinearColor(H.CutCm));
+		HeadMeshMID->SetVectorParameterValue(TEXT("CutNormal"), FLinearColor(H.CutNormal.GetSafeNormal(UE_SMALL_NUMBER, Forward)));
+		HeadMeshMID->SetVectorParameterValue(TEXT("KeepEnd"), FLinearColor(H.KeepEndCm));
+		HeadMeshMID->SetScalarParameterValue(TEXT("KeepRadius"), H.KeepRadiusCm);
+		HeadMeshMID->SetScalarParameterValue(TEXT("ColorGain"), H.ColorGain);
+		for (int32 Slot = 0; Slot < HeadMeshComp->GetNumMaterials(); ++Slot)
+		{
+			HeadMeshComp->SetMaterial(Slot, HeadMeshMID);
+		}
+	}
+
+	// Where the body takes over, and how long the head is either side of the socket.
+	NeckCutLocalCm = Place(H.CutCm);
+	HeadBackCm = FMath::Max(1.f, -NeckCutLocalCm.X);
+	HeadFrontCm = FMath::Max(1.f, Place(H.KeepEndCm).X);
+
+	// Eyes (and their light) on the dragon's eyes.
+	EyeLeft->SetRelativeLocation(Place(H.EyeLeftCm));
+	EyeRight->SetRelativeLocation(Place(H.EyeRightCm));
+	const FVector LightForward(Tuning.EyeRadiusM * CmPerM * 2.f, 0.f, 0.f);
+	EyeLightLeft->SetRelativeLocation(EyeLeft->GetRelativeLocation() + LightForward);
+	EyeLightRight->SetRelativeLocation(EyeRight->GetRelativeLocation() + LightForward);
+	return true;
 }
 
 void ADeepSerpent::BuildHeadShells()
@@ -774,7 +899,8 @@ void ADeepSerpent::LayBody()
 {
 	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
 	const int32 N = FMath::Max(2, Tuning.Segments);
-	const float SpacingM = BodyLengthM(Tuning) / N;
+	const float SpacingM = BodyLengthM() / N;
+	const float HeadBack = HeadBackCm / CmPerM;
 	const float Boost = 1.f + (Tuning.RecoilWeaveBoost - 1.f) * Flinch01;
 
 	// The path starts at the head as it is now, then the recorded trail.
@@ -788,7 +914,7 @@ void ADeepSerpent::LayBody()
 	for (int32 i = 0; i < N; ++i)
 	{
 		const float T = (i + 0.5f) / static_cast<float>(N);
-		const float AlongM = HeadBackM(Tuning) + (i + 0.5f) * SpacingM;
+		const float AlongM = HeadBack + (i + 0.5f) * SpacingM;
 		const FVector OnPath = UDeepMonsterRules::PointAlongTrail(Path, AlongM * CmPerM);
 		const FVector Ahead = UDeepMonsterRules::PointAlongTrail(Path, (AlongM - SpacingM) * CmPerM);
 		const FVector Dir = (Ahead - OnPath).GetSafeNormal(UE_SMALL_NUMBER, Heading);
@@ -835,8 +961,13 @@ void ADeepSerpent::BuildTube()
 	const int32 Rings = FMath::Max(4, Tuning.TubeRings);
 	const int32 Sides = FMath::Max(8, Tuning.TubeSides / 4 * 4);
 	const int32 Row = Sides + 1;
-	const float StartM = HeadBackM(Tuning) - NeckOverlapM;
-	const float LengthM = BodyLengthM(Tuning) + NeckOverlapM;
+	// A mesh head: the body starts as a sleeve inside the neck, in front of the cut, and is over it by the cut.
+	const FDeepSerpentMeshHead& MeshTuning = Tuning.MeshHead;
+	const float HeadBack = HeadBackCm / CmPerM;
+	const float FrontM = bMeshHead ? FMath::Max(0.05f, MeshTuning.SleeveM) : NeckOverlapM;
+	const float StartM = HeadBack - FrontM;
+	const float BodyM = BodyLengthM();
+	const float LengthM = BodyM + FrontM;
 	const float Boost = 1.f + (Tuning.RecoilWeaveBoost - 1.f) * Flinch01;
 
 	TArray<FVector> Path;
@@ -846,6 +977,10 @@ void ADeepSerpent::BuildTube()
 
 	const FTransform Socket = HeadSocket->GetComponentTransform();
 	const FVector SocketBack = -Socket.GetUnitAxis(EAxis::X);
+	const FVector Origin = Tube->GetComponentLocation();
+	// Ring spacing: even for the code-built head; closer near a mesh head, where the sleeve and the join need them.
+	const bool bDenseFront = bMeshHead;
+	auto RingAlong = [bDenseFront](float T) { return bDenseFront ? FMath::Pow(T, 1.4f) : T; };
 
 	// ---- Ring centres: the trail plus the weave; the neck bends toward the head socket.
 	TArray<FVector, TInlineAllocator<128>> Centres;
@@ -855,7 +990,7 @@ void ADeepSerpent::BuildTube()
 	for (int32 k = 0; k < Rings; ++k)
 	{
 		const float T = k / static_cast<float>(Rings - 1);
-		const float AlongM = StartM + T * LengthM;
+		const float AlongM = StartM + RingAlong(T) * LengthM;
 		const FVector OnPath = UDeepMonsterRules::PointAlongTrail(Path, AlongM * CmPerM);
 		const FVector Ahead = UDeepMonsterRules::PointAlongTrail(Path, (AlongM - 0.3f) * CmPerM);
 		const FVector Dir = (Ahead - OnPath).GetSafeNormal(UE_SMALL_NUMBER, Heading);
@@ -867,11 +1002,12 @@ void ADeepSerpent::BuildTube()
 		Phases[k] = WeavePhase - 2.f * PI * AlongM / FMath::Max(0.1f, Tuning.WeaveWavelengthM);
 		const float SwingM = Tuning.WeaveAmplitudeM * Boost * (0.15f + 0.85f * T) * FMath::Sin(Phases[k]);
 		FVector Centre = OnPath + Side * (SwingM * CmPerM);
-		const float ToHeadM = AlongM - HeadBackM(Tuning);
+		const float ToHeadM = AlongM - HeadBack;
 		const float Blend = 1.f - FMath::SmoothStep(0.f, NeckBlendM, FMath::Max(0.f, ToHeadM));
 		if (Blend > 0.f)
 		{
-			const FVector FromSocket = Socket.GetLocation() + SocketBack * (AlongM * CmPerM);
+			// Straight back from where the neck is cut (for the code-built head: straight back from the socket).
+			const FVector FromSocket = Socket.TransformPosition(NeckCutLocalCm - FVector(ToHeadM * CmPerM, 0.f, 0.f));
 			Centre = FMath::Lerp(Centre, FromSocket, Blend);
 		}
 		Centres[k] = Centre;
@@ -884,6 +1020,11 @@ void ADeepSerpent::BuildTube()
 	TubeColors.SetNumUninitialized(Rings * Row);
 	FVector Up = Socket.GetUnitAxis(EAxis::Z);
 	const float Bank = Tuning.TurnRollDeg * FMath::Clamp(YawRateDegPerS / 90.f, -1.5f, 1.5f);
+	TArray<FVector, TInlineAllocator<128>> RingUps, RingTangents;
+	TArray<float, TInlineAllocator<128>> RingAlongs;
+	RingUps.SetNum(Rings);
+	RingTangents.SetNum(Rings);
+	RingAlongs.SetNum(Rings);
 	for (int32 k = 0; k < Rings; ++k)
 	{
 		const float T = k / static_cast<float>(Rings - 1);
@@ -895,19 +1036,37 @@ void ADeepSerpent::BuildTube()
 		const float RollDeg = Tuning.WeaveRollDeg * Boost * (0.3f + 0.7f * T) * FMath::Cos(Phases[k]) + Bank * FMath::Square(1.f - T);
 		const FVector RingUp = FQuat(Tangent, FMath::DegreesToRadians(RollDeg)).RotateVector(Up);
 		const FVector RingSide = FVector::CrossProduct(RingUp, Tangent);
+		RingUps[k] = RingUp;
+		RingTangents[k] = Tangent;
 
-		const float RadiusM = k == 0 ? Tuning.NeckRadiusM : RadiusAt(Tuning, T);
+		const float AlongM = StartM + RingAlong(T) * LengthM;
+		float RadiusM = k == 0 ? Tuning.NeckRadiusM : RadiusAt(Tuning, T);
+		float Tall = 1.f;
+		float Wide = 1.f;
+		if (bMeshHead)
+		{
+			// Grows from inside the neck to over it at the cut, then the normal body; taller than wide near the head.
+			const float BehindCutM = AlongM - HeadBack;
+			const float Ease = FMath::SmoothStep(0.f, FMath::Max(0.1f, MeshTuning.NeckEaseM), BehindCutM);
+			const float Sleeve = BehindCutM < 0.f
+				? FMath::Lerp(MeshTuning.SleeveStartScale, MeshTuning.SleeveEndScale, FMath::SmoothStep(-FrontM, 0.f, BehindCutM))
+				: FMath::Lerp(MeshTuning.SleeveEndScale, 1.f, Ease);
+			RadiusM = RadiusAt(Tuning, FMath::Clamp(BehindCutM / BodyM, 0.f, 1.f), MeshTuning.BodySwell) * Sleeve;
+			Tall = FMath::Lerp(MeshTuning.NeckTall, 1.f, Ease);
+			Wide = FMath::Lerp(MeshTuning.NeckWide, 1.f, Ease);
+		}
 		FRingShape Shape;
-		Shape.HalfWidth = RadiusM;
-		Shape.Top = RadiusM;
-		Shape.Bottom = RadiusM * 0.92f;
+		Shape.HalfWidth = RadiusM * Wide;
+		Shape.Top = RadiusM * Tall;
+		Shape.Bottom = RadiusM * 0.92f * Tall;
 		Shape.Ridge = Tuning.RidgeHeight * (1.f - 0.6f * T);
-		const float U = T * LengthM - NeckOverlapM;
+		const float U = AlongM - HeadBack;
+		RingAlongs[k] = AlongM;
 		for (int32 j = 0; j <= Sides; ++j)
 		{
 			const FVector Local = RingPoint(Shape, j, Sides) * CmPerM;
 			const int32 Index = k * Row + j;
-			TubeVerts[Index] = Centres[k] + RingSide * Local.Y + RingUp * Local.Z;
+			TubeVerts[Index] = Centres[k] - Origin + RingSide * Local.Y + RingUp * Local.Z;
 			const float Around = j / static_cast<float>(Sides);
 			TubeUV1[Index] = FVector2D(U, Around);
 			TubeUV0[Index] = FVector2D(U * Tuning.SkinTilesPerM, Around * Tuning.SkinTilesAround);
@@ -919,6 +1078,37 @@ void ADeepSerpent::BuildTube()
 	for (int32 i = 0; i < TubeVerts.Num(); ++i)
 	{
 		ShellVerts[i] = TubeVerts[i] + TubeNormals[i] * MarksLiftCm;
+	}
+
+	// ---- Dorsal spikes (mesh head only): the dragon's neck spikes carried on down the ridge, swept back, shrinking.
+	TArray<FVector> SpikeV, SpikeN;
+	TArray<FProcMeshTangent> SpikeT;
+	TArray<FVector2D> SpikeUV;
+	TArray<FLinearColor> SpikeC;
+	TArray<int32> SpikeTri;
+	if (bMeshHead && MeshTuning.SpikeSpacingM > 0.01f && MeshTuning.SpikeRunM > 0.f)
+	{
+		const int32 Count = FMath::Min(200, FMath::FloorToInt(MeshTuning.SpikeRunM / MeshTuning.SpikeSpacingM));
+		const int32 Quarter = Sides / 4;
+		int32 k = 0;
+		for (int32 i = 0; i < Count; ++i)
+		{
+			const float D = (i + 0.5f) * MeshTuning.SpikeSpacingM;
+			const float Along = HeadBack + D;
+			while (k + 2 < Rings && RingAlongs[k + 1] < Along)
+			{
+				++k;
+			}
+			const float A = FMath::Clamp((Along - RingAlongs[k]) / FMath::Max(0.001f, RingAlongs[k + 1] - RingAlongs[k]), 0.f, 1.f);
+			const FVector Top = FMath::Lerp(TubeVerts[k * Row + Quarter], TubeVerts[(k + 1) * Row + Quarter], A);
+			const FVector SpikeUp = FMath::Lerp(RingUps[k], RingUps[k + 1], A).GetSafeNormal();
+			const FVector Back = FMath::Lerp(RingTangents[k], RingTangents[k + 1], A).GetSafeNormal();
+			// Deterministic jitter so the row is not a comb.
+			const float Rnd = FMath::Frac(FMath::Sin(i * 12.9898f) * 43758.5453f);
+			const float LenCm = MeshTuning.SpikeLengthM * CmPerM * FMath::Lerp(1.f, 0.2f, D / MeshTuning.SpikeRunM) * FMath::Lerp(0.7f, 1.15f, Rnd);
+			const FVector Lean = FVector::CrossProduct(SpikeUp, Back) * (FMath::Frac(Rnd * 7.13f) - 0.5f) * 0.5f;
+			AddTooth(Top - SpikeUp * 3.f, SpikeUp + Back * 0.9f + Lean, LenCm, LenCm * 0.18f, SpikeV, SpikeN, SpikeT, SpikeUV, SpikeC, SpikeTri);
+		}
 	}
 
 	TArray<FProcMeshTangent> Tangents;
@@ -941,12 +1131,28 @@ void ADeepSerpent::BuildTube()
 			Tube->SetMaterial(1, MarksMID);
 		}
 		Tube->SetMeshSectionVisible(1, MarksMID != nullptr);
+		if (SpikeV.Num() > 0)
+		{
+			Tube->CreateMeshSection_LinearColor(2, SpikeV, SpikeTri, SpikeN, SpikeUV, SpikeUV, None, None, SpikeC, SpikeT, false, false);
+			if (UMaterialInstanceDynamic* SpikeSkin = SpikeMID ? SpikeMID.Get() : SkinMID.Get())
+			{
+				Tube->SetMaterial(2, SpikeSkin);
+			}
+		}
+		else
+		{
+			Tube->ClearMeshSection(2);
+		}
 		bTubeCreated = true;
 	}
 	else
 	{
 		Tube->UpdateMeshSection_LinearColor(0, TubeVerts, TubeNormals, TubeUV0, TubeUV1, None, None, TubeColors, Tangents, false);
 		Tube->UpdateMeshSection_LinearColor(1, ShellVerts, TubeNormals, TubeUV0, TubeUV1, None, None, TubeColors, Tangents, false);
+		if (SpikeV.Num() > 0)
+		{
+			Tube->UpdateMeshSection_LinearColor(2, SpikeV, SpikeN, SpikeUV, SpikeUV, None, None, SpikeC, SpikeT, false);
+		}
 	}
 }
 

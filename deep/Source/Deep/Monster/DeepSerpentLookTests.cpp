@@ -7,6 +7,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Game/DeepGameMode.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
 #include "Monster/DeepMonsterSettings.h"
 #include "Monster/DeepSerpent.h"
@@ -55,7 +56,18 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	const int32 Sides = FMath::Max(8, Body.TubeSides / 4 * 4);
 	TestEqual(TEXT("Tube has rings x (sides + seam) vertices"), Serpent->GetTubeVertexCount(), FMath::Max(4, Body.TubeRings) * (Sides + 1));
 	TestEqual(TEXT("Harpoon hit segments are kept"), Serpent->GetSegmentTransforms().Num(), Body.Segments);
-	TestFalse(TEXT("No mesh head unless one is set"), Serpent->HasMeshHead());
+	// The pack head is worn when its mesh loads (Dragon Cave installed) and the switch is on; otherwise the code-built head.
+	const bool bPackHead = Body.MeshHead.Mesh.IsValid() && Body.MeshHead.Mesh.TryLoad() != nullptr && ADeepSerpent::IsMeshHeadAllowed();
+	TestEqual(TEXT("Mesh head exactly when the pack mesh loads"), Serpent->HasMeshHead(), bPackHead);
+	{
+		IConsoleVariable* Switch = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Monster.MeshHead"));
+		UTEST_NOT_NULL(TEXT("Deep.Monster.MeshHead exists"), Switch);
+		const int32 Was = Switch->GetInt();
+		Switch->Set(0, ECVF_SetByCode);
+		TestFalse(TEXT("Deep.Monster.MeshHead 0 brings back the code-built head"), Serpent->HasMeshHead());
+		Switch->Set(Was, ECVF_SetByCode);
+		TestEqual(TEXT("Deep.Monster.MeshHead back on restores it"), Serpent->HasMeshHead(), bPackHead);
+	}
 
 	// Head 8 m down the beam, facing the lamp: the eyes shine.
 	const FVector Facing = -Lamp->GetForwardVector();
@@ -70,6 +82,8 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 		Serpent->Tick(0.05f);
 	}
 	TestTrue(TEXT("Eyes shine back while the beam is on them"), Serpent->GetEyeShine01() > 0.4f);
+	// Gameplay honesty: the head the lamp, the bite and DEEPSTATE use sits at the visible head (between its eyes).
+	TestTrue(TEXT("Gameplay head is at the visible head"), FVector::Dist(Serpent->GetHeadLocation(), Serpent->GetEyeMidpoint()) < 100.f);
 
 	// Lamp off: dark within a fraction of a second.
 	Diver->ToggleLamp();
@@ -90,9 +104,25 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	UDeepMonsterSettings* Settings = GetMutableDefault<UDeepMonsterSettings>();
 	const FDeepSerpentBodyTuning Saved = Settings->Body;
 	ON_SCOPE_EXIT { Settings->Body = Saved; };
-	Settings->Body.HeadMesh = FSoftObjectPath(TEXT("/Engine/BasicShapes/Cone.Cone"));
-	Settings->Body.HeadMeshRotation = FRotator(-90.f, 0.f, 0.f);
-	Settings->Body.HeadMeshMaterial = Settings->Body.SkinMaterial;
+	// No pack: a mesh path that does not load gives the code-built head (the shipped game without Dragon Cave).
+	Settings->Body.MeshHead.Mesh = FSoftObjectPath(TEXT("/Game/DragonCave/Meshes/SM_NotInstalled.SM_NotInstalled"));
+	ADeepSerpent* NoPack = World->SpawnActor<ADeepSerpent>(FVector(0.f, 0.f, -120000.f), FRotator::ZeroRotator);
+	UTEST_NOT_NULL(TEXT("Serpent without the pack spawned"), NoPack);
+	TestFalse(TEXT("Missing pack mesh: the code-built head"), NoPack->HasMeshHead());
+	TestEqual(TEXT("Missing pack mesh: the body is whole"), NoPack->GetTubeVertexCount(), FMath::Max(4, Body.TubeRings) * (Sides + 1));
+
+	// The cone (100 cm, base at Z -50, tip at +50) points along +Z: forward +Z, eyes level across Y.
+	FDeepSerpentMeshHead& Cone = Settings->Body.MeshHead;
+	Cone.Mesh = FSoftObjectPath(TEXT("/Engine/BasicShapes/Cone.Cone"));
+	Cone.Material = Settings->Body.SkinMaterial;
+	Cone.Scale = 1.f;
+	Cone.SkullCm = FVector(0.f, 0.f, 10.f);
+	Cone.Forward = FVector(0.f, 0.f, 1.f);
+	Cone.EyeLeftCm = FVector(-15.f, -20.f, 10.f);
+	Cone.EyeRightCm = FVector(-15.f, 20.f, 10.f);
+	Cone.CutCm = FVector(0.f, 0.f, -40.f);
+	Cone.CutNormal = FVector(0.f, 0.f, 1.f);
+	Cone.KeepEndCm = FVector(0.f, 0.f, 60.f);
 	ADeepSerpent* Dragon = World->SpawnActor<ADeepSerpent>(FVector(0.f, 0.f, -110000.f), FRotator::ZeroRotator);
 	UTEST_NOT_NULL(TEXT("Second serpent spawned"), Dragon);
 	TestTrue(TEXT("A mesh head set by path is worn in the socket"), Dragon->HasMeshHead());
@@ -103,6 +133,10 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 		Dragon->Tick(0.05f);
 	}
 	TestTrue(TEXT("Eyes still shine over a mesh head"), Dragon->GetEyeShine01() > 0.4f);
+	TestTrue(TEXT("Mesh head: gameplay head is at the visible head"), FVector::Dist(Dragon->GetHeadLocation(), Dragon->GetEyeMidpoint()) < 30.f);
+	// Its eyes are where the landmarks put them: level, 40 cm apart, on the socket's right and left.
+	const FVector EyeGap = Dragon->GetEyeMidpoint() - Dragon->GetHeadLocation();
+	TestTrue(TEXT("Mesh head: eyes placed from its landmarks"), EyeGap.Size() > 5.f && EyeGap.Size() < 25.f);
 	return true;
 }
 
