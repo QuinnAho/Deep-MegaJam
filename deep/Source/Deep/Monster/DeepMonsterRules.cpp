@@ -263,6 +263,12 @@ FVector UDeepMonsterRules::TurnToward(const FVector& Heading, const FVector& Wan
 	return FQuat(Axis.GetSafeNormal(), MaxRad).RotateVector(H).GetSafeNormal();
 }
 
+float UDeepMonsterRules::WeaveShare(float T, float NeckShare)
+{
+	const float Neck = FMath::Clamp(NeckShare, 0.f, 1.f);
+	return Neck + (1.f - Neck) * FMath::Clamp(T, 0.f, 1.f);
+}
+
 FVector UDeepMonsterRules::PointAlongTrail(const TArray<FVector>& TrailCm, float DistanceCm)
 {
 	if (TrailCm.Num() == 0)

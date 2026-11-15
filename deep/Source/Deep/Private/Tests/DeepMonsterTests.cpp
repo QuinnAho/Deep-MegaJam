@@ -754,3 +754,21 @@ bool FDeepMonsterWellTest::RunTest(const FString& Parameters)
 }
 
 #endif
+
+#if WITH_DEV_AUTOMATION_TESTS
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterWeaveShareTest, "Deep.Sim.Monster.WeaveShare", DEEP_MONSTER_TEST_FLAGS)
+
+bool FDeepMonsterWeaveShareTest::RunTest(const FString& Parameters)
+{
+	TestEqual(TEXT("Neck swings its share"), UDeepMonsterRules::WeaveShare(0.f, 0.35f), 0.35f);
+	TestEqual(TEXT("Tail swings the whole amplitude"), UDeepMonsterRules::WeaveShare(1.f, 0.35f), 1.f);
+	TestEqual(TEXT("Halfway is between"), UDeepMonsterRules::WeaveShare(0.5f, 0.35f), 0.675f);
+	TestEqual(TEXT("Out-of-range T is clamped"), UDeepMonsterRules::WeaveShare(2.f, 0.35f), 1.f);
+	const FDeepSerpentBodyTuning& Body = UDeepMonsterSettings::Get().Body;
+	// Shipped: the neck swings at least 30 cm and the weave is quicker than one S every two seconds, so it reads as swimming.
+	TestTrue(TEXT("Shipped neck swing is visible"), Body.WeaveAmplitudeM * UDeepMonsterRules::WeaveShare(0.f, Body.WeaveNeckShare) >= 0.3f);
+	TestTrue(TEXT("Shipped weave is quick enough to read"), Body.WeaveHz >= 0.5f);
+	TestTrue(TEXT("No pack head by default"), Body.MeshHead.Mesh.IsNull());
+	return true;
+}
+#endif

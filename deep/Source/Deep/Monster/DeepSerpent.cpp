@@ -57,7 +57,7 @@ namespace
 	FAutoConsoleVariableRef CVarMeshHead(
 		TEXT("Deep.Monster.MeshHead"),
 		GMeshHeadAllowed,
-		TEXT("Deep.Monster.MeshHead <0|1>: 1 (default) = the serpent wears the mesh head from its settings (the Dragon Cave dragon) when it loads; 0 = the code-built head."),
+		TEXT("Deep.Monster.MeshHead <0|1>: 1 (default) = the serpent wears the mesh head its settings name, when it loads (none by default since Nov 15: the code-built head); 0 = always the code-built head."),
 		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
 		{
 			if (!GEngine)
@@ -1100,7 +1100,7 @@ void ADeepSerpent::LayBody()
 
 		// A wave travelling down the body, growing toward the tail.
 		const float Phase = WeavePhase - 2.f * PI * AlongM / FMath::Max(0.1f, Tuning.WeaveWavelengthM);
-		const float SwingM = Tuning.WeaveAmplitudeM * Boost * (0.15f + 0.85f * T) * FMath::Sin(Phase);
+		const float SwingM = Tuning.WeaveAmplitudeM * Boost * UDeepMonsterRules::WeaveShare(T, Tuning.WeaveNeckShare) * FMath::Sin(Phase);
 		const FVector Location = OnPath + Side * (SwingM * CmPerM);
 
 		const float RadiusM = bTube ? RadiusAt(Tuning, T) : FMath::Lerp(Tuning.NeckRadiusM, Tuning.TailRadiusM, FMath::Pow(T, 1.2f));
@@ -1174,7 +1174,7 @@ void ADeepSerpent::BuildTube()
 			Side = FVector::RightVector;
 		}
 		Phases[k] = WeavePhase - 2.f * PI * AlongM / FMath::Max(0.1f, Tuning.WeaveWavelengthM);
-		const float SwingM = Tuning.WeaveAmplitudeM * Boost * (0.15f + 0.85f * T) * FMath::Sin(Phases[k]);
+		const float SwingM = Tuning.WeaveAmplitudeM * Boost * UDeepMonsterRules::WeaveShare(T, Tuning.WeaveNeckShare) * FMath::Sin(Phases[k]);
 		FVector Centre = OnPath + Side * (SwingM * CmPerM);
 		const float ToHeadM = AlongM - HeadBack;
 		const float Blend = 1.f - FMath::SmoothStep(0.f, NeckBlendM, FMath::Max(0.f, ToHeadM));

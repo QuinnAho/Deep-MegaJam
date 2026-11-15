@@ -59,6 +59,25 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	// The pack head is worn when its mesh loads (Dragon Cave installed) and the switch is on; otherwise the code-built head.
 	const bool bPackHead = Body.MeshHead.Mesh.IsValid() && Body.MeshHead.Mesh.TryLoad() != nullptr && ADeepSerpent::IsMeshHeadAllowed();
 	TestEqual(TEXT("Mesh head exactly when the pack mesh loads"), Serpent->HasMeshHead(), bPackHead);
+	TestFalse(TEXT("The code-built head with its moving jaw by default (Quinn, Nov 15: the pack head read as two models)"), Serpent->HasMeshHead());
+
+	// It swims: the neck itself swings side to side with the weave, visibly, even while the head holds its line.
+	{
+		Serpent->PlaceHead(FVector(0.f, 0.f, -100000.f), FVector::ForwardVector);
+		float MinCm = TNumericLimits<float>::Max();
+		float MaxCm = -MinCm;
+		for (int32 i = 0; i < 40; ++i)
+		{
+			Serpent->Tick(0.05f);
+			const TArray<FTransform>& Segs = Serpent->GetSegmentTransforms();
+			UTEST_TRUE(TEXT("Body has segments"), Segs.Num() > 2);
+			const float Side = static_cast<float>(FVector::DotProduct(Segs[1].GetLocation() - Serpent->GetActorLocation(), Serpent->GetActorRightVector()));
+			MinCm = FMath::Min(MinCm, Side);
+			MaxCm = FMath::Max(MaxCm, Side);
+		}
+		AddInfo(FString::Printf(TEXT("Neck swing over 2 s: %.0f cm peak to peak"), MaxCm - MinCm));
+		TestTrue(TEXT("The neck swings at least 40 cm in 2 s (the serpent visibly swims)"), MaxCm - MinCm >= 40.f);
+	}
 	{
 		IConsoleVariable* Switch = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Monster.MeshHead"));
 		UTEST_NOT_NULL(TEXT("Deep.Monster.MeshHead exists"), Switch);

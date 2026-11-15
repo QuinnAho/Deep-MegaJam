@@ -85,6 +85,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FVector PointAlongTrail(const TArray<FVector>& TrailCm, float DistanceCm);
 
+	/** Share of the weave's amplitude at T along the body (0 = neck, 1 = tail): NeckShare at the neck, all of it at the tail. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float WeaveShare(float T, float NeckShare);
+
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FString StateName(EDeepMonsterState State);
 

@@ -1,4 +1,4 @@
-﻿// The sea serpent's tuning structs, state enum and rule inputs/results. Numbers live in UDeepMonsterSettings.
+// The sea serpent's tuning structs, state enum and rule inputs/results. Numbers live in UDeepMonsterSettings.
 
 #pragma once
 
@@ -270,9 +270,9 @@ struct FDeepMonsterTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float CaveWallClearM = 3.f;
 
-	/** Added for the path the body follows: how far the drawn body reaches off it (0.7 m thick, a 0.6 m weave, the head's lunge). */
+	/** Added for the path the body follows: how far the drawn body reaches off it (0.7 m thick, the 1.1 m tail weave, the head's lunge). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
-	float CaveBodyReachM = 1.5f;
+	float CaveBodyReachM = 2.f;
 };
 
 /**
@@ -321,7 +321,9 @@ struct FDeepSerpentMeshHead
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head", meta = (AllowedClasses = "/Script/Engine.StaticMesh"))
-	FSoftObjectPath Mesh = FSoftObjectPath(TEXT("/Game/DragonCave/Meshes/SM_DragonPose04.SM_DragonPose04"));
+	// Empty by default (Quinn, Nov 15 2:20 PM): the pack head on the code body read as two models joined, and it
+	// cannot move its jaw. The dragon was /Game/DragonCave/Meshes/SM_DragonPose04.SM_DragonPose04; its landmarks below still fit it.
+	FSoftObjectPath Mesh;
 
 	/** Worn on every slot. It must have the clip parameters (CutOrigin, CutNormal, KeepEnd, KeepRadius) to clip. Empty = the mesh's own. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
@@ -485,14 +487,18 @@ struct FDeepSerpentBodyTuning
 
 	/** Sideways swing at the widest point of the weave. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveAmplitudeM = 0.6f;
+	float WeaveAmplitudeM = 1.1f;
+
+	/** Share of WeaveAmplitudeM the neck swings (the rest grows toward the tail), so the front half swims too. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
+	float WeaveNeckShare = 0.35f;
 
 	/** Length of one full S of the weave along the body. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
 	float WeaveWavelengthM = 6.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveHz = 0.4f;
+	float WeaveHz = 0.7f;
 
 	// ---- The tube: one continuous body, rebuilt each frame along the head's path ----
 
@@ -533,7 +539,7 @@ struct FDeepSerpentBodyTuning
 
 	/** Head yaw sway with the weave, so the head never rides rigid (chosen here). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	float HeadSwayDeg = 5.f;
+	float HeadSwayDeg = 9.f;
 
 	/**
 	 * Mesh head: the Dragon Cave dragon (a whole winged animal, pose 4: mouth open, teeth showing), clipped to its head
