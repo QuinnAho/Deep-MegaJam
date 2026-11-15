@@ -15,7 +15,7 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 13 | 9:16 PM | director-writer | session model | The Director's lines. | not reported | | 2 min | Stopped, same reason. |
 | 14 | 9:21 PM | build-sheriff | Opus 5.5, inherited | `tools\ue.ps1`, All Toolsets, canary test, prove build and test. | 120k | 44 | 11 min | Green. Found and fixed a missing module registration. |
 | 15 | 9:21 PM | director-writer | Opus 5.5, inherited | 138 lines and 24 fee labels as CSV. | 102k | 17 | 8 min | Done. Checked by the orchestrator. |
-| 16 | 9:34 PM | systems-engineer | Opus 5.5, high | Rules with tests, then the playable grey box. | | | | Running. |
+| 16 | 9:34 PM | systems-engineer | Opus 5.5, high | Rules with tests, then the playable grey box. | 228k | 118 | 32 min | Green, commit `a445002`. 38 source files, 3,785 lines, 15 of 15 tests. Verified again by the orchestrator before the commit. Not verified: nobody had pressed Play. |
 | 17 | 9:43 PM | build-sheriff | Sonnet 5.5, medium | Prove package, smoke and zip in its own checkout (`.wt\pkg`, branch `sheriff/package`); add the `shot` verb. | 67k | 15 | 10 min | Green, commit `dc33aae`, merged. Package 5 min 12 s, 729 MB; smoke pass; zip 449 MB. First attempt at 9:41 PM was refused: Claude Code's built-in worktree isolation rejects this repo because the session was opened as `deep-megajam` and the folder on disk is `Deep-MegaJam`. A worktree made by hand works. |
 
 | 18 | 9:47 PM | writer | Sonnet 5.5, medium | Rewrite all 138 lines for the Captain after the rename (D-016); file becomes `CaptainLines.csv`. | 61k | 13 | 70 s | Done, commit `5021c7f`. Checked by the orchestrator: same ids and counts, ASCII, 10 lines say "Director's cut", no strong language. |
