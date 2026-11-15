@@ -10,7 +10,7 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Two agents are running. Their reports go to the session that started them, so a new session checks their branches instead:
 
 1. **Playtests and package** (`tools/regress`, built in `.wt\pkg`, Sonnet at medium, started 12:11 AM). Finished when `origin/tools/regress` has a commit after `0acf06d`. It changes scripts, frames and the dev log only, so merge it into `main` and push. Read its dev log entry for game bugs it found and add them to "Known rough edges".
-2. **Sound layer** (`dev/audio`, built in `.wt\monster`, Opus at high, started 12:11 AM, D-026). Finished when `origin/dev/audio` has commits and the last one merges `origin/main`. Then run `.wt\monster\tools\ue.ps1 verify`, merge into `main`, push, and tell Quinn to restart the editor and listen. If the branch stalls, the brief is: sounds generated in code, one CSV row per sound, new files in `deep\Source\Deep\Audio\`.
+2. **Sound layer** (`dev/audio`, in `.wt\monster`, D-026). Built by an Opus engineer, but the build went red after its commit: two files define `MaxHistory` at file scope and collide in the combined build. A Sonnet fix agent started at 12:33 AM. It fixes the clash and makes `tools\ue.ps1` build the way a committed tree builds. Finished when `origin/dev/audio` has a commit after `e9c0d92`. Then run `.wt\monster\tools\ue.ps1 verify` on the clean tree, merge into `main`, push, and tell Quinn to restart the editor and listen. The branch adds a cook setting and an engine module, so package and smoke it before trusting it in a build.
 3. **Next engineer run** (`.wt\dev`, Opus at high) is one feel-fix batch: Quinn's notes from playing by hand plus "Known rough edges" below. Wait for his notes so it is one run, not two.
 
 After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
@@ -39,7 +39,7 @@ After merging a branch that adds dev log entries, remove any repeated `## Sunday
 | Lane | Agent | Task | Started |
 |---|---|---|---|
 | Playtests and package | Sonnet, medium, `.wt\pkg` on `tools/regress` | Rewrite the scripted scenarios for the hatch, console, helm, gates and harpoon; run the set twice; package, smoke and zip. No game code. | 12:11 AM |
-| Sound | Opus, high, `.wt\monster` on `dev/audio` | The sound layer (D-026): generated sounds for events and loops, `Sounds.csv`, settings, `Deep.Audio.*` commands, a `DEEPAUDIO` log line so playtests can check what fired. | 12:11 AM |
+| Sound | Sonnet, medium, `.wt\monster` on `dev/audio` | Fix run: the sound layer (D-026) is written and its 44 tests passed, but the committed tree does not build (a name clash hidden by how uncommitted files are compiled). Fix the clash and harden `tools\ue.ps1`. | 12:33 AM |
 
 ## Next, in order
 
