@@ -129,9 +129,16 @@ EDeepCaptainDanger UDeepCaptain::GatherDanger() const
 	ADeepDiver* Diver = DeepStateReport::FindDiver(World);
 	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
 	FDeepCaptainDangerInputs In;
-	if (!Run || Run->IsInside() || Run->IsOnTitle())
+	if (!Run || Run->IsOnTitle())
 	{
 		return EDeepCaptainDanger::Calm;
+	}
+	if (Run->IsInside())
+	{
+		// Aboard: only the hull, and only at the helm (the cave shaft is where it takes knocks).
+		const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+		In.Hull01 = State && Run->IsSeated() ? State->GetHullIntegrity01() : 1.f;
+		return DeepCaptainPacing::Danger(In, UDeepTuningSettings::Get().Captain);
 	}
 	In.bInWater = true;
 	In.bBiteAlarm = Run->IsBiteAlarmOn();
@@ -156,7 +163,6 @@ EDeepCaptainDanger UDeepCaptain::GatherDanger() const
 			}
 		}
 	}
-	// HOOK(hull): fill In.Hull01 from ADeepGameState::GetHullIntegrity01() once the shaft lane merges it.
 	return DeepCaptainPacing::Danger(In, UDeepTuningSettings::Get().Captain);
 }
 

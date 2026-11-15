@@ -52,7 +52,7 @@ public:
 
 	/** Rock walls and a roof round each stop's arena (ADeepCavern). */
 	UPROPERTY(Config, EditAnywhere, Category = "Look")
-	FDeepCaveTuning Cave;
+	FDeepCavernTuning Cavern;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepPatienceTuning Patience;
@@ -74,6 +74,10 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
 	FDeepSubTuning Sub;
+
+	/** The cave shaft between stops: its shape, the helm's steering and the wall's hits (Sim/DeepCaveRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Cave")
+	FDeepCaveTuning Cave;
 
 	/** Displayed depth of each stop (Stops[i].SubDepthM), shallowest first. */
 	TArray<float> StopDepthsM() const;

@@ -140,6 +140,9 @@ struct FDeepHudFrame
 	TArray<float> Stops;
 	int32 ParkedStop = 0;
 	bool bAtLimit = false;
+	/** The sub's hull integrity 0..1 at the helm in the cave shaft (ADeepGameState::GetHullIntegrity01); negative = no bar. */
+	float Hull01 = -1.f;
+	EDeepHudTone HullTone = EDeepHudTone::Normal;
 	FString HelmStatus;
 	FString HelmReason;
 	/** The helm sonar, when EDeepHudPanel::Sonar is on. */

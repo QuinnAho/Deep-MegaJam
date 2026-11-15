@@ -99,6 +99,19 @@ bool FDeepCaptainPacingTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Aboard is calm"), DeepCaptainPacing::Danger(In, T), EDeepCaptainDanger::Calm);
 	In.bBiteAlarm = true;
 	TestEqual(TEXT("Out of the water is calm even with stale flags"), DeepCaptainPacing::Danger(In, T), EDeepCaptainDanger::Calm);
+	// Aboard, at the helm: the hull is the danger.
+	T.TenseHull01 = 0.5f;
+	T.ScaredHull01 = 0.25f;
+	In = FDeepCaptainDangerInputs();
+	In.Hull01 = 0.8f;
+	TestEqual(TEXT("Helm, hull 0.8: calm"), DeepCaptainPacing::Danger(In, T), EDeepCaptainDanger::Calm);
+	In.Hull01 = 0.4f;
+	TestEqual(TEXT("Helm, hull under half: tense"), DeepCaptainPacing::Danger(In, T), EDeepCaptainDanger::Tense);
+	In.Hull01 = 0.2f;
+	TestEqual(TEXT("Helm, hull under a quarter: scared"), DeepCaptainPacing::Danger(In, T), EDeepCaptainDanger::Scared);
+	In.bInWater = true;
+	In.Hull01 = 0.2f;
+	TestEqual(TEXT("In the water the hull is not the diver's danger"), DeepCaptainPacing::Danger(In, T), EDeepCaptainDanger::Calm);
 	In = FDeepCaptainDangerInputs();
 	In.bInWater = true;
 	In.bTethered = true;

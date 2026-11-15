@@ -11,6 +11,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
+#include "World/DeepCookKey.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepCave, Log, All);
 
@@ -27,7 +28,7 @@ namespace
 	}
 
 	/** The base shape along elevation Phi (rad): the sphere below the anchor's level, the flat-topped vault above. */
-	double BaseDistanceM(double Phi, double BaseM, const FDeepCaveTuning& Cave)
+	double BaseDistanceM(double Phi, double BaseM, const FDeepCavernTuning& Cave)
 	{
 		if (Phi <= 0.0)
 		{
@@ -48,7 +49,7 @@ namespace
 	}
 
 	/** Elevation where the rock along azimuth Theta is OutM from the axis (rad), searched over [0, 89.5 deg]. */
-	double ElevationAtOutM(double Theta, double OutM, double BaseM, const FDeepCaveTuning& Cave)
+	double ElevationAtOutM(double Theta, double OutM, double BaseM, const FDeepCavernTuning& Cave)
 	{
 		double Lo = 0.0;
 		double Hi = FMath::DegreesToRadians(89.5);
@@ -82,31 +83,21 @@ namespace
 		Mesh->CreateMeshSection(Index, Vertices, Section.Triangles, Section.Normals, Section.UV0, TArray<FColor>(), Tangents, /*bCreateCollision*/ true);
 	}
 
-	/**
-	 * A 1 cm tetrahedron off in the rock behind the wall, placed by a hash of the mesh. UE 5.9 Preview's
-	 * UBodySetup::InvalidatePhysicsData derives the collision cook's key from the simple geometry only, and a procedural
-	 * mesh has no mesh id, so in an editor build every large complex-only procedural mesh (this cave, the sea bed) shares
-	 * one derived-data entry: stop 2's shell came back with stop 1's rock. The convex element is part of that key, so
-	 * each shell gets its own entry that changes with its shape; with complex-as-simple collision it makes no shape
-	 * (ChaosInterfaceUtils: simple geometry is skipped when a triangle mesh exists).
-	 */
+	/** This shell's own collision cook key (see World/DeepCookKey.h): a tetrahedron off in the rock behind the wall. */
 	TArray<FVector> CookKeyTetraCm(const FDeepCaveMesh& Mesh)
 	{
 		uint32 Hash = 0;
 		for (const FDeepCaveSection* Section : { &Mesh.Shell, &Mesh.Hangs })
 		{
-			Hash = FCrc::MemCrc32(Section->VerticesM.GetData(), Section->VerticesM.Num() * sizeof(FVector), Hash);
-			Hash = FCrc::MemCrc32(Section->Triangles.GetData(), Section->Triangles.Num() * sizeof(int32), Hash);
+			Hash = DeepCookKey::Hash(Section->VerticesM, Section->Triangles, Hash);
 		}
-		const FVector Corner = FVector((Mesh.BaseRadiusM + 40.0) * UDeepRules::CmPerM, 0.0, 0.0)
-			+ FVector(double(Hash & 0xFFFF), double(Hash >> 16), 0.0) * 1e-4;
-		return { Corner, Corner + FVector(1.0, 0.0, 0.0), Corner + FVector(0.0, 1.0, 0.0), Corner + FVector(0.0, 0.0, 1.0) };
+		return DeepCookKey::TetraCm(FVector((Mesh.BaseRadiusM + 40.0) * UDeepRules::CmPerM, 0.0, 0.0), Hash);
 	}
 
 	UMaterialInterface* RockMaterial(UObject* Outer)
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-		const FSoftObjectPath& Path = Tuning.Cave.Material.IsNull() ? Tuning.Look.SeabedMaterial : Tuning.Cave.Material;
+		const FSoftObjectPath& Path = Tuning.Cavern.Material.IsNull() ? Tuning.Look.SeabedMaterial : Tuning.Cavern.Material;
 		if (UMaterialInterface* Found = Path.IsNull() ? nullptr : Cast<UMaterialInterface>(Path.TryLoad()))
 		{
 			return Found;
@@ -134,7 +125,7 @@ ADeepCavern::ADeepCavern()
 
 bool ADeepCavern::IsOn()
 {
-	return UDeepTuningSettings::Get().Cave.bEnabled && CVarDeepCaveCavern.GetValueOnGameThread() != 0;
+	return UDeepTuningSettings::Get().Cavern.bEnabled && CVarDeepCaveCavern.GetValueOnGameThread() != 0;
 }
 
 float ADeepCavern::NeedRadiusM(int32 Stop, const UDeepTuningSettings& Tuning)
@@ -145,10 +136,10 @@ float ADeepCavern::NeedRadiusM(int32 Stop, const UDeepTuningSettings& Tuning)
 		FarthestSpotM = FMath::Max(FarthestSpotM, float(UDeepRules::SalvageSpotOffsetCm(Spot).Size() / UDeepRules::CmPerM));
 	}
 	const float TetherM = UDeepRules::TetherLengthM(Stop, Tuning.Tether);
-	return FMath::Max(TetherM + Tuning.Cave.TetherMarginM, FarthestSpotM + Tuning.Cave.SpotMarginM);
+	return FMath::Max(TetherM + Tuning.Cavern.TetherMarginM, FarthestSpotM + Tuning.Cavern.SpotMarginM);
 }
 
-float ADeepCavern::BaseRadiusM(float NeedM, const FDeepCaveTuning& Cave)
+float ADeepCavern::BaseRadiusM(float NeedM, const FDeepCavernTuning& Cave)
 {
 	// On the vault (x/B)^n + (z/Z)^n = 1, the rock at height h stands B * (1 - (h/Z)^n)^(1/n) out: pick B so that at the
 	// clear height it is still NeedM.
@@ -157,7 +148,7 @@ float ADeepCavern::BaseRadiusM(float NeedM, const FDeepCaveTuning& Cave)
 	return float(NeedM / FMath::Pow(1.0 - FMath::Pow(Ratio, N), 1.0 / N));
 }
 
-float ADeepCavern::SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeepCaveTuning& Cave)
+float ADeepCavern::SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeepCavernTuning& Cave)
 {
 	const double Phi = FMath::Asin(FMath::Clamp(Dir.Z, -1.0, 1.0));
 	const double Theta = FMath::Atan2(Dir.Y, Dir.X);
@@ -190,7 +181,7 @@ float ADeepCavern::SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeep
 	return float(Base + Lump + Alcove + Strata + Roof + Crag);
 }
 
-float ADeepCavern::RoomM(const FVector& Dir, float ClearM, float BaseM, const FDeepCaveTuning& Cave)
+float ADeepCavern::RoomM(const FVector& Dir, float ClearM, float BaseM, const FDeepCavernTuning& Cave)
 {
 	const FVector D = Dir.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 	const double M = FMath::Max(0.0, double(ClearM));
@@ -219,7 +210,7 @@ float ADeepCavern::RoomM(const FVector& Dir, float ClearM, float BaseM, const FD
 	return float(FMath::Max(0.0, R));
 }
 
-FVector ADeepCavern::KeepClearM(const FVector& PointM, float ClearM, float BaseM, const FDeepCaveTuning& Cave)
+FVector ADeepCavern::KeepClearM(const FVector& PointM, float ClearM, float BaseM, const FDeepCavernTuning& Cave)
 {
 	const double R = PointM.Size();
 	if (R < UE_KINDA_SMALL_NUMBER)
@@ -233,7 +224,7 @@ FVector ADeepCavern::KeepClearM(const FVector& PointM, float ClearM, float BaseM
 
 float ADeepCavern::StopBaseRadiusM(int32 Stop, const UDeepTuningSettings& Tuning)
 {
-	return BaseRadiusM(NeedRadiusM(Stop, Tuning), Tuning.Cave);
+	return BaseRadiusM(NeedRadiusM(Stop, Tuning), Tuning.Cavern);
 }
 
 ADeepCavern* ADeepCavern::FindIn(const UWorld* World)
@@ -274,13 +265,13 @@ FVector ADeepCavern::KeepClearCm(const FVector& PointCm, float ClearM) const
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const FVector Anchor = GetActorLocation();
 	const double CmPerM = UDeepRules::CmPerM;
-	const FVector KeptM = KeepClearM((PointCm - Anchor) / CmPerM, ClearM, StopBaseRadiusM(Stop, Tuning), Tuning.Cave);
+	const FVector KeptM = KeepClearM((PointCm - Anchor) / CmPerM, ClearM, StopBaseRadiusM(Stop, Tuning), Tuning.Cavern);
 	return Anchor + KeptM * CmPerM;
 }
 
 FDeepCaveMesh ADeepCavern::MakeMesh(int32 Stop, const TArray<FVector4>& RestM, const UDeepTuningSettings& Tuning)
 {
-	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const FDeepCavernTuning& Cave = Tuning.Cavern;
 	FDeepCaveMesh Mesh;
 	Mesh.NeedRadiusM = NeedRadiusM(Stop, Tuning);
 	Mesh.BaseRadiusM = BaseRadiusM(Mesh.NeedRadiusM, Cave);
@@ -528,7 +519,7 @@ void ADeepCavern::Build(bool bAsyncCook)
 			FootHi = FMath::Max(FootHi, float(FVector2D(Foot.X, Foot.Y).Size()));
 		}
 		UE_LOG(LogDeepCave, Display, TEXT("DEEPCAVE stop %d: rock past %.1f m (base %.1f m), opening %.1f m with rim %.1f..%.1f m over the anchor, wall foot %.1f..%.1f m out, %d + %d vertices, %d spur triangles, %.1f ms"),
-			Stop, Mesh.NeedRadiusM, Mesh.BaseRadiusM, Tuning.Cave.HoleRadiusM, RimLo, RimHi, FootLo, FootHi,
+			Stop, Mesh.NeedRadiusM, Mesh.BaseRadiusM, Tuning.Cavern.HoleRadiusM, RimLo, RimHi, FootLo, FootHi,
 			Mesh.Shell.VerticesM.Num(), Mesh.Hangs.VerticesM.Num(), Mesh.Hangs.Triangles.Num() / 3, (FPlatformTime::Seconds() - Start) * 1000.0);
 	}
 

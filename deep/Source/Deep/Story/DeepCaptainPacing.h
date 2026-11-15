@@ -39,9 +39,9 @@ struct FDeepCaptainDangerInputs
 	float PatienceFraction = 1.f;
 	/** Cut: bailout air runs. */
 	bool bBailout = false;
-	// HOOK(hull): the shaft lane adds ADeepGameState::GetHullIntegrity01(). When it lands, add `float Hull01 = 1`
-	// here, fill it in UDeepCaptain::GatherDanger, and read it in DeepCaptainPacing::Danger with two new
-	// FDeepCaptainTuning numbers (tense under, scared under). Nothing reads hull integrity yet.
+	/** The sub's hull, 0..1 (ADeepGameState::GetHullIntegrity01), read only while seated at the helm: in the cave shaft a
+	 * battered hull is the danger. 1 = whole (or not at the helm). */
+	float Hull01 = 1.f;
 };
 
 namespace DeepCaptainPacing

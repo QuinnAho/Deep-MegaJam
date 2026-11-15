@@ -19,6 +19,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepShapes.h"
 
 namespace
@@ -142,13 +143,21 @@ void ADeepDiver::Tick(float DeltaSeconds)
 
 	if (Run->IsSeated())
 	{
-		// At the helm: no walking; down (C, S) and up (Space, W) drive the sub.
+		// At the helm: no walking; down (C) and up (Space) drive the sub. In the cave shaft W/S/A/D steer it sideways
+		// (forward, back, port, starboard); with the shaft off, S and W still drive it down and up.
 		Movement->Velocity = FVector::ZeroVector;
-		const float Helm = FMath::Clamp(-VerticalInput - MoveInput.Y, -1.f, 1.f);
+		const bool bShaft = DeepShaft::IsOn();
+		const float Helm = FMath::Clamp(-VerticalInput - (bShaft ? 0.f : MoveInput.Y), -1.f, 1.f);
 		if (!FMath::IsNearlyEqual(Helm, LastHelmInputSent))
 		{
 			LastHelmInputSent = Helm;
 			Run->SetHelmInput(Helm);
+		}
+		const FVector2D Steer = bShaft ? FVector2D(MoveInput.Y, MoveInput.X).GetClampedToMaxSize(1.f) : FVector2D::ZeroVector;
+		if (!Steer.Equals(LastHelmSteerSent, 0.01f))
+		{
+			LastHelmSteerSent = Steer;
+			Run->SetHelmSteer(Steer);
 		}
 		return;
 	}
@@ -156,6 +165,11 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	{
 		LastHelmInputSent = 0.f;
 		Run->SetHelmInput(0.f);
+	}
+	if (!LastHelmSteerSent.IsZero())
+	{
+		LastHelmSteerSent = FVector2D::ZeroVector;
+		Run->SetHelmSteer(FVector2D::ZeroVector);
 	}
 	if (Run->IsInside() || Run->IsOnTitle())
 	{

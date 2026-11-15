@@ -4,7 +4,7 @@
 //
 // Shape (metres, anchor frame): a surface round the anchor, star-shaped, so the straight line from the hatch to any point
 // inside is clear. Below the anchor's level a sphere of radius BaseRadiusM; above it a flat-topped vault (a superellipse)
-// up to FDeepCaveTuning::RoofAboveAnchorM. BaseRadiusM is chosen so the vault stays past NeedRadiusM (tether + margin,
+// up to FDeepCavernTuning::RoofAboveAnchorM. BaseRadiusM is chosen so the vault stays past NeedRadiusM (tether + margin,
 // farthest salvage spot + margin) up to ClearAboveAnchorM over the hatch. Relief (noise, alcoves, strata, an uneven roof)
 // only ever pushes rock outward. The roof has a round opening of HoleRadiusM centred over the sub, with a short collar up
 // into the descent shaft. The wall runs down into the silt; there is no cave floor, so the bed and its sinkhole are
@@ -21,7 +21,7 @@
 
 class UProceduralMeshComponent;
 class UDeepTuningSettings;
-struct FDeepCaveTuning;
+struct FDeepCavernTuning;
 
 /** One mesh section, in metres from the anchor. */
 struct DEEP_API FDeepCaveSection
@@ -61,20 +61,20 @@ public:
 	static float NeedRadiusM(int32 Stop, const UDeepTuningSettings& Tuning);
 
 	/** The sphere's radius that keeps the vault past NeedM up to ClearAboveAnchorM (m). */
-	static float BaseRadiusM(float NeedM, const FDeepCaveTuning& Cave);
+	static float BaseRadiusM(float NeedM, const FDeepCavernTuning& Cave);
 
 	/** Distance from the anchor to the rock along a unit direction (m): the base shape plus outward-only relief. Pure. */
-	static float SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeepCaveTuning& Cave);
+	static float SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeepCavernTuning& Cave);
 
 	/**
 	 * How far from the anchor along Dir a ball of ClearM stays clear of the rock (m). Pure. Relief only moves rock outward,
 	 * so the smooth base shape (the sphere and the vault) bounds the rock from inside; the roof spurs end above
 	 * ClearAboveAnchorM + HangTipClearM. The serpent keeps to this, so the Monster code never reads the cave tuning.
 	 */
-	static float RoomM(const FVector& Dir, float ClearM, float BaseM, const FDeepCaveTuning& Cave);
+	static float RoomM(const FVector& Dir, float ClearM, float BaseM, const FDeepCavernTuning& Cave);
 
 	/** PointM (anchor frame, m) pulled straight toward the anchor until a ball of ClearM round it is clear of the rock; unchanged if it is. Pure. */
-	static FVector KeepClearM(const FVector& PointM, float ClearM, float BaseM, const FDeepCaveTuning& Cave);
+	static FVector KeepClearM(const FVector& PointM, float ClearM, float BaseM, const FDeepCavernTuning& Cave);
 
 	/** A stop's base radius (m), as Build makes it. */
 	static float StopBaseRadiusM(int32 Stop, const UDeepTuningSettings& Tuning);

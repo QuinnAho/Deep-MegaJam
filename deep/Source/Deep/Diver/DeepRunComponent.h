@@ -78,6 +78,10 @@ public:
 	void RequestContinue();
 	/** The helm control: > 0 descends, < 0 ascends (sent to the server when it changes). */
 	void SetHelmInput(float Input);
+	/** The cave shaft's sideways steer at the helm, in the sub's frame: X forward (W/S), Y starboard (D/A). */
+	void SetHelmSteer(FVector2D Steer);
+	/** Server: the sideways speed in the shaft (m/s, the sub's frame). */
+	FVector2D GetSteerVelocityMps() const { return SteerVelMps; }
 
 	// ---- Server ----
 	/** Advances the state machine. Ticks call it; tests call it with chosen steps. */
@@ -150,12 +154,22 @@ protected:
 	bool ReachedHatch(bool bArrivalOnly) const;
 	void StepAboard(float DeltaSeconds);
 	void StepHelm(float DeltaSeconds);
+	/** The helm's depth: input or autopilot, the limit, parking. */
+	void StepHelmDepth(float DeltaSeconds);
+	/**
+	 * The cave shaft between stops (Sim/DeepCaveRules): steer sideways with inertia (the autopilot follows the centre),
+	 * pushed out of the rock in substeps; a hit or a scrape dents the hull, a breach kills the diver aboard.
+	 */
+	void StepShaft(float DeltaSeconds, bool bAutopilot);
+	void DentHull(int32 Points, const TCHAR* Event, float ImpactMps);
 	void Park(int32 Stop);
 	/** relic_seen, once per run, the first time the relic is near or in view. */
 	void StepRelicSeen();
 	/** Banking the relic: the run is won, the review goes up. */
 	void Win();
 	void Die(bool bByMonster = false);
+	/** Die, firing Event (death_air, death_monster, hull_breach). */
+	void DieFor(const TCHAR* Event, bool bByMonster);
 	void Respawn();
 	void ChargeFee(int32 Fee);
 	void SetState(EDeepRunState NewState);
@@ -171,6 +185,9 @@ protected:
 
 	UFUNCTION(Server, Unreliable)
 	void ServerSetHelmInput(float Input);
+
+	UFUNCTION(Server, Unreliable)
+	void ServerSetHelmSteer(FVector2D Steer);
 
 	UFUNCTION(Client, Reliable)
 	void ClientEvent(FName Event, const FDeepEventPayload& Payload);
@@ -208,6 +225,14 @@ protected:
 	float AutopilotDepthM = -1.f;
 	bool bWasDriving = false;
 	float IdleSeconds = 0.f;
+
+	/** Server: the cave shaft. Steer input, sideways speed, and the clock its cooldowns run on (seconds driven). */
+	FVector2D HelmSteer = FVector2D::ZeroVector;
+	FVector2D SteerVelMps = FVector2D::ZeroVector;
+	double ShaftClock = 0.0;
+	double LastHitClock = -1000.0;
+	double LastScrapeClock = -1000.0;
+	float ScrapeSeconds = 0.f;
 
 	UPROPERTY(Replicated)
 	float LastRefillFraction = 0.f;

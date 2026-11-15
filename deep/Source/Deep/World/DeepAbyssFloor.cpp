@@ -6,6 +6,7 @@
 #include "ProceduralMeshComponent.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "World/DeepCookKey.h"
 #include "World/DeepShapes.h"
 
 namespace
@@ -199,6 +200,11 @@ void ADeepAbyssFloor::Build(const TArray<FVector4>& RestM)
 	}
 
 	Bed->ClearAllMeshSections();
+	// Its own collision cook key (World/DeepCookKey.h), 40 m under its first corner.
+	if (!Vertices.IsEmpty())
+	{
+		DeepCookKey::Apply(Bed, Vertices[0] - FVector(0.0, 0.0, 40.0 * UDeepRules::CmPerM), DeepCookKey::Hash(Vertices, Triangles));
+	}
 	Bed->CreateMeshSection(0, Vertices, Triangles, Normals, UV0, TArray<FColor>(), Tangents, /*bCreateCollision*/ true);
 	Bed->SetCastShadow(true);
 

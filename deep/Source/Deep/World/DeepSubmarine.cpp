@@ -20,8 +20,10 @@
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepHull.h"
+#include "Sim/DeepCaveRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "World/DeepShaft.h"
 #include "World/DeepShapes.h"
 
 namespace
@@ -729,7 +731,9 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	const APlayerController* PC = World->GetFirstPlayerController();
 	const APawn* Viewer = PC ? PC->GetPawn() : nullptr;
 	const bool bInRoomView = Viewer && PC->GetViewTarget() == Viewer && IsInRoom(Viewer->GetActorLocation());
-	const bool bLocalHelmView = !bGreyBox && PC && TrenchShows(PC->GetViewTarget() == this, bInRoomView, bParked);
+	const bool bLocalTrenchView = !bGreyBox && PC && TrenchShows(PC->GetViewTarget() == this, bInRoomView, bParked);
+	// The cave shaft (ADeepShaft) replaces the trench: the rock is all round the sub, not a cliff ahead.
+	const bool bLocalHelmView = bLocalTrenchView && !DeepShaft::IsOn();
 	if (bLocalHelmView && Trench->GetNumSections() == 0)
 	{
 		BuildTrench();
@@ -783,11 +787,37 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	const float Scale = HelmSwayScale(DriveSpeedMps, Sub.DriveSpeedMps);
 	const float A = Look.HelmSwayDeg * Scale;
 	const float W = UE_TWO_PI * Look.HelmSwayHz;
-	const float Shiver = 0.04f * Scale * FMath::Sin(UE_TWO_PI * 7.3 * T) + 0.03f * Scale * FMath::Sin(UE_TWO_PI * 11.1 * T + 0.8);
+	float Shiver = 0.04f * Scale * FMath::Sin(UE_TWO_PI * 7.3 * T) + 0.03f * Scale * FMath::Sin(UE_TWO_PI * 11.1 * T + 0.8);
+
+	// The cave shaft: a dent jolts the camera (bigger dents, bigger jolt), dying away; rubbing the rock shivers it.
+	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const int32 Dents = State ? State->HullDamage : 0;
+	if (LastHullDamageSeen >= 0 && Dents > LastHullDamageSeen)
+	{
+		// Dents back to impact speed: damage is about speed * DamagePerMps.
+		const float Mps = float(Dents - LastHullDamageSeen) / FMath::Max(0.05f, Cave.DamagePerMps);
+		JoltDeg = FMath::Max(JoltDeg, Cave.JoltDegPerMps * Mps);
+		JoltAge = 0.f;
+	}
+	LastHullDamageSeen = Dents;
+	JoltAge += DeltaSeconds;
+	JoltDeg *= FMath::Exp(-FMath::Max(0.f, Cave.JoltDecayPerSecond) * DeltaSeconds);
+	const float Jolt = JoltDeg * FMath::Cos(UE_TWO_PI * 6.f * JoltAge);
+	if (State && !bParked && DeepShaft::IsOn())
+	{
+		FVector BoxMin, BoxMax;
+		DeepShaft::SubBoxM(this, BoxMin, BoxMax);
+		const TArray<float> Stops = Tuning.StopDepthsM();
+		const FDeepCaveContact Touch = UDeepCaveRules::Contact(State->SubOffsetM, DepthM, BoxMin, BoxMax, Stops, UDeepCaveRules::MinRadiusM(BoxMin, BoxMax, Cave), Cave);
+		if (Touch.bTouching || Touch.PenetrationM > -0.05f)
+		{
+			Shiver += 0.25f * FMath::Sin(UE_TWO_PI * 23.f * T) + 0.15f * FMath::Sin(UE_TWO_PI * 37.f * T + 1.3);
+		}
+	}
 	HelmCamera->SetRelativeRotation(FRotator(
-		Sub.HelmCameraPitchDeg + A * 0.5f * FMath::Sin(W * 0.73 * T + 1.1) + Shiver - Look.HelmSettleDeg * Env,
-		A * 0.3f * FMath::Sin(W * 0.41 * T),
-		A * FMath::Sin(W * T) + Shiver * 0.5f));
+		Sub.HelmCameraPitchDeg + A * 0.5f * FMath::Sin(W * 0.73 * T + 1.1) + Shiver - Look.HelmSettleDeg * Env + Jolt,
+		A * 0.3f * FMath::Sin(W * 0.41 * T) + Jolt * 0.4f,
+		A * FMath::Sin(W * T) + Shiver * 0.5f - Jolt * 0.8f));
 	HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, Look.HelmSettleCm * Env));
 }
 
@@ -1045,6 +1075,23 @@ void ADeepSubmarine::BeginPlay()
 {
 	Super::BeginPlay();
 	LayOut();
+
+	// The cave shaft's rock: one per machine (not replicated), placed from the replicated depth and offset.
+	if (UWorld* World = GetWorld())
+	{
+		bool bHasShaft = false;
+		for (TActorIterator<ADeepShaft> It(World); It; ++It)
+		{
+			bHasShaft = true;
+			break;
+		}
+		if (!bHasShaft)
+		{
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			World->SpawnActor<ADeepShaft>(GetActorLocation(), GetActorRotation(), Params);
+		}
+	}
 
 	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
 	const FDeepSubTuning& Sub = UDeepTuningSettings::Get().Sub;

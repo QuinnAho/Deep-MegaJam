@@ -642,6 +642,23 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		}
 	}
 
+	// ------------------------------------------------ the hull: a plain bar above the sonar, in the cave shaft (Shaft lane)
+	if (const float HA = A(EDeepHudPanel::Sonar); HA > 0.f && Frame.Hull01 >= 0.f)
+	{
+		FDeepHudRect R = DeepHudLayout::HullSlot(L);
+		R.X -= SlideOf(HA);
+		P.Panel(R.X, R.Y, R.W, R.H, HA);
+		const FLinearColor Color = ToneColor(Frame.HullTone, HA);
+		const float RowY = R.Y + (R.H - LabelH) * 0.5f - 2.f;
+		P.Text(TEXT("HULL"), R.X + Pad, RowY, LabelFont, Frame.HullTone == EDeepHudTone::Normal ? Secondary(HA) : Color);
+		P.TextRight(FString::Printf(TEXT("%.0f%%"), FMath::Clamp(Frame.Hull01, 0.f, 1.f) * 100.f), R.Right() - Pad, RowY, MonoFont, Color);
+		const float BarX = R.X + Pad + P.TextSize(TEXT("HULL"), LabelFont).X + Pad;
+		const float BarW = FMath::Max(0.f, R.Right() - Pad - P.TextSize(TEXT("100%"), MonoFont).X - Pad - BarX);
+		const float BarY = R.Y + R.H * 0.5f - 1.f;
+		P.Box(BarX, BarY, BarW, 2.f, Secondary(0.18f * HA));
+		P.Box(BarX, BarY, BarW * FMath::Clamp(Frame.Hull01, 0.f, 1.f), 2.f, Frame.HullTone == EDeepHudTone::Normal ? Primary(HA) : Color);
+	}
+
 	// ------------------------------------------------ the helm sonar: an amber scope, bottom left (Sonar lane)
 	if (const float SA = A(EDeepHudPanel::Sonar); SA > 0.f && Frame.Sonar.RangeM > 0.f)
 	{

@@ -52,7 +52,7 @@ namespace DeepCavernSerpentTest
 	 * Independent of RoomM: every sampled point of the ball (anchor frame, m) is nearer the anchor than the true rock
 	 * along its own direction (SurfaceDistanceM, relief and all). Returns the worst (smallest) margin found (m).
 	 */
-	double BallMarginM(const FVector& CentreM, double RadiusM, float BaseM, const FDeepCaveTuning& Cave)
+	double BallMarginM(const FVector& CentreM, double RadiusM, float BaseM, const FDeepCavernTuning& Cave)
 	{
 		double Worst = TNumericLimits<double>::Max();
 		auto Check = [&](const FVector& Q)
@@ -103,7 +103,7 @@ bool FDeepCavernSerpentRoomTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepCavernSerpentTest;
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const FDeepCavernTuning& Cave = Tuning.Cavern;
 	const int32 LastStop = FMath::Min(3, Tuning.NumStops());
 	for (int32 Stop = 2; Stop <= LastStop; ++Stop)
 	{
@@ -270,7 +270,7 @@ bool FDeepCavernSerpentInsideTest::RunTest(const FString& Parameters)
 
 			// The path (the head's actor point, which the body follows): a ball of the path clearance, against the true rock.
 			const FVector PathM = (Serpent->GetActorLocation() - AnchorCm) / CmM;
-			const double Margin = BallMarginM(PathM, PathClearM, BaseM, Tuning.Cave);
+			const double Margin = BallMarginM(PathM, PathClearM, BaseM, Tuning.Cavern);
 			++PathSamples;
 			FarthestM = FMath::Max(FarthestM, FVector2D(PathM.X, PathM.Y).Size());
 			if (Margin < WorstPathM)
@@ -345,7 +345,7 @@ bool FDeepCavernSerpentInsideTest::RunTest(const FString& Parameters)
 		{
 			const FVector P(Well.AxisCm.X, Well.AxisCm.Y, FMath::Lerp(Well.FloorZCm, Well.TopZCm, i / 10.0));
 			const FVector PM = (P - AnchorCm) / CmM;
-			Least = FMath::Min(Least, double(ADeepCavern::RoomM(PM, 0.f, BaseM, Tuning.Cave)) - PM.Size());
+			Least = FMath::Min(Least, double(ADeepCavern::RoomM(PM, 0.f, BaseM, Tuning.Cavern)) - PM.Size());
 		}
 		AddInfo(FString::Printf(TEXT("Well axis: least room left to the cave's base shape %.1f m (negative = below the bed, outside the cave)"), Least));
 	}

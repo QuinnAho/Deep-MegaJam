@@ -111,7 +111,7 @@ bool FDeepCavernClearanceTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepCavernTest;
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const FDeepCavernTuning& Cave = Tuning.Cavern;
 	FScopedCaveCvar On(1);
 	FScopedWorld Scoped;
 	ADeepCavern* Cavern = SpawnBuilt(Scoped.World);
@@ -197,7 +197,7 @@ bool FDeepCavernRoofOpeningTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepCavernTest;
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const FDeepCavernTuning& Cave = Tuning.Cavern;
 	TestEqual(TEXT("The opening is the shaft's radius"), Cave.HoleRadiusM, 14.f);
 
 	// The sub, hull and outside dress, in the anchor's frame (m): the anchor sits AnchorBelowSubM under the sub's centre.
@@ -304,8 +304,8 @@ bool FDeepCavernDeterministicTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("Stop %d: wall normals face the cave"), Stop), Outward, 0);
 	}
 	// Relief only ever pushes rock out: never nearer than the base shape.
-	const FDeepCaveTuning& Cave = Tuning.Cave;
-	FDeepCaveTuning Flat = Cave;
+	const FDeepCavernTuning& Cave = Tuning.Cavern;
+	FDeepCavernTuning Flat = Cave;
 	Flat.ReliefM = 0.f;
 	Flat.AlcoveDepthM = 0.f;
 	Flat.StrataM = 0.f;
@@ -349,7 +349,7 @@ bool FDeepCavernCollisionTest::RunTest(const FString& Parameters)
 	const double HitM = Hit.Distance / UDeepRules::CmPerM;
 	AddInfo(FString::Printf(TEXT("Wall at %.1f m along +X at 5 m under the hatch (rock past %.1f m)"), HitM, NeedM));
 	TestTrue(TEXT("... past the clear space"), HitM >= NeedM - 0.05);
-	TestTrue(TEXT("... and close enough to be a wall, not a horizon"), HitM <= NeedM + Tuning.Cave.ReliefM + Tuning.Cave.AlcoveDepthM + Tuning.Cave.StrataM + 3.0);
+	TestTrue(TEXT("... and close enough to be a wall, not a horizon"), HitM <= NeedM + Tuning.Cavern.ReliefM + Tuning.Cavern.AlcoveDepthM + Tuning.Cavern.StrataM + 3.0);
 	FHitResult PawnHit;
 	TestTrue(TEXT("A Pawn trace (the diver) meets the wall"), Trace(ECC_Pawn, PawnHit) && PawnHit.GetActor() == Cavern);
 	UProceduralMeshComponent* Shell = Cavern->GetShell(1);

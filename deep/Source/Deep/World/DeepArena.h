@@ -22,10 +22,14 @@ namespace DeepArena
 	DEEP_API FVector ArenaAnchor(const UWorld* World);
 
 	/**
-	 * After the game state's SubDepthM or bParked changed: the arena root moves by (SubDepthM - stop depth), the nearest
-	 * stop's arena is loaded when it changes (light, relic, salvage), and the hatch opens only while parked. Server only.
+	 * After the game state's SubDepthM, SubOffsetM or bParked changed: the arena root moves by (SubDepthM - stop depth)
+	 * up and by SubOffsetM sideways, the nearest stop's arena is loaded when it changes (light, relic, salvage), and the
+	 * hatch opens only while parked on the stop's centre. Server only.
 	 */
 	DEEP_API void ApplySubDepth(UWorld* World);
+
+	/** Only the root (and the cave shaft) to the game state's depth and offset: for a sideways step. Server only. */
+	DEEP_API void MoveRoot(UWorld* World);
 
 	/** Ensures sub, salvage ring, abyss floor and environment exist. Returns the sub (null on clients). */
 	DEEP_API ADeepSubmarine* EnsureArena(UWorld* World, int32 Stop);
