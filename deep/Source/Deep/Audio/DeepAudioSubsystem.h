@@ -97,6 +97,14 @@ public:
 	/** 0..1, the duck envelope now. */
 	float GetDuck01() const { return Duck01; }
 
+	// ---------------------------------------------------------------- music and the danger mix (Deep.Music)
+
+	/** Deep.Music: 1 = music beds and cues, breathing by the Captain's danger tier. 0 = the mix before D-040. */
+	static bool IsMusicOn();
+	/** The loudest music bed fading or playing (DeepAudioMusic::Beds()), None when silent. */
+	FName GetMusicBed() const;
+	bool HasStungSerpent() const { return bStingPlayed; }
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -154,6 +162,13 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAudioComponent> VoiceComponent;
+
+	void StepMusic(float DeltaSeconds, const FDeepAudioMixInputs& Inputs);
+	bool bStingPlayed = false;
+	bool bWasWon = false;
+	/** Gathered with the mix inputs for the sting: the serpent's head to the local diver (m, -1 = none). */
+	float SerpentDistanceM = -1.f;
+	bool bFirstSightDone = false;
 
 	bool bRadioKeyed = false;
 	double RadioCloseAt = 0.0;

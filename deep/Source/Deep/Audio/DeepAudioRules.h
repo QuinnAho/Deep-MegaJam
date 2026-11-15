@@ -17,7 +17,31 @@ namespace DeepAudioLoop
 	inline const TCHAR* Winch = TEXT("loop_winch");
 	inline const TCHAR* Serpent = TEXT("loop_serpent");
 	inline const TCHAR* Helm = TEXT("loop_helm");
+	/** Scared (danger mix, Deep.Music): ragged breathing over a heartbeat. */
+	inline const TCHAR* BreathPanic = TEXT("loop_breath_panic");
+	inline const TCHAR* Heartbeat = TEXT("loop_heartbeat");
 
+	DEEP_API TArray<FName> All();
+}
+
+/** The `music` group (Deep.Music): beds and layers faded like loops, and one-shot cues. A row with no asset is silent. */
+namespace DeepAudioMusic
+{
+	inline const TCHAR* Depth1 = TEXT("music_depth1");
+	inline const TCHAR* Depth2 = TEXT("music_depth2");
+	inline const TCHAR* Depth3 = TEXT("music_depth3");
+	/** A layer over the depth bed while bailout air runs. */
+	inline const TCHAR* Tension = TEXT("music_tension");
+	inline const TCHAR* Title = TEXT("music_title");
+	inline const TCHAR* Settlement = TEXT("music_settlement");
+	/** One-shots: the first time the serpent is seen, and the relic banked. */
+	inline const TCHAR* StingSerpent = TEXT("music_sting_serpent");
+	inline const TCHAR* Win = TEXT("music_win");
+	inline const TCHAR* Group = TEXT("music");
+
+	/** The faded ones (loop rows), in report order. */
+	DEEP_API TArray<FName> Beds();
+	/** Every music row: Beds() then the cues. */
 	DEEP_API TArray<FName> All();
 }
 
@@ -73,6 +97,14 @@ struct FDeepAudioMixInputs
 	bool bWinching = false;
 	float Threat01 = 0.f;
 	bool bHelmMoving = false;
+
+	// Deep.Music (step 3 of D-040). Off: music silent, breathing as before.
+	bool bMusic = false;
+	/** The Captain's danger tier for the local diver: 0 calm, 1 tense, 2 scared. */
+	int32 Danger = 0;
+	bool bOnTitle = false;
+	bool bSettling = false;
+	bool bWon = false;
 };
 
 /** One loop's target this frame. The subsystem fades toward Volume01; pitch and low-pass apply at once. */
@@ -82,6 +114,9 @@ struct FDeepLoopTarget
 	float Pitch = 1.f;
 	/** 0 = no low-pass filter. */
 	float LowPassHz = 0.f;
+	/** Fade times for this loop; 0 = the settings' FadeInSeconds / FadeOutSeconds. */
+	float FadeInS = 0.f;
+	float FadeOutS = 0.f;
 };
 
 namespace DeepAudioRules
@@ -97,4 +132,16 @@ namespace DeepAudioRules
 
 	/** Linear gain for a group at Duck01 (0 = no duck, 1 = full duck; faded by the subsystem). */
 	DEEP_API float DuckGain(FName Group, float Duck01, const UDeepAudioSettings& Settings);
+
+	/** 1, 2 or 3: the depth bed for this depth (MusicZone2M, MusicZone3M). */
+	DEEP_API int32 MusicZone(float DepthM, const UDeepAudioSettings& Settings);
+
+	/**
+	 * Every bed in DeepAudioMusic::Beds() gets an entry. Title, else silence once won, else the settlement, else the
+	 * depth bed (crossfading over MusicCrossfadeSeconds) with the tension layer while bailout air runs. All 0 without bMusic.
+	 */
+	DEEP_API TMap<FName, FDeepLoopTarget> MusicTargets(const FDeepAudioMixInputs& In, const UDeepAudioSettings& Settings);
+
+	/** The serpent sting plays once: the first sight started, or the serpent came within StingSerpentM (a client's view; < 0 = no serpent). */
+	DEEP_API bool ShouldSting(bool bAlreadyPlayed, bool bFirstSightDone, float SerpentDistanceM, const UDeepAudioSettings& Settings);
 }

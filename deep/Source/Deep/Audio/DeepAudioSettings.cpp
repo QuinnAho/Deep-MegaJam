@@ -17,5 +17,6 @@ float UDeepAudioSettings::GroupVolume(FName Group) const
 	if (Group == Ambience) { return AmbienceVolume; }
 	if (Group == Creature) { return CreatureVolume; }
 	if (Group == FName(TEXT("voice"))) { return VoiceVolume; }
+	if (Group == FName(TEXT("music"))) { return MusicVolume; }
 	return 1.f;
 }

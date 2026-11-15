@@ -16,10 +16,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "Monster/DeepMonsterBrain.h"
+#include "Monster/DeepSerpent.h"
+#include "Monster/DeepSerpentController.h"
+#include "Sim/DeepRules.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Sound/SoundBase.h"
+#include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepAudio, Log, All);
@@ -136,13 +140,20 @@ void UDeepAudioSubsystem::Reload()
 			Path = Path + TEXT(".") + FPackageName::GetShortName(Path);
 		}
 		USoundBase* Sound = nullptr;
-		if (FPackageName::IsValidObjectPath(Path) && FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Path)))
+		const bool bExists = FPackageName::IsValidObjectPath(Path) && FPackageName::DoesPackageExist(FPackageName::ObjectPathToPackageName(Path));
+		if (bExists)
 		{
 			Sound = LoadObject<USoundBase>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
 		}
 		if (Sound)
 		{
 			Assets.Add(Row.Event, Sound);
+		}
+		else if (!bExists)
+		{
+			// Not delivered yet (music and pack rows name their file before it arrives): not a fault.
+			UE_LOG(LogDeepAudio, Log, TEXT("Sounds.csv: %s: no file at %s yet; using built-in '%s'"),
+				*Row.Event.ToString(), *Row.Asset, *Row.Builtin.ToString());
 		}
 		else
 		{
@@ -334,6 +345,8 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 	ADeepDiver* Diver = DeepStateReport::FindDiver(World);
 	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
 	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	In.bMusic = IsMusicOn();
+	In.bOnTitle = State && State->bOnTitle;
 	if (!Diver || !Run)
 	{
 		return In;
@@ -347,6 +360,30 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 	In.bWinching = Diver->IsWinching();
 	const UDeepMonsterBrain* Brain = World->GetSubsystem<UDeepMonsterBrain>();
 	In.Threat01 = Brain && World->GetNetMode() != NM_Client ? Brain->GetThreat01() : Run->GetMonsterThreat01();
+
+	// Deep.Music (set above with the title): the danger tier (the Captain's own read), the screens, the serpent for the sting.
+	In.bSettling = Run->GetState() == EDeepRunState::Settling;
+	In.bWon = Run->GetState() == EDeepRunState::Won;
+	if (In.bMusic)
+	{
+		if (const UDeepCaptain* Captain = UDeepCaptain::Get(this))
+		{
+			In.Danger = static_cast<int32>(Captain->GatherDanger());
+		}
+	}
+	SerpentDistanceM = -1.f;
+	bFirstSightDone = false;
+	if (Brain)
+	{
+		if (const ADeepSerpent* Serpent = Brain->GetSerpent())
+		{
+			SerpentDistanceM = static_cast<float>(FVector::Dist(Serpent->GetHeadLocation(), Diver->GetActorLocation())) / UDeepRules::CmPerM;
+		}
+		if (const ADeepSerpentController* Mind = Brain->GetSerpentController())
+		{
+			bFirstSightDone = Mind->IsFirstSightDone();
+		}
+	}
 
 	if (State)
 	{
@@ -371,7 +408,9 @@ void UDeepAudioSubsystem::StepLoop(FName Loop, const FDeepLoopTarget& Target, fl
 	const FDeepSoundRow* Row = Table.Find(Loop);
 	FLoopVoice& Voice = Loops.FindOrAdd(Loop);
 	const float Wanted = Row ? Target.Volume01 : 0.f;
-	Voice.Volume = DeepAudioRules::FadeToward(Voice.Volume, Wanted, DeltaSeconds, Settings.FadeInSeconds, Settings.FadeOutSeconds);
+	const float FadeIn = Target.FadeInS > 0.f ? Target.FadeInS : Settings.FadeInSeconds;
+	const float FadeOut = Target.FadeOutS > 0.f ? Target.FadeOutS : Settings.FadeOutSeconds;
+	Voice.Volume = DeepAudioRules::FadeToward(Voice.Volume, Wanted, DeltaSeconds, FadeIn, FadeOut);
 	const bool bWasOn = Voice.bOn;
 	Voice.bOn = Voice.Volume > SilentLoop;
 
@@ -427,6 +466,7 @@ void UDeepAudioSubsystem::StepAudio(float DeltaSeconds)
 	{
 		StepLoop(Loop, Targets.FindRef(Loop), DeltaSeconds);
 	}
+	StepMusic(DeltaSeconds, Inputs);
 	for (int32 I = OneShotComponents.Num() - 1; I >= 0; --I)
 	{
 		UAudioComponent* Comp = OneShotComponents[I];
@@ -485,6 +525,7 @@ TSharedRef<FJsonObject> UDeepAudioSubsystem::BuildStateJson() const
 	Json->SetBoolField(TEXT("muted"), bMuted);
 	Json->SetBoolField(TEXT("radio"), bRadioKeyed);
 	Json->SetNumberField(TEXT("duck"), Round2(Duck01));
+	Json->SetStringField(TEXT("music"), GetMusicBed().IsNone() ? FString() : GetMusicBed().ToString());
 	Json->SetStringField(TEXT("last"), History.IsEmpty() ? FString() : History.Last().Event.ToString());
 	return Json;
 }
@@ -498,6 +539,63 @@ void UDeepAudioSubsystem::LogRows() const
 			Row.Volume, Row.Pitch, Row.bLoop ? 1 : 0);
 	}
 	UE_LOG(LogDeepAudio, Display, TEXT("DEEPAUDIO_ROW total=%d device=%d muted=%d"), Table.GetRows().Num(), CanPlayAudio() ? 1 : 0, bMuted ? 1 : 0);
+}
+
+// ---------------------------------------------------------------- music and the danger mix (Deep.Music)
+
+namespace
+{
+	TAutoConsoleVariable<int32> CVarMusic(
+		TEXT("Deep.Music"),
+		1,
+		TEXT("1: music beds by depth, the tension layer, the serpent sting, title and win cues, breathing by danger. 0: the mix before D-040."),
+		ECVF_Default);
+}
+
+bool UDeepAudioSubsystem::IsMusicOn()
+{
+	return CVarMusic.GetValueOnGameThread() != 0;
+}
+
+FName UDeepAudioSubsystem::GetMusicBed() const
+{
+	FName Best;
+	float BestVolume = 0.f;
+	for (const FName& Bed : DeepAudioMusic::Beds())
+	{
+		const FLoopVoice* Voice = Loops.Find(Bed);
+		if (Voice && Voice->bOn && Voice->Volume > BestVolume)
+		{
+			Best = Bed;
+			BestVolume = Voice->Volume;
+		}
+	}
+	return Best;
+}
+
+void UDeepAudioSubsystem::StepMusic(float DeltaSeconds, const FDeepAudioMixInputs& Inputs)
+{
+	// Beds fade like loops (silent without music: MusicTargets is all 0), so turning music off fades it out.
+	const TMap<FName, FDeepLoopTarget> Targets = DeepAudioRules::MusicTargets(Inputs, UDeepAudioSettings::Get());
+	for (const FName& Bed : DeepAudioMusic::Beds())
+	{
+		StepLoop(Bed, Targets.FindRef(Bed), DeltaSeconds);
+	}
+	const bool bWonEdge = Inputs.bWon && !bWasWon;
+	bWasWon = Inputs.bWon;
+	if (!Inputs.bMusic)
+	{
+		return;
+	}
+	if (bWonEdge)
+	{
+		PlayEvent(DeepAudioMusic::Win, true);
+	}
+	if (Inputs.bHasDiver && !Inputs.bInside && DeepAudioRules::ShouldSting(bStingPlayed, bFirstSightDone, SerpentDistanceM, UDeepAudioSettings::Get()))
+	{
+		bStingPlayed = true;
+		PlayEvent(DeepAudioMusic::StingSerpent, true);
+	}
 }
 
 // ---------------------------------------------------------------- the Captain's radio

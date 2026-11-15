@@ -320,6 +320,32 @@ namespace
 		return X;
 	}
 
+	/** Scared (Deep.Music): a panicked heart at 120 bpm, lub-dub, each beat a falling low thump with a little body noise. */
+	TArray<float> Heartbeat()
+	{
+		const float PeriodS = 0.5f;
+		TArray<float> X = MakeLoop(3.f);
+		FRandomStream Rng(73);
+		FLowPass Body(140.f);
+		auto Thump = [](float Dt, float Amp) -> float
+		{
+			if (Dt < 0.f || Dt > 0.2f)
+			{
+				return 0.f;
+			}
+			const float F = 58.f - 18.f * Dt / 0.2f;
+			return Amp * FMath::Sin(TwoPi * F * Dt) * FMath::Exp(-Dt / 0.05f);
+		};
+		auto Env = [](float Dt) { return Dt < 0.f || Dt > 0.2f ? 0.f : FMath::Exp(-Dt / 0.04f); };
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float Ph = FMath::Fmod(TimeOf(I), PeriodS);
+			const float Noise = Body.Step(Rng.FRandRange(-1.f, 1.f));
+			X[I] = Thump(Ph, 1.f) + Thump(Ph - 0.16f, 0.7f) + 3.f * Noise * (Env(Ph) + 0.7f * Env(Ph - 0.16f));
+		}
+		return X;
+	}
+
 	TArray<float> Winch()
 	{
 		TArray<float> X = MakeLoop(2.f);
@@ -414,6 +440,8 @@ namespace
 			{ TEXT("winch"), true, 2.f, &Winch },
 			{ TEXT("serpent"), true, 8.f, &Serpent },
 			{ TEXT("hum"), true, 4.f, &Hum },
+			{ TEXT("breath_panic"), true, 4.8f, [] { return Breath(1.2f, 4.8f, 71); } },
+			{ TEXT("heartbeat"), true, 3.f, &Heartbeat },
 		};
 		return Builtins;
 	}

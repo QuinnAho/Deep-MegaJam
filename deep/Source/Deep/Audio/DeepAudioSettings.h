@@ -17,7 +17,7 @@ public:
 
 	static const UDeepAudioSettings& Get() { return *GetDefault<UDeepAudioSettings>(); }
 
-	/** Volume of the `group` column of Sounds.csv (sfx, ui, ambience, creature, voice); 1 for an unknown group. */
+	/** Volume of the `group` column of Sounds.csv (sfx, ui, ambience, creature, voice, music); 1 for an unknown group. */
 	float GroupVolume(FName Group) const;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Levels", meta = (ClampMin = "0", ClampMax = "1"))
@@ -121,4 +121,29 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Radio", meta = (ClampMin = "0.01"))
 	float DuckReleaseSeconds = 0.5f;
+
+	// ---------------------------------------------------------------- music and the danger mix (Deep.Music)
+
+	/** The `music` group. Music rows without an asset are silent: there is no generated music. */
+	UPROPERTY(Config, EditAnywhere, Category = "Music", meta = (ClampMin = "0", ClampMax = "1"))
+	float MusicVolume = 0.7f;
+
+	/** Seconds for one depth bed to hand over to the next (and to and from the title and settlement). */
+	UPROPERTY(Config, EditAnywhere, Category = "Music", meta = (ClampMin = "0.05"))
+	float MusicCrossfadeSeconds = 3.f;
+
+	/** The tension layer rises this fast once the tether is cut; it falls over MusicCrossfadeSeconds. */
+	UPROPERTY(Config, EditAnywhere, Category = "Music", meta = (ClampMin = "0.05"))
+	float MusicTensionFadeInSeconds = 1.f;
+
+	/** Depth where the second and third beds start: halfway between the stops at 100, 300 and 500 m. */
+	UPROPERTY(Config, EditAnywhere, Category = "Music")
+	float MusicZone2M = 200.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Music")
+	float MusicZone3M = 400.f;
+
+	/** The serpent sting plays the first time the first sight starts, or the serpent comes this close (m). */
+	UPROPERTY(Config, EditAnywhere, Category = "Music", meta = (ClampMin = "0"))
+	float StingSerpentM = 30.f;
 };

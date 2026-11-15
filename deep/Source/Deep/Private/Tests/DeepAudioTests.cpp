@@ -138,11 +138,17 @@ bool FDeepAudioTableTest::RunTest(const FString& Parameters)
 	{
 		const FString N = Row.Event.ToString();
 		TestTrue(FString::Printf(TEXT("%s: has a built-in or an asset"), *N), DeepSynth::IsBuiltin(Row.Builtin) || !Row.Asset.IsEmpty());
-		TestTrue(FString::Printf(TEXT("%s: asset under /Game/Audio/ or empty"), *N), Row.Asset.IsEmpty() || Row.Asset.StartsWith(TEXT("/Game/Audio/")));
+		TestTrue(FString::Printf(TEXT("%s: asset under /Game/ or empty"), *N), Row.Asset.IsEmpty() || Row.Asset.StartsWith(TEXT("/Game/")));
 		TestTrue(FString::Printf(TEXT("%s: volume 0..1"), *N), Row.Volume >= 0.f && Row.Volume <= 1.f);
 		TestTrue(FString::Printf(TEXT("%s: known group"), *N), UDeepAudioSettings::Get().GroupVolume(Row.Group) >= 0.f
 			&& (Row.Group == TEXT("sfx") || Row.Group == TEXT("ui") || Row.Group == TEXT("ambience") || Row.Group == TEXT("creature")
-				|| Row.Group == DeepAudioRadio::Group));
+				|| Row.Group == DeepAudioRadio::Group || Row.Group == DeepAudioMusic::Group));
+		if (Row.Group == DeepAudioMusic::Group)
+		{
+			TestFalse(FString::Printf(TEXT("%s: music has no generated fallback"), *N), DeepSynth::IsBuiltin(Row.Builtin));
+			TestEqual(FString::Printf(TEXT("%s: beds loop, cues do not"), *N), Row.bLoop, DeepAudioMusic::Beds().Contains(Row.Event));
+			continue;
+		}
 		TestEqual(FString::Printf(TEXT("%s: a loop row uses a loop built-in"), *N), Row.bLoop, DeepSynth::IsLoopBuiltin(Row.Builtin));
 	}
 	for (const FName& Loop : DeepAudioLoop::All())
@@ -166,13 +172,20 @@ bool FDeepAudioCoverageTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: has a one-shot row or is deliberately silent"), *Event.ToString()),
 			(Row && !Row->bLoop) || Silent.Contains(Event));
 	}
-	// Every row belongs to something that exists: a fired event, a loop state or the radio (catches typos in the CSV).
+	// Every row belongs to something that exists: a fired event, a loop state, the radio or music (catches typos in the CSV).
 	const TArray<FName> Loops = DeepAudioLoop::All();
 	const TArray<FName> Radio = DeepAudioRadio::Rows();
+	const TArray<FName> Music = DeepAudioMusic::All();
 	for (const FDeepSoundRow& Row : Shipped.GetRows())
 	{
-		TestTrue(FString::Printf(TEXT("%s: is a game event, a loop state or the radio"), *Row.Event.ToString()),
-			Events.Contains(Row.Event) || Loops.Contains(Row.Event) || Radio.Contains(Row.Event));
+		TestTrue(FString::Printf(TEXT("%s: is a game event, a loop state, the radio or music"), *Row.Event.ToString()),
+			Events.Contains(Row.Event) || Loops.Contains(Row.Event) || Radio.Contains(Row.Event) || Music.Contains(Row.Event));
+	}
+	for (const FName& Name : Music)
+	{
+		const FDeepSoundRow* Found = Shipped.Find(Name);
+		TestTrue(FString::Printf(TEXT("%s: a music row under /Game/DeepAudio/Music/"), *Name.ToString()),
+			Found && Found->Group == DeepAudioMusic::Group && Found->Asset.StartsWith(TEXT("/Game/DeepAudio/Music/")));
 	}
 	for (const FName& Row : Radio)
 	{
@@ -243,10 +256,101 @@ bool FDeepAudioMixTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Serpent silent at threat 0"), Vol(S, DeepAudioLoop::Serpent), 0.f);
 	TestEqual(TEXT("Helm hum"), Vol(B, DeepAudioLoop::Helm), 1.f);
 
+	// Breathing by danger (Deep.Music). Off: the danger tier is ignored, as before D-040.
+	FDeepAudioMixInputs Scared = Shallow;
+	Scared.Danger = 2;
+	TestEqual(TEXT("Music off: scared still breathes calm"), Vol(DeepAudioRules::LoopTargets(Scared, *Settings), DeepAudioLoop::Breath), 1.f);
+	TestEqual(TEXT("Music off: no heartbeat"), Vol(DeepAudioRules::LoopTargets(Scared, *Settings), DeepAudioLoop::Heartbeat), 0.f);
+	Scared.bMusic = true;
+	const TMap<FName, FDeepLoopTarget> Sc = DeepAudioRules::LoopTargets(Scared, *Settings);
+	TestEqual(TEXT("Scared: panic breathing"), Vol(Sc, DeepAudioLoop::BreathPanic), 1.f);
+	TestEqual(TEXT("Scared: heartbeat"), Vol(Sc, DeepAudioLoop::Heartbeat), 1.f);
+	TestEqual(TEXT("Scared: not calm"), Vol(Sc, DeepAudioLoop::Breath), 0.f);
+	TestEqual(TEXT("Scared: not fast"), Vol(Sc, DeepAudioLoop::BreathFast), 0.f);
+	FDeepAudioMixInputs Tense = Scared;
+	Tense.Danger = 1;
+	const TMap<FName, FDeepLoopTarget> Te = DeepAudioRules::LoopTargets(Tense, *Settings);
+	TestEqual(TEXT("Tense: fast breathing"), Vol(Te, DeepAudioLoop::BreathFast), 1.f);
+	TestEqual(TEXT("Tense: no heartbeat"), Vol(Te, DeepAudioLoop::Heartbeat), 0.f);
+	FDeepAudioMixInputs CalmLowAir = Cut;
+	CalmLowAir.bMusic = true;
+	TestEqual(TEXT("Calm but low air: still fast"), Vol(DeepAudioRules::LoopTargets(CalmLowAir, *Settings), DeepAudioLoop::BreathFast), 1.f);
+	FDeepAudioMixInputs ScaredAboard = Aboard;
+	ScaredAboard.bMusic = true;
+	ScaredAboard.Danger = 2;
+	TestEqual(TEXT("Aboard: no heartbeat"), Vol(DeepAudioRules::LoopTargets(ScaredAboard, *Settings), DeepAudioLoop::Heartbeat), 0.f);
+
 	// Fades: never a jump.
 	TestEqual(TEXT("Fade out step"), DeepAudioRules::FadeToward(1.f, 0.f, 0.1f, 0.8f, 1.2f), 1.f - 0.1f / 1.2f, 1e-4f);
 	TestEqual(TEXT("Fade in step"), DeepAudioRules::FadeToward(0.f, 1.f, 0.1f, 0.8f, 1.2f), 0.1f / 0.8f, 1e-4f);
 	TestEqual(TEXT("Fade stops at the target"), DeepAudioRules::FadeToward(0.95f, 1.f, 1.f, 0.8f, 1.2f), 1.f, 1e-4f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepAudioMusicTest, "Deep.Sim.Audio.Music", DEEP_AUDIO_TEST_FLAGS)
+bool FDeepAudioMusicTest::RunTest(const FString& Parameters)
+{
+	UDeepAudioSettings* Settings = NewObject<UDeepAudioSettings>();
+	Settings->MusicZone2M = 200.f;
+	Settings->MusicZone3M = 400.f;
+	Settings->MusicCrossfadeSeconds = 3.f;
+	Settings->StingSerpentM = 30.f;
+	auto Playing = [](const TMap<FName, FDeepLoopTarget>& T)
+	{
+		TArray<FString> Out;
+		for (const TPair<FName, FDeepLoopTarget>& Pair : T)
+		{
+			if (Pair.Value.Volume01 > 0.f)
+			{
+				Out.Add(Pair.Key.ToString());
+			}
+		}
+		return FString::Join(Out, TEXT(","));
+	};
+	auto Only = [](const TCHAR* Bed) { return FString(Bed); };
+
+	FDeepAudioMixInputs Water;
+	Water.bHasDiver = true;
+	Water.bInside = false;
+	Water.bSwimming = true;
+	Water.DepthM = 100.f;
+	TestEqual(TEXT("Music off: silent"), Playing(DeepAudioRules::MusicTargets(Water, *Settings)), FString());
+	TestEqual(TEXT("Every bed has an entry"), DeepAudioRules::MusicTargets(Water, *Settings).Num(), DeepAudioMusic::Beds().Num());
+
+	Water.bMusic = true;
+	TestEqual(TEXT("100 m: the first bed"), Playing(DeepAudioRules::MusicTargets(Water, *Settings)), Only(DeepAudioMusic::Depth1));
+	Water.DepthM = 300.f;
+	TestEqual(TEXT("300 m: the second bed"), Playing(DeepAudioRules::MusicTargets(Water, *Settings)), Only(DeepAudioMusic::Depth2));
+	Water.DepthM = 500.f;
+	const TMap<FName, FDeepLoopTarget> DeepBeds = DeepAudioRules::MusicTargets(Water, *Settings);
+	TestEqual(TEXT("500 m: the third bed"), Playing(DeepBeds), Only(DeepAudioMusic::Depth3));
+	TestEqual(TEXT("Beds crossfade over 3 s (in)"), DeepBeds[FName(DeepAudioMusic::Depth3)].FadeInS, 3.f);
+	TestEqual(TEXT("Beds crossfade over 3 s (out)"), DeepBeds[FName(DeepAudioMusic::Depth1)].FadeOutS, 3.f);
+	TestEqual(TEXT("Zone edges"), DeepAudioRules::MusicZone(199.f, *Settings) * 10 + DeepAudioRules::MusicZone(200.f, *Settings), 12);
+
+	FDeepAudioMixInputs Cut = Water;
+	Cut.bCut = true;
+	const FString CutBeds = Playing(DeepAudioRules::MusicTargets(Cut, *Settings));
+	TestTrue(TEXT("Bailout: the tension layer"), CutBeds.Contains(DeepAudioMusic::Tension));
+	TestTrue(TEXT("Bailout: over the depth bed"), CutBeds.Contains(DeepAudioMusic::Depth3));
+
+	FDeepAudioMixInputs Title = Water;
+	Title.bOnTitle = true;
+	Title.bHasDiver = false;
+	TestEqual(TEXT("Title: the title bed, no diver needed"), Playing(DeepAudioRules::MusicTargets(Title, *Settings)), Only(DeepAudioMusic::Title));
+	FDeepAudioMixInputs Settle = Water;
+	Settle.bInside = true;
+	Settle.bSettling = true;
+	TestEqual(TEXT("Settlement: its own bed"), Playing(DeepAudioRules::MusicTargets(Settle, *Settings)), Only(DeepAudioMusic::Settlement));
+	FDeepAudioMixInputs Won = Settle;
+	Won.bWon = true;
+	TestEqual(TEXT("Won: the beds give way to the win cue"), Playing(DeepAudioRules::MusicTargets(Won, *Settings)), FString());
+
+	TestTrue(TEXT("Sting: the first sight"), DeepAudioRules::ShouldSting(false, true, -1.f, *Settings));
+	TestTrue(TEXT("Sting: within 30 m"), DeepAudioRules::ShouldSting(false, false, 25.f, *Settings));
+	TestFalse(TEXT("No sting: far and unseen"), DeepAudioRules::ShouldSting(false, false, 80.f, *Settings));
+	TestFalse(TEXT("No sting: no serpent"), DeepAudioRules::ShouldSting(false, false, -1.f, *Settings));
+	TestFalse(TEXT("Sting once"), DeepAudioRules::ShouldSting(true, true, 5.f, *Settings));
 	return true;
 }
 
