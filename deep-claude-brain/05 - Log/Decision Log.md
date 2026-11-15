@@ -37,6 +37,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-026 | First sounds are generated in code; real files replace them one CSV row at a time | Decided by Claude (12:11 AM Nov 15); Quinn can overrule |
 | D-027 | Test adaptively: an agent runs its own area's tests, and the full suite runs once, at merge | Decided (Quinn, about 12:50 AM Nov 15) |
 | D-028 | No half-done polish: the gameplay loop first, then polish in one pass to a professional standard | Decided (Quinn, about 1:10 AM Nov 15) |
+| D-029 | Looks are as important as gameplay: research and plan the polish pass now | Decided (Quinn, about 1:25 AM Nov 15) |
 
 ## Open
 
@@ -141,6 +142,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-029 Looks are as important as gameplay
+- **Status:** Decided.
+- **Date:** 2026-11-15, about 1:25 AM EST
+- **Who:** Quinn: "i would like to look at our assets, or look online or make it a priority looks is just as imporatnt than gameplay polish is a VERY big deal research if you need ect".
+- **Decision:** The polish pass is a priority equal to gameplay. Research and planning start now, so that the pass itself is one piece of work with its inputs ready (D-028). Use what Quinn owns on Fab, what is free online, and what the engine ships with.
+- **What changed at once:** Three research agents started at 1:32 AM: assets (owned and free), sound, voice, fonts and references from the web, and a technique plan for Unreal 5.9 with work packages.
+- **Still Quinn's to choose:** the style, which packs to install, where real sound comes from, the Captain's voice, whether agents may create binary assets during the pass, and when it starts.
+- **Relation to earlier decisions:** D-020 (no environment until the gameplay is right) still holds for building. This decision is about preparing, so that nothing is half-done.
 
 ### D-028 No half-done polish
 - **Status:** Decided.

@@ -235,6 +235,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The first thing a judge does is press a key on the title, and now the scripted playtest proves it without the `Deep.Start` cheat. A first version of the new test failed for a test reason: a test world spawns the game mode as a plain actor, so `GetAuthGameMode` is empty. The controller now finds the game mode the same way the cheats do.
 - Evidence: `Deep.World.TitleKey` (K, Space, Enter, LMB, RMB, Esc, a gamepad button through `InputKey`; mouse movement does not start), `Deep.World.TetherDistanceAfterCut`, `Deep.World.FullRunCommands` all pass; `playtest.ps1 S0-title` PASS with no fallback note; frame `devlog/media/2026-11-15-feel-title.png`. A physical keyboard is still unchecked.
 
+### 1:32 AM  Looks get the same weight as gameplay
+- What happened: Quinn said looks are as important as gameplay and that polish is "a VERY big deal", and asked to see what the team owns and what is online. Three research agents started: one reads his Fab library and free listings through an editor, one searches the web for sound, a voice for the Captain, fonts and look techniques with their licences, and one writes the Unreal 5.9 plan with work packages.
+- Why it matters: at 1:10 AM the rule was no half-done polish. This is the other half of that rule: prepare the whole pass first, with its assets, sounds and techniques chosen, so that when it starts it is one piece of work. Nothing visual is being built yet.
+- Evidence: D-029 in the decision log; branches `research/assets`, `research/polish-web`, `research/polish-plan`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
