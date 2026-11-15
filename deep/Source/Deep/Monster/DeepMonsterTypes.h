@@ -28,7 +28,9 @@ enum class EDeepMonsterState : uint8
 	 * The first sight, once per run before its first hunt: after a sound, one slow pass across the diver's view at
 	 * the edge of the lamp's reach (part of the body, never the whole animal), then it leaves. Ignores noise.
 	 */
-	Pass
+	Pass,
+	/** Shows itself and withdraws before it commits: edge of the lamp, a brush past the line, a call, back to the dark. Never bites. */
+	Taunt
 };
 
 /** Every serpent behaviour number. Per-stop overrides in FDeepMonsterStopTuning are applied on top. */
@@ -73,7 +75,119 @@ struct FDeepMonsterTuning
 	 * and the engine scales range by loudness, so keep this larger than the arena.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
-	float HearingRangeM = 150.f;
+	float HearingRangeM = 260.f;
+
+	// ---- Hearing (Nov 15, lane G: "it can hear you better") ----
+
+	/** A sonar ping (a diver's V, or the helm's): one noise event at the source. Under StalkNoise alone; with anything else it comes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float PingNoise = 40.f;
+
+	/** A harpoon shot (harpoon_fired), at the shooter. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float HarpoonNoise = 45.f;
+
+	/** The sub knocking the rock (hull_hit), at the sub, plus HullKnockNoisePerMps per m/s of impact. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float HullKnockNoise = 40.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float HullKnockNoisePerMps = 10.f;
+
+	/** The sub driven at the helm: noise per second at full drive speed (scaled by speed). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float HelmNoisePerS = 14.f;
+
+	/** A sound at least this loud gets an answer: a call, and the head turns toward where it came from. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float AnswerNoise = 20.f;
+
+	/** At most one answering call this often (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float AnswerCooldownS = 6.f;
+
+	/** While lurking it swims toward what it heard this long (s), then circles again. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hearing")
+	float HeardTurnS = 3.f;
+
+	// ---- Taunt (Nov 15, lane G: "the monster needs to be taunting the player") ----
+
+	/**
+	 * Before its first bite at a stop it shows itself this many times: a stalk that comes within TauntStartM of the bite
+	 * point swings out to the edge of the lamp, brushes past the line without biting, calls and slips back into the
+	 * dark; then the stalk goes on. Player divers and the brain's own spawn only (tests keep the old rules). 0 = off.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	int32 TauntCount = 2;
+
+	/** Taunts again after the lamp drives it off, before the next bite. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	int32 TauntsAfterRecoil = 1;
+
+	/** A stalk this close to the bite point (m) becomes a taunt while taunts are left. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntStartM = 16.f;
+
+	/** It shows itself this far from the diver, at the side of the lamp's view (the edge of the light). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntEdgeM = 9.f;
+
+	/** The brush passes this far off the bite point (kept above BiteReachM, so it cannot bite). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntBrushM = 3.5f;
+
+	/** Then it withdraws this far from the diver, into the dark. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntWithdrawM = 26.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntSpeedMps = 6.f;
+
+	/** A taunt ends after this long whatever happens (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntMaxS = 14.f;
+
+	/** The beam held on its head this long during a taunt drives it off (it is meant to be seen first). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Taunt")
+	float TauntLitToRecoilS = 3.f;
+
+	// ---- Voice (spatialised, synthesised: ADeepSerpent plays it on every machine from replicated state) ----
+
+	/** Full volume inside this (m), then linear to silence over the falloff. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float VoiceInnerM = 4.f;
+
+	/** Presence drone: heard from this far (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float DroneFalloffM = 75.f;
+
+	/** Calls (answer, taunt) carry this far (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float CallFalloffM = 140.f;
+
+	/** Clicks carry this far (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float ClickFalloffM = 60.f;
+
+	/** Drone level calm and at full threat; calls; clicks (before distance and the creature bus). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float DroneVolumeCalm = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float DroneVolumeNear = 1.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float CallVolume = 1.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float ClickVolume = 1.f;
+
+	/** Seconds between click trains while it circles, and while it stalks or taunts. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float ClickEveryCalmS = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice")
+	float ClickEveryNearS = 1.3f;
 
 	/** Noise kept (fraction) when it recoils, so it does not come straight back. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
@@ -92,6 +206,13 @@ struct FDeepMonsterTuning
 	/** The head counts as lit if the beam passes within this of its centre (aiming leniency). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	float BeamLeniencyM = 0.8f;
+
+	/**
+	 * The beam the serpent counts as seeing it (half angle, deg): its own number, not the lamp's look, so a wider lamp
+	 * cone does not change the game. Default = the lamp's OuterConeDeg on Nov 15 (21).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float BeamHalfAngleDeg = 21.f;
 
 	// ---- Movement ----
 
@@ -854,6 +975,14 @@ struct FDeepMonsterInputs
 	/** Pass: the head has made its last turn and is out in the dark. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
 	bool bPassComplete = false;
+
+	/** Taunts left before it may bite. 0 (the default) = the old rules exactly. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	int32 TauntsLeft = 0;
+
+	/** Taunt: the head has withdrawn to the end of its taunt path. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	bool bTauntComplete = false;
 };
 
 /** The next state, plus which one-off events this step caused. */
@@ -888,6 +1017,10 @@ struct FDeepMonsterStep
 	/** Recoil reached the lurk radius: start the cooldown. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
 	bool bStartCooldown = false;
+
+	/** Stalk -> Taunt: lay out a taunt path (spends one of TauntsLeft). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	bool bTauntStarted = false;
 
 	bool Changed(EDeepMonsterState From) const { return Next != From; }
 };

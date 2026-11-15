@@ -453,6 +453,75 @@ namespace
 		return X;
 	}
 
+	// ---- The serpent's own voice (lane G): spatialised at its head by ADeepSerpent ----
+
+	/** A call: a low growl that swells, glides down into a moan and dies. Three seeds and contours = three variations. */
+	TArray<float> SerpentCall(float StartHz, float EndHz, float Seconds, int32 Seed)
+	{
+		TArray<float> X = Make(Seconds);
+		FRandomStream Rng(Seed);
+		FLowPass Breath(600.f);
+		FLowPass Body(180.f);
+		float Phase = 0.f;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float U = T / Seconds;
+			const float Hz = FMath::Lerp(StartHz, EndHz, U * U) * (1.f + 0.04f * FMath::Sin(TwoPi * 5.5f * T));
+			Phase += TwoPi * Hz / SampleRate;
+			const float Rough = 0.55f + 0.45f * FMath::Sin(TwoPi * 31.f * T);
+			const float Voice = Rough * (FMath::Sin(Phase) + 0.6f * FMath::Sin(2.f * Phase) + 0.35f * FMath::Sin(3.f * Phase) + 0.2f * FMath::Sin(5.f * Phase));
+			const float Env = FMath::Square(FMath::Sin(PI * FMath::Min(1.f, U * 1.15f))) * FMath::Min(1.f, T / 0.25f);
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			X[I] = Env * (Voice + 2.f * Breath.Step(Noise) + 3.f * Body.Step(Noise));
+		}
+		return X;
+	}
+
+	/** A click train: a burst of sharp, slightly ringing clicks that speed up (echolocation). */
+	TArray<float> SerpentClick()
+	{
+		TArray<float> X = Make(0.35f);
+		FRandomStream Rng(83);
+		FLowPass Lp(3200.f);
+		const float Times[] = { 0.f, 0.07f, 0.125f, 0.17f, 0.205f, 0.235f, 0.26f };
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			const float Bright = Noise - Lp.Step(Noise);
+			float Y = 0.f;
+			for (int32 K = 0; K < UE_ARRAY_COUNT(Times); ++K)
+			{
+				const float Since = T - Times[K];
+				if (Since >= 0.f && Since < 0.03f)
+				{
+					const float Amp = 1.f - 0.08f * K;
+					Y += Amp * FMath::Exp(-Since / 0.0025f) * (0.6f * Bright + FMath::Sin(TwoPi * 1900.f * Since));
+				}
+			}
+			X[I] = Y;
+		}
+		return X;
+	}
+
+	/** The presence drone: two low sines beating against each other under dark filtered noise. */
+	TArray<float> SerpentDrone()
+	{
+		TArray<float> X = MakeLoop(6.f);
+		FRandomStream Rng(89);
+		FLowPass Lp(140.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			// Whole cycles in 6 s on both, so the loop seam crossfade lines up.
+			const float Beat = FMath::Sin(TwoPi * 36.f * T) + FMath::Sin(TwoPi * (36.f + 1.f / 3.f) * T);
+			const float Swell = 0.7f + 0.3f * FMath::Sin(TwoPi * T / 6.f);
+			X[I] = Swell * (0.8f * Beat + 0.3f * FMath::Sin(TwoPi * 72.5f * T) + 4.f * Lp.Step(Rng.FRandRange(-1.f, 1.f)));
+		}
+		return X;
+	}
+
 	struct FBuiltin
 	{
 		const TCHAR* Name;
@@ -476,6 +545,10 @@ namespace
 			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
 			{ TEXT("sonar_ping"), false, 2.4f, &SonarPing },
 			{ TEXT("sonar_tick"), false, 0.11f, &SonarTick },
+			{ TEXT("serpent_call_a"), false, 2.2f, [] { return SerpentCall(70.f, 44.f, 2.2f, 97); } },
+			{ TEXT("serpent_call_b"), false, 2.6f, [] { return SerpentCall(55.f, 82.f, 2.6f, 101); } },
+			{ TEXT("serpent_call_c"), false, 1.8f, [] { return SerpentCall(95.f, 38.f, 1.8f, 103); } },
+			{ TEXT("serpent_click"), false, 0.35f, &SerpentClick },
 			{ TEXT("drone_out"), true, 8.f, &DroneOut },
 			{ TEXT("drone_in"), true, 6.f, &DroneIn },
 			{ TEXT("breath"), true, 8.f, [] { return Breath(4.f, 8.f, 61); } },
@@ -485,6 +558,7 @@ namespace
 			{ TEXT("hum"), true, 4.f, &Hum },
 			{ TEXT("breath_panic"), true, 4.8f, [] { return Breath(1.2f, 4.8f, 71); } },
 			{ TEXT("heartbeat"), true, 3.f, &Heartbeat },
+			{ TEXT("serpent_drone"), true, 6.f, &SerpentDrone },
 		};
 		return Builtins;
 	}

@@ -1,5 +1,9 @@
 #include "Monster/DeepSerpent.h"
 
+#include "Audio/DeepAudioSubsystem.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/AudioComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SpotLightComponent.h"
@@ -389,6 +393,14 @@ void ADeepSerpent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLife
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADeepSerpent, MoodState);
 	DOREPLIFETIME(ADeepSerpent, MoodThreat);
+	DOREPLIFETIME(ADeepSerpent, CallSerial);
+	DOREPLIFETIME(ADeepSerpent, CallKind);
+}
+
+void ADeepSerpent::Call(uint8 Kind)
+{
+	CallKind = Kind;
+	++CallSerial;
 }
 
 void ADeepSerpent::SetMood(EDeepMonsterState InState, float InThreat01)
@@ -920,6 +932,7 @@ void ADeepSerpent::Tick(float DeltaSeconds)
 	UpdateEyes(DeltaSeconds);
 	UpdateMarks(DeltaSeconds);
 	UpdateGlow(DeltaSeconds);
+	TickVoice(DeltaSeconds);
 }
 
 void ADeepSerpent::UpdateGlow(float Dt)
@@ -936,7 +949,7 @@ void ADeepSerpent::UpdateGlow(float Dt)
 			const float Wave = 0.5f + 0.5f * FMath::Sin(PulsePhase);
 			Target = FMath::Lerp(FMath::Clamp(Tuning.GlowPulseLow, 0.f, 1.f), 1.f, Wave);
 		}
-		else if (State == EDeepMonsterState::Pass)
+		else if (State == EDeepMonsterState::Pass || State == EDeepMonsterState::Taunt)
 		{
 			Target = FMath::Clamp(Tuning.GlowPassFraction, 0.f, 1.f);
 		}
@@ -1458,7 +1471,7 @@ void ADeepSerpent::UpdateEyes(float Dt)
 			}
 			const FVector Dir = ToEye / Dist;
 			const float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Lamp->GetForwardVector(), Dir), -1.f, 1.f)));
-			const float Outer = FMath::Max(1.f, Lamp->OuterConeAngle);
+			const float Outer = FMath::Max(1.f, UDeepMonsterSettings::Get().Behaviour.BeamHalfAngleDeg);
 			const float Cone = 1.f - FMath::SmoothStep(Outer * 0.85f, Outer * 1.05f, AngleDeg);
 			const float Facing = FMath::Pow(FMath::Max(0.f, FVector::DotProduct(EyeNormal, -Dir)), Tuning.EyeShineFacingPower);
 			const float Fall = 1.f - FMath::Pow(Dist / Range, 4.f);
@@ -1494,4 +1507,102 @@ void ADeepSerpent::UpdateMarks(float Dt)
 	MarksMID->SetScalarParameterValue(TEXT("PulsePhase"), PulsePhase);
 	MarksMID->SetScalarParameterValue(TEXT("SpotGain"), Tuning.SpotGain * Reveal01 * Flare * FMath::Lerp(Tuning.SpotCalmFraction, 1.f, ThreatCurve));
 	MarksMID->SetScalarParameterValue(TEXT("RimGain"), Reveal01 * FMath::Lerp(Tuning.RimGainCalm, Tuning.RimGainThreat, Threat));
+}
+
+// ---- Its voice (lane G): a drone at the head that swells as it closes, click trains that quicken, and calls.
+// Every machine plays its own from replicated state (MoodState, MoodThreat, CallSerial); nothing plays on a dedicated server.
+
+void ADeepSerpent::PlayVoice(TObjectPtr<UAudioComponent>& Slot, FName Builtin, float Volume, float FalloffM, const TCHAR* What)
+{
+	UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(this);
+	if (!Audio)
+	{
+		return;
+	}
+	const FDeepMonsterTuning& Tuning = UDeepMonsterSettings::Get().Behaviour;
+	const float Gain = Audio->BusGain(TEXT("creature"));
+	// 3% pitch jitter (Style Guide): no two calls or click trains sound the same.
+	const float Pitch = FMath::FRandRange(0.97f, 1.03f);
+	UAudioComponent* Played = Audio->PlaySpatial(Builtin, GetRootComponent(), Volume * Gain, Pitch, Tuning.VoiceInnerM, FalloffM);
+	if (!Played)
+	{
+		return;
+	}
+	if (Slot && Slot != Played)
+	{
+		Slot->Stop();
+		Slot->DestroyComponent();
+	}
+	Slot = Played;
+	const float AtEar = VoiceListenerM >= 0.f ? Volume * Gain * UDeepMonsterRules::VoiceGain(VoiceListenerM, Tuning.VoiceInnerM, FalloffM) : -1.f;
+	const bool bClick = FCString::Strcmp(What, TEXT("click")) == 0;
+	if (!bClick || UE_LOG_ACTIVE(LogTemp, Verbose))
+	UE_LOG(LogTemp, Log, TEXT("DEEPMONSTER_VOICE {\"what\":\"%s\",\"sound\":\"%s\",\"distance_m\":%.1f,\"volume\":%.2f,\"at_ear\":%.2f,\"pitch\":%.3f}"),
+		What, *Builtin.ToString(), VoiceListenerM, Volume * Gain, AtEar, Pitch);
+	if (FCString::Strcmp(What, TEXT("click")) != 0)
+	{
+		++CallsPlayed;
+	}
+}
+
+void ADeepSerpent::TickVoice(float Dt)
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_DedicatedServer || !World->IsGameWorld())
+	{
+		return;
+	}
+	UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(this);
+	if (!Audio)
+	{
+		return;
+	}
+	const FDeepMonsterTuning& Tuning = UDeepMonsterSettings::Get().Behaviour;
+	const EDeepMonsterState Shown = static_cast<EDeepMonsterState>(MoodState);
+
+	// Where the local listener is (the camera), for the logs and the at-ear level.
+	VoiceListenerM = -1.f;
+	if (const APlayerController* PC = World->GetFirstPlayerController())
+	{
+		if (PC->PlayerCameraManager)
+		{
+			VoiceListenerM = static_cast<float>(FVector::Dist(PC->PlayerCameraManager->GetCameraLocation(), GetActorLocation())) / 100.f;
+		}
+	}
+
+	// The drone: always there, it swells with threat; the engine falls it off by distance from the head.
+	if (!bVoiceReady)
+	{
+		bVoiceReady = true;
+		SeenCallSerial = CallSerial;
+		DroneAudio = Audio->PlaySpatial(TEXT("serpent_drone"), GetRootComponent(), 0.f, 1.f, Tuning.VoiceInnerM, Tuning.DroneFalloffM);
+	}
+	const float Threat = FMath::Clamp(MoodThreat, 0.f, 1.f);
+	VoiceDroneVolume = FMath::Lerp(Tuning.DroneVolumeCalm, Tuning.DroneVolumeNear, Threat) * Audio->BusGain(TEXT("creature"));
+	if (DroneAudio)
+	{
+		DroneAudio->SetVolumeMultiplier(VoiceDroneVolume);
+	}
+
+	// Calls: one per new serial from the server.
+	if (CallSerial != SeenCallSerial)
+	{
+		SeenCallSerial = CallSerial;
+		static const TCHAR* Calls[] = { TEXT("serpent_call_a"), TEXT("serpent_call_b"), TEXT("serpent_call_c") };
+		// A different call from the last one (3 variations, Style Guide).
+		VoiceVariant = (VoiceVariant + 1 + FMath::RandRange(0, 1)) % 3;
+		static const TCHAR* Kinds[] = { TEXT("call_answer"), TEXT("call_taunt"), TEXT("call_strike") };
+		PlayVoice(CallAudio, Calls[VoiceVariant], Tuning.CallVolume, Tuning.CallFalloffM, Kinds[FMath::Min<int32>(CallKind, 2)]);
+	}
+
+	// Clicks: slow trains while it circles, fast ones as it closes.
+	ClickTimerS -= Dt;
+	if (ClickTimerS <= 0.f)
+	{
+		ClickTimerS = UDeepMonsterRules::ClickEveryS(Shown, Threat, Tuning) * FMath::FRandRange(0.8f, 1.2f);
+		if (VoiceListenerM < 0.f || VoiceListenerM < Tuning.ClickFalloffM + Tuning.VoiceInnerM)
+		{
+			PlayVoice(ClickAudio, TEXT("serpent_click"), Tuning.ClickVolume, Tuning.ClickFalloffM, TEXT("click"));
+		}
+	}
 }

@@ -23,6 +23,7 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
 #include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
 
@@ -234,6 +235,53 @@ float UDeepAudioSubsystem::RowVolume(const FDeepSoundRow& Row) const
 	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
 	const float Duck = DeepAudioRules::DuckGain(Row.Group, Duck01, Settings);
 	return FMath::Clamp(Row.Volume * Settings.GroupVolume(Row.Group) * Settings.MasterVolume * Duck, 0.f, 1.f);
+}
+
+float UDeepAudioSubsystem::BusGain(FName Group) const
+{
+	if (bMuted)
+	{
+		return 0.f;
+	}
+	const UDeepAudioSettings& Settings = UDeepAudioSettings::Get();
+	return FMath::Max(0.f, Settings.GroupVolume(Group) * Settings.MasterVolume * DeepAudioRules::DuckGain(Group, Duck01, Settings));
+}
+
+UAudioComponent* UDeepAudioSubsystem::PlaySpatial(FName Builtin, USceneComponent* Parent, float Volume, float Pitch, float InnerM, float FalloffM)
+{
+	if (!Parent || !CanPlayAudio())
+	{
+		return nullptr;
+	}
+	TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> Pcm = GetPcm(Builtin);
+	if (!Pcm.IsValid() || Pcm->IsEmpty())
+	{
+		return nullptr;
+	}
+	// One wave per play: the procedural wave's cursor is its own.
+	UDeepProcWave* Wave = NewObject<UDeepProcWave>(this);
+	Wave->Init(Pcm, DeepSynth::SampleRate, DeepSynth::IsLoopBuiltin(Builtin));
+	Wave->VirtualizationMode = EVirtualizationMode::PlayWhenSilent;
+
+	UAudioComponent* Comp = NewObject<UAudioComponent>(Parent->GetOwner() ? static_cast<UObject*>(Parent->GetOwner()) : static_cast<UObject*>(this));
+	Comp->bAutoActivate = false;
+	Comp->bAutoDestroy = false;
+	Comp->bAllowSpatialization = true;
+	Comp->bOverrideAttenuation = true;
+	FSoundAttenuationSettings& Att = Comp->AttenuationOverrides;
+	Att.bAttenuate = true;
+	Att.bSpatialize = true;
+	Att.DistanceAlgorithm = EAttenuationDistanceModel::Linear;
+	Att.AttenuationShape = EAttenuationShape::Sphere;
+	Att.AttenuationShapeExtents = FVector(FMath::Max(0.f, InnerM) * 100.f, 0.f, 0.f);
+	Att.FalloffDistance = FMath::Max(1.f, FalloffM) * 100.f;
+	Comp->SetupAttachment(Parent);
+	Comp->RegisterComponent();
+	Comp->SetSound(Wave);
+	Comp->SetVolumeMultiplier(FMath::Max(0.f, Volume));
+	Comp->SetPitchMultiplier(FMath::Max(0.1f, Pitch));
+	Comp->Play();
+	return Comp;
 }
 
 bool UDeepAudioSubsystem::CanPlayAudio() const

@@ -112,6 +112,37 @@ private:
 	FVector BiteSide = FVector::ZeroVector;
 	bool bBiteCommit = false;
 
+	// ---- Hearing and the taunt (lane G) ----
+	/** Lays out the taunt's beats round this diver (offsets in the arena root's frame, so a turning world carries them). */
+	bool BeginTaunt(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning);
+	/** A taunt beat in world cm now. */
+	FVector TauntPoint(int32 Index) const;
+	/** The serpent calls (replicated to every machine) and logs DEEPMONSTER_CALL with distance and the voice's level there. */
+	void Call(uint8 Kind, const TCHAR* Why, const FDeepMonsterTuning& Tuning);
+	void LogTauntBeat(const TCHAR* Beat, const FDeepMonsterTuning& Tuning) const;
+	int32 TauntsLeft = 0;
+	int32 TauntLeg = 0;
+	int32 TauntsDone = 0;
+	TArray<FVector> TauntOffsets;
+	TWeakObjectPtr<const ADeepDiver> TauntDiver;
+	float SinceCallS = 1000.f;
+	/** The loudest single sound heard since the last step, and where. */
+	float HeardLoudest = 0.f;
+	FVector HeardAt = FVector::ZeroVector;
+	FVector TurnToward = FVector::ZeroVector;
+	float HeardTurnLeftS = 0.f;
+	FQuat RootRotation() const;
+
+public:
+	int32 GetTauntsLeft() const { return TauntsLeft; }
+	int32 GetTauntsDone() const { return TauntsDone; }
+	int32 GetTauntLeg() const { return TauntLeg; }
+	float GetHeardTurnLeftS() const { return HeardTurnLeftS; }
+	/** Sets the taunts left (cheats, tests). */
+	void SetTauntsLeft(int32 N) { TauntsLeft = FMath::Max(0, N); }
+
+private:
+
 	// ---- The well (the last ascent): steering kept inside the relic's shaft while the focus diver is in it ----
 	/** Enters the well mode, or leaves it, for this step; places the head in the shaft below the diver on entry. */
 	void UpdateWell(const ADeepDiver* Target, const FDeepMonsterTuning& Tuning, float DeltaSeconds);

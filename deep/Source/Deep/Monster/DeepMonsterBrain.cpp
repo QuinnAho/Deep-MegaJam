@@ -11,6 +11,7 @@
 #include "Monster/DeepSerpent.h"
 #include "Monster/DeepSerpentController.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Story/DeepEventBus.h"
 #include "Sim/DeepRules.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArena.h"
@@ -49,11 +50,27 @@ void UDeepMonsterBrain::Tick(float DeltaTime)
 	{
 		return;
 	}
+	if (!BusHandle.IsValid())
+	{
+		if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+		{
+			BusHandle = Bus->OnEvent.AddUObject(this, &UDeepMonsterBrain::HandleBusEvent);
+		}
+	}
 	Step(DeltaTime);
+	HearHelm(DeltaTime);
 }
 
 void UDeepMonsterBrain::Deinitialize()
 {
+	if (BusHandle.IsValid())
+	{
+		if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+		{
+			Bus->OnEvent.Remove(BusHandle);
+		}
+		BusHandle.Reset();
+	}
 	Serpent.Reset();
 	Super::Deinitialize();
 }
@@ -354,4 +371,53 @@ FDeepWell UDeepMonsterBrain::GetWell() const
 	Well.RadiusCm = RadiusM * CmPerM;
 	Well.bValid = Well.TopZCm > Well.FloorZCm + 5.0 * CmPerM;
 	return Well;
+}
+
+// ---------------------------------------------------------------- what it hears beyond the divers (lane G)
+
+void UDeepMonsterBrain::HandleBusEvent(FName Event, const FDeepEventPayload& Payload)
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_Client || !Serpent.IsValid())
+	{
+		return;
+	}
+	const float Loudness = UDeepMonsterRules::NoiseForEvent(Event, Payload.ImpactMps, UDeepMonsterSettings::Get().GetTuning(CurrentStop()));
+	if (Loudness <= 0.f)
+	{
+		return;
+	}
+	// Where it happened: the actor it is about, else the sub (a hull knock, the helm's sonar).
+	AActor* Where = Payload.Source.Get();
+	if (!Where)
+	{
+		Where = DeepArena::FindSubmarine(World);
+	}
+	if (Where)
+	{
+		UDeepMonsterRules::ReportDiverNoise(World, Where->GetActorLocation(), Loudness, Where);
+	}
+}
+
+void UDeepMonsterBrain::HearHelm(float DeltaSeconds)
+{
+	UWorld* World = GetWorld();
+	ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+	if (!Sub || !Serpent.IsValid())
+	{
+		return;
+	}
+	HelmNoiseAccum += UDeepMonsterRules::HelmNoise(Sub->GetDriveSpeedMps(), UDeepTuningSettings::Get().Sub.DriveSpeedMps, DeltaSeconds,
+		UDeepMonsterSettings::Get().GetTuning(CurrentStop()));
+	// Reported in lumps once a second: the hearing sense hears events, not a trickle.
+	HelmClockS += DeltaSeconds;
+	if (HelmClockS >= 1.f)
+	{
+		if (HelmNoiseAccum > 0.f)
+		{
+			UDeepMonsterRules::ReportDiverNoise(World, Sub->GetActorLocation(), HelmNoiseAccum, Sub);
+		}
+		HelmNoiseAccum = 0.f;
+		HelmClockS = 0.f;
+	}
 }

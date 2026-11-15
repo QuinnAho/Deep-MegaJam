@@ -227,7 +227,7 @@ bool FDeepMonsterFirstSightWorldTest::RunTest(const FString& Parameters)
 		}
 		StepAll(Dt);
 		// The body follows the head's path exactly, so the head's path through the beam is where the body crosses it.
-		bBodyInBeam |= UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), Lamp->OuterConeAngle,
+		bBodyInBeam |= UDeepMonsterRules::IsInBeam(Lamp->GetComponentLocation(), Lamp->GetForwardVector(), UDeepMonsterSettings::Get().Behaviour.BeamHalfAngleDeg,
 			Lamp->AttenuationRadius / 100.f, Serpent->GetHeadLocation(), 0.f);
 	}
 	const float Closest = Mind->GetPassClosestM();
