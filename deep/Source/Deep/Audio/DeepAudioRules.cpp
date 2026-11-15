@@ -8,7 +8,20 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepAudioData, Log, All);
 
 TArray<FName> DeepAudioLoop::All()
 {
-	return { DroneOut, DroneIn, Breath, BreathFast, Winch, Serpent, Helm };
+	return { DroneOut, DroneIn, Breath, BreathFast, Winch, Serpent, Helm, BreathPanic, Heartbeat };
+}
+
+TArray<FName> DeepAudioMusic::Beds()
+{
+	return { Depth1, Depth2, Depth3, Tension, Title, Settlement };
+}
+
+TArray<FName> DeepAudioMusic::All()
+{
+	TArray<FName> Out = Beds();
+	Out.Add(StingSerpent);
+	Out.Add(Win);
+	return Out;
 }
 
 int32 FDeepSoundTable::LoadFromString(const FString& Csv)
@@ -89,9 +102,15 @@ namespace DeepAudioRules
 		In_.Pitch = FMath::Lerp(1.f, 0.85f, Depth01);
 		In_.LowPassHz = FMath::Lerp(Settings.SurfaceLowPassHz, 2.f * Settings.DeepLowPassHz, Depth01);
 
-		const bool bFast = In.bSwimming && In.bCut && In.BailoutAirS <= Settings.FastBreathAirS;
-		Out[FName(DeepAudioLoop::Breath)].Volume01 = In.bSwimming && !bFast ? 1.f : 0.f;
-		Out[FName(DeepAudioLoop::BreathFast)].Volume01 = bFast ? 1.f : 0.f;
+		// Breathing follows the danger (Deep.Music): calm, fast when tense, panic over a heartbeat when scared.
+		// Low bailout air is always at least fast. Off: only calm and low-air fast, as before.
+		const bool bLowAir = In.bSwimming && In.bCut && In.BailoutAirS <= Settings.FastBreathAirS;
+		int32 Tier = In.bMusic ? FMath::Clamp(In.Danger, 0, 2) : 0;
+		Tier = bLowAir ? FMath::Max(Tier, 1) : Tier;
+		Out[FName(DeepAudioLoop::Breath)].Volume01 = In.bSwimming && Tier == 0 ? 1.f : 0.f;
+		Out[FName(DeepAudioLoop::BreathFast)].Volume01 = In.bSwimming && Tier == 1 ? 1.f : 0.f;
+		Out[FName(DeepAudioLoop::BreathPanic)].Volume01 = In.bSwimming && Tier == 2 ? 1.f : 0.f;
+		Out[FName(DeepAudioLoop::Heartbeat)].Volume01 = In.bSwimming && Tier == 2 ? 1.f : 0.f;
 
 		Out[FName(DeepAudioLoop::Winch)].Volume01 = In.bSwimming && In.bWinching ? 1.f : 0.f;
 
@@ -114,4 +133,177 @@ namespace DeepAudioRules
 		}
 		return FMath::Max(Target, Current - DeltaS / FMath::Max(FadeOutS, 1e-3f));
 	}
+
+	float DuckDb(FName Group, const UDeepAudioSettings& Settings)
+	{
+		if (Group == FName(TEXT("music")))
+		{
+			return Settings.DuckMusicDb;
+		}
+		if (Group == FName(TEXT("ambience")))
+		{
+			return Settings.DuckAmbienceDb;
+		}
+		if (Group == FName(DeepAudioRadio::Group))
+		{
+			return 0.f;
+		}
+		return Settings.DuckEffectsDb;
+	}
+
+	float DuckGain(FName Group, float Duck01, const UDeepAudioSettings& Settings)
+	{
+		const float Db = FMath::Min(0.f, DuckDb(Group, Settings)) * FMath::Clamp(Duck01, 0.f, 1.f);
+		return FMath::Pow(10.f, Db / 20.f);
+	}
+
+	int32 MusicZone(float DepthM, const UDeepAudioSettings& Settings)
+	{
+		if (DepthM >= Settings.MusicZone3M)
+		{
+			return 3;
+		}
+		return DepthM >= Settings.MusicZone2M ? 2 : 1;
+	}
+
+	TMap<FName, FDeepLoopTarget> MusicTargets(const FDeepAudioMixInputs& In, const UDeepAudioSettings& Settings)
+	{
+		TMap<FName, FDeepLoopTarget> Out;
+		const float Cross = FMath::Max(Settings.MusicCrossfadeSeconds, 0.05f);
+		for (const FName& Name : DeepAudioMusic::Beds())
+		{
+			FDeepLoopTarget& Target = Out.Add(Name);
+			Target.FadeInS = Cross;
+			Target.FadeOutS = Cross;
+		}
+		if (!In.bMusic)
+		{
+			return Out;
+		}
+		if (In.bOnTitle)
+		{
+			Out[FName(DeepAudioMusic::Title)].Volume01 = 1.f;
+			return Out;
+		}
+		if (!In.bHasDiver || In.bWon)
+		{
+			// Won: the beds give way to the win cue.
+			return Out;
+		}
+		if (In.bSettling)
+		{
+			Out[FName(DeepAudioMusic::Settlement)].Volume01 = 1.f;
+			return Out;
+		}
+		static const TCHAR* Zones[] = { DeepAudioMusic::Depth1, DeepAudioMusic::Depth2, DeepAudioMusic::Depth3 };
+		Out[FName(Zones[MusicZone(In.DepthM, Settings) - 1])].Volume01 = 1.f;
+		FDeepLoopTarget& Tension = Out[FName(DeepAudioMusic::Tension)];
+		Tension.Volume01 = In.bSwimming && In.bCut ? 1.f : 0.f;
+		Tension.FadeInS = FMath::Max(Settings.MusicTensionFadeInSeconds, 0.05f);
+		return Out;
+	}
+
+	bool ShouldSting(bool bAlreadyPlayed, bool bFirstSightDone, float SerpentDistanceM, const UDeepAudioSettings& Settings)
+	{
+		if (bAlreadyPlayed)
+		{
+			return false;
+		}
+		return bFirstSightDone || (SerpentDistanceM >= 0.f && SerpentDistanceM <= Settings.StingSerpentM);
+	}
+
+	FString AssetPackage(const FString& Asset)
+	{
+		FString Package = Asset.TrimStartAndEnd();
+		int32 Dot = INDEX_NONE;
+		int32 Slash = INDEX_NONE;
+		Package.FindLastChar(TEXT('/'), Slash);
+		if (Package.FindLastChar(TEXT('.'), Dot) && Dot > Slash)
+		{
+			Package.LeftInline(Dot);
+		}
+		return Package;
+	}
+
+	FString AssetObjectPath(const FString& Asset)
+	{
+		const FString Package = AssetPackage(Asset);
+		if (Package.IsEmpty())
+		{
+			return FString();
+		}
+		int32 Slash = INDEX_NONE;
+		Package.FindLastChar(TEXT('/'), Slash);
+		return Package + TEXT(".") + Package.Mid(Slash + 1);
+	}
+
+	TArray<FString> VariantPackages(const FString& Asset, int32 MaxVariants)
+	{
+		TArray<FString> Out;
+		const FString Package = AssetPackage(Asset);
+		if (Package.IsEmpty())
+		{
+			return Out;
+		}
+		for (int32 I = 1; I <= MaxVariants; ++I)
+		{
+			Out.Add(FString::Printf(TEXT("%s_%02d"), *Package, I));
+		}
+		return Out;
+	}
+
+	int32 PickVariant(int32 Count, int32 LastIndex, float Rand01)
+	{
+		if (Count <= 1)
+		{
+			return 0;
+		}
+		const bool bAvoid = LastIndex >= 0 && LastIndex < Count;
+		const int32 Choices = bAvoid ? Count - 1 : Count;
+		int32 Pick = FMath::Clamp(FMath::FloorToInt(FMath::Clamp(Rand01, 0.f, 1.f) * Choices), 0, Choices - 1);
+		if (bAvoid && Pick >= LastIndex)
+		{
+			++Pick;
+		}
+		return Pick;
+	}
+
+	float JitterPitch(float Pitch, FName Group, float Rand01, const UDeepAudioSettings& Settings)
+	{
+		if (Group == FName(DeepAudioMusic::Group) || Group == FName(DeepAudioRadio::Group))
+		{
+			return Pitch;
+		}
+		return Pitch * (1.f + (FMath::Clamp(Rand01, 0.f, 1.f) * 2.f - 1.f) * Settings.PitchJitter);
+	}
+
+	TArray<FName> PackagesToCook(const FDeepSoundTable& Table, int32 MaxVariants, TFunctionRef<bool(const FString&)> PackageExists)
+	{
+		TArray<FName> Out;
+		for (const FDeepSoundRow& Row : Table.GetRows())
+		{
+			const FString Package = AssetPackage(Row.Asset);
+			if (Package.IsEmpty() || Package.StartsWith(TEXT("/Game/DeepAudio/")))
+			{
+				continue;
+			}
+			if (PackageExists(Package))
+			{
+				Out.AddUnique(FName(*Package));
+			}
+			for (const FString& Variant : VariantPackages(Package, MaxVariants))
+			{
+				if (PackageExists(Variant))
+				{
+					Out.AddUnique(FName(*Variant));
+				}
+			}
+		}
+		return Out;
+	}
+}
+
+TArray<FName> DeepAudioRadio::Rows()
+{
+	return { On, Off };
 }

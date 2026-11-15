@@ -103,6 +103,10 @@ int32 FDeepCaptainLines::LoadFromString(const FString& Csv)
 		{
 			Line.Variant = FCString::Atoi(**Variant);
 		}
+		if (const FString* Tone = Row.Find(TEXT("tone")))
+		{
+			Line.Tone = ParseTone(*Tone);
+		}
 		ByEvent.FindOrAdd(Line.Event).Add(MoveTemp(Line));
 		++Count;
 	}
@@ -139,24 +143,57 @@ int32 FDeepCaptainLines::NumVariants(FName Event) const
 	return Lines ? Lines->Num() : 0;
 }
 
-bool FDeepCaptainLines::Pick(FName Event, FRandomStream& Rng, FDeepCaptainLine& Out)
+FName FDeepCaptainLines::ParseTone(const FString& Cell)
+{
+	const FString Word = Cell.TrimStartAndEnd().ToLower();
+	if (Word == TEXT("calm") || Word == TEXT("tense") || Word == TEXT("scared"))
+	{
+		return FName(*Word);
+	}
+	return NAME_None;
+}
+
+bool FDeepCaptainLines::Pick(FName Event, FRandomStream& Rng, FDeepCaptainLine& Out, FName Tone)
 {
 	const TArray<FDeepCaptainLine>* Lines = ByEvent.Find(Event);
 	if (!Lines || Lines->IsEmpty())
 	{
 		return false;
 	}
-	int32 Index = 0;
-	if (Lines->Num() > 1)
+	// The candidates: rows of the tone, else rows of any tone, else all of them.
+	TArray<int32, TInlineAllocator<16>> Candidates;
+	auto Collect = [&](auto&& Keep)
 	{
-		const int32* Last = LastVariant.Find(Event);
-		// Pick from the others: draw among N-1 and skip over the last one.
-		Index = Rng.RandRange(0, Lines->Num() - (Last ? 2 : 1));
-		if (Last && Index >= *Last)
+		Candidates.Reset();
+		for (int32 I = 0; I < Lines->Num(); ++I)
 		{
-			++Index;
+			if (Keep((*Lines)[I]))
+			{
+				Candidates.Add(I);
+			}
+		}
+	};
+	if (!Tone.IsNone())
+	{
+		Collect([Tone](const FDeepCaptainLine& L) { return L.Tone == Tone; });
+		if (Candidates.IsEmpty())
+		{
+			Collect([](const FDeepCaptainLine& L) { return L.Tone.IsNone(); });
 		}
 	}
+	if (Candidates.IsEmpty())
+	{
+		Collect([](const FDeepCaptainLine&) { return true; });
+	}
+	// Never the line picked last time for this event when there is another.
+	if (Candidates.Num() > 1)
+	{
+		if (const int32* Last = LastVariant.Find(Event))
+		{
+			Candidates.Remove(*Last);
+		}
+	}
+	const int32 Index = Candidates[Candidates.Num() > 1 ? Rng.RandRange(0, Candidates.Num() - 1) : 0];
 	LastVariant.Add(Event, Index);
 	Out = (*Lines)[Index];
 	return true;
