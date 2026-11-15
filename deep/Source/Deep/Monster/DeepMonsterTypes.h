@@ -246,6 +246,130 @@ struct FDeepMonsterStopTuning
 	float HuntSpeedMps = 8.f;
 };
 
+/**
+ * A static mesh worn as the serpent's head, placed from landmarks measured on the mesh (mesh-local cm, its own axes):
+ * the skull point goes to the head socket (so the lamp, the bite and DEEPSTATE use the visible head), the head looks
+ * along Forward, the eyes are level (their line gives the head's right), and the mesh is clipped by its material to
+ * what lies in front of the neck cut and inside a capsule from the cut to KeepEnd. The body tube starts at the cut,
+ * as a sleeve that grows from inside the neck to just over it, so the cut is always inside the body.
+ * Defaults: SM_DragonPose04 (Dragon Cave), measured from an OBJ export of its fallback mesh (devlog Nov 15, "dragon head").
+ */
+USTRUCT(BlueprintType)
+struct FDeepSerpentMeshHead
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head", meta = (AllowedClasses = "/Script/Engine.StaticMesh"))
+	FSoftObjectPath Mesh = FSoftObjectPath(TEXT("/Game/DragonCave/Meshes/SM_DragonPose04.SM_DragonPose04"));
+
+	/** Worn on every slot. It must have the clip parameters (CutOrigin, CutNormal, KeepEnd, KeepRadius) to clip. Empty = the mesh's own. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath Material = FSoftObjectPath(TEXT("/Game/Deep/Serpent/M_DragonHead.M_DragonHead"));
+
+	/** Mesh to world scale (the dragon is about 250 m across). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float Scale = 0.075f;
+
+	/** The point that becomes the serpent's head (the socket): between and a little under the eyes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector SkullCm = FVector(250.f, 6500.f, -850.f);
+
+	/** Where the head looks (mesh-local direction). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector Forward = FVector(0.22f, 0.95f, -0.25f);
+
+	/** The eyes (from the emissive mask's two spots); the eyeshine sits here and their line levels the head. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector EyeLeftCm = FVector(790.f, 6294.f, -420.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector EyeRightCm = FVector(-290.f, 6344.f, -1140.f);
+
+	/** Centre of the neck where it is cut, and the neck's direction there (toward the head). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector CutCm = FVector(270.f, 2400.f, -700.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector CutNormal = FVector(0.21f, 0.96f, -0.21f);
+
+	/** The far end of the kept capsule (past the snout) and its radius: wings and legs outside it are never drawn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector KeepEndCm = FVector(650.f, 8300.f, -1300.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float KeepRadiusCm = 1700.f;
+
+	/**
+	 * The body's sleeve over the neck: it starts SleeveM in front of the cut at SleeveStartScale of the body's radius
+	 * (inside the neck) and reaches SleeveEndScale at the cut (just over it), easing back to 1 over NeckEaseM.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float SleeveM = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float SleeveStartScale = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float SleeveEndScale = 1.1f;
+
+	/**
+	 * The body is this much taller than wide at the cut, easing to round over NeckEaseM. The dragon's neck at the
+	 * cut is 1,460 x 2,400 mesh cm (wide x tall, in the head's frame), so 1.6.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float NeckTall = 1.6f;
+
+	/** And this much narrower: the neck's flanks are flat (600 cm half-width against a 1,200 cm half-height). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float NeckWide = 0.85f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float NeckEaseM = 4.f;
+
+	/** Base colour gain of the head material (near-black like the body), set on its instance. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float ColorGain = 0.06f;
+
+	/**
+	 * Dorsal spikes carried on from the dragon's neck down the body's ridge, so head and body share one outline:
+	 * one every SpikeSpacingM over the first SpikeRunM, SpikeLengthM long at the neck, shrinking to a fifth.
+	 * 0 spacing = none.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float SpikeSpacingM = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float SpikeRunM = 9.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float SpikeLengthM = 0.3f;
+
+	/**
+	 * The body's skin with this head: the dragon's own neck skin mirror-tiled along the tube (M_DragonBody), graded
+	 * like the head, so head and body are one skin. Missing = the normal body skin with BodyScaleSizeM.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath BodyMaterial = FSoftObjectPath(TEXT("/Game/Deep/Serpent/M_DragonBody.M_DragonBody"));
+
+	/** The patch of the mesh's UVs (UDIM units) the body wears, and how many metres of body one patch covers (along, around). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector2D PatchOrigin = FVector2D(4.56f, 1.55f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector2D PatchSize = FVector2D(0.12f, 0.2f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector2D PatchMetres = FVector2D(0.92f, 1.53f);
+
+	/** Body scale size with this head when BodyMaterial is missing (M_SerpentSkin ScaleSize). 0 = leave. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float BodyScaleSizeM = 0.12f;
+
+	/** The body's swell behind the neck with this head (BellySwell for the code-built head): the dragon's neck already thickens. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float BodySwell = 1.f;
+};
+
 /** The serpent's look and motion. Values follow the Style Guide, section 6 ("chosen here" marks a value it did not give). */
 USTRUCT(BlueprintType)
 struct FDeepSerpentBodyTuning
@@ -333,25 +457,12 @@ struct FDeepSerpentBodyTuning
 	float HeadSwayDeg = 5.f;
 
 	/**
-	 * Mesh head: a static mesh set here replaces the code-built head and jaw at the head socket (the head centre,
-	 * X forward, Z up). Eyes, eyeshine and the rim stay on top. Empty = the code-built head.
+	 * Mesh head: the Dragon Cave dragon (a whole winged animal, pose 4: mouth open, teeth showing), clipped to its head
+	 * and neck by M_DragonHead and set in the head socket from the landmarks below. If the mesh does not load (pack
+	 * not installed) or `Deep.Monster.MeshHead 0`, the code-built head is used. Empty Mesh = the code-built head.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head", meta = (AllowedClasses = "/Script/Engine.StaticMesh"))
-	FSoftObjectPath HeadMesh;
-
-	/** Mesh head placement relative to the head socket, in cm. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	FVector HeadMeshOffsetCm = FVector::ZeroVector;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	FRotator HeadMeshRotation = FRotator::ZeroRotator;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	FVector HeadMeshScale = FVector::OneVector;
-
-	/** Material for the mesh head. Empty = the mesh's own materials. Set it to the body material to make one animal. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
-	FSoftObjectPath HeadMeshMaterial;
+	FDeepSerpentMeshHead MeshHead;
 
 	/** Eye centre from the head socket: forward, half the spacing, up (metres). Move to a mesh's eye sockets. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")

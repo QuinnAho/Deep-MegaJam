@@ -1,10 +1,18 @@
 // Sea serpent console commands. Each ends by logging one `DEEPMONSTER {json}` line (see UDeepMonsterBrain::BuildStateJson).
 
 #include "CoreMinimal.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Monster/DeepMonsterSettings.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Camera/PlayerCameraManager.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Monster/DeepSerpent.h"
@@ -204,6 +212,167 @@ namespace
 			Brain->ForceState(EDeepMonsterState::Stalk);
 			Brain->AddNoise(100.f);
 			LogMonster(Brain);
+		}));
+
+	/** The look-dev light (one per world): a plain white directional light from over the view's left shoulder. */
+	TWeakObjectPtr<ADirectionalLight> GPlainLight;
+
+	void SetPlainLight(UWorld* World, float Lux)
+	{
+		APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+		if (!Player)
+		{
+			return;
+		}
+		if (Lux <= 0.f)
+		{
+			if (GPlainLight.IsValid())
+			{
+				GPlainLight->Destroy();
+			}
+			GPlainLight.Reset();
+			return;
+		}
+		FVector Eye;
+		FRotator View;
+		Player->GetPlayerViewPoint(Eye, View);
+		if (!GPlainLight.IsValid() || GPlainLight->GetWorld() != World)
+		{
+			GPlainLight = World->SpawnActor<ADirectionalLight>(Eye, FRotator::ZeroRotator);
+		}
+		if (ADirectionalLight* Light = GPlainLight.Get())
+		{
+			Light->SetMobility(EComponentMobility::Movable);
+			Light->SetActorRotation(FRotator(-40.f, View.Yaw + 35.f, 0.f));
+			if (UDirectionalLightComponent* Component = Cast<UDirectionalLightComponent>(Light->GetLightComponent()))
+			{
+				Component->SetIntensity(Lux);
+				Component->SetLightColor(FLinearColor::White);
+				// No shadows: the hull above the hatch would shade everything near the sub.
+				Component->SetCastShadows(false);
+				Component->SetAtmosphereSunLight(false);
+			}
+		}
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterPlainLightCommand(
+		TEXT("Deep.Monster.PlainLight"),
+		TEXT("Deep.Monster.PlainLight <lux|0>: look-dev only. A plain white directional light from over the view's left shoulder (0 removes it). Pair with ShowFlag.Fog 0 and ShowFlag.VolumetricFog 0 for a frame in plain light."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			SetPlainLight(World, Args.Num() > 0 ? FCString::Atof(*Args[0]) : 4.f);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterSpecimensCommand(
+		TEXT("Deep.Monster.Specimens"),
+		TEXT("Deep.Monster.Specimens [cell_m] [clip 0|1] [lux]: look-dev contact sheet. The four Dragon Cave poses (rows) seen from the side, front, top and three-quarter (columns), each scaled into a cell in front of the view, under a plain light. clip 1 wears the serpent's head material with its clip."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+			if (!Player)
+			{
+				return;
+			}
+			const float CellCm = (Args.Num() > 0 ? FCString::Atof(*Args[0]) : 2.4f) * 100.f;
+			const bool bClip = Args.Num() > 1 && FCString::Atoi(*Args[1]) != 0;
+			SetPlainLight(World, Args.Num() > 2 ? FCString::Atof(*Args[2]) : 4.f);
+			// The camera as drawn (the view point lags a frame behind Deep.Look and teleports).
+			FVector Eye;
+			FRotator View;
+			Player->GetPlayerViewPoint(Eye, View);
+			if (Player->PlayerCameraManager)
+			{
+				Eye = Player->PlayerCameraManager->GetCameraLocation();
+				View = Player->PlayerCameraManager->GetCameraRotation();
+			}
+			const FRotationMatrix ViewAxes(View);
+			const FVector F = ViewAxes.GetUnitAxis(EAxis::X);
+			const FVector R = ViewAxes.GetUnitAxis(EAxis::Y);
+			const FVector U = ViewAxes.GetUnitAxis(EAxis::Z);
+			// Dragon frame (pose 4): head along +Y, up +Z. Each column turns that frame to show one side to the view.
+			const FVector Q = (R - F).GetSafeNormal();
+			const FVector Heads[4] = { R, -F, U, Q };
+			const FVector Ups[4] = { U, U, -F, (U - F * 0.4f).GetSafeNormal() };
+			const FDeepSerpentMeshHead& HeadTuning = UDeepMonsterSettings::Get().Body.MeshHead;
+			UMaterialInterface* ClipBase = bClip ? Cast<UMaterialInterface>(HeadTuning.Material.TryLoad()) : nullptr;
+			const FVector Centre = Eye + F * (CellCm * 4.6f);
+			for (int32 Pose = 0; Pose < 4; ++Pose)
+			{
+				const FString Path = FString::Printf(TEXT("/Game/DragonCave/Meshes/SM_DragonPose0%d.SM_DragonPose0%d"), Pose + 1, Pose + 1);
+				UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path);
+				if (!Mesh)
+				{
+					UE_LOG(LogDeepMonsterCheats, Warning, TEXT("Deep.Monster.Specimens: %s not found (pack not installed?)"), *Path);
+					continue;
+				}
+				const FBoxSphereBounds Bounds = Mesh->GetBounds();
+				const float Scale = CellCm * 0.92f / FMath::Max(1.f, static_cast<float>(Bounds.BoxExtent.GetMax() * 2.0));
+				for (int32 Col = 0; Col < 4; ++Col)
+				{
+					// Mesh +Y -> Heads[Col], mesh +Z -> Ups[Col]: rotation from the basis (X = Y x Z, Y, Z).
+					const FVector Y = Heads[Col];
+					const FVector Z = (Ups[Col] - Y * FVector::DotProduct(Ups[Col], Y)).GetSafeNormal();
+					const FVector X = FVector::CrossProduct(Y, Z);
+					const FQuat Rot(FMatrix(X, Y, Z, FVector::ZeroVector));
+					const FVector Cell = Centre + R * ((Col - 1.5f) * CellCm) + U * ((1.5f - Pose) * CellCm);
+					const FVector Location = Cell - Rot.RotateVector(Bounds.Origin * Scale);
+					AStaticMeshActor* Actor = World->SpawnActor<AStaticMeshActor>(Location, Rot.Rotator());
+					if (!Actor)
+					{
+						continue;
+					}
+					Actor->SetMobility(EComponentMobility::Movable);
+					UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
+					Component->SetStaticMesh(Mesh);
+					Component->SetWorldScale3D(FVector(Scale));
+					Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+					if (ClipBase)
+					{
+						UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(ClipBase, Actor);
+						MID->SetVectorParameterValue(TEXT("CutOrigin"), FLinearColor(HeadTuning.CutCm));
+						MID->SetVectorParameterValue(TEXT("CutNormal"), FLinearColor(HeadTuning.CutNormal.GetSafeNormal()));
+						MID->SetVectorParameterValue(TEXT("KeepEnd"), FLinearColor(HeadTuning.KeepEndCm));
+						MID->SetScalarParameterValue(TEXT("KeepRadius"), HeadTuning.KeepRadiusCm);
+						MID->SetScalarParameterValue(TEXT("ColorGain"), 1.f);
+						for (int32 Slot = 0; Slot < Component->GetNumMaterials(); ++Slot)
+						{
+							Component->SetMaterial(Slot, MID);
+						}
+					}
+				}
+				UE_LOG(LogDeepMonsterCheats, Display, TEXT("DEEPSPECIMEN pose=%d tris=%d nanite=%d bounds_cm=%s slots=%d scale=%.5f"),
+					Pose + 1, Mesh->GetNumTriangles(0), Mesh->IsNaniteEnabled() ? 1 : 0, *(Bounds.BoxExtent * 2.0).ToString(),
+					Mesh->GetStaticMaterials().Num(), Scale);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterParamCommand(
+		TEXT("Deep.Monster.Param"),
+		TEXT("Deep.Monster.Param <head|body> <name> <x> [y z]: look-dev. Sets a parameter on the serpent's mesh head or body material now (one value = scalar, three = vector)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Param"));
+			ADeepSerpent* Serpent = Brain ? Brain->SpawnSerpent(true) : nullptr;
+			if (!Serpent || Args.Num() < 3)
+			{
+				UE_LOG(LogDeepMonsterCheats, Warning, TEXT("Usage: Deep.Monster.Param <head|body> <name> <x> [y z]"));
+				return;
+			}
+			UMaterialInstanceDynamic* MID = Serpent->GetLookMID(Args[0].Equals(TEXT("head"), ESearchCase::IgnoreCase));
+			if (!MID)
+			{
+				UE_LOG(LogDeepMonsterCheats, Warning, TEXT("Deep.Monster.Param: no %s material"), *Args[0]);
+				return;
+			}
+			if (Args.Num() >= 5)
+			{
+				MID->SetVectorParameterValue(FName(*Args[1]), FLinearColor(FCString::Atof(*Args[2]), FCString::Atof(*Args[3]), FCString::Atof(*Args[4])));
+			}
+			else
+			{
+				MID->SetScalarParameterValue(FName(*Args[1]), FCString::Atof(*Args[2]));
+			}
+			UE_LOG(LogDeepMonsterCheats, Display, TEXT("DEEPMONSTERPARAM %s %s set"), *Args[0], *Args[1]);
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs MonsterRevealCommand(
