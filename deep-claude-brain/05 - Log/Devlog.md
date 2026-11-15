@@ -226,6 +226,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: Three of my own test bugs, none a game bug: a diver cut at the hatch is re-tethered at once (so cut tests must swim away first); `Deep.GiveSalvage 40 ...` is typed as the relic because 40 kg matches the relic's mass, so it won the game at stop 2; and a PowerShell precedence slip. Found while testing: `Deep.Start` is needed because a key press sent through the input tool does not leave the title (not checked with a real keyboard). The frames show things for the next feel pass: the helm frame shows "LIMIT 400" overlapping the depth gauge bar, the first-dive CONTROLS panel is still up at the hatch, the console panel shows while looking at the helm, and the win screen shows the status panel faintly through it.
 - Evidence: `tools/playtest.ps1`, frames `devlog/media/2026-11-15-play-*.png`, package log `deep/Saved/Harness/package-20261115-005426.log`.
 
+### About 1:10 AM  No half-done polish
+- What happened: the orchestrator had just started a batch that patched the placeholder HUD and added grey-box motion cues for driving. Quinn stopped it. The gameplay loop is the work, and polish waits until it can be done properly, to a professional standard. Two of the batch's four items were cut mid-run. The title key press and one state bug stayed, because they are function.
+- Why it matters: it is the second time tonight the orchestrator reached for visuals before being asked. The first was the atmosphere pass at 10:28 PM. Patching a HUD that will be replaced is work thrown away. The rule is now written down for every agent: fix function, not finish.
+- Evidence: D-028 in the decision log, `CLAUDE.md`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

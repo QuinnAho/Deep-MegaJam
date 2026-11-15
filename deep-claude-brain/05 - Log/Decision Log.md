@@ -36,6 +36,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-025 | No "Director" or "Director's cut" in the game's text | Decided (Quinn, 11:30 PM Nov 14); supersedes the Director half of D-016 |
 | D-026 | First sounds are generated in code; real files replace them one CSV row at a time | Decided by Claude (12:11 AM Nov 15); Quinn can overrule |
 | D-027 | Test adaptively: an agent runs its own area's tests, and the full suite runs once, at merge | Decided (Quinn, about 12:50 AM Nov 15) |
+| D-028 | No half-done polish: the gameplay loop first, then polish in one pass to a professional standard | Decided (Quinn, about 1:10 AM Nov 15) |
 
 ## Open
 
@@ -140,6 +141,16 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-028 No half-done polish
+- **Status:** Decided.
+- **Date:** 2026-11-15, about 1:10 AM EST
+- **Who:** Quinn: "i dont want to get too carried away with hud since it looks pretty bad" and "i geuss in want to wait on the polish and not half do it, or get it good enough think AAA prtofesional sleek ect".
+- **Decision:** The main gameplay loop is the work now. HUD, look, effects and other finish wait. When they are done, they are done in one planned pass to a professional standard, not patched piece by piece on top of placeholders.
+- **What changed at once:** Fix batch one lost two of its four items mid-run: the grey-box motion cues for driving and the HUD panel fixes. It keeps the title key press and a state report bug, which are function.
+- **What it covers that Quinn did not name:** The sounds generated in code (D-026) are placeholders by the same rule. They stay switchable (`Deep.Audio.Mute 1`), and the final build ships none that Quinn has not heard and kept.
+- **Claude's caution:** Visuals, audio and level design are three of the seven judged scores, and the deadline is 8:59 PM today. Waiting is right only if the polish pass has a start time and its inputs are ready: asset packs installed, a source of real sound, the Captain's voice. Otherwise the pass gets squeezed and is half-done anyway.
+- **What follows:** Agents fix function, not finish. The orchestrator spends the wait on proving the loop with real key and mouse input.
 
 ### D-027 Test adaptively; all tests at merge
 - **Status:** Decided.

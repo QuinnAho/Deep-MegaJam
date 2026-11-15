@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 01:05 EST
+updated: 2026-11-15 01:15 EST
 ---
 # Board
 
@@ -9,9 +9,10 @@ The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules 
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. One agent is running (item 1). Its report goes to the session that started it, so a new session checks its branch instead:
 
-1. **Fix batch one** (`dev/feel1`, built in `.wt\dev`, Opus at high, started 1:01 AM). The title key press, motion cues while driving, one set of HUD panels per mode, and the tether distance after a cut. Finished when `origin/dev/feel1` has commits and the last one merges `origin/main`. It is C++, so the gate is `.wt\dev\tools\ue.ps1 verify`. Then merge into `main`, push, and tell Quinn to restart the editor.
+1. **Fix batch one** (`dev/feel1`, built in `.wt\dev`, Opus at high, started 1:01 AM). Cut down at 1:12 AM by D-028 (no half-done polish): it keeps the title key press and the tether distance after a cut, and drops the motion cues and the HUD fixes. It may push dropped work to `parked/motion-hud`; leave that branch alone. Its report should list anything else that stops a real player finishing the loop with keyboard and mouse. Finished when `origin/dev/feel1` has commits and the last one merges `origin/main`. It is C++, so the gate is `.wt\dev\tools\ue.ps1 verify`. Then merge into `main`, push, and tell Quinn to restart the editor.
 2. **Dev log post one** is merged (`c263c9a`): `devlog/01-saturday-night.md`, a draft file covering 8 PM to 1 AM. It is not published anywhere; Quinn reads it and decides where it goes. Post two should cover Sunday from 1 AM.
-3. **Next engineer run** is fix batch two: Quinn's notes from playing and listening, plus whatever batch one left.
+3. **Next, while Quinn has not played:** prove the loop with real key and mouse input, simulated through the editor's input tools (Sonnet at medium, `.wt\pkg`). The scripted playtests use console commands, so walking into the hatch, pressing E at the console and helm, and aiming the harpoon have never been exercised. Whatever fails is function and goes to an engineer. Then fix batch two: Quinn's notes on how the loop plays.
+4. **Polish is one planned pass, later (D-028).** Do not dispatch HUD, look, effect or sound-finish work until Quinn gives it a start time.
 
 After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
 
@@ -29,42 +30,48 @@ After merging a branch that adds dev log entries, remove any repeated `## Sunday
 
 ## Known rough edges
 
-In fix batch one now:
+Function, being fixed in batch one:
 
 - **The title may not start on a key press.** A scripted playtest's synthetic key press did not leave the title; the script uses `Deep.Start`. A real key press is unverified. This is the first thing a judge does.
-- **Driving does not feel like moving.** The helm view is flat grey; only the gauge shows the descent.
-- HUD panels in the wrong mode: the console panel at the helm, "LIMIT 400" over the depth gauge, the controls panel still up under the hatch, the status panel showing through the win screen.
 - `tether_distance_m` reads 0.0 right after a cut.
 
-Not in the batch:
+Function, not yet looked at:
 
+- Never verified: real keyboard and mouse anywhere, walking into the hatch with real physics, pressing E at the console and helm, aiming the harpoon by hand, anything in multiplayer.
+- Every number is a guess: room size, walk speed, hatch size, harpoon speed and pull, serpent values.
 - `Deep.Teleport` sometimes lands in the wrong place.
-- Every number is a guess: room size, walk speed, hatch size, harpoon speed and pull, serpent values, every sound.
-- Never verified: real keyboard and mouse anywhere, walking into the hatch with real physics, aiming the harpoon by hand, how anything sounds, anything in multiplayer.
+
+Finish, parked for the polish pass (D-028: do not patch these one by one):
+
+- Driving does not feel like moving. The helm view is flat grey; only the gauge shows the descent.
+- The HUD is a placeholder and looks it. Panels show in the wrong mode: the console panel at the helm, "LIMIT 400" over the depth gauge, the controls panel still up under the hatch, the status panel through the win screen.
+- Every sound is generated in code and unheard. The final build ships none that Quinn has not listened to and kept.
 
 ## Running now
 
 | Lane | Agent | Task | Started |
 |---|---|---|---|
-| Fix batch one | Opus, high, `.wt\dev` on `dev/feel1` | Title key press, driving motion cues, HUD panels per mode, tether distance after a cut. | 1:01 AM |
+| Fix batch one | Opus, high, `.wt\dev` on `dev/feel1` | Title key press and the tether distance after a cut. Cut down at 1:12 AM (D-028): no motion cues, no HUD fixes. | 1:01 AM |
 | Dev log post one | Sonnet, medium, `.wt\text` on `devlog/post1` | **Done 1:03 AM**, merged as `c263c9a`. `devlog/01-saturday-night.md`: the first five hours, for the Glass Box prize. A file only; nothing published. | 1:01 AM |
 
 ## Next, in order
 
 | # | Item | Owner | Status |
 |---|---|---|---|
-| 1 | Play the whole run by hand, listen to it, and say what feels or sounds wrong. | Quinn | todo |
-| 2 | Fix batch two: Quinn's notes, in one engineer run. | Opus engineer, `.wt\dev` | waiting on 1 |
+| 1 | Play the whole run by hand and say what is wrong with how it plays. | Quinn | todo |
+| 1a | Prove the loop with simulated key and mouse input, start to win, and list where real input fails. | Sonnet agent, `.wt\pkg` | after batch one |
+| 2 | Fix batch two: Quinn's notes and what 1a finds, in one engineer run. Function only. | Opus engineer, `.wt\dev` | waiting on 1 and 1a |
 | 3 | Real sound files replace the generated ones: import under `/Game/Audio/`, put the path in that row of `Sounds.csv`, run `Deep.Audio.Reload`. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
 | 4 | The Captain's voice. | writer | blocked on Quinn's choice |
-| 5 | Look pass, when Quinn says the gameplay is right (D-020). His own assets that fit are in [[Asset Library Shortlist]]. | look engineer | deferred |
-| 6 | Water and rope feel (D-024): swim inertia, a tether and harpoon line that sag and snap, bubbles and silt. | engineer, Quinn tunes | later |
+| 5 | **The polish pass (D-028, D-020):** look, HUD, effects, sound and voice, in one planned pass to a professional standard. Not started piece by piece. It needs a start time from Quinn and its inputs ready: Fab packs installed ([[Asset Library Shortlist]]), a source of real sound, the Captain's voice. | Quinn decides when | deferred |
+| 6 | Water and rope feel (D-024): swim inertia, a tether and harpoon line that sag and snap, bubbles and silt. Part of the polish pass. | engineer, Quinn tunes | later |
 | 7 | Ideas Quinn picks from [[Fun Ideas]]. Live Captain brain decision about 1 PM Sunday (D-018). | per idea | waiting on review |
 | 8 | Sunday: feature freeze 3 PM, final package and video 5 PM, submitted 8 PM. The itch.io page says in one sentence how the game answers the theme (D-025). | all | todo |
 
 ## Waiting on Quinn
 
-- Restart the editor, play the run, listen, and send notes. First: does a key press on the title start the game?
+- Restart the editor, play the run, and send notes on how it plays. First: does a key press on the title start the game?
+- When the polish pass starts, and its inputs: which Fab packs to install, where real sound comes from, the Captain's voice.
 - The Captain's voice: an OpenAI key, or a built-in Windows voice as a stand-in.
 - Team name, and whether both are enrolled students.
 - Which of the [[Fun Ideas]] to build.
