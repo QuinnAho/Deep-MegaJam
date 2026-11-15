@@ -593,6 +593,7 @@ bool ADeepSerpent::SetupMeshHead(const FDeepSerpentBodyTuning& Tuning)
 
 	// Where the body takes over, and how long the head is either side of the socket.
 	NeckCutLocalCm = Place(H.CutCm);
+	MouthLocalCm = H.MouthCm * Scale;
 	HeadBackCm = FMath::Max(1.f, -NeckCutLocalCm.X);
 	HeadFrontCm = FMath::Max(1.f, Place(H.KeepEndCm).X);
 
@@ -827,7 +828,8 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	// Recoil: a sharp flinch that dies away.
 	if (State == EDeepMonsterState::Recoil)
 	{
-		const float Rise = 0.08f;
+		// A mesh head holds a moment in the beam before it rears (the lit head reads for a few frames).
+		const float Rise = bMeshHead ? 0.22f : 0.08f;
 		Flinch01 = StateAge < Rise ? StateAge / Rise
 			: FMath::Exp(-(StateAge - Rise) * 4.f / FMath::Max(0.1f, Tuning.RecoilFlinchS));
 	}
@@ -839,6 +841,7 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	// The bite: strike, clamp, thrash.
 	float ThrashYaw = 0.f;
 	float ThrashRoll = 0.f;
+	float BiteShakePitch = 0.f;
 	// A slit of a mouth at rest: the jaw line reads in silhouette.
 	float TargetGape = 4.f;
 	float TargetLungeCm = 0.f;
@@ -852,6 +855,15 @@ void ADeepSerpent::UpdateMotion(float Dt)
 			LungeCm = SerpentEaseOutCubic(StateAge / Strike) * Tuning.LungeM * CmPerM;
 			TargetGape = Tuning.JawOpenDeg;
 			GapeDeg = Tuning.JawOpenDeg * FMath::Min(1.f, StateAge / (Strike * 0.5f));
+		}
+		else if (bMeshHead)
+		{
+			// A mesh head cannot close its jaw: it holds the line in its open mouth (BiteHold01 below) and worries it.
+			const FDeepSerpentMeshHead& H = Tuning.MeshHead;
+			const float W = 2.f * PI * H.BiteShakeHz * (StateAge - Strike);
+			ThrashYaw = H.BiteShakeDeg * 0.35f * FMath::Sin(W * 0.7f + 2.f);
+			ThrashRoll = H.BiteShakeDeg * 0.8f * FMath::Sin(W * 0.8f + 1.f);
+			BiteShakePitch = H.BiteShakeDeg * FMath::Sin(W);
 		}
 		else
 		{
@@ -889,9 +901,51 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	// Head socket: lunge forward, flinch up and back, sway with the weave, bank into turns, thrash in the bite.
 	const float Sway = Tuning.HeadSwayDeg * FMath::Sin(WeavePhase + 0.5f * PI);
 	const float Bank = Tuning.TurnRollDeg * FMath::Clamp(YawRateDegPerS / 90.f, -1.5f, 1.5f);
-	HeadSocket->SetRelativeLocationAndRotation(
-		FVector(LungeCm - Tuning.RecoilPullM * CmPerM * Flinch01, 0.f, 0.f),
-		FRotator(Tuning.RecoilPitchDeg * Flinch01, Sway + ThrashYaw, Bank + ThrashRoll));
+	FVector SocketLoc(LungeCm - Tuning.RecoilPullM * CmPerM * Flinch01, 0.f, 0.f);
+	// Mesh head biting: turn side-on to the nearest diver. The line runs from the diver up to the sub, so side-on to
+	// the diver puts the line across the open mouth, through the teeth, seen in profile from where the diver is.
+	if (bMeshHead && State == EDeepMonsterState::Bite)
+	{
+		if (const UWorld* World = GetWorld())
+		{
+			float Best = TNumericLimits<float>::Max();
+			FVector ToDiver = FVector::ZeroVector;
+			for (TActorIterator<ADeepDiver> It(World); It; ++It)
+			{
+				const FVector D = It->GetActorLocation() - GetActorLocation();
+				if (D.SizeSquared() < Best)
+				{
+					Best = static_cast<float>(D.SizeSquared());
+					ToDiver = D;
+				}
+			}
+			ToDiver.Z = 0.f;
+			if (ToDiver.Normalize())
+			{
+				FVector Side = FVector::CrossProduct(FVector::UpVector, ToDiver);
+				if (FVector::DotProduct(Side, GetActorForwardVector()) < 0.f)
+				{
+					Side = -Side;
+				}
+				const float Want = FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, Side.Rotation().Yaw);
+				BiteFaceYaw = FMath::FInterpTo(BiteFaceYaw, Want, Dt, 6.f);
+			}
+		}
+	}
+	else
+	{
+		BiteFaceYaw = FMath::FInterpTo(BiteFaceYaw, 0.f, Dt, 4.f);
+	}
+	const FRotator SocketRot(Tuning.RecoilPitchDeg * Flinch01 + BiteShakePitch, Sway + ThrashYaw + BiteFaceYaw, Bank + ThrashRoll);
+	// Mesh head biting: the mouth sits on the line (the actor, which the bite steers onto it) and the head pivots
+	// about it, so the line stays between the teeth while the head shakes. Eases in after the strike and out after.
+	const bool bHolding = bMeshHead && State == EDeepMonsterState::Bite && StateAge >= Tuning.LungeS;
+	BiteHold01 = FMath::FInterpTo(BiteHold01, bHolding ? 1.f : 0.f, Dt, bHolding ? 10.f : 6.f);
+	if (BiteHold01 > 0.001f)
+	{
+		SocketLoc = FMath::Lerp(SocketLoc, -SocketRot.RotateVector(MouthLocalCm), BiteHold01);
+	}
+	HeadSocket->SetRelativeLocationAndRotation(SocketLoc, SocketRot);
 	JawHinge->SetRelativeRotation(FRotator(-GapeDeg, 0.f, 0.f));
 }
 
@@ -1013,6 +1067,27 @@ void ADeepSerpent::BuildTube()
 		Centres[k] = Centre;
 	}
 
+	// ---- Arm's length: the body never comes within BodyClearM of a diver's eyes. It follows the head's path, and the
+	// stalk's spiral and the bite's side approach can pass right by the diver, where the lamp burnt it white. Look only:
+	// the harpoon's hit segments (LayBody) keep the true path.
+	if (UWorld* World = GetWorld())
+	{
+		const float ClearCm = Tuning.BodyClearM * CmPerM;
+		for (TActorIterator<ADeepDiver> It(World); It && ClearCm > 0.f; ++It)
+		{
+			const FVector Eye = It->GetPawnViewLocation();
+			for (int32 k = 0; k < Rings; ++k)
+			{
+				const FVector D = Centres[k] - Eye;
+				const float Dist = static_cast<float>(D.Size());
+				if (Dist < ClearCm)
+				{
+					Centres[k] = Eye + D.GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector) * ClearCm;
+				}
+			}
+		}
+	}
+
 	// ---- Frames: parallel transport from the head's up, pulled gently back to world up, plus the bank.
 	TubeVerts.SetNumUninitialized(Rings * Row);
 	TubeUV0.SetNumUninitialized(Rings * Row);
@@ -1051,7 +1126,8 @@ void ADeepSerpent::BuildTube()
 			const float Sleeve = BehindCutM < 0.f
 				? FMath::Lerp(MeshTuning.SleeveStartScale, MeshTuning.SleeveEndScale, FMath::SmoothStep(-FrontM, 0.f, BehindCutM))
 				: FMath::Lerp(MeshTuning.SleeveEndScale, 1.f, Ease);
-			RadiusM = RadiusAt(Tuning, FMath::Clamp(BehindCutM / BodyM, 0.f, 1.f), MeshTuning.BodySwell) * Sleeve;
+			const float Thin = BehindCutM < 0.f ? 1.f : FMath::Lerp(1.f, MeshTuning.BodyRadiusScale, Ease);
+			RadiusM = RadiusAt(Tuning, FMath::Clamp(BehindCutM / BodyM, 0.f, 1.f), MeshTuning.BodySwell) * Sleeve * Thin;
 			Tall = FMath::Lerp(MeshTuning.NeckTall, 1.f, Ease);
 			Wide = FMath::Lerp(MeshTuning.NeckWide, 1.f, Ease);
 		}

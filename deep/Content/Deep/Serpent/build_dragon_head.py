@@ -132,7 +132,19 @@ def skin(mat, uv, normal_fix=None):
     nl = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -600, 0)
     link(flat, "", nl, "A")
     link(nrm_out, "RGB" if nrm_out is nrm else "", nl, "B")
-    link(scalar(mat, "NormalStrength", 0.9, -1000, 60), "", nl, "Alpha")
+    # Arm's length (pass two): no derivatives (Nanite shades in compute; Epic's Normal Curvature to Roughness is
+    # reported to break on Nanite), so the anti-sparkle is by distance: the normal flattens and the roughness and the
+    # coat's roughness rise from NearCm to FarCm, where the plates are smaller than a pixel and alias.
+    depth = mel.create_material_expression(mat, unreal.MaterialExpressionPixelDepth, -1300, 700)
+    far = custom(mat, FAR_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, ["D", "NearCm", "FarCm"], "DragonFar", -1000, 700)
+    link(depth, "", far, "D")
+    link(scalar(mat, "NearCm", 200.0, -1300, 760), "", far, "NearCm")
+    link(scalar(mat, "FarCm", 1500.0, -1300, 800), "", far, "FarCm")
+    nstr = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -800, 60)
+    link(scalar(mat, "NormalStrength", 0.8, -1000, 60), "", nstr, "A")
+    link(scalar(mat, "NormalStrengthFar", 0.4, -1000, 100), "", nstr, "B")
+    link(far, "", nstr, "Alpha")
+    link(nstr, "", nl, "Alpha")
     mel.connect_material_property(nl, "", unreal.MaterialProperty.MP_NORMAL)
 
     # Roughness: ORM green squeezed into the wet range (style guide: below 0.25 only on the serpent's wet skin).
@@ -140,11 +152,22 @@ def skin(mat, uv, normal_fix=None):
     link(scalar(mat, "RoughnessWet", 0.3, -1000, 360), "", rl, "A")
     link(scalar(mat, "RoughnessDry", 0.55, -1000, 400), "", rl, "B")
     link(orm, "G", rl, "Alpha")
-    mel.connect_material_property(rl, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    floor = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -800, 460)
+    link(scalar(mat, "RoughnessFloor", 0.36, -1000, 440), "", floor, "A")
+    link(scalar(mat, "RoughnessFloorFar", 0.5, -1000, 480), "", floor, "B")
+    link(far, "", floor, "Alpha")
+    rmax = mel.create_material_expression(mat, unreal.MaterialExpressionMax, -450, 420)
+    link(rl, "", rmax, "A")
+    link(floor, "", rmax, "B")
+    mel.connect_material_property(rmax, "", unreal.MaterialProperty.MP_ROUGHNESS)
     mel.connect_material_property(orm, "R", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
-    mel.connect_material_property(scalar(mat, "Specular", 0.35, -600, 560), "", unreal.MaterialProperty.MP_SPECULAR)
-    mel.connect_material_property(scalar(mat, "WetCoat", 0.8, -600, 620), "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
-    mel.connect_material_property(scalar(mat, "WetCoatRoughness", 0.18, -600, 680), "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
+    mel.connect_material_property(scalar(mat, "Specular", 0.3, -600, 560), "", unreal.MaterialProperty.MP_SPECULAR)
+    mel.connect_material_property(scalar(mat, "WetCoat", 0.7, -600, 620), "", unreal.MaterialProperty.MP_CUSTOM_DATA0)
+    coat = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -450, 680)
+    link(scalar(mat, "WetCoatRoughness", 0.26, -800, 660), "", coat, "A")
+    link(scalar(mat, "WetCoatRoughnessFar", 0.4, -800, 700), "", coat, "B")
+    link(far, "", coat, "Alpha")
+    mel.connect_material_property(coat, "", unreal.MaterialProperty.MP_CUSTOM_DATA1)
 
 
 def finish(mat, name, usages):
@@ -161,8 +184,8 @@ def finish(mat, name, usages):
     for e in errors or []:
         unreal.log_error("DRAGONHEAD compile: " + str(e))
     ok = unreal.EditorLoadingAndSavingUtils.save_packages([mat.get_outermost()], False)
-    unreal.log("DRAGONHEAD %s saved=%s expressions=%d errors=%d" % (
-        name, ok, mel.get_num_material_expressions(mat), len(errors or [])))
+    unreal.log("DRAGONHEAD %s saved=%s expressions=%d errors=%d used_with_nanite=%s" % (
+        name, ok, mel.get_num_material_expressions(mat), len(errors or []), mat.get_editor_property("used_with_nanite")))
 
 
 def build():
@@ -214,6 +237,10 @@ def build_body():
     skin(mat, patch, flip)
     finish(mat, "M_DragonBody", [])
 
+
+FAR_HLSL = r"""
+return saturate((D - NearCm) / max(FarCm - NearCm, 1.0));
+"""
 
 FLIP_HLSL = r"""
 float2 m = float2(UV.x, UV.y * 6.2831853 * max(Rad, 0.04)) / max(PatchMetres.xy, 0.01);

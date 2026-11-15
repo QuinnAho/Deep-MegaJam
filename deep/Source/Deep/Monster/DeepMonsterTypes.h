@@ -310,21 +310,39 @@ struct FDeepSerpentMeshHead
 	float SleeveStartScale = 0.6f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
-	float SleeveEndScale = 1.1f;
+	float SleeveEndScale = 1.04f;
 
 	/**
 	 * The body is this much taller than wide at the cut, easing to round over NeckEaseM. The dragon's neck at the
 	 * cut is 1,460 x 2,400 mesh cm (wide x tall, in the head's frame), so 1.6.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
-	float NeckTall = 1.6f;
+	float NeckTall = 1.5f;
 
 	/** And this much narrower: the neck's flanks are flat (600 cm half-width against a 1,200 cm half-height). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
 	float NeckWide = 0.85f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
-	float NeckEaseM = 4.f;
+	float NeckEaseM = 2.5f;
+
+	/**
+	 * The bite (pass two): the jaw cannot close, so the head holds the line in its open mouth. This point, in the
+	 * head's own frame relative to the skull (forward, right, up; mesh cm), between the tooth rows, is kept on the
+	 * line while the whole head worries it: a slow shake about the line (pitch) and a roll.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	FVector MouthCm = FVector(750.f, 0.f, -560.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float BiteShakeDeg = 6.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float BiteShakeHz = 0.8f;
+
+	/** The body's radius behind the neck, as a fraction of the code-built body's: thinner, so the neck runs into it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
+	float BodyRadiusScale = 0.88f;
 
 	/** Base colour gain of the head material (near-black like the body), set on its instance. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh head")
@@ -604,6 +622,10 @@ struct FDeepSerpentBodyTuning
 	/** Jaw gape while it holds the line after the strike, so the teeth stay visible in the thrash. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
 	float BiteHoldGapeDeg = 20.f;
+
+	/** The drawn body keeps its centre line at least this far from a diver's eyes (look only; hit segments are not moved). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float BodyClearM = 2.f;
 
 	/** Spots follow threat to this power: near zero until it peaks (1 = linear). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
