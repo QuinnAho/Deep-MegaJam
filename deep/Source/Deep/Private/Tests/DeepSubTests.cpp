@@ -6,6 +6,7 @@
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/Engine.h"
+#include "AIController.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/DeepGameMode.h"
@@ -179,6 +180,31 @@ bool FDeepSubHatchTest::RunTest(const FString& Parameters)
 	W.Run->Use();
 	TestFalse(TEXT("Stood up"), W.Run->IsSeated());
 	TestFalse(TEXT("Cannot drop between stops"), W.Run->LeaveSub());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubAboardPitchTest, "Deep.World.SubAboardPitch", DEEP_SUB_TEST_FLAGS)
+bool FDeepSubAboardPitchTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepSubTest;
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	FSubWorld W;
+	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
+	AAIController* Controller = W.World->SpawnActor<AAIController>();
+	UTEST_NOT_NULL(TEXT("A controller"), Controller);
+	Controller->Possess(W.Diver);
+
+	// Fall through the hatch, then come back pitched steeply up: the view is levelled on arrival, yaw kept.
+	W.Diver->TeleportDiver(W.Sub->GetHatchLocation() - FVector(0.f, 0.f, (Tuning.Sub.DropBelowDeckM + 0.2f) * UDeepRules::CmPerM));
+	W.Run->StepRun(0.05f);
+	UTEST_EQUAL(TEXT("In the water"), W.Run->GetState(), EDeepRunState::Tethered);
+	Controller->SetControlRotation(FRotator(60.f, 123.f, 5.f));
+	W.Run->EnterSub();
+	const FRotator View = Controller->GetControlRotation();
+	TestEqual(TEXT("Aboard"), W.Run->GetState(), EDeepRunState::Aboard);
+	TestEqual(TEXT("Pitch is the tuned level"), FRotator::NormalizeAxis(View.Pitch), (double)Tuning.Arena.AboardPitchDeg, 0.01);
+	TestEqual(TEXT("Yaw unchanged"), FRotator::NormalizeAxis(View.Yaw), 123.0, 0.01);
+	TestEqual(TEXT("No roll"), View.Roll, 0.0, 0.01);
 	return true;
 }
 

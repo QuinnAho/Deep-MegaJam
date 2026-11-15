@@ -83,4 +83,8 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepReviewTuning Review;
+
+	/** The helm's sonar (Sonar lane). */
+	UPROPERTY(Config, EditAnywhere, Category = "Sonar")
+	FDeepSonarTuning Sonar;
 };

@@ -670,6 +670,18 @@ void UDeepRunComponent::EnterSub()
 	{
 		Diver->TeleportDiver(Sub->GetEnterStandLocation());
 	}
+	// Look only: level the view so the first frame aboard is the room, not the ceiling the diver swam up at.
+	if (AController* Controller = Diver->GetController())
+	{
+		FRotator View = Controller->GetControlRotation();
+		View.Pitch = UDeepTuningSettings::Get().Arena.AboardPitchDeg;
+		View.Roll = 0.f;
+		Controller->SetControlRotation(View);
+		if (APlayerController* Player = Cast<APlayerController>(Controller); Player && !Player->IsLocalController())
+		{
+			Player->ClientSetRotation(View);
+		}
+	}
 	Diver->SetAboard(true);
 	Fire(bWasCut ? DeepEvent::Retether : DeepEvent::EnterSub);
 }
