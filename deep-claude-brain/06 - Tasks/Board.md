@@ -5,7 +5,7 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 9:00 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 9:10 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
@@ -16,19 +16,32 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Running now (both Opus at high)**
+**Running now (three engineers, all Opus at high)**
 
 Their reports go to the session that started them, so a new session checks the branches.
 
 - `polish/dragon` in `.wt\pkg`, second pass since 8:30 AM (the first engineer, resumed with a written review; time box 9:50 AM). The bite, readable in the game's own light; the skin at arm's length (no white burn, no sparkle); the shoulder; one frame with ray tracing off. It may not edit the lamp's code. Frames `devlog/media/2026-11-15-dragon2-*.png`.
 - `polish/rope` in `.wt\dev`, since 8:58 AM (a fresh engineer; time box 10:25 AM). The tether as a rope that sags, goes taut and visibly parts when cut (it is a stretched cylinder today); bubbles tied to the breath, the hatch and the winch; a silt puff on the bed; the harpoon line as the same rope. Materials and Niagara systems go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-rope-*.png`.
+- `polish/hull` in `.wt\text`, since 9:05 AM (a fresh engineer; time box 10:40 AM). The submarine's outside from basic shapes: a hull with a silhouette round the room of cubes (tanks, a frame, skids, thrusters, lamp housings, a hatch well), visual only. Then the helm window, then the smear on the trench rock. Frames `devlog/media/2026-11-15-hull-*.png`.
 - When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, take a frame from the packaged game, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
 - Scripts for this are in the session's scratch folder and are worth rewriting if lost: one runs `verify`, then `package` and `smoke` inside the Unreal slot and `zip` after it; one takes a frame from the packaged game with `-DeepShot`.
 - A resumed engineer with a long history costs more per minute than a fresh one (691k tokens for the 42-minute second pass on the well, 492k for the 66-minute first). Resume for a review of the same work; start fresh for new work.
 
-**Left over from the well pass (small, not assigned)**
+**Scripted playtests on the merged build (9:06 AM, `5ae5f0b`)**
 
-- A fine smear across the trench rock while the submarine moves. The cause is not proved; the dragon lane found the same kind of fault on the serpent's body (no motion vectors on a mesh whose component never moves).
+- `S7-run` passes: title to win. `S10-relic` passes: down the shaft by keys, the relic taken, winched home in 21 s with the lamp aimed for 1.3 s, one repel, no bites, a win.
+- A first try of `S10-relic` failed only because the editor was still loading. Run a warm-up scenario first (`S0-title`), and give the playtest its own port (8013), not the agents' 8012.
+- The playtest overwrites tracked screenshots in `devlog/media`. Put them back with `git checkout -- devlog/media` before the next merge.
+
+**In real play the bottom of the well still fails with the lamp on**
+
+- The playtest's own screenshot at the relic (`deep\Saved\Harness\playtest\S10-relic-grab.png` in `.wt\monster`) shows the lamp burning the pit floor to a white disc with a block pattern at 1 m. The staged frames of the well did not show it, because they were framed from 2 m at an angle.
+- Where to look: the lamp's close-range dimming (`Diver/DeepDiver.cpp`, `UDeepRules::LampNearScale`), the bed's material `M_Silt` at 2 m tiles (`Look.SeabedUvTileM`), and the stretched surface of the sinkhole (`World/DeepAbyssFloor.cpp`).
+- Planned as the next lane, in `.wt\pkg` when the dragon pass ends: the last ascent as the player sees it, with frames along the real sequence (at the relic, carrying it, up the shaft, the serpent in the shaft, the hatch), not staged views.
+
+**Left over from the well pass (small)**
+
+- A fine smear across the trench rock while the submarine moves (now the hull lane's third item). The cause is not proved; the dragon lane found the same kind of fault on the serpent's body (no motion vectors on a mesh whose component never moves).
 - The beam up the relic's shaft has a hard edge and starts at a small bright square.
 - The gate at 500 m was not checked in a frame. The gate rows were added after that lane's last test run; the merge gate has run since.
 - `T_StoneDebris01_ORM` does not fit the skin's sampler and is left out, with a warning in the log.
@@ -36,7 +49,7 @@ Their reports go to the session that started them, so a new session checks the b
 
 **Not yet met for the submission, by risk**
 
-No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. Free checkout: `.wt\text`.
+No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. No checkout is free.
 
 **The build's size (the limit is 1 GB zipped)**
 
