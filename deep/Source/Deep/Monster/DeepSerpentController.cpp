@@ -85,15 +85,9 @@ UDeepMonsterBrain* ADeepSerpentController::GetBrain() const
 void ADeepSerpentController::GatherDivers(TArray<ADeepDiver*>& Out) const
 {
 	Out.Reset();
-	if (UWorld* World = GetWorld())
+	if (const UDeepMonsterBrain* Brain = GetBrain())
 	{
-		for (TActorIterator<ADeepDiver> It(World); It; ++It)
-		{
-			if (IsValid(*It))
-			{
-				Out.Add(*It);
-			}
-		}
+		Brain->GatherDivers(Out);
 	}
 }
 
@@ -209,7 +203,7 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	// ---- Who it is after. Locked in while it bites, hunts or flees.
 	TArray<ADeepDiver*> Divers;
 	GatherDivers(Divers);
-	if (!Focus.IsValid() || State == EDeepMonsterState::Lurk || State == EDeepMonsterState::Stalk)
+	if (!Focus.IsValid() || !Divers.Contains(Focus.Get()) || State == EDeepMonsterState::Lurk || State == EDeepMonsterState::Stalk)
 	{
 		Focus = PickFocus(Divers);
 	}
@@ -259,6 +253,14 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	}
 
 	// Events last, after the state is consistent, so listeners that read it see the new state.
+	if (Result.Changed(In.State) && Result.Next == EDeepMonsterState::Stalk)
+	{
+		Brain->OnStalkStarted.Broadcast(Target);
+	}
+	if (Result.bRepelled)
+	{
+		Brain->OnRepelled.Broadcast(Target);
+	}
 	if (Result.bBiteStarted)
 	{
 		Brain->OnBiteStarted.Broadcast(Target, Tuning.BiteAlarmS);

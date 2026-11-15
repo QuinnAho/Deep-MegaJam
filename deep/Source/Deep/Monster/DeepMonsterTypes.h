@@ -283,6 +283,10 @@ struct FDeepMonsterStep
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
 	bool bCaught = false;
 
+	/** The lamp drove it off (held on its head, or any beam during a bite). Not set by a sever or a catch. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
+	bool bRepelled = false;
+
 	/** Recoil reached the lurk radius: start the cooldown. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster")
 	bool bStartCooldown = false;

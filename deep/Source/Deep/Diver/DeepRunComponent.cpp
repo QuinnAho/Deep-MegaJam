@@ -5,6 +5,10 @@
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/PlayerController.h"
+#include "Monster/DeepMonsterBrain.h"
+#include "Monster/DeepMonsterRules.h"
+#include "Monster/DeepMonsterSettings.h"
+#include "Monster/DeepSerpent.h"
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -66,6 +70,16 @@ void UDeepRunComponent::BeginPlay()
 	{
 		StartDive(EDiveStart::First);
 	}
+	if (GetOwner()->HasAuthority())
+	{
+		BindMonster();
+	}
+}
+
+void UDeepRunComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UnbindMonster();
+	Super::EndPlay(EndPlayReason);
 }
 
 void UDeepRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -77,6 +91,197 @@ void UDeepRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 void UDeepRunComponent::SetState(EDeepRunState NewState)
 {
 	State = NewState;
+	if (NewState != EDeepRunState::Tethered)
+	{
+		// Whatever ended the tethered dive (Patience, a request, death, banking) also ends any bite on it.
+		ClearBiteAlarm();
+	}
+	// The serpent's idea of who is tethered follows every cut and every restore.
+	ADeepDiver* Diver = GetDiver();
+	UDeepMonsterBrain* Brain = GetWorld() ? GetWorld()->GetSubsystem<UDeepMonsterBrain>() : nullptr;
+	if (Brain && Diver && Diver->HasAuthority())
+	{
+		if (NewState == EDeepRunState::Cut || NewState == EDeepRunState::Dead)
+		{
+			Brain->NotifyTetherCut(Diver);
+		}
+		else if (NewState == EDeepRunState::Tethered)
+		{
+			Brain->NotifyRetethered(Diver);
+		}
+	}
+}
+
+// ---------------------------------------------------------------- the serpent
+
+void UDeepRunComponent::BindMonster()
+{
+	UDeepMonsterBrain* Brain = GetWorld() ? GetWorld()->GetSubsystem<UDeepMonsterBrain>() : nullptr;
+	if (!Brain || !MonsterHandles.IsEmpty())
+	{
+		return;
+	}
+	MonsterHandles.Add(Brain->OnBiteStarted.AddUObject(this, &UDeepRunComponent::HandleBiteStarted));
+	MonsterHandles.Add(Brain->OnBiteBroken.AddUObject(this, &UDeepRunComponent::HandleBiteBroken));
+	MonsterHandles.Add(Brain->OnTetherSevered.AddUObject(this, &UDeepRunComponent::HandleTetherSevered));
+	MonsterHandles.Add(Brain->OnDiverCaught.AddUObject(this, &UDeepRunComponent::HandleDiverCaught));
+	MonsterHandles.Add(Brain->OnStalkStarted.AddUObject(this, &UDeepRunComponent::HandleStalkStarted));
+	MonsterHandles.Add(Brain->OnRepelled.AddUObject(this, &UDeepRunComponent::HandleRepelled));
+}
+
+void UDeepRunComponent::UnbindMonster()
+{
+	UDeepMonsterBrain* Brain = GetWorld() ? GetWorld()->GetSubsystem<UDeepMonsterBrain>() : nullptr;
+	if (Brain)
+	{
+		Brain->OnBiteStarted.RemoveAll(this);
+		Brain->OnBiteBroken.RemoveAll(this);
+		Brain->OnTetherSevered.RemoveAll(this);
+		Brain->OnDiverCaught.RemoveAll(this);
+		Brain->OnStalkStarted.RemoveAll(this);
+		Brain->OnRepelled.RemoveAll(this);
+	}
+	MonsterHandles.Reset();
+}
+
+void UDeepRunComponent::ClearBiteAlarm()
+{
+	bBiteAlarm = false;
+	BiteAlarmLeft = 0.f;
+}
+
+void UDeepRunComponent::StepMonsterWires(float DeltaSeconds)
+{
+	ADeepDiver* Diver = GetDiver();
+	UDeepMonsterBrain* Brain = GetWorld() ? GetWorld()->GetSubsystem<UDeepMonsterBrain>() : nullptr;
+	if (!Diver || !Brain)
+	{
+		MonsterThreat01 = 0.f;
+		return;
+	}
+	BindMonster();
+	const ADeepGameState* GameState = GetGameState();
+	const FDeepMonsterTuning Tuning = UDeepMonsterSettings::Get().GetTuning(GameState ? GameState->Stop : 1);
+
+	// Noise: the winch and sprinting, reported where the loop knows them (grabs report in NotifyPickup).
+	if (CanSwim())
+	{
+		const FDeepSwimTuning& Swim = UDeepTuningSettings::Get().Swim;
+		const float SpeedMps = static_cast<float>(Diver->GetVelocity().Size()) / UDeepRules::CmPerM;
+		NoiseOwed += UDeepMonsterRules::NoiseFromDiver(Diver->IsWinching(), SpeedMps,
+			UDeepMonsterRules::SprintThresholdMps(Swim.SwimSpeedMps, Swim.SprintMultiplier), 0.f, DeltaSeconds, Tuning);
+		if (NoiseOwed >= 1.f)
+		{
+			UDeepMonsterRules::ReportDiverNoise(Diver, Diver->GetActorLocation(), NoiseOwed, Diver);
+			NoiseOwed = 0.f;
+		}
+	}
+
+	// Threat: how close the head is to this diver (full while it bites this diver's line).
+	const ADeepSerpent* Serpent = Brain->GetSerpent();
+	const bool bFocusMe = Brain->GetFocusDiver() == Diver;
+	const EDeepMonsterState MonsterState = Brain->GetState();
+	if (Serpent && CanSwim())
+	{
+		const float DistanceM = static_cast<float>(FVector::Dist(Serpent->GetHeadLocation(), Diver->GetActorLocation())) / UDeepRules::CmPerM;
+		MonsterThreat01 = UDeepMonsterRules::Threat01(bFocusMe ? MonsterState : EDeepMonsterState::Lurk, DistanceM, Tuning);
+	}
+	else
+	{
+		MonsterThreat01 = 0.f;
+	}
+
+	// The Captain notices when it gets close on an approach.
+	if (bFocusMe && MonsterState == EDeepMonsterState::Stalk && MonsterThreat01 >= 0.6f && !bSaidNearThisApproach)
+	{
+		bSaidNearThisApproach = true;
+		FireChatter(DeepEvent::MonsterNear);
+	}
+
+	// The alarm counts down; it clears if the bite ended some other way (serpent gone, focus changed).
+	if (bBiteAlarm)
+	{
+		BiteAlarmLeft = FMath::Max(0.f, BiteAlarmLeft - DeltaSeconds);
+		if (!Serpent || MonsterState != EDeepMonsterState::Bite || !bFocusMe)
+		{
+			ClearBiteAlarm();
+		}
+	}
+}
+
+void UDeepRunComponent::HandleBiteStarted(ADeepDiver* Who, float AlarmSeconds)
+{
+	if (Who != GetDiver() || State != EDeepRunState::Tethered)
+	{
+		return;
+	}
+	bBiteAlarm = true;
+	BiteAlarmLeft = FMath::Max(0.f, AlarmSeconds);
+	Fire(DeepEvent::BiteAlarm);
+}
+
+void UDeepRunComponent::HandleBiteBroken(ADeepDiver* Who)
+{
+	if (Who == GetDiver())
+	{
+		ClearBiteAlarm();
+	}
+}
+
+void UDeepRunComponent::HandleTetherSevered(ADeepDiver* Who)
+{
+	ADeepDiver* Diver = GetDiver();
+	if (Who != Diver || State != EDeepRunState::Tethered)
+	{
+		return;
+	}
+	if (!bBiteAlarm)
+	{
+		// Fairness: the line never goes without the alarm having been on screen. Tell the serpent it is still there.
+		UE_LOG(LogTemp, Warning, TEXT("Serpent severed a tether with no alarm up; ignored"));
+		if (UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>())
+		{
+			Brain->NotifyRetethered(Diver);
+		}
+		return;
+	}
+	ClearBiteAlarm();
+	CutTetherFor(DeepEvent::CutBite);
+}
+
+void UDeepRunComponent::HandleDiverCaught(ADeepDiver* Who)
+{
+	if (Who == GetDiver() && State == EDeepRunState::Cut)
+	{
+		Die(true);
+	}
+}
+
+void UDeepRunComponent::HandleStalkStarted(ADeepDiver* Who)
+{
+	if (Who != GetDiver() || State != EDeepRunState::Tethered)
+	{
+		return;
+	}
+	bSaidNearThisApproach = false;
+	if (!bMonsterHeardThisRun)
+	{
+		bMonsterHeardThisRun = true;
+		Fire(DeepEvent::MonsterFirstHeard);
+	}
+	else
+	{
+		bSaidNearThisApproach = FireChatter(DeepEvent::MonsterNear);
+	}
+}
+
+void UDeepRunComponent::HandleRepelled(ADeepDiver* Who)
+{
+	if (Who == GetDiver() && CanSwim())
+	{
+		ClearBiteAlarm();
+		Fire(DeepEvent::MonsterRepelled);
+	}
 }
 
 // ---------------------------------------------------------------- the state machine
@@ -94,6 +299,7 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 	}
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	StepMonsterWires(Dt);
 
 	switch (State)
 	{
@@ -129,8 +335,12 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 			return;
 		}
 
+		// The Captain gets twice as impatient while the serpent closes on (or chews) this diver's line.
+		const UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>();
+		const bool bHunted = Brain && Brain->GetSerpent() && Brain->GetFocusDiver() == Diver
+			&& (Brain->GetState() == EDeepMonsterState::Stalk || Brain->GetState() == EDeepMonsterState::Bite);
 		const float Before = PatienceSeconds;
-		PatienceSeconds = UDeepRules::PatienceStep(Before, Dt, false, Tuning.Patience);
+		PatienceSeconds = UDeepRules::PatienceStep(Before, Dt, bHunted, Tuning.Patience);
 		const int32 Warning = UDeepRules::PatienceWarningCrossed(Before, PatienceSeconds, Tuning.Patience);
 		if (Tuning.Patience.WarningFractions.IsValidIndex(Warning))
 		{
@@ -203,7 +413,10 @@ void UDeepRunComponent::StartDive(EDiveStart Reason)
 	if (Reason == EDiveStart::First || Reason == EDiveStart::Reset)
 	{
 		bFirstSalvageThisRun = true;
+		bMonsterHeardThisRun = false;
 	}
+	NoiseOwed = 0.f;
+	bSaidNearThisApproach = false;
 	if (Diver)
 	{
 		Diver->SetWinching(false);
@@ -241,6 +454,11 @@ void UDeepRunComponent::StartDive(EDiveStart Reason)
 
 void UDeepRunComponent::CutTether(bool bRequested)
 {
+	CutTetherFor(bRequested ? DeepEvent::CutRequested : DeepEvent::CutPatience);
+}
+
+void UDeepRunComponent::CutTetherFor(const TCHAR* Event)
+{
 	ADeepDiver* Diver = GetDiver();
 	if (State != EDeepRunState::Tethered || !Diver || !Diver->HasAuthority())
 	{
@@ -249,7 +467,7 @@ void UDeepRunComponent::CutTether(bool bRequested)
 	Diver->SetWinching(false);
 	BailoutAirSeconds = UDeepTuningSettings::Get().Bailout.AirSeconds;
 	SetState(EDeepRunState::Cut);
-	Fire(bRequested ? DeepEvent::CutRequested : DeepEvent::CutPatience);
+	Fire(Event);
 }
 
 void UDeepRunComponent::Retether()
@@ -262,8 +480,9 @@ void UDeepRunComponent::Retether()
 	Fire(DeepEvent::Retether);
 }
 
-void UDeepRunComponent::Die()
+void UDeepRunComponent::Die(bool bByMonster)
 {
+	bLastDeathMonster = bByMonster;
 	ADeepDiver* Diver = GetDiver();
 	FDeepEventPayload Payload;
 	Payload.DepthM = Diver ? Diver->GetDepthM() : 0.f;
@@ -276,7 +495,7 @@ void UDeepRunComponent::Die()
 	BailoutAirSeconds = 0.f;
 	SetState(EDeepRunState::Dead);
 	StateTimeLeft = FMath::Max(0.f, UDeepTuningSettings::Get().Run.DeathScreenSeconds);
-	Fire(DeepEvent::DeathAir, Payload);
+	Fire(bByMonster ? DeepEvent::DeathMonster : DeepEvent::DeathAir, Payload);
 }
 
 void UDeepRunComponent::Respawn()
@@ -440,6 +659,15 @@ void UDeepRunComponent::NotifyPickup(const FDeepCargoItem& Item)
 	LastRefillFraction = Patience.MaxSeconds > 0.f ? UDeepRules::PatienceRefillSeconds(Item.Size, Patience) / Patience.MaxSeconds : 0.f;
 	LastRefillTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 
+	// A grab is loud: one hearing event, sized by the piece.
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		const ADeepGameState* GameState = GetGameState();
+		const FDeepMonsterTuning MonsterTuning = UDeepMonsterSettings::Get().GetTuning(GameState ? GameState->Stop : 1);
+		const float GrabNoise = UDeepMonsterRules::NoiseFromDiver(false, 0.f, 1.f, FMath::Max(Item.Kg, 0.01f), 0.f, MonsterTuning);
+		UDeepMonsterRules::ReportDiverNoise(Diver, Diver->GetActorLocation(), FMath::Max(1.f, GrabNoise), Diver);
+	}
+
 	if (bFirstSalvageThisRun)
 	{
 		bFirstSalvageThisRun = false;
@@ -552,4 +780,8 @@ void UDeepRunComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(UDeepRunComponent, LastRefillTime);
 	DOREPLIFETIME(UDeepRunComponent, LastFee);
 	DOREPLIFETIME(UDeepRunComponent, LastFeeTime);
+	DOREPLIFETIME(UDeepRunComponent, BiteAlarmLeft);
+	DOREPLIFETIME(UDeepRunComponent, bBiteAlarm);
+	DOREPLIFETIME(UDeepRunComponent, MonsterThreat01);
+	DOREPLIFETIME(UDeepRunComponent, bLastDeathMonster);
 }

@@ -1,6 +1,7 @@
 #include "Monster/DeepMonsterBrain.h"
 
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -112,6 +113,12 @@ int32 UDeepMonsterBrain::CurrentStop() const
 	return GameState ? GameState->Stop : 1;
 }
 
+ADeepDiver* UDeepMonsterBrain::GetFocusDiver() const
+{
+	const ADeepSerpentController* Mind = GetSerpentController();
+	return Mind ? Mind->GetFocusDiver() : nullptr;
+}
+
 void UDeepMonsterBrain::GatherDivers(TArray<ADeepDiver*>& Out) const
 {
 	Out.Reset();
@@ -119,7 +126,8 @@ void UDeepMonsterBrain::GatherDivers(TArray<ADeepDiver*>& Out) const
 	{
 		for (TActorIterator<ADeepDiver> It(World); It; ++It)
 		{
-			if (IsValid(*It))
+			const UDeepRunComponent* Run = IsValid(*It) ? It->GetRun() : nullptr;
+			if (IsValid(*It) && (!Run || Run->CanSwim()))
 			{
 				Out.Add(*It);
 			}
@@ -148,8 +156,9 @@ bool UDeepMonsterBrain::IsTethered(const ADeepDiver* Diver) const
 	{
 		return false;
 	}
+	const UDeepRunComponent* Run = Diver->GetRun();
 	const UDeepTetherComponent* Tether = Diver->GetTether();
-	return Tether && Tether->HasAnchor();
+	return Tether && Tether->HasAnchor() && (!Run || Run->HasTether());
 }
 
 bool UDeepMonsterBrain::TetherEnds(const ADeepDiver* Diver, FVector& OutAnchor, FVector& OutDiverEnd) const
@@ -264,29 +273,6 @@ ADeepSerpent* UDeepMonsterBrain::SpawnSerpent(bool bForced)
 	return Spawned;
 }
 
-void UDeepMonsterBrain::ReportDiverNoise(const TArray<ADeepDiver*>& Divers, float DeltaSeconds)
-{
-	const FDeepSwimTuning& Swim = UDeepTuningSettings::Get().Swim;
-	const FDeepMonsterTuning Tuning = UDeepMonsterSettings::Get().GetTuning(CurrentStop());
-	const float SprintMps = UDeepMonsterRules::SprintThresholdMps(Swim.SwimSpeedMps, Swim.SprintMultiplier);
-	for (ADeepDiver* Diver : Divers)
-	{
-		const float CargoKg = Diver->GetCargoKg();
-		const float* LastKg = LastCargoKg.Find(Diver);
-		const float GainKg = LastKg ? FMath::Max(0.f, CargoKg - *LastKg) : 0.f;
-		LastCargoKg.Add(Diver, CargoKg);
-
-		const float SpeedMps = static_cast<float>(Diver->GetVelocity().Size()) / CmPerM;
-		float& Owed = NoiseOwed.FindOrAdd(Diver);
-		Owed += UDeepMonsterRules::NoiseFromDiver(Diver->IsWinching(), SpeedMps, SprintMps, GainKg, DeltaSeconds, Tuning);
-		if (Owed >= 1.f)
-		{
-			UDeepMonsterRules::ReportDiverNoise(Diver, Diver->GetActorLocation(), Owed, Diver);
-			Owed = 0.f;
-		}
-	}
-}
-
 void UDeepMonsterBrain::Step(float DeltaSeconds)
 {
 	UWorld* World = GetWorld();
@@ -314,7 +300,4 @@ void UDeepMonsterBrain::Step(float DeltaSeconds)
 	{
 		SpawnSerpent(false);
 	}
-
-	// The diver makes noise whether or not anything is listening yet.
-	ReportDiverNoise(Divers, FMath::Max(0.f, DeltaSeconds));
 }

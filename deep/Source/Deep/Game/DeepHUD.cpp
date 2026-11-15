@@ -63,9 +63,13 @@ void ADeepHUD::DrawHUD()
 	}
 	if (Run && Run->CanSwim())
 	{
+		DrawThreat(*Run, GetWorld()->GetRealTimeSeconds());
 		DrawPrompts(Diver);
+		if (Run->IsBiteAlarmOn())
+		{
+			DrawBiteAlarm(*Run, GetWorld()->GetRealTimeSeconds());
+		}
 	}
-
 
 	if (State == EDeepRunState::Dead)
 	{
@@ -344,6 +348,50 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 	TextAt(ControlsB, ControlsColor, CX, CY + HA, nullptr, ControlsScale);
 }
 
+void ADeepHUD::DrawThreat(const UDeepRunComponent& Run, float RealNow)
+{
+	const float Threat = FMath::Clamp(Run.GetMonsterThreat01(), 0.f, 1.f);
+	if (Threat <= 0.02f)
+	{
+		return;
+	}
+	// Edge pulse: faint and slow when it is far, strong and fast when it is on you. Readable with the sound off.
+	const float Hz = FMath::Lerp(0.6f, 3.f, Threat);
+	const float Pulse = 0.5f + 0.5f * FMath::Sin(RealNow * Hz * 2.f * PI);
+	const float Alpha = Threat * Threat * (0.25f + 0.45f * Pulse);
+	const float Edge = FMath::Lerp(10.f, 46.f, Threat) * S;
+	const FLinearColor Red(0.85f, 0.03f, 0.02f, Alpha);
+	DrawRect(Red, 0.f, 0.f, Canvas->ClipX, Edge);
+	DrawRect(Red, 0.f, Canvas->ClipY - Edge, Canvas->ClipX, Edge);
+	DrawRect(Red, 0.f, Edge, Edge, Canvas->ClipY - Edge * 2.f);
+	DrawRect(Red, Canvas->ClipX - Edge, Edge, Edge, Canvas->ClipY - Edge * 2.f);
+
+	// A short bar on the right edge: SOMETHING NEAR, filling as it closes.
+	const float W = 150.f * S;
+	const float H = 10.f * S;
+	const float X = Canvas->ClipX - W - 24.f * S;
+	const float Y = 24.f * S;
+	const FLinearColor BarColor = Threat >= 0.6f ? DangerColor : WarnColor;
+	TextAt(Threat >= 0.6f ? TEXT("IT IS CLOSE") : TEXT("SOMETHING NEAR"), BarColor, X, Y - 18.f * S, nullptr, 0.7f);
+	DrawRect(PanelColor, X - 3.f * S, Y - 3.f * S, W + 6.f * S, H + 6.f * S);
+	DrawRect(BarColor, X, Y, W * Threat, H);
+}
+
+void ADeepHUD::DrawBiteAlarm(const UDeepRunComponent& Run, float RealNow)
+{
+	// Unmissable: a red wash, a full-width flashing band, the countdown and what to do.
+	const bool bFlash = FMath::Frac(RealNow * 3.f) < 0.5f;
+	DrawRect(FLinearColor(0.6f, 0.f, 0.f, bFlash ? 0.28f : 0.14f), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
+	const float BandY = Canvas->ClipY * 0.24f;
+	const float BandH = 72.f * S;
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.85f), 0.f, BandY, Canvas->ClipX, BandH);
+	DrawRect(DangerColor, 0.f, BandY, Canvas->ClipX, 4.f * S);
+	DrawRect(DangerColor, 0.f, BandY + BandH - 4.f * S, Canvas->ClipX, 4.f * S);
+	float Y = BandY + 10.f * S;
+	Y += TextCentered(TEXT("IT HAS YOUR TETHER"), bFlash ? FLinearColor::White : DangerColor, Y, BigFont, 1.2f) + 4.f * S;
+	TextCentered(FString::Printf(TEXT("LAMP ON IT  [%s]   -   CUT IN %.1f s"), *ADeepPlayerController::KeyHint(TEXT("Lamp")), Run.GetBiteAlarmLeft()), WarnColor, Y, nullptr, 1.1f);
+}
+
 void ADeepHUD::DrawCaptain()
 {
 	UDeepCaptain* Captain = UDeepCaptain::Get(this);
@@ -405,7 +453,7 @@ void ADeepHUD::DrawDead(const UDeepRunComponent& Run)
 	const FDeepEconomyTuning& Economy = UDeepTuningSettings::Get().Economy;
 	float Y = Canvas->ClipY * 0.36f;
 	Y += TextCentered(FString::Printf(TEXT("DIVER #%d WRITTEN OFF"), Number), DangerColor, Y, BigFont, 1.4f) + 10.f * S;
-	Y += TextCentered(TEXT("Bailout air ran out. Cargo lost."), TextColor, Y) + 4.f * S;
+	Y += TextCentered(Run.WasLastDeathMonster() ? TEXT("Taken by the serpent. Cargo lost.") : TEXT("Bailout air ran out. Cargo lost."), TextColor, Y) + 4.f * S;
 	Y += TextCentered(FString::Printf(TEXT("Disposal fee  -%d cr"), Economy.DeathFee), DangerColor, Y) + 18.f * S;
 	TextCentered(FString::Printf(TEXT("Replacement diver #%d in %.0f..."), Number + 1, FMath::CeilToFloat(FMath::Max(0.f, Run.GetStateTimeLeft()))), DimColor, Y);
 }

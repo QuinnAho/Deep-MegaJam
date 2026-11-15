@@ -4,7 +4,9 @@
 #include "CoreMinimal.h"
 #include "Components/SpotLightComponent.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
+#include "Story/DeepEventBus.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -76,7 +78,7 @@ namespace DeepMonsterTest
 
 	bool NoEvents(const FDeepMonsterStep& S)
 	{
-		return !S.bBiteStarted && !S.bBiteBroken && !S.bSevered && !S.bCaught && !S.bStartCooldown;
+		return !S.bBiteStarted && !S.bBiteBroken && !S.bSevered && !S.bCaught && !S.bStartCooldown && !S.bRepelled;
 	}
 
 	/** A bare game world, destroyed when this goes out of scope. */
@@ -207,6 +209,7 @@ bool FDeepMonsterStatesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Lurk: cooldown blocks Hunt"), Next(I).Next == EState::Lurk);
 	I = In(EState::Lurk); I.LitSeconds = 0.75f; I.CooldownS = 3.f;
 	TestTrue(TEXT("Lurk -> Recoil when held in the beam"), Next(I).Next == EState::Recoil);
+	TestFalse(TEXT("Lurk: lit while not approaching is not 'repelled'"), Next(I).bRepelled);
 	I = In(EState::Lurk); I.Noise = 100.f; I.bHasDiver = false;
 	TestTrue(TEXT("No diver: nothing changes"), Next(I).Next == EState::Lurk);
 
@@ -226,6 +229,7 @@ bool FDeepMonsterStatesTest::RunTest(const FString& Parameters)
 	I.LitSeconds = 0.75f; I.TetherDistanceM = 1.f;
 	S = Next(I);
 	TestTrue(TEXT("Stalk -> Recoil at 0.75 s in the beam, even at the tether"), S.Next == EState::Recoil && !S.bBiteStarted);
+	TestTrue(TEXT("Stalk: the lamp counts as repelled"), S.bRepelled);
 	I = In(EState::Stalk); I.Noise = 80.f; I.bDiverTethered = false;
 	TestTrue(TEXT("Stalk -> Hunt when the tether is gone"), Next(I).Next == EState::Hunt);
 
@@ -235,10 +239,10 @@ bool FDeepMonsterStatesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Bite: holds through the alarm"), S.Next == EState::Bite && NoEvents(S));
 	I.StateSeconds = 5.f;
 	S = Next(I);
-	TestTrue(TEXT("Bite -> Recoil and severed when the alarm runs out"), S.Next == EState::Recoil && S.bSevered && !S.bBiteBroken);
+	TestTrue(TEXT("Bite -> Recoil and severed when the alarm runs out"), S.Next == EState::Recoil && S.bSevered && !S.bBiteBroken && !S.bRepelled);
 	I.StateSeconds = 4.99f; I.bLitNow = true;
 	S = Next(I);
-	TestTrue(TEXT("Bite -> Recoil at once when the beam hits it"), S.Next == EState::Recoil && S.bBiteBroken && !S.bSevered);
+	TestTrue(TEXT("Bite -> Recoil at once when the beam hits it"), S.Next == EState::Recoil && S.bBiteBroken && !S.bSevered && S.bRepelled);
 	I.StateSeconds = 5.f;
 	S = Next(I);
 	TestTrue(TEXT("Bite: the beam wins a tie with the alarm"), S.bBiteBroken && !S.bSevered);
@@ -261,7 +265,7 @@ bool FDeepMonsterStatesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Hunt: chases"), Next(I).Next == EState::Hunt);
 	I.DiverDistanceM = 1.5f;
 	S = Next(I);
-	TestTrue(TEXT("Hunt -> Recoil and caught on contact"), S.Next == EState::Recoil && S.bCaught);
+	TestTrue(TEXT("Hunt -> Recoil and caught on contact"), S.Next == EState::Recoil && S.bCaught && !S.bRepelled);
 	I.DiverDistanceM = 10.f; I.LitSeconds = 0.75f;
 	S = Next(I);
 	TestTrue(TEXT("Hunt -> Recoil when held in the beam"), S.Next == EState::Recoil && !S.bCaught);
@@ -376,6 +380,8 @@ bool FDeepMonsterWorldTest::RunTest(const FString& Parameters)
 		{
 			Mind->StepMonster(Seconds);
 		}
+		// The run loop reports the diver's noise (winch, sprint, grabs) and carries out bites.
+		Diver->GetRun()->StepRun(Seconds);
 	};
 
 	// Stop 1: no monster.
@@ -405,7 +411,7 @@ bool FDeepMonsterWorldTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Silence keeps it lurking"), Brain->GetState() == EDeepMonsterState::Lurk);
 
-	// It hears the winch through the engine hearing sense (the brain watches the diver and reports noise events).
+	// It hears the winch through the engine hearing sense (the run loop reports the winch as noise events).
 	Diver->SetWinching(true);
 	for (int32 i = 0; i < 3; ++i)
 	{
@@ -481,6 +487,174 @@ bool FDeepMonsterWorldTest::RunTest(const FString& Parameters)
 		StepAll(Dt);
 	}
 	TestEqual(TEXT("OnTetherSevered fires once"), Severed, 1);
+	return true;
+}
+
+// ---------------------------------------------------------------- the serpent wired into the run loop
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterLoopTest, "Deep.World.MonsterLoop",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDeepMonsterLoopTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepMonsterTest;
+	constexpr float Dt = 0.1f;
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+
+	FScopedWorld Scoped;
+	UWorld* World = Scoped.World;
+	ADeepGameMode* GameMode = World->SpawnActor<ADeepGameMode>();
+	UTEST_NOT_NULL(TEXT("Game mode"), GameMode);
+	ADeepSubmarine* Sub = GameMode->EnsureArena();
+	UTEST_NOT_NULL(TEXT("Submarine"), Sub);
+	GameMode->StartPlay();
+	if (UAISystemBase* AISystem = World->GetAISystem())
+	{
+		AISystem->StartPlay();
+	}
+	ADeepDiver* Diver = World->SpawnActor<ADeepDiver>(Sub->GetDiverStartTransform().GetLocation(), FRotator::ZeroRotator);
+	UTEST_NOT_NULL(TEXT("Diver"), Diver);
+	UDeepRunComponent* Run = Diver->GetRun();
+	UDeepMonsterBrain* Brain = World->GetSubsystem<UDeepMonsterBrain>();
+	UDeepEventBus* Bus = UDeepEventBus::Get(World);
+	ADeepGameState* GameState = World->GetGameState<ADeepGameState>();
+	UTEST_TRUE(TEXT("Run, brain, bus and game state"), Run && Brain && Bus && GameState);
+
+	UAIPerceptionSystem* Perception = UAIPerceptionSystem::GetCurrent(*World);
+	auto StepAll = [&](float Seconds)
+	{
+		World->TimeSeconds += Seconds;
+		Brain->Step(Seconds);
+		if (Perception)
+		{
+			Perception->Tick(Seconds);
+		}
+		if (ADeepSerpentController* Mind = Brain->GetSerpentController())
+		{
+			Mind->StepMonster(Seconds);
+		}
+		Run->StepRun(Seconds);
+	};
+	auto LampOn = [&](bool bOn)
+	{
+		if (Diver->IsLampOn() != bOn)
+		{
+			Diver->ToggleLamp();
+		}
+	};
+	// Lamp off, line hanging straight down, head beside the middle of the line, stalking: the next step bites.
+	auto StartBite = [&]()
+	{
+		LampOn(false);
+		const FVector Anchor = Diver->GetTether()->GetAnchorLocation();
+		Diver->TeleportDiver(Anchor - FVector(0.f, 0.f, 3000.f));
+		const FVector Middle = (Anchor + Diver->GetTetherAttachLocation()) * 0.5f;
+		Brain->GetSerpent()->PlaceHead(Middle + FVector(50.f, 0.f, 0.f), -FVector::ForwardVector);
+		Brain->ForceState(EDeepMonsterState::Stalk);
+		Brain->AddNoise(100.f);
+		StepAll(Dt);
+	};
+
+	// ---- Never at stop 1.
+	for (int32 i = 0; i < 10; ++i)
+	{
+		StepAll(Dt);
+	}
+	TestNull(TEXT("No serpent at stop 1"), Brain->GetSerpent());
+	TestEqual(TEXT("No threat at stop 1"), Run->GetMonsterThreat01(), 0.f);
+
+	GameMode->GotoStop(2);
+	StepAll(Dt);
+	UTEST_NOT_NULL(TEXT("Serpent at stop 2"), Brain->GetSerpent());
+	ADeepSerpentController* Mind = Brain->GetSerpentController();
+	UTEST_NOT_NULL(TEXT("Controller"), Mind);
+
+	// ---- Noise is counted once: one second of winching is the winch rate, not double.
+	const float HeardBefore = Mind->GetHeardTotal();
+	Diver->SetWinching(true);
+	for (int32 i = 0; i < 10; ++i)
+	{
+		StepAll(Dt);
+	}
+	Diver->SetWinching(false);
+	StepAll(Dt);
+	const float WinchHeard = Mind->GetHeardTotal() - HeardBefore;
+	const float WinchRate = UDeepMonsterSettings::Get().GetTuning(2).WinchNoisePerS;
+	TestTrue(FString::Printf(TEXT("One second of winch is heard once (%.1f of %.1f)"), WinchHeard, WinchRate), WinchHeard >= WinchRate * 0.7f && WinchHeard <= WinchRate * 1.3f);
+
+	// ---- Noise brings it in: the Captain says "did you hear that?" once.
+	Brain->AddNoise(90.f);
+	StepAll(Dt);
+	TestTrue(TEXT("Noise: stalking"), Brain->GetState() == EDeepMonsterState::Stalk);
+	TestEqual(TEXT("monster_first_heard fired"), Bus->CountOf(DeepEvent::MonsterFirstHeard), 1);
+
+	// ---- A bite left alone ends in the Cut state exactly once, through the loop's own Cut.
+	StartBite();
+	UTEST_TRUE(TEXT("Biting"), Brain->GetState() == EDeepMonsterState::Bite);
+	TestTrue(TEXT("The alarm is up"), Run->IsBiteAlarmOn());
+	TestEqual(TEXT("The alarm counts from 5 s"), Run->GetBiteAlarmLeft(), UDeepMonsterSettings::Get().GetTuning(2).BiteAlarmS, 0.11f);
+	TestEqual(TEXT("bite_alarm fired"), Bus->CountOf(DeepEvent::BiteAlarm), 1);
+	TestTrue(TEXT("Threat is full during the bite"), Run->GetMonsterThreat01() >= 0.999f);
+	const float PatienceBefore = Run->GetPatienceSeconds();
+	StepAll(1.f);
+	TestEqual(TEXT("Patience drains twice as fast during a bite"), PatienceBefore - Run->GetPatienceSeconds(),
+		Tuning.Patience.DrainPerSecond * Tuning.Patience.HuntedMultiplier, 0.01f);
+	int32 CutSteps = 0;
+	while (Run->GetState() == EDeepRunState::Tethered && CutSteps < 100)
+	{
+		TestTrue(TEXT("The alarm stays up until the line goes"), Run->IsBiteAlarmOn());
+		StepAll(Dt);
+		++CutSteps;
+	}
+	TestEqual(TEXT("An unbroken bite ends in Cut"), Run->GetState(), EDeepRunState::Cut);
+	TestTrue(TEXT("Not before the alarm ran out"), 1.f + CutSteps * Dt >= 4.9f);
+	TestEqual(TEXT("cut_bite fired once"), Bus->CountOf(DeepEvent::CutBite), 1);
+	TestEqual(TEXT("Not a Patience cut"), Bus->CountOf(DeepEvent::CutPatience), 0);
+	TestFalse(TEXT("The alarm is down after the cut"), Run->IsBiteAlarmOn());
+	TestFalse(TEXT("The serpent knows the diver is loose"), Brain->IsTethered(Diver));
+	for (int32 i = 0; i < 5; ++i)
+	{
+		StepAll(Dt);
+	}
+	TestEqual(TEXT("Still exactly one cut_bite"), Bus->CountOf(DeepEvent::CutBite), 1);
+
+	// ---- Caught while untethered: death by the serpent, then the next diver.
+	const int32 DiverBefore = GameState->DiverNumber;
+	Brain->GetSerpent()->PlaceHead(Diver->GetActorLocation() + FVector(50.f, 0.f, 0.f), -FVector::ForwardVector);
+	Brain->ForceState(EDeepMonsterState::Hunt);
+	StepAll(Dt);
+	TestEqual(TEXT("Caught untethered: Dead"), Run->GetState(), EDeepRunState::Dead);
+	TestEqual(TEXT("death_monster fired"), Bus->CountOf(DeepEvent::DeathMonster), 1);
+	TestEqual(TEXT("Not an air death"), Bus->CountOf(DeepEvent::DeathAir), 0);
+	TestTrue(TEXT("The death screen names the serpent"), Run->WasLastDeathMonster());
+	Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
+	TestEqual(TEXT("Respawned tethered"), Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Diver number goes up"), GameState->DiverNumber, DiverBefore + 1);
+	TestTrue(TEXT("The serpent knows the new diver is tethered"), Brain->IsTethered(Diver));
+
+	// ---- The lamp during a bite releases it and the tether stays.
+	StartBite();
+	UTEST_TRUE(TEXT("Biting again"), Brain->GetState() == EDeepMonsterState::Bite);
+	TestTrue(TEXT("Alarm up again"), Run->IsBiteAlarmOn());
+	LampOn(true);
+	USpotLightComponent* Lamp = Diver->FindComponentByClass<USpotLightComponent>();
+	UTEST_NOT_NULL(TEXT("Lamp"), Lamp);
+	Brain->GetSerpent()->PlaceHead(Lamp->GetComponentLocation() + Lamp->GetForwardVector() * 1500.f, -Lamp->GetForwardVector());
+	StepAll(Dt);
+	TestTrue(TEXT("The beam breaks the bite at once"), Brain->GetState() == EDeepMonsterState::Recoil);
+	TestFalse(TEXT("Alarm down"), Run->IsBiteAlarmOn());
+	TestEqual(TEXT("monster_repelled fired"), Bus->CountOf(DeepEvent::MonsterRepelled), 1);
+	for (int32 i = 0; i < 80; ++i)
+	{
+		StepAll(Dt);
+	}
+	TestEqual(TEXT("The tether stays"), Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("No second cut_bite"), Bus->CountOf(DeepEvent::CutBite), 1);
+
+	// ---- A new run goes back to stop 1, and the serpent goes with it.
+	Run->ResetRun();
+	StepAll(Dt);
+	TestNull(TEXT("No serpent after a reset to stop 1"), Brain->GetSerpent());
 	return true;
 }
 

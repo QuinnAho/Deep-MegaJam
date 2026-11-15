@@ -130,6 +130,19 @@ namespace
 			DeepStateReport::LogState(World);
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs LampCommand(
+		TEXT("Deep.Lamp"),
+		TEXT("Deep.Lamp <0|1>: turns the diver's lamp off or on."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Lamp"));
+			if (Diver && Args.Num() >= 1 && Diver->IsLampOn() != (FCString::Atoi(*Args[0]) != 0))
+			{
+				Diver->ToggleLamp();
+			}
+			DeepStateReport::LogState(World);
+		}));
+
 	/** Runs Action on the diver's run component (server), then logs state. */
 	void WithRun(UWorld* World, const TCHAR* Command, TFunctionRef<void(UDeepRunComponent&)> Action)
 	{

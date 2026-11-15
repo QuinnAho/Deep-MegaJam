@@ -4,7 +4,9 @@
 #include "Diver/DeepDiver.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "Monster/DeepSerpent.h"
 #include "Monster/DeepMonsterBrain.h"
 #include "Monster/DeepMonsterRules.h"
 
@@ -48,6 +50,35 @@ namespace
 				Brain->SpawnSerpent(true);
 				LogMonster(Brain);
 			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterPlaceCommand(
+		TEXT("Deep.Monster.Place"),
+		TEXT("Deep.Monster.Place <metres> [side_deg]: puts the serpent's head that far in front of the view, swimming across it (side_deg turns its heading; default 90 = left to right)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Place"));
+			APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+			if (!Brain || !Player)
+			{
+				return;
+			}
+			const float Metres = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 12.f;
+			const float SideDeg = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 90.f;
+			FVector ViewLocation;
+			FRotator ViewRotation;
+			Player->GetPlayerViewPoint(ViewLocation, ViewRotation);
+			FVector Forward = ViewRotation.Vector();
+			ADeepSerpent* Serpent = Brain->SpawnSerpent(true);
+			if (!Serpent)
+			{
+				return;
+			}
+			// Heading: the view's forward turned SideDeg about up, kept level so the body lies across the screen.
+			const FVector Level = FVector(Forward.X, Forward.Y, 0.f).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+			const FVector Facing = Level.RotateAngleAxis(SideDeg, FVector::UpVector);
+			Serpent->PlaceHead(ViewLocation + Forward * Metres * 100.f, Facing);
+			LogMonster(Brain);
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs MonsterNoiseCommand(

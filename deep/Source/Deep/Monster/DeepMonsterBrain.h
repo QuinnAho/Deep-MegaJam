@@ -1,7 +1,7 @@
 // The sea serpent's world-level hub (server). Spawns the serpent (a Pawn possessed by ADeepSerpentController,
-// which makes the decisions), watches the divers and reports their noise into Unreal's hearing sense, keeps
-// track of whose tether is cut, and owns the delegates other systems bind to. It does not cut tethers or kill
-// divers itself (see Monster/README.md for the wires).
+// which makes the decisions) at stop 2 and deeper, keeps track of whose tether is cut, and owns the delegates
+// other systems bind to. It does not cut tethers or kill divers itself: UDeepRunComponent listens and does
+// (see Monster/README.md). Noise comes from the loop (UDeepRunComponent) through UDeepMonsterRules::ReportDiverNoise.
 
 #pragma once
 
@@ -33,6 +33,10 @@ public:
 	FDeepMonsterDiverEvent OnTetherSevered;
 	/** It touched an untethered diver: kill them. Fires once, then it recoils. */
 	FDeepMonsterDiverEvent OnDiverCaught;
+	/** Noise brought it in: it starts closing on this diver's tether (Lurk -> Stalk). */
+	FDeepMonsterDiverEvent OnStalkStarted;
+	/** The lamp drove it off this diver (beam held on its head, or any beam during a bite). */
+	FDeepMonsterDiverEvent OnRepelled;
 
 	// ---- Reads (forwarded from the controller; safe with no serpent) ----
 
@@ -44,6 +48,10 @@ public:
 	float GetDiverDistanceM() const;
 	ADeepSerpent* GetSerpent() const { return Serpent.Get(); }
 	ADeepSerpentController* GetSerpentController() const;
+	/** The diver it is after (null with no serpent). */
+	ADeepDiver* GetFocusDiver() const;
+	/** Divers in the water (their run lets them swim): dead, settling and descending divers are not prey. */
+	void GatherDivers(TArray<ADeepDiver*>& Out) const;
 
 	/** `{json}` with present, state, noise, heard, lit_s, cooldown_s, tether_distance_m, diver_distance_m, threat, stop. */
 	FString BuildStateJson() const;
@@ -73,7 +81,7 @@ public:
 	void SetDebugLit(float Seconds);
 	/** Jumps to a state with fresh timers (no events fire). */
 	void ForceState(EDeepMonsterState NewState);
-	/** Spawn bookkeeping and diver noise reporting. Tick calls this; tests call it directly. */
+	/** Spawn bookkeeping (stop 2 and deeper). Tick calls this; tests call it directly. */
 	void Step(float DeltaSeconds);
 
 	// ---- Subsystem ----
@@ -88,15 +96,9 @@ protected:
 
 private:
 	int32 CurrentStop() const;
-	void GatherDivers(TArray<ADeepDiver*>& Out) const;
-	/** Watches each diver (winch, sprint speed, cargo rise) and reports what it hears as engine noise events. */
-	void ReportDiverNoise(const TArray<ADeepDiver*>& Divers, float DeltaSeconds);
 
 	TWeakObjectPtr<ADeepSerpent> Serpent;
 	TSet<TWeakObjectPtr<const ADeepDiver>> CutDivers;
-	TMap<TWeakObjectPtr<const ADeepDiver>, float> LastCargoKg;
-	/** Noise made but not yet reported (events go out in whole units so the engine hears them at full range). */
-	TMap<TWeakObjectPtr<const ADeepDiver>, float> NoiseOwed;
 	/** Spawned by cheat or test: stays even below FirstStop. */
 	bool bForcedSpawn = false;
 };

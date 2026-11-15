@@ -99,7 +99,8 @@ void ADeepSerpent::BeginPlay()
 	Jaw->SetRelativeScale3D(FVector(R * 1.3f, R * 1.3f, R * 1.4f));
 
 	const FVector EyeOffset(R * CmPerM * 1.05f, R * CmPerM * 0.55f, R * CmPerM * 0.35f);
-	const FVector EyeScale(R * 0.32f);
+	// Half the head radius: at 0.32 (first screenshot) the eyes were a faint glint at 7 m.
+	const FVector EyeScale(R * 0.5f);
 	EyeLeft->SetRelativeLocation(FVector(EyeOffset.X, -EyeOffset.Y, EyeOffset.Z));
 	EyeRight->SetRelativeLocation(EyeOffset);
 	EyeLeft->SetRelativeScale3D(EyeScale);

@@ -86,6 +86,7 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 	case EDeepMonsterState::Lurk:
 		if (bDrivenOff)
 		{
+			// Not "repelled": it was not coming for anyone.
 			Out.Next = EDeepMonsterState::Recoil;
 		}
 		else if (In.CooldownS > 0.f)
@@ -106,6 +107,7 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		if (bDrivenOff)
 		{
 			Out.Next = EDeepMonsterState::Recoil;
+			Out.bRepelled = true;
 		}
 		else if (!In.bDiverTethered)
 		{
@@ -128,6 +130,7 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 			// The lamp always works on a bite, at once.
 			Out.Next = EDeepMonsterState::Recoil;
 			Out.bBiteBroken = true;
+			Out.bRepelled = true;
 		}
 		else if (!In.bDiverTethered)
 		{
@@ -153,6 +156,7 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		if (bDrivenOff)
 		{
 			Out.Next = EDeepMonsterState::Recoil;
+			Out.bRepelled = true;
 		}
 		else if (In.bDiverTethered)
 		{
