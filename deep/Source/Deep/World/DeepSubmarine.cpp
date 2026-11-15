@@ -127,14 +127,17 @@ void ADeepSubmarine::LayOut()
 	}
 	Place(Ceiling, FVector(0.0, 0.0, H * 0.5 + Th * 0.5), FVector(OuterL * 2.0, OuterW * 2.0, Th));
 
-	const double RimW = 14.0;
+	// The rim goes through the deck so the yellow frame shows from the deck and from the water below.
+	const double RimW = 16.0;
 	const double RimH = 6.0;
+	const double RimZ = DeckTop - Th * 0.5;
+	const double RimT = Th + RimH * 2.0;
 	if (HatchRim.Num() == 4)
 	{
-		Place(HatchRim[0], FVector(0.0, Hh + RimW * 0.5, DeckTop + RimH * 0.5), FVector(Hh * 2.0 + RimW * 2.0, RimW, RimH));
-		Place(HatchRim[1], FVector(0.0, -Hh - RimW * 0.5, DeckTop + RimH * 0.5), FVector(Hh * 2.0 + RimW * 2.0, RimW, RimH));
-		Place(HatchRim[2], FVector(Hh + RimW * 0.5, 0.0, DeckTop + RimH * 0.5), FVector(RimW, Hh * 2.0, RimH));
-		Place(HatchRim[3], FVector(-Hh - RimW * 0.5, 0.0, DeckTop + RimH * 0.5), FVector(RimW, Hh * 2.0, RimH));
+		Place(HatchRim[0], FVector(0.0, Hh + RimW * 0.5, RimZ), FVector(Hh * 2.0 + RimW * 2.0, RimW, RimT));
+		Place(HatchRim[1], FVector(0.0, -Hh - RimW * 0.5, RimZ), FVector(Hh * 2.0 + RimW * 2.0, RimW, RimT));
+		Place(HatchRim[2], FVector(Hh + RimW * 0.5, 0.0, RimZ), FVector(RimW, Hh * 2.0, RimT));
+		Place(HatchRim[3], FVector(-Hh - RimW * 0.5, 0.0, RimZ), FVector(RimW, Hh * 2.0, RimT));
 	}
 	Place(HatchCover, FVector(0.0, 0.0, DeckZ + 2.0), FVector(Hh * 2.0, Hh * 2.0, Th));
 
@@ -147,7 +150,8 @@ void ADeepSubmarine::LayOut()
 	Place(HelmPanel, FVector(Hm.X + 30.0, Hm.Y, DeckTop + 45.0), FVector(35.0, 120.0, 90.0));
 	Place(Window, FVector(L - 3.0, 0.0, 40.0), FVector(4.0, 170.0, 70.0));
 
-	Place(NoseCone, FVector(OuterL, 0.0, 0.0), FVector(300.0, OuterW * 2.0 * 0.9, H + Th));
+	// Centred just outside the front wall so none of it reaches into the room.
+	Place(NoseCone, FVector(OuterL + 150.0, 0.0, 0.0), FVector(300.0, OuterW * 2.0 * 0.9, H + Th));
 	Place(Tower, FVector(100.0, 0.0, H * 0.5 + Th + 110.0), FVector(300.0, 140.0, 220.0));
 
 	RoomLight->SetRelativeLocation(FVector(-100.0, 0.0, H * 0.5 - 30.0));

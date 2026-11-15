@@ -572,6 +572,8 @@ void UDeepRunComponent::BeginRun()
 		bSeated = false;
 		IdleSeconds = 0.f;
 		SetState(EDeepRunState::Aboard);
+		// The first view of a run: the hatch ahead, the helm beyond it, the console to the right.
+		Diver->ResetToRoom();
 		Diver->SetAboard(true);
 		return;
 	}
