@@ -23,7 +23,8 @@ ADeepAbyssFloor::ADeepAbyssFloor()
 void ADeepAbyssFloor::BeginPlay()
 {
 	Super::BeginPlay();
-	DeepShapes::Tint(Slab, FLinearColor(0.03f, 0.035f, 0.04f));
+	// Mid grey in the grey box: the floor is the clearest "this way is down" in the scene.
+	DeepShapes::Tint(Slab, FLinearColor(0.2f, 0.2f, 0.22f));
 }
 
 void ADeepAbyssFloor::SetSizeM(float SizeM)

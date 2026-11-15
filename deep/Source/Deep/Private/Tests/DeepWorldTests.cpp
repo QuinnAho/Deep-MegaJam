@@ -196,10 +196,32 @@ bool FDeepWorldArenaTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Reports a 3-number position"), Json->GetArrayField(TEXT("pos_cm")).Num(), 3);
 	TestTrue(TEXT("Log line has the DEEPSTATE prefix"), DeepStateReport::LogState(World).StartsWith(TEXT("DEEPSTATE {")));
 
-	for (const TCHAR* Command : { TEXT("Deep.State"), TEXT("Deep.GiveSalvage"), TEXT("Deep.GotoStop"), TEXT("Deep.Teleport") })
+	for (const TCHAR* Command : { TEXT("Deep.State"), TEXT("Deep.GiveSalvage"), TEXT("Deep.GotoStop"), TEXT("Deep.Teleport"), TEXT("Deep.Look") })
 	{
 		TestNotNull(FString::Printf(TEXT("%s is registered"), Command), IConsoleManager::Get().FindConsoleObject(Command));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldGreyBoxTest, "Deep.World.GreyBoxLight",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDeepWorldGreyBoxTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	TestTrue(TEXT("Grey box is on by default"), FDeepArenaTuning().bGreyBox);
+	TestTrue(TEXT("Backdrop fog is near zero"), FDeepArenaTuning().GreyBoxBackdropFogDensity <= 0.001f);
+	TestTrue(TEXT("Key light brighter than fill"), FDeepArenaTuning().GreyBoxKeyLux > FDeepArenaTuning().GreyBoxFillLux && FDeepArenaTuning().GreyBoxFillLux > 0.f);
+
+	// Every stop's light is close to white: stops differ by a mild tint at most.
+	for (int32 Stop = 1; Stop <= Tuning.Stops.Num(); ++Stop)
+	{
+		const FLinearColor Tint = ADeepEnvironment::GreyBoxTint(Tuning.GetStop(Stop), FDeepArenaTuning());
+		TestTrue(FString::Printf(TEXT("Stop %d light is mild"), Stop), FMath::Min3(Tint.R, Tint.G, Tint.B) >= 0.75f && FMath::Max3(Tint.R, Tint.G, Tint.B) <= 1.f + KINDA_SMALL_NUMBER);
+	}
+	FDeepStopTuning Black;
+	Black.FogColor = FLinearColor::Black;
+	TestTrue(TEXT("A black water colour gives white light"), ADeepEnvironment::GreyBoxTint(Black, FDeepArenaTuning()).Equals(FLinearColor::White));
 	return true;
 }
 

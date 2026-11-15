@@ -7,6 +7,7 @@
 #include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
 #include "Game/DeepGameMode.h"
+#include "GameFramework/Controller.h"
 #include "HAL/IConsoleManager.h"
 #include "Sim/DeepTuningSettings.h"
 
@@ -99,6 +100,34 @@ namespace
 				Diver->TeleportDiver(FVector(FCString::Atof(*Args[0]), FCString::Atof(*Args[1]), FCString::Atof(*Args[2])));
 				DeepStateReport::LogState(World);
 			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs LookCommand(
+		TEXT("Deep.Look"),
+		TEXT("Deep.Look <pitch> [yaw]: points the diver's view (degrees; pitch -90 straight down, +90 up; yaw 0 = toward the sub's nose)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.Look <pitch> [yaw]"));
+				return;
+			}
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Look"));
+			AController* Controller = Diver ? Diver->GetController() : nullptr;
+			if (!Controller)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Look: the diver has no controller"));
+				return;
+			}
+			FRotator View = Controller->GetControlRotation();
+			View.Pitch = FMath::Clamp(FCString::Atof(*Args[0]), -89.f, 89.f);
+			if (Args.Num() >= 2)
+			{
+				View.Yaw = FCString::Atof(*Args[1]);
+			}
+			View.Roll = 0.f;
+			Controller->SetControlRotation(View);
+			DeepStateReport::LogState(World);
 		}));
 
 	/** Runs Action on the diver's run component (server), then logs state. */

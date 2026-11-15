@@ -416,6 +416,36 @@ struct FDeepArenaTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float ExposureMaxEV = 2.f;
+
+	/**
+	 * Grey box (Quinn: "no environment yet, just raw gameplay"): no fog shafts, fixed exposure, even key + fill light.
+	 * The stop's fog and sun settings are ignored; the stop's fog colour only tints the light a little.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	bool bGreyBox = true;
+
+	/** Key light from above (lux). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxKeyLux = 3.f;
+
+	/** Fill light from below and the other side (lux), so no face is black. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxFillLux = 1.2f;
+
+	/** Fixed manual exposure compensation (EV). 0 = EV100 0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxExposureEV = 0.f;
+
+	/** 0..1: how far the light leans toward the stop's water colour. Keep it mild. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxTintStrength = 0.15f;
+
+	/** A near-zero fog that only colours the empty background, so dark shapes stand out against it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	float GreyBoxBackdropFogDensity = 0.0004f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
+	FLinearColor GreyBoxBackdropColor = FLinearColor(0.05f, 0.09f, 0.12f);
 };
 
 USTRUCT(BlueprintType)

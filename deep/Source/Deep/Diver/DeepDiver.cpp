@@ -51,6 +51,8 @@ ADeepDiver::ADeepDiver()
 	Lamp->SetRelativeLocation(FVector(10.f, 18.f, -12.f));
 	Lamp->SetMobility(EComponentMobility::Movable);
 	Lamp->SetLightColor(FLinearColor(1.f, 0.95f, 0.85f));
+	// A plain spotlight: no light shafts.
+	Lamp->SetVolumetricScatteringIntensity(0.f);
 
 	Tether = CreateDefaultSubobject<UDeepTetherComponent>(TEXT("Tether"));
 	Run = CreateDefaultSubobject<UDeepRunComponent>(TEXT("Run"));
@@ -61,7 +63,8 @@ ADeepDiver::ADeepDiver()
 	TetherLine->SetUsingAbsoluteRotation(true);
 	TetherLine->SetUsingAbsoluteScale(true);
 	TetherLine->SetCastShadow(false);
-	// Lit by nothing in the scene (lighting channel 1 only): the helmet lamp right next to it made it glow.
+	// Lighting channel 1 only: lit by the scene's even key and fill (ADeepEnvironment), not by the helmet lamp right
+	// next to it, which made it glow.
 	TetherLine->SetLightingChannels(false, true, false);
 	Tether->SetLineMesh(TetherLine);
 }
@@ -82,8 +85,8 @@ void ADeepDiver::BeginPlay()
 	}
 	OnRep_Lamp();
 
-	// Dark cable: a bright tint caught the lamp and read as a glowing rod.
-	DeepShapes::Tint(TetherLine, FLinearColor(0.12f, 0.1f, 0.06f));
+	// A dull yellow cable: reads against the dark water and the floor without glowing.
+	DeepShapes::Tint(TetherLine, FLinearColor(0.45f, 0.36f, 0.08f));
 }
 
 void ADeepDiver::ApplySwimTuning()

@@ -408,6 +408,56 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Winch from the side reaches the airlock"), Diver->GetTether()->IsHome());
 	Diver->SetWinching(false);
 
+	// Alongside the hull at airlock height (the hull's own side, not past its end) and from above the sub: home too.
+	const FVector SubCentre = Sub->GetActorLocation();
+	for (const FVector& From : { Anchor + FVector(0.f, 900.f, 0.f), Anchor + FVector(-300.f, -1200.f, 150.f), SubCentre + FVector(200.f, 0.f, 900.f) })
+	{
+		Diver->TeleportDiver(From);
+		Diver->SetWinching(true);
+		for (int32 Step = 0; Step < 80 && !Diver->GetTether()->IsHome(); ++Step)
+		{
+			Diver->GetTether()->UpdateTether(0.1f);
+		}
+		TestTrue(FString::Printf(TEXT("Winch from %s reaches the airlock"), *(From - Anchor).ToString()), Diver->GetTether()->IsHome());
+		Diver->SetWinching(false);
+	}
+
+	// Stop 2, a full dive: grab, Patience runs out, cut, swim home with the cargo (re-tether + bank), settle, dive
+	// again at stop 2, cut again and die: the replacement diver starts at stop 2.
+	Diver->ResetToStart();
+	Run->StepRun(0.05f);
+	TestEqual(TEXT("Stop 2: tethered"), Run->GetState(), EDeepRunState::Tethered);
+	State->Credits = 50;
+	const FDeepCargoItem Haul = Item(EDeepSalvageSize::Large, 15.f, 200);
+	Diver->AddCargo(Haul);
+	Run->NotifyPickup(Haul);
+	Run->SetPatienceFraction(0.f);
+	Run->StepRun(0.05f);
+	TestEqual(TEXT("Stop 2: Patience out cuts the tether"), Run->GetState(), EDeepRunState::Cut);
+	Run->StepRun(3.f);
+	Diver->TeleportDiver(Anchor);
+	Run->StepRun(0.05f);
+	TestEqual(TEXT("Stop 2: home with cargo after a cut settles"), Run->GetState(), EDeepRunState::Settling);
+	TestEqual(TEXT("Stop 2: settled the haul"), Run->GetSettlement().Gross, 200);
+	TestEqual(TEXT("Stop 2: cargo banked"), Diver->GetCargo().Num(), 0);
+	Run->StepRun(Tuning.Run.SettlementMinSeconds + 0.05f);
+	Run->ContinueAfterSettlement();
+	Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
+	Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
+	TestEqual(TEXT("Stop 2: diving again"), Run->GetState(), EDeepRunState::Tethered);
+	TestTrue(TEXT("Stop 2 or deeper after the second settlement"), State->Stop >= 2);
+	const int32 StopBeforeDeath = State->Stop;
+	const int32 DiverBeforeStop2Death = State->DiverNumber;
+	Run->SetPatienceFraction(0.f);
+	Run->StepRun(0.05f);
+	Run->StepRun(60.f);
+	TestEqual(TEXT("Stop 2: air runs out"), Run->GetState(), EDeepRunState::Dead);
+	Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
+	TestEqual(TEXT("Stop 2: next diver tethered"), Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Stop 2: next diver number"), State->DiverNumber, DiverBeforeStop2Death + 1);
+	TestEqual(TEXT("Stop 2: death keeps the stop"), State->Stop, StopBeforeDeath);
+	TestEqual(TEXT("Stop 2: tether length still the stop's"), Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(StopBeforeDeath, Tuning.Tether), 0.01f);
+
 	// Reset.
 	Run->ResetRun();
 	TestEqual(TEXT("Reset: stop 1"), State->Stop, 1);
