@@ -8,6 +8,11 @@
 			"Name": "Deep",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "DeepToolset",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	],
 	"Plugins": [
@@ -27,6 +32,13 @@
 		},
 		{
 			"Name": "ModelContextProtocol",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "ToolsetRegistry",
 			"Enabled": true,
 			"TargetAllowList": [
 				"Editor"

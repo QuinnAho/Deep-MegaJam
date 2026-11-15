@@ -143,6 +143,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The most common way to miss a jam is a game that was never packaged until the last hour. Ours has been packaged before it has any gameplay. One warning from it: an empty game is already 729 MB on disk, so size needs watching.
 - Evidence: commit `dc33aae` merged into `main`; run 17 in [[Agent Runs]] (Sonnet at medium effort, 67k tokens, 10 minutes).
 
+### 10:05 PM  We can drive the editor from a script, and added our own tool
+- What happened: UE 5.9's built-in MCP server answers on a port we pick (8012 here). `tools\mcp.ps1` is a small command-line client for it, so any agent can start Play In Editor, run a console command, read the log and take a screenshot without a Claude MCP connection. The live editor reports 106 toolsets (about 840 tools), including a Fab toolset. We then added `DeepToolset`, an editor-only C++ module with one tool, `GetState`, and called it through the same client. The editor warm-booted to a listening port in about 50 seconds.
+- Why it matters: Playtests and "does it look right" checks can run from a script, and later gameplay state (oxygen, trust, depth) can be exposed to agents with a few lines per tool. Gotchas found: toolset names are `Module.Class`, and the viewport capture needs `"world": null` passed explicitly.
+- Evidence: branch `tools/mcp`; screenshot `deep\Saved\Harness\mcp\CaptureGameViewport-20261114-215845-957.png` (not committed); note [[Unreal MCP Live Catalog]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
