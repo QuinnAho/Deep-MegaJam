@@ -24,6 +24,8 @@ void ADeepGameState::ResetRun()
 	TotalGross = 0;
 	TotalDirectorCut = 0;
 	TotalFees = 0;
+	HullDamage = 0;
+	HullRepairsOwed = 0;
 }
 
 float ADeepGameState::DepthLimitM() const
@@ -55,6 +57,8 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(ADeepGameState, Credits);
 	DOREPLIFETIME(ADeepGameState, HullRating);
 	DOREPLIFETIME(ADeepGameState, DiverNumber);
+	DOREPLIFETIME(ADeepGameState, HullDamage);
+	DOREPLIFETIME(ADeepGameState, HullRepairsOwed);
 	DOREPLIFETIME(ADeepGameState, bOnTitle);
 	DOREPLIFETIME(ADeepGameState, bWon);
 	DOREPLIFETIME(ADeepGameState, RunSeconds);

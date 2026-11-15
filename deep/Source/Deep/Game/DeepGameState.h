@@ -55,6 +55,14 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	int32 DiverNumber = 1;
 
+	/** Harpoon hits on the hull not yet repaired (repairs by hand come later). See Harpoon/. */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	int32 HullDamage = 0;
+
+	/** Hull hits not yet on a settlement; each becomes one repair fee line. */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	int32 HullRepairsOwed = 0;
+
 	/** The title screen is up: nobody dives, Patience does not drain, the serpent stays away. */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	bool bOnTitle = false;

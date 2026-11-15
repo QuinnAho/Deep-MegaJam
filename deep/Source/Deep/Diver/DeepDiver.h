@@ -14,6 +14,7 @@ class USpotLightComponent;
 class UStaticMeshComponent;
 class UDeepTetherComponent;
 class UDeepRunComponent;
+class UDeepHarpoonComponent;
 class ADeepSalvage;
 
 UCLASS()
@@ -64,6 +65,7 @@ public:
 	const TArray<FDeepCargoItem>& GetCargo() const { return Cargo; }
 	UDeepTetherComponent* GetTether() const { return Tether; }
 	UDeepRunComponent* GetRun() const { return Run; }
+	UDeepHarpoonComponent* GetHarpoon() const { return Harpoon; }
 	/** 0..1 progress of the held cut key. */
 	float GetCutHoldFraction() const;
 
@@ -137,6 +139,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UDeepRunComponent> Run;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UDeepHarpoonComponent> Harpoon;
 
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
 	TArray<FDeepCargoItem> Cargo;

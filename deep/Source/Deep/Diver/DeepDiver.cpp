@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/PlayerController.h"
+#include "Harpoon/DeepHarpoonComponent.h"
 #include "World/DeepSubmarine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -58,6 +59,7 @@ ADeepDiver::ADeepDiver()
 
 	Tether = CreateDefaultSubobject<UDeepTetherComponent>(TEXT("Tether"));
 	Run = CreateDefaultSubobject<UDeepRunComponent>(TEXT("Run"));
+	Harpoon = CreateDefaultSubobject<UDeepHarpoonComponent>(TEXT("Harpoon"));
 
 	TetherLine = DeepShapes::CreateShape(this, TEXT("TetherLine"), DeepShapes::Cylinder);
 	TetherLine->SetupAttachment(GetCapsuleComponent());

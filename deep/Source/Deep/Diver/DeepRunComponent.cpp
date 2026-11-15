@@ -4,6 +4,8 @@
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
+#include "Harpoon/DeepHarpoonComponent.h"
+#include "Harpoon/DeepHarpoonRules.h"
 #include "GameFramework/PlayerController.h"
 #include "Monster/DeepMonsterBrain.h"
 #include "Monster/DeepMonsterRules.h"
@@ -923,7 +925,7 @@ void UDeepRunComponent::Bank()
 	FRandomStream Rng(FMath::Rand() ^ (++FeeSeed * 7919));
 	const int32 MinLines = FMath::Max(1, Economy.FeeLinesMin);
 	const int32 LineCount = Rng.RandRange(MinLines, FMath::Max(MinLines, Economy.FeeLinesMax));
-	const TArray<int32> Amounts = UDeepRules::SplitFee(UDeepRules::SettlementFeeTotal(Gross, Economy), LineCount, Rng.GetCurrentSeed());
+	TArray<int32> Amounts = UDeepRules::SplitFee(UDeepRules::SettlementFeeTotal(Gross, Economy), LineCount, Rng.GetCurrentSeed());
 	TArray<FString> Pool = DeepData::FeeLabels();
 	TArray<FString> Labels;
 	for (int32 Index = 0; Index < Amounts.Num(); ++Index)
@@ -936,6 +938,7 @@ void UDeepRunComponent::Bank()
 		Pool.Remove(Labels.Last());
 	}
 
+	const int32 Repair = DeepHarpoon::BillHullRepairs(GameState, Labels, Amounts);
 	const FDeepSettlement Settled = UDeepRules::Settle(Gross, Amounts, Economy);
 	const bool bRelic = CarriesRelic();
 	FDeepSettlementReport Report;
@@ -954,6 +957,7 @@ void UDeepRunComponent::Bank()
 		GameState->TotalDirectorCut += Settled.DirectorCut;
 		GameState->TotalFees += Settled.Fees;
 		GameState->Credits = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(FMath::Max(0, GameState->Credits)) + Settled.Net));
+		GameState->Credits = UDeepRules::ApplyFee(GameState->Credits, UDeepHarpoonRules::RepairFromCredits(Settled.Gross, Settled.DirectorCut, Settled.Fees, Repair));
 		// The next layer gate (flashlight, then hull upgrade) is bought automatically when affordable.
 		const FDeepHullPurchase Hull = UDeepRules::TryBuyHull(GameState->Credits, GameState->HullRating, Economy);
 		GameState->Credits = Hull.Credits;

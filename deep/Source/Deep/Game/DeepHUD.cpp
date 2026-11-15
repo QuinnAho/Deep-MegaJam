@@ -11,6 +11,7 @@
 #include "Misc/ScopeExit.h"
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
+#include "Harpoon/DeepHarpoonHUD.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptain.h"
@@ -95,6 +96,7 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawThreat(*Run, GetWorld()->GetRealTimeSeconds());
 		DrawPrompts(Diver);
+		DeepHarpoonHUD::Draw(this, Canvas, Diver, S, Font, BigFont);
 		if (Run->IsBiteAlarmOn())
 		{
 			DrawBiteAlarm(*Run, GetWorld()->GetRealTimeSeconds());
@@ -157,7 +159,6 @@ void ADeepHUD::DrawTitle(float RealNow)
 	const float TitleScale = 4.2f;
 	GetTextSize(TEXT("DEEP"), W, H, BigFont, S * TitleScale);
 	DrawText(TEXT("DEEP"), TextColor, (Canvas->ClipX - W) * 0.5f, Canvas->ClipY * 0.17f, BigFont, S * TitleScale);
-	TextCentered(TEXT("The Director's Cut"), CaptainColor, Canvas->ClipY * 0.17f + H + 4.f * S, BigFont, 1.1f);
 
 	const UDeepCaptain* Captain = UDeepCaptain::Get(this);
 	FString Line = Captain ? Captain->GetLastText() : FString();
@@ -183,7 +184,7 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 	const TArray<FString> Lines = {
 		TEXT("W A S D  swim        Mouse  look"),
 		FString::Printf(TEXT("%s / %s  up / down        %s  sprint"), *Key(TEXT("Up")), *Key(TEXT("Down")), *Key(TEXT("Sprint"))),
-		FString::Printf(TEXT("%s or left click  grab        %s  drop"), *Key(TEXT("Grab")), *Key(TEXT("Drop"))),
+		FString::Printf(TEXT("%s  grab        %s  drop        Left click  harpoon (1 per dive)"), *Key(TEXT("Grab")), *Key(TEXT("Drop"))),
 		FString::Printf(TEXT("Hold %s  winch home (loud)        %s  lamp (needs the flashlight)"), *Key(TEXT("Winch")), *Key(TEXT("Lamp"))),
 		FString::Printf(TEXT("Hold %s  ask to be cut loose        %s  menu"), *Key(TEXT("Cut")), *Key(TEXT("Menu"))),
 	};
@@ -276,7 +277,7 @@ void ADeepHUD::DrawReview(const UDeepRunComponent& Run)
 	const int32 Seconds = FMath::FloorToInt(Review.Seconds) % 60;
 	Row(TEXT("Divers expended"), FString::Printf(TEXT("%d"), Review.DiversExpended), Review.DiversExpended > 0 ? WarnColor : TextColor);
 	Row(TEXT("Total gross"), Credits(Review.Gross), TextColor);
-	Row(TEXT("The Director's cut, in total"), FString::Printf(TEXT("-%d cr"), Review.DirectorCut), WarnColor);
+	Row(TEXT("The Captain's cut, in total"), FString::Printf(TEXT("-%d cr"), Review.DirectorCut), WarnColor);
 	Row(TEXT("Fees, in total"), FString::Printf(TEXT("-%d cr"), Review.Fees), DimColor);
 	DrawRect(DimColor, X + Pad, Y + 2.f * S, W - Pad * 2.f, 1.f * S);
 	Y += 8.f * S;
@@ -727,7 +728,7 @@ void ADeepHUD::DrawSettlement(const UDeepRunComponent& Run)
 	TextCentered(TEXT("SETTLEMENT"), CaptainColor, Y, BigFont, 1.2f);
 	Y += Line * 1.6f;
 	Row(TEXT("Gross haul"), Credits(Report.Gross), TextColor);
-	Row(FString::Printf(TEXT("The Director's cut (%d%%)"), Economy.DirectorCutPercent), FString::Printf(TEXT("-%d cr"), Report.DirectorCut), WarnColor);
+	Row(FString::Printf(TEXT("The Captain's cut (%d%%)"), Economy.DirectorCutPercent), FString::Printf(TEXT("-%d cr"), Report.DirectorCut), WarnColor);
 	for (int32 Index = 0; Index < Report.FeeLabels.Num(); ++Index)
 	{
 		const int32 Amount = Report.FeeAmounts.IsValidIndex(Index) ? Report.FeeAmounts[Index] : 0;
