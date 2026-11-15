@@ -64,6 +64,22 @@ UDeepTuningSettings::UDeepTuningSettings()
 		MakeStop(4200.f, 0.6f, FLinearColor(0.004f, 0.01f, 0.02f), 0.1f),
 	};
 
+	// The look of each stop, set apart from the depths above so the two can change on separate branches.
+	// FogDensity 1 = light falls to 1/e in 10 m. FogColor is the far fog's luminance (cd/m2) under the locked
+	// exposure below. SunIntensity is lux from above. Tune live with Deep.Tune Stops[i].<Field> <Value>.
+	if (Stops.Num() >= 3)
+	{
+		Stops[0].FogDensity = 0.6f;
+		Stops[0].FogColor = FLinearColor(0.01f, 0.05f, 0.07f);
+		Stops[0].SunIntensity = 3.f;
+		Stops[1].FogDensity = 0.9f;
+		Stops[1].FogColor = FLinearColor(0.002f, 0.008f, 0.02f);
+		Stops[1].SunIntensity = 0.6f;
+		Stops[2].FogDensity = 1.f;
+		Stops[2].FogColor = FLinearColor(0.0003f, 0.0006f, 0.0015f);
+		Stops[2].SunIntensity = 0.05f;
+	}
+
 	SalvageKinds = {
 		MakeKind(EDeepSalvageSize::Small, TEXT("Scrap"), 2.f, 20, 0.4f, FLinearColor(0.55f, 0.35f, 0.2f)),
 		MakeKind(EDeepSalvageSize::Medium, TEXT("Scrap"), 6.f, 70, 0.7f, FLinearColor(0.45f, 0.45f, 0.5f)),

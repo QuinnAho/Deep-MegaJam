@@ -1,6 +1,7 @@
 #include "World/DeepSubmarine.h"
 
 #include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -46,20 +47,60 @@ ADeepSubmarine::ADeepSubmarine()
 	AirlockLight->SetMobility(EComponentMobility::Movable);
 	AirlockLight->SetLightColor(FLinearColor(1.f, 0.75f, 0.45f));
 	AirlockLight->SetCastShadows(false);
+
+	Floodlight = CreateDefaultSubobject<USpotLightComponent>(TEXT("Floodlight"));
+	Floodlight->SetupAttachment(Root);
+	Floodlight->SetRelativeLocation(FVector(250.f, 0.f, -230.f));
+	Floodlight->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
+	Floodlight->SetMobility(EComponentMobility::Movable);
+	Floodlight->SetLightColor(FLinearColor(0.85f, 0.95f, 1.f));
+	Floodlight->SetCastShadows(false);
+
+	TowerLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("TowerLight"));
+	TowerLight->SetupAttachment(Root);
+	TowerLight->SetRelativeLocation(FVector(100.f, 0.f, 420.f));
+	TowerLight->SetMobility(EComponentMobility::Movable);
+	TowerLight->SetLightColor(FLinearColor(1.f, 0.9f, 0.7f));
+	TowerLight->SetCastShadows(false);
+
+	NoseLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("NoseLight"));
+	NoseLight->SetupAttachment(Root);
+	NoseLight->SetRelativeLocation(FVector(930.f, 0.f, 0.f));
+	NoseLight->SetMobility(EComponentMobility::Movable);
+	NoseLight->SetLightColor(FLinearColor(1.f, 0.15f, 0.1f));
+	NoseLight->SetCastShadows(false);
 }
 
 void ADeepSubmarine::BeginPlay()
 {
 	Super::BeginPlay();
-
-	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
-	AirlockLight->SetIntensity(Arena.SubLightIntensity);
-	AirlockLight->SetAttenuationRadius(Arena.SubLightRadiusM * UDeepRules::CmPerM);
+	ApplyTuning();
 
 	DeepShapes::Tint(Hull, FLinearColor(0.85f, 0.55f, 0.1f));
 	DeepShapes::Tint(NoseCone, FLinearColor(0.85f, 0.55f, 0.1f));
 	DeepShapes::Tint(Tower, FLinearColor(0.2f, 0.2f, 0.22f));
 	DeepShapes::Tint(Airlock, FLinearColor(0.1f, 0.1f, 0.1f));
+}
+
+void ADeepSubmarine::ApplyTuning()
+{
+	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
+	AirlockLight->SetIntensity(Arena.SubLightIntensity);
+	AirlockLight->SetAttenuationRadius(Arena.SubLightRadiusM * UDeepRules::CmPerM);
+	AirlockLight->SetVolumetricScatteringIntensity(Arena.SubLightScattering);
+
+	Floodlight->SetIntensity(Arena.SubFloodIntensity);
+	Floodlight->SetInnerConeAngle(Arena.SubFloodConeDeg * 0.6f);
+	Floodlight->SetOuterConeAngle(Arena.SubFloodConeDeg);
+	Floodlight->SetAttenuationRadius(Arena.SubFloodRangeM * UDeepRules::CmPerM);
+	Floodlight->SetVolumetricScatteringIntensity(Arena.SubLightScattering);
+
+	for (UPointLightComponent* Marker : { TowerLight.Get(), NoseLight.Get() })
+	{
+		Marker->SetIntensity(Arena.SubMarkerIntensity);
+		Marker->SetAttenuationRadius(Arena.SubMarkerRadiusM * UDeepRules::CmPerM);
+		Marker->SetVolumetricScatteringIntensity(Arena.SubLightScattering * 4.f);
+	}
 }
 
 FVector ADeepSubmarine::GetAnchorLocation() const

@@ -300,10 +300,10 @@ struct FDeepArenaTuning
 
 	/** Small glint light on each salvage piece. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
-	float SalvageGlintIntensity = 600.f;
+	float SalvageGlintIntensity = 3000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
-	float SalvageGlintRadiusM = 4.f;
+	float SalvageGlintRadiusM = 5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float SubLightIntensity = 20000.f;
@@ -311,11 +311,36 @@ struct FDeepArenaTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float SubLightRadiusM = 25.f;
 
+	/** Volumetric scattering of each glint: above 1 gives the piece a halo in the water. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
-	float ExposureMinEV = -3.f;
+	float SalvageGlintScattering = 3.f;
+
+	/** Volumetric scattering of the sub's lights (markers get four times this). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float SubLightScattering = 1.f;
+
+	/** Work light under the sub's belly, pointing down at the salvage field. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float SubFloodIntensity = 100000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
-	float ExposureMaxEV = 2.f;
+	float SubFloodConeDeg = 35.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float SubFloodRangeM = 60.f;
+
+	/** Marker lights on the sub's tower and nose. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float SubMarkerIntensity = 3000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float SubMarkerRadiusM = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float ExposureMinEV = -1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float ExposureMaxEV = -1.f;
 };
 
 USTRUCT(BlueprintType)

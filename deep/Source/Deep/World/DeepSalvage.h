@@ -26,6 +26,9 @@ public:
 	/** What the diver gets for picking this up. */
 	FDeepCargoItem ToCargo() const;
 
+	/** Re-applies the look and glint from the kind and UDeepTuningSettings::Arena (Deep.Env.Apply). */
+	void ApplyKind();
+
 	/** Half the stand-in's size, for reach checks. */
 	float GetRadiusM() const { return Kind.SizeM * 0.5f; }
 
@@ -37,7 +40,7 @@ protected:
 	UFUNCTION()
 	void OnRep_Kind();
 
-	void ApplyKind();
+
 
 	UPROPERTY(ReplicatedUsing = OnRep_Kind, VisibleAnywhere, Category = "Deep")
 	FDeepSalvageKind Kind;

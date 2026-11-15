@@ -83,6 +83,7 @@ void ADeepSalvage::ApplyKind()
 	Glint->SetIntensity(Arena.SalvageGlintIntensity);
 	Glint->SetAttenuationRadius(Arena.SalvageGlintRadiusM * UDeepRules::CmPerM);
 	Glint->SetLightColor(Kind.Color);
+	Glint->SetVolumetricScatteringIntensity(Arena.SalvageGlintScattering);
 }
 
 void ADeepSalvage::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

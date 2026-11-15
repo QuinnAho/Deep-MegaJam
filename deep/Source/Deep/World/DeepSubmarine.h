@@ -9,6 +9,7 @@
 
 class UStaticMeshComponent;
 class UPointLightComponent;
+class USpotLightComponent;
 
 UCLASS()
 class DEEP_API ADeepSubmarine : public AActor
@@ -25,6 +26,9 @@ public:
 	/** Where a new diver appears: under the airlock, facing along the sub. */
 	UFUNCTION(BlueprintPure, Category = "Deep")
 	FTransform GetDiverStartTransform() const;
+
+	/** Re-reads the light numbers from UDeepTuningSettings::Arena (BeginPlay and Deep.Env.Apply). */
+	void ApplyTuning();
 
 protected:
 	virtual void BeginPlay() override;
@@ -46,4 +50,15 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> AirlockLight;
+
+	/** Work light under the belly, pointing down at the salvage field: a visible cone that says "down there". */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USpotLightComponent> Floodlight;
+
+	/** Small glowing marker lights on the tower and nose so the sub reads in the dark. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UPointLightComponent> TowerLight;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UPointLightComponent> NoseLight;
 };
