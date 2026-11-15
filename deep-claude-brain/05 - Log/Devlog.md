@@ -532,6 +532,15 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - frames `devlog/media/2026-11-15-serpent-physics-{side-0.0s,side-0.4s,side-0.8s,cavern,face}.png` on `polish/serpent-look`; the frames page, version 20;
   - row 89 in [[Agent Runs]].
 
+### 3:30 PM  Quinn asks for a gun with knockback; the harpoon is that gun, so it gets the kick (orchestrator)
+- **What happened:**
+  - **The ask.** At about 3:22 PM Quinn asked for "the gun, where it gives you knockback when you shoot at the serpent on the tether", and said he was not sure it adds to the fun.
+  - **What the code already had.** The orchestrator read the harpoon before answering. The gun has been in since D-021: one shot per dive, with a 25 m range. A bolt into the serpent drives it off as the lamp does, but loudly (noise 60), so it can come back. A bolt into the sub reels the diver home, which is the way back when the tether is cut. So the one shot is already a choice: save yourself now, or keep your way home. Firing shook the camera by 1 cm and 0.6 degrees for 0.18 s, and did nothing to the diver.
+  - **The call.** Yes, as the harpoon's recoil, not as a second gun. The single shot gets weight. In water a shot should push the shooter back. And the shove opens a beat of distance from the serpent before the noise brings it back: tension, release, tension. More ammunition, or a gun that kills the serpent, was turned down, because plenty of shots turns a horror game into a shooter.
+  - **The dispatch.** With the freeze at 5:30 PM, the orchestrator started the work at about 3:27 PM, before Quinn's yes, on its own branch (`polish/harpoon-kick` in `.wt\dev`, from integration `1bc6cd0`). One word from him stops it. An Opus engineer (row 91) writes a pure recoil rule first: 3.5 m/s opposite the aim, gone in half a second, about a metre. Then the hook, a firmer shake on the shot, and a new thud when a bolt strikes the serpent. The brief rules out `LaunchCharacter`, which would put the swimming diver into a falling mode, and asks that the kick end the moment a reel begins, so that a shot at the sub still reels the diver home in S5.
+- **Why it matters:** the last two hours before the freeze go to feel. The change is small and sits on its own branch. At merge the gate is verify plus the scripted playthroughs that fire the harpoon (S5, S10).
+- **Evidence:** row 91 in [[Agent Runs]]; D-047; `deep/Source/Deep/Harpoon/DeepHarpoonComponent.cpp` (the shot at about lines 268 to 318, the reel at about line 484); `deep/Source/Deep/Camera/DeepCameraRules.cpp` line 43 (the old shake).
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

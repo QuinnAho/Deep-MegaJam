@@ -55,6 +55,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
 | D-045 | Toward the end: review each diff, test only what it touches; the full run-through at the freeze | Quinn, about 2:12 PM Nov 15; in `.claude/loop.md` |
 | D-046 | The serpent is one model again, and its body moves by physics, dragged by the head | Quinn, about 2:36 PM Nov 15; being built on `polish/serpent-look` |
+| D-047 | The harpoon kicks the diver back when it fires | Quinn's ask, about 3:22 PM Nov 15; being built on `polish/harpoon-kick`; one word from him stops it |
 
 ## Open
 
@@ -68,6 +69,16 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-047 The harpoon kicks the diver back when it fires
+- **Status:** Quinn's ask, about 3:22 PM Nov 15. Started at about 3:27 PM on `polish/harpoon-kick` (row 91 in [[Agent Runs]]), before his yes, because the freeze is at 5:30 PM. One word from him stops it, and nothing merges into `main` without his "merge".
+- **Date:** 2026-11-15, about 3:22 PM EST
+- **Who:** Quinn asked. The shape is the orchestrator's.
+- **His words:** "so something that i was thinkif of adding is the gun, where it gives you knockback when you shoot at the serpent on the tether but not sure  feel like it adds to the fun factor"
+- **What it changes:** no second gun. The harpoon (D-021) is the gun, with one shot per dive. A shot now shoves the diver back, opposite the aim: 3.5 m/s at first, gone in half a second, about a metre in all. The camera kicks harder on the shot, and a bolt into the serpent lands with a thud. The shove ends the moment a reel starts, so a shot at the sub still reels the diver home.
+- **Why:** the single shot gets weight. In water a shot should push the shooter back. And the shove opens a beat of distance from the serpent before the shot's noise brings it back.
+- **Not done, on purpose:** more shots, or a gun that kills the serpent. Plenty of ammunition turns a horror game into a shooter, and the lamp stays the main defence.
+- **Fallback:** if the gate fails or Quinn dislikes the feel, the branch is not merged and integration is unchanged.
 
 ### D-046 The serpent is one model again, and its body moves by physics, dragged by the head
 - **Status:** Quinn's direction, about 2:36 PM Nov 15. Being built on `polish/serpent-look` (row 89 in [[Agent Runs]]); frames before any merge.
