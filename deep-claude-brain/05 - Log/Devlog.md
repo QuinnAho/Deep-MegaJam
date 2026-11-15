@@ -610,6 +610,26 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - frames `devlog/media/2026-11-15-rescope-hud-helm-readout.png`, `devlog/media/2026-11-15-rescope-cave-{060m,150m,250m-bright,stop2}.png`, `devlog/media/2026-11-15-rescope-light-{before,after}-{helm,water,deep,stat}.png` and `devlog/media/2026-11-15-rescope-monster-taunt.png`;
   - rows 92 to 99 in [[Agent Runs]]; D-049.
 
+### 6:05 PM  The freeze run-through starts 40 minutes early, and the itch page describes the game as it is now (orchestrator)
+- **What happened:**
+  - **The frames page, version 21** (6:00 PM), puts the six re-scope areas first, with 19 frames and plain verdicts:
+    - the helm's levers are plain sticks;
+    - from the helm the cave rock barely reads except in the floods, and the first grade looked like crumpled paper at 250 m;
+    - the wider lamp is still dim at 501 m;
+    - the room is clearly better;
+    - during a taunt the harpoon's reticle labels the serpent "SERPENT 8 m" in red, which breaks the calm screen.
+  - Quinn's asks on it: play the build, keep or hide the helm's sonar, keep or drop the serpent's name tag, and "merge".
+  - **The hand-play build** `Builds\HandPlay-1800` (from `7698723`, 1,048 MB) passed its smoke run at 5:59 PM.
+  - **Started early, on purpose.** Every lane had merged by 5:43 PM and nothing is in flight, so waiting for 6:45 PM would only find a failure 40 minutes later. Main's notes merged into integration as `9ac970e` (no code), and at 6:05 PM the full run-through started there: verify, all 14 playthroughs, package, smoke and zip. Eight of the 14 have not run on the merged build yet: S0, S1, S4, S5, S6, S8, S10-cutdrop and S12. If Quinn asks for a change, only what it touches runs again.
+  - **The itch page and the shot list** describe the re-scoped game (row 100, a Sonnet writer working from the lane notes). Before committing, the orchestrator checked them against the code:
+    - the keys against the input map (T is bound by the tether, the harpoon by its own component);
+    - Q still cuts the line, and the Captain's cut is 40 percent;
+    - the lamp held on the serpent for 3 s drives it off;
+    - parking needs the sub within 5 m of the stop, under 1.2 m/s, with the throttle at stop, the ballast neutral and the rudder centred.
+  - Two fixes: the draft's time said 7 PM, and "silent by default" described a setting, so the page now says the Captain never says a word.
+- **Why it matters:** a failure found at 6:30 PM can still be fixed before the video. One found at 7:15 PM costs the video or the page.
+- **Evidence:** integration `9ac970e` (pushed); `devlog/itch-page.md`; [[Video Shot List]]; row 100 in [[Agent Runs]]; the frames page, version 21.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

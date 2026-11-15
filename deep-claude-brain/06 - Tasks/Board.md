@@ -20,6 +20,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 
 **Now (4:20 PM): the re-scope (D-048)**
 
+- **6:05 PM: the freeze run-through started early** on integration `9ac970e` (main's notes merged in, no code): verify, all 14 playthroughs, package, smoke and zip. Every lane had merged by 5:43 PM, so there was nothing to wait for. If Quinn asks for a change, only what it touches runs again. The itch page and [[Video Shot List]] now describe the re-scoped game (row 100), checked against the code.
 - **5:55 PM: all seven lanes are in integration `7698723`, pushed.** Verify passed with 164 of 164 tests; on the merged build S7-run (48 s), S3-serpent (12 s), S11-pass (104 s), S10-relic (69 s), S2-gate (40 s) and S9-floor (149 s) passed. Driving the merged rock, every GPU reading is under 16.7 ms; the closest is the sub's room at stop 2 (16.4 ms, mostly its own lights). Next: a hand-play package for Quinn, `Builds\HandPlay-1800`, then the freeze at 6:45 PM.
 - **Quinn's verdict at about 3:50 PM:** the game is not good enough, and maybe not worth submitting. The orchestrator disagreed about submitting: integration `cee150a` is packaged and tested, so it is the floor, and the team submits at least that.
 - **Five lanes since about 4:15 PM**, each an Opus engineer on its own branch from `cee150a`, each reporting by 5:30 PM and stopping at 5:45 PM with what is green (rows 92 to 96 in [[Agent Runs]]):
@@ -31,7 +32,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 - **The shared seams.** The helm lane owns the helm functions in `DeepRunComponent` and the placement block in `ADeepShaft::Follow`; the tether lane owns the patience and cut code; the cave lane owns the rest of `DeepShaft.cpp` and the insides of `UDeepCaveRules::Contact`, whose signature stays. The contract: the shaft follows the arena root, whose rotation is a pure yaw of minus `SubYawDeg`, identity at yaw 0. A branch that conflicts at merge goes back to its agent; the orchestrator writes no game code.
 - **As each lands**, in integration in `.wt\monster`: review the diff, build, verify through the slot, the lane's playthroughs, package if C++ or materials changed, push. Frames to Quinn on the frames page.
 - **Schedule (replaces D-038):** lanes merge 5:15 to 6:30 PM; Quinn hand-plays about 6:15 to 6:40 PM; freeze at 6:45 PM: verify, every playthrough, package, smoke, and a zip under 1 GB; video 7:10 to 7:40 PM; itch page and form 7:40 to 8:15 PM; submit about 8:30 PM.
-- After the re-scope, the itch page (`devlog/itch-page.md`) and [[Video Shot List]] need the new helm keys.
+- After the re-scope, the itch page (`devlog/itch-page.md`) and [[Video Shot List]] needed the new helm keys. **Done** at 6:05 PM (row 100), checked against the code on `9ac970e`.
 
 **Earlier (1:50 PM): the scope changed (D-038 to D-042)**
 
