@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
+#include "World/DeepRopeComponent.h"
 #include "EngineUtils.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/PlayerController.h"
@@ -61,16 +62,11 @@ ADeepDiver::ADeepDiver()
 	Run = CreateDefaultSubobject<UDeepRunComponent>(TEXT("Run"));
 	Harpoon = CreateDefaultSubobject<UDeepHarpoonComponent>(TEXT("Harpoon"));
 
-	TetherLine = DeepShapes::CreateShape(this, TEXT("TetherLine"), DeepShapes::Cylinder);
+	// The tether as a rope: a chain of short segments the tether component drives each frame (World/DeepRopeComponent).
+	// Lit like everything else outside, so it shows where the lamp or the sub's lights catch it and is dark elsewhere.
+	TetherLine = CreateDefaultSubobject<UDeepRopeComponent>(TEXT("TetherLine"));
 	TetherLine->SetupAttachment(GetCapsuleComponent());
-	TetherLine->SetUsingAbsoluteLocation(true);
-	TetherLine->SetUsingAbsoluteRotation(true);
-	TetherLine->SetUsingAbsoluteScale(true);
-	TetherLine->SetCastShadow(false);
-	// Lighting channel 1 only: lit by the scene's even key and fill (ADeepEnvironment), not by the helmet lamp right
-	// next to it, which made it glow.
-	TetherLine->SetLightingChannels(false, true, false);
-	Tether->SetLineMesh(TetherLine);
+	Tether->SetLineRope(TetherLine);
 }
 
 void ADeepDiver::BeginPlay()
@@ -95,8 +91,9 @@ void ADeepDiver::BeginPlay()
 	}
 	OnRep_Lamp();
 
-	// A dull yellow cable: reads against the dark water and the floor without glowing.
-	DeepShapes::Tint(TetherLine, FLinearColor(0.45f, 0.36f, 0.08f));
+	// A worn, dull yellow line: reads where light lands on it without glowing.
+	const UDeepTuningSettings& Settings = UDeepTuningSettings::Get();
+	TetherLine->Configure(Settings.Rope.TetherPoints, Settings.Tether.LineThicknessCm, Settings.Rope.TetherColor, true);
 }
 
 void ADeepDiver::ApplySwimTuning()

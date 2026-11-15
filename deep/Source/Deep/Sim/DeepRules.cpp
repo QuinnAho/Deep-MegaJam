@@ -36,6 +36,17 @@ float UDeepRules::TetherLengthM(int32 Stop, const FDeepTetherTuning& Tuning)
 	return FMath::Max(0.f, Tuning.BaseLengthM + Tuning.LengthPerStopM * static_cast<float>(Extra));
 }
 
+float UDeepRules::RopeShownLengthCm(float StraightCm, float TetherLengthCm, bool bTaut, const FDeepRopeTuning& Rope)
+{
+	StraightCm = FMath::Max(0.f, StraightCm);
+	if (bTaut)
+	{
+		return StraightCm;
+	}
+	const float Slack = FMath::Min3(StraightCm * Rope.SlackShare, Rope.SlackMaxM * CmPerM, TetherLengthCm - StraightCm);
+	return StraightCm + FMath::Max(0.f, Slack);
+}
+
 FDeepTetherSolve UDeepRules::SolveTether(const FVector& AnchorCm, const FVector& WantedCm, float LengthM, const FDeepTetherTuning& Tuning)
 {
 	FDeepTetherSolve Out;

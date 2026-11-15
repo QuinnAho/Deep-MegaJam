@@ -43,6 +43,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FDeepTetherSolve SolveTether(const FVector& AnchorCm, const FVector& WantedCm, float LengthM, const FDeepTetherTuning& Tuning);
 
+	/**
+	 * Visual only: how long the drawn rope is (cm). Taut (winch, or at full length) = the straight line; otherwise the
+	 * straight line plus a share of slack, capped by SlackMaxM and by the line left on the reel.
+	 */
+	static float RopeShownLengthCm(float StraightCm, float TetherLengthCm, bool bTaut, const FDeepRopeTuning& Rope);
+
 	/** The winch's speed: RelicWinchSpeedMps while the relic is aboard, else WinchSpeedMps. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static float WinchSpeedMps(bool bCarryingRelic, const FDeepTetherTuning& Tuning);
