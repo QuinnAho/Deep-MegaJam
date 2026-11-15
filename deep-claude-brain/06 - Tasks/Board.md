@@ -1,11 +1,11 @@
 ---
-updated: 2026-11-15 00:15 EST
+updated: 2026-11-15 00:12 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (written 12:15 AM Nov 15)
+## Handoff for a fresh orchestrator session (written 12:12 AM Nov 15)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Two agents are running. Their reports go to the session that started them, so a new session checks their branches instead:
 
