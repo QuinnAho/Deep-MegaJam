@@ -77,7 +77,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 |---|---|---|---|
 | 1 | Play the whole run by hand and say what is wrong with how it plays. | Quinn | todo |
 | 1a | Prove the loop with simulated key and mouse input, and list where real input fails. | Sonnet agent | done, `b8b4037` |
-| 1b | **Fast scripted playtests.** Most of the time is the script, not the game: about 200 of 303 s is a new process per MCP call. In-process calls, one reused editor, polling, then a `-Speed` option with an equivalence check. | Sonnet agent | deferred (D-031); part-done work on a branch |
+| 1b | **Fast scripted playtests.** Parked on `parked/fast-playtests` (`4b710b8`). One in-process MCP session with polling takes S0 to S7 from 472 s to 174 s, all passing with the same end states. Left to do when playtests resume: `S8-keys` fails on the new script (a key-hold timing; a fix is written and untested), the `-Speed` option and the background-throttle flag are untested, and `S9-side-return` is not written. | Sonnet agent | deferred (D-031) |
 | 2 | Fix batch two: what the playthrough found. | Opus engineer | done, `0874fe5`; proof in real play pending (`S9-side-return`) |
 | 3 | Real sound files replace the generated ones: import under `/Game/Audio/`, put the path in that row of `Sounds.csv`, run `Deep.Audio.Reload`. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
 | 4 | The Captain's voice. | writer | blocked on Quinn's choice |
