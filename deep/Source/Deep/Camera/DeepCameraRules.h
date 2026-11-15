@@ -34,4 +34,7 @@ namespace DeepCameraRules
 
 	/** Interference target 0..1: 0 beyond the far distance, NearMax at the near one, 1 in a bite, at least the burst. */
 	DEEP_API float InterferenceTarget(float SerpentDistanceM, bool bBiting, float BurstLeftS, const FDeepCameraTuning& Tuning);
+
+	/** One step of the shown strength toward Target: rises four times faster than it falls, so a hit reads at once. */
+	DEEP_API float InterferenceStep(float Current, float Target, float DeltaSeconds, const FDeepCameraTuning& Tuning);
 }

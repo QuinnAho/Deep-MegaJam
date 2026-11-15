@@ -679,6 +679,13 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Evidence: build green; Deep.Sim.Audio, Deep.World.Audio and Deep.Story 11 of 11 passed (Deep.Sim.Audio.Music is new; the mix test now covers the danger tiers).
 - Not done: the 1.5 kHz low-pass on outside sounds while inside. Inside, the outside drone and the serpent are already silent, so the filter would only touch creature one-shots and would mean editing PlayEvent, which the sonar lane had just changed.
 
+### 1:15 PM  The feed breaks up as the serpent closes (polish/camera)
+- What happened: A third camera material, `M_FeedInterference`, degrades the picture like a failing camera feed: torn scanline bands, a rolling wobble, a red and blue split, snow and a rare dropout line. Its strength follows the serpent's head distance to the camera (from 30 m down to 4 m), goes to full in a bite and bursts for half a second on `hull_hit`. It rises four times faster than it falls. The switch is `Deep.Look.Interference`, off until Quinn approves frames; `Deep.Camera.Interference <0..1>` forces a strength for shots.
+- Failure, then fix: the first frames had diagonal stripes through the snow, and black went grey at full strength. The classic `frac(sin(dot(...)))` hash loses precision on the GPU at large inputs and lines up diagonally. A Hoskins hash fixed it. The snow now mostly multiplies the picture, so black stays black and only lit rock crawls. The bright dropout lines were cut from about three a frame to one, at half the brightness.
+- Measured: at the helm at 300 m (1707x1067), GPU 8.15 ms with it idle and 8.45 ms at full strength, about 0.3 ms. Weight 0 while idle, so it costs nothing until the serpent is near.
+- Not seen yet: a real bite. `hull_hit` is not broadcast by any game code yet, and the bite state is known only on the server, so clients get the distance part alone.
+- Evidence: `Deep.Camera` 3 of 3. Frames in `.wt/camera/deep/Saved/Harness/shots/camera/`: `interf-helm-0.5`, `interf-helm-1.0a`, `interf-helm-1.0b`, `interf-water-0.6`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

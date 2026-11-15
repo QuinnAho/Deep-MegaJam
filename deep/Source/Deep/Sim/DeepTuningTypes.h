@@ -1686,6 +1686,26 @@ struct FDeepCameraTuning
 	/** Strength eases toward its target at this rate (per second). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
 	float InterferenceEasePerS = 4.f;
+
+	/** The interference post-process material (M_FeedInterference: static, line tearing, colour split). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	FSoftObjectPath InterferenceMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_FeedInterference.M_FeedInterference"));
+
+	/** At full strength: how far a torn band jumps sideways (fraction of the screen width). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceTear = 0.03f;
+
+	/** At full strength: red and blue pulled apart sideways (fraction of the screen width). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceSplit = 0.006f;
+
+	/** At full strength: how much of the picture is static snow (0..1). Kept low so the dark stays dark. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceStatic = 0.3f;
+
+	/** Bands down the screen that tear as one (fewer = thicker tears). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
+	float InterferenceBands = 70.f;
 };
 
 /** The helm's sonar (Sonar lane, Nov 15): a sweeping plan view round the sub, two slices, contacts and a proximity tone. */

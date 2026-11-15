@@ -119,6 +119,11 @@ bool FDeepCameraLookTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("NearMax at the near distance"), FMath::IsNearlyEqual(DeepCameraRules::InterferenceTarget(T.InterferenceFarNearM.Y, false, 0.f, T), T.InterferenceNearMax));
 	TestEqual(TEXT("Full in a bite"), DeepCameraRules::InterferenceTarget(100.f, true, 0.f, T), 1.f);
 	TestEqual(TEXT("A burst on a hit"), DeepCameraRules::InterferenceTarget(100.f, false, 0.2f, T), T.InterferenceBurst);
+	const float Up = DeepCameraRules::InterferenceStep(0.f, 1.f, 0.05f, T);
+	const float Down = 1.f - DeepCameraRules::InterferenceStep(1.f, 0.f, 0.05f, T);
+	TestTrue(TEXT("A hit reads at once: it rises faster than it falls"), Up > Down && Down > 0.f);
+	TestEqual(TEXT("Never past its target"), DeepCameraRules::InterferenceStep(0.5f, 0.6f, 10.f, T), 0.6f);
+	TestTrue(TEXT("The feed bends, it does not dissolve"), T.InterferenceStatic > 0.f && T.InterferenceStatic < 0.5f && T.InterferenceSplit > 0.f && T.InterferenceTear > 0.f);
 	return true;
 }
 

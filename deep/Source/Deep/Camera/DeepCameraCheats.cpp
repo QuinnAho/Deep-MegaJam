@@ -1,5 +1,6 @@
 // Camera cheats: Deep.Camera.TestShake <event> plays an event's shake without firing the event; Deep.Camera.TestPing
-// [rangeM] draws a sonar pulse from the sub (even with Deep.Sonar.Pulse 0, so it can be previewed).
+// [rangeM] draws a sonar pulse from the sub (even with Deep.Sonar.Pulse 0, so it can be previewed); Deep.Camera.Interference
+// <0..1|-1> forces the feed interference for shots (-1 = follow the serpent again).
 
 #include "CoreMinimal.h"
 #include "Camera/DeepCameraSubsystem.h"
@@ -52,6 +53,21 @@ namespace
 				Origin = PC->PlayerCameraManager->GetCameraLocation();
 			}
 			Camera->StartPulse(Origin, RangeM);
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs InterferenceCommand(
+		TEXT("Deep.Camera.Interference"),
+		TEXT("Deep.Camera.Interference <0..1|-1>: forces the feed interference to that strength (even with Deep.Look.Interference 0); -1 = follow the serpent again."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepCameraSubsystem* Camera = UDeepCameraSubsystem::Get(World);
+			if (!Camera || Args.Num() < 1)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Usage: Deep.Camera.Interference <0..1|-1> (needs a game world)"));
+				return;
+			}
+			Camera->SetInterferenceOverride(FCString::Atof(*Args[0]));
 			DeepStateReport::LogState(World);
 		}));
 }

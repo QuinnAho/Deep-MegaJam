@@ -1,4 +1,4 @@
-# Rebuilds the camera lane's two post-process materials from text. Run headless (no editor window), in the machine slot:
+# Rebuilds the camera lane's post-process materials from text. Run headless (no editor window), in the machine slot:
 #   UnrealEditor-Cmd.exe deep\Deep.uproject -run=pythonscript -Script="<abs path to this file>"
 #     -EnablePlugins=PythonScriptPlugin -unattended -nopause -nosplash -AllowCommandletRendering
 # Recipe and sources: deep-claude-brain/03 - Research/Camera - Footage Look and Sonar Pulse Recipe.md
@@ -14,6 +14,10 @@
 #   M_FootageLens : slight barrel distortion for the footage look (Deep.Look.Footage). Post-process, after the
 #                   tonemapper, priority above the pulse so the overlay bends with the picture. Samples PostProcessInput0
 #                   at a radially pushed UV, normalised so the corners stay on the corners (no black edge).
+#   M_FeedInterference : the feed breaking up as the serpent closes (Deep.Look.Interference). Post-process, after the
+#                   tonemapper, priority above the lens (the signal fails after the optics). Bands of lines tear sideways and
+#                   a rolling band wobbles (UV offsets per band, hashed per frame); red and blue sample apart (the same UV
+#                   offsets per channel); dim static snow, scanlines and a rare dropout line. Strength S 0..1 from C++.
 import unreal
 
 PATH = "/Game/Deep/Camera"
@@ -174,5 +178,85 @@ def build_lens():
     finish(mat)
 
 
-build_pulse()
-build_lens()
+FEED_UV_HLSL = r"""
+float t = floor(TimeS * 24.0);
+float band = floor(UV.y * Bands);
+// Hoskins hash (the sin hash streaks diagonally on the GPU at large inputs).
+float3 q = frac(float3(band, t, band + t) * float3(0.1031, 0.1030, 0.0973));
+q += dot(q, q.yzx + 33.33);
+float h = frac((q.x + q.y) * q.z);
+float h2 = frac((q.x + q.z) * q.y);
+// A few bands tear sideways: more of them, and further, as the strength rises.
+float tear = step(1.0 - 0.3 * S, h) * (h2 - 0.5) * 2.0;
+// A slow rolling band where the lines wobble.
+float roll = frac(UV.y + TimeS * 0.21);
+float wob = exp(-pow((roll - 0.5) * 10.0, 2.0)) * sin(UV.y * 600.0 + TimeS * 50.0);
+float dx = (tear * Tear + wob * Tear * 0.25) * S * S;
+return float2(UV.x + dx, UV.y);
+"""
+
+FEED_HLSL = r"""
+float3 c = float3(R.r, G.g, B.b);
+float t = floor(TimeS * 30.0);
+float2 p = floor(UV * float2(480.0, 270.0));
+// Hoskins hash with the frame folded in, so the snow has no diagonal streaks.
+float3 q = frac((float3(p.x, p.y, p.x) + float3(t * 17.0, t * 31.0, t * 7.0)) * float3(0.1031, 0.1030, 0.0973));
+q += dot(q, q.yzx + 33.33);
+float n = frac((q.x + q.y) * q.z);
+// Snow mostly modulates the picture (black stays black), with a faint floor so the dark still crawls.
+c = lerp(c, c * n * 2.0 + n * 0.03, saturate(S * Static));
+// Scanlines darken alternate lines a little.
+float scan = 0.5 + 0.5 * sin(UV.y * 6.28318 * 270.0);
+c *= 1.0 - 0.2 * S * scan;
+// Now and then a dim dropout line (about one a frame at full strength).
+float row = floor(UV.y * 270.0);
+float3 r = frac(float3(row, t, row - t) * float3(0.1031, 0.1030, 0.0973));
+r += dot(r, r.yzx + 33.33);
+float d = frac((r.x + r.y) * r.z);
+c += step(1.0 - 0.004 * S, d) * 0.12 * S;
+return c;
+"""
+
+
+def build_interference():
+    mat = fresh("M_FeedInterference")
+    post_process(mat, 20)
+    screen = mel.create_material_expression(mat, unreal.MaterialExpressionScreenPosition, -1600, 0)
+    s = scalar(mat, "S", 0.0, -1600, 150)
+    time = scalar(mat, "TimeS", 0.0, -1600, 230)
+    uv = custom(mat, FEED_UV_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT2, ["UV", "S", "TimeS", "Tear", "Bands"], "FeedUV", -1200, 0)
+    link(screen, "ViewportUV", uv, "UV")
+    link(s, "", uv, "S")
+    link(time, "", uv, "TimeS")
+    link(scalar(mat, "Tear", 0.03, -1600, 310), "", uv, "Tear")
+    link(scalar(mat, "Bands", 70.0, -1600, 390), "", uv, "Bands")
+    split = scalar(mat, "SplitUV", 0.0, -1600, 470)
+    right = custom(mat, "return UV + float2(Off, 0.0);", unreal.CustomMaterialOutputType.CMOT_FLOAT2, ["UV", "Off"], "SplitRed", -900, -200)
+    left = custom(mat, "return UV - float2(Off, 0.0);", unreal.CustomMaterialOutputType.CMOT_FLOAT2, ["UV", "Off"], "SplitBlue", -900, 200)
+    for node in (right, left):
+        link(uv, "", node, "UV")
+        link(split, "", node, "Off")
+    red = scene_texture(mat, unreal.SceneTextureId.PPI_POST_PROCESS_INPUT0, -600, -200)
+    green = scene_texture(mat, unreal.SceneTextureId.PPI_POST_PROCESS_INPUT0, -600, 0)
+    blue = scene_texture(mat, unreal.SceneTextureId.PPI_POST_PROCESS_INPUT0, -600, 200)
+    link_any(right, "", red, ["UVs", "Coordinates", "UV"])
+    link_any(uv, "", green, ["UVs", "Coordinates", "UV"])
+    link_any(left, "", blue, ["UVs", "Coordinates", "UV"])
+    feed = custom(mat, FEED_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, ["R", "G", "B", "UV", "S", "TimeS", "Static"], "Feed", -300, 0)
+    link(red, "Color", feed, "R")
+    link(green, "Color", feed, "G")
+    link(blue, "Color", feed, "B")
+    link(screen, "ViewportUV", feed, "UV")
+    link(s, "", feed, "S")
+    link(time, "", feed, "TimeS")
+    link(scalar(mat, "Static", 0.3, -600, 400), "", feed, "Static")
+    mel.connect_material_property(feed, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    finish(mat)
+
+
+# DEEPCAMMAT_ONLY=M_FeedInterference (environment) rebuilds just that one; unset rebuilds all three.
+import os
+ONLY = os.environ.get("DEEPCAMMAT_ONLY", "")
+for name, build in (("M_SonarPulse", build_pulse), ("M_FootageLens", build_lens), ("M_FeedInterference", build_interference)):
+    if not ONLY or ONLY == name:
+        build()

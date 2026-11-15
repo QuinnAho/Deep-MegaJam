@@ -1,7 +1,8 @@
 // The camera's reactions, per machine: listens on the event bus and plays shakes through the local player's camera
 // manager (DeepCameraRules::ShakeForEvent picks them); keeps the footage look's handheld sway running while it is on.
 // Draws the sonar ping as a pulse (M_SonarPulse) on each sonar_ping.
-// Switches (console variables, -1 = the FDeepCameraTuning default): Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse.
+// Degrades the feed as the serpent closes (M_FeedInterference): static, torn lines, colour split; full in a bite, a burst on hull_hit.
+// Switches (console variables, -1 = the FDeepCameraTuning default): Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse, Deep.Look.Interference.
 
 #pragma once
 
@@ -28,11 +29,16 @@ public:
 	static bool IsShakeOn();
 	static bool IsFootageOn();
 	static bool IsPulseOn();
+	static bool IsInterferenceOn();
 
 	/** Starts a sonar pulse from Origin over RangeM (restarts one in flight). Ignores the switch: the caller decides. */
 	bool StartPulse(const FVector& Origin, float RangeM);
 	int32 GetPulses() const { return Pulses; }
 	bool IsPulseLive() const { return PulseAgeS >= 0.f; }
+
+	/** Interference shown now (0..1), and a forced strength for shots (-1 = follow the serpent; Deep.Camera.Interference). */
+	float GetInterference() const { return Interference; }
+	void SetInterferenceOverride(float Strength) { InterferenceOverride = Strength; }
 
 	/** Plays an event's shake on the local camera (if it has one and shakes are on). Returns true if one started. */
 	bool PlayEventShake(FName Event);
@@ -59,6 +65,7 @@ private:
 	void UpdateSway();
 	void UpdateLens();
 	void UpdatePulse(float DeltaTime);
+	void UpdateInterference(float DeltaTime);
 	/** The serpent writes custom depth so the pulse can leave it out of the dots (only the band crosses it). */
 	void MarkSerpents();
 	ADeepEnvironment* FindEnvironment();
@@ -85,4 +92,13 @@ private:
 	float PulseRangeM = 0.f;
 	FVector PulseOrigin = FVector::ZeroVector;
 	int32 Pulses = 0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> InterferenceMID;
+	bool bInterferenceTried = false;
+	bool bInterferenceShown = false;
+	float Interference = 0.f;
+	float InterferenceOverride = -1.f;
+	float BurstLeftS = 0.f;
+	float FeedClockS = 0.f;
 };

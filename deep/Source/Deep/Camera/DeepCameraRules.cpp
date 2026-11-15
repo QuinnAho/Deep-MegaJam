@@ -146,3 +146,9 @@ float DeepCameraRules::InterferenceTarget(float SerpentDistanceM, bool bBiting, 
 	}
 	return Target;
 }
+
+float DeepCameraRules::InterferenceStep(float Current, float Target, float DeltaSeconds, const FDeepCameraTuning& Tuning)
+{
+	const float Rate = FMath::Max(0.f, Tuning.InterferenceEasePerS) * (Target > Current ? 4.f : 1.f);
+	return FMath::Clamp(FMath::FInterpConstantTo(Current, FMath::Clamp(Target, 0.f, 1.f), FMath::Max(0.f, DeltaSeconds), Rate), 0.f, 1.f);
+}
