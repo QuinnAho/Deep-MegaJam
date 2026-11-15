@@ -360,6 +360,90 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - the lane's own three entries in this note on `polish/captain`;
   - rows 79 and 82 in [[Agent Runs]].
 
+### 1:13 PM  Four lanes report in twelve minutes, each an hour or more early (orchestrator)
+- **What happened:**
+  - **Four reports.** Between 1:01 and 1:13 PM four lanes reported, each an hour or more before its first deadline:
+    - the cave shaft at 1:01 PM;
+    - the caverns, merged into integration at 1:04 PM;
+    - the HUD mockup at 1:11 PM;
+    - the camera at 1:13 PM.
+  - **The camera lane** built three looks, each behind its own switch. Only the shakes are on.
+    - **The found-footage lens:** a slight barrel, darker corners and soft edges, for about 0.2 ms a frame. On its own it is subtle. It reads as a camera only with the HUD's direction B, which carries the record dot and the timecode.
+    - **The sonar ping as light:** Quinn's lidar idea, folded into the sonar. An amber band runs out over the rock as the ping passes, for about 0.25 ms while a ping is out. In open water it shows nothing, because there is nothing to light.
+    - **Interference:** snow, a colour split and a tear as the serpent closes, and fully in a bite, for about 0.3 ms.
+    - **Two faults, both found in its own frames.**
+      - The first interference drew diagonal stripes. A noise function lost precision on the GPU, and a different noise fixed it.
+      - The ping lit the inside of the helm window before it reached the rock, so a brown frame flashed round the view. That fault went back to the engineer at 1:26 PM, along with a second job: hull hits must shake the view.
+    - **Motion blur:** stills at 0 and at 0.2 looked the same, so it stays at 0.2, and only inside the footage look.
+  - **The HUD mockup** drew two directions over four real frames:
+    - A, the style guide's instrument HUD done properly;
+    - B, the diver's helmet-camera display.
+    B costs about an hour more to build. Quinn picks one when he decides on the footage look.
+- **Why it matters:** the lanes ran in parallel, each behind its own switch, so four pieces were ready before the 2:15 PM decision point. Quinn can decide from frames instead of from descriptions.
+- **Evidence:**
+  - `polish/camera` `6be7d0b`, `3741010` and `36da416`, with the recipe and its sources in `03 - Research/Camera - Footage Look and Sonar Pulse Recipe.md` on that branch;
+  - [[HUD Mockup Spec]];
+  - rows 76, 77, 81 and 82 in [[Agent Runs]].
+
+### 1:38 PM  The serpent stays in the cavern, the orchestrator raises a false alarm, and the roof comes down (orchestrator)
+- **What happened:**
+  - **The serpent could swim through rock.** With walls round each stop, nothing kept its body off them. The cavern engineer clamped its lurk circle and body to keep 3 m off the rock, plus 1.5 m of body reach. In four-minute runs at stops 2 and 3, none of 32,160 sampled body spheres came within 3 m of the rock (`e50e11a`).
+  - **A false alarm.** Out of the hatch at stop 2 the frame was nearly black. At 1:28 PM the orchestrator told Quinn that "the sonar suggests the sea bed may be out of reach too". The engineer measured it instead:
+    - the bed is 8 m under the hatch;
+    - the farthest salvage is 44.6 m away on a 60 m tether;
+    - at stop 3, the relic is 77 m straight down on an 80 m tether.
+    The orchestrator corrected its message to Quinn and the frames page.
+  - **The real problem is the look.** From the hatch the nearest wall is 60 m or more away, and the lamp lights 35 m. So the dive still looks like open water, which is what the caverns were for.
+  - **The engineer stopped instead.** Asked to bring rock into view, it stopped without a commit, as its brief allowed, and explained why:
+    - the walls can't come nearer than 47.6 m: the farthest salvage spot plus its margin;
+    - a bell-shaped cave would pull the serpent's lurk circle into the lamp at the start of the dive;
+    - pillars from the dressing data have no collision, so the tether would pass through them.
+  - **The call:** a lower roof, so rock hangs about 15 m overhead from the hatch, while the serpent's first sighting stays in the dark (D-042). Building since 1:38 PM.
+- **Why it matters:**
+  - The engineer was told to stop if the change would break something, and it did, with numbers.
+  - The orchestrator's mistake came from reading a dark frame; the engineer settled it by measuring.
+- **Evidence:**
+  - `polish/cavern` `e50e11a`, `c5607fa` and `ef84d37` (26 of 26 tests), and `DeepCavernSerpentTests.cpp`;
+  - frames `devlog/media/2026-11-15-cavern-serpent-s2.png`, `devlog/media/2026-11-15-cavern-serpent-s3.png`, `devlog/media/2026-11-15-cave-join-hatch.png` and `devlog/media/2026-11-15-cavern-wall-s2-lamp.png`;
+  - D-042 in [[Decision Log]].
+
+### 1:41 PM  The shaft passes the gate, after an engine cache took the collision from its rock (orchestrator)
+- **What happened:**
+  - **The descent is now driving.** Between stops the sub follows a winding rock shaft. You steer sideways with WASD while the sonar reads the walls, and a run at the rock costs hull.
+    - The Captain hears the hull at the helm: below half he turns tense, and below a quarter scared.
+    - A plain hull bar sits above the sonar until the HUD pass.
+  - **The rock lost its collision when the caverns merged in.** The shaft engineer traced it to the engine. UE 5.9 caches the cooked collision of a procedural mesh by its simple geometry alone, and `UProceduralMeshComponent` has no mesh id, so every rock mesh shared one cook. In the engineer's words: "The shaft's lost collision was an engine cache: UE 5.9 caches procedural collision by simple geometry only, so every rock mesh shared one cook. A 1 cm keyed tetrahedron per mesh fixed the shaft, the sea bed and the caverns in one helper."
+  - **The gate.** The orchestrator fast-forwarded integration to the merged build (`59af289`) and ran the full gate. By 1:29 PM it had 107 of 107 tests, a package with no usage-flag lines, a smoke run and a 762.6 MB zip.
+  - **Seven scripted playthroughs** then all passed: `S2-gate` (38 s), `S7-run` (49 s), `S8-keys` (110 s), `S9-floor` (147 s), `S10-relic` (78 s), `S11-pass` (110 s) and `S12-sidehome` (59 s). The orchestrator pushed at 1:41 PM.
+  - **A size warning that is not a problem.** The harness warned that the packaged folder is 1,047 MB. The jam's limit is 1 GB zipped, and the zip is 762.6 MB.
+  - **Left for later:**
+    - Squeezes barely hurt. Steering into one closes at 0.9 m/s, under the 1.5 m/s that counts as a hit, so it scrapes one point every 2.5 s.
+    - The `Deep.Cave.Goto cavern` cheat stops at the 200 m limit.
+    - The SUB marker sits on the LIMIT 200 label. That is finish for the HUD pass.
+- **Why it matters:** Quinn said that driving by sonar is what makes the game fun, and it now passes the whole gate. Without the cook key, the sub would have passed straight through the shaft's walls.
+- **Evidence:**
+  - `polish/shaft` `9ffc342`, `2f283ee`, `02eff74`, `8ac8efc` and `59af289`;
+  - `deep/Source/Deep/World/DeepCookKey.h`;
+  - logs in `.wt\monster\deep\Saved\Harness\`: `package-20261115-132632` (0 usage-flag lines) and `smoke-20261115-132754`;
+  - frames `devlog/media/2026-11-15-cave-join-*.png` and `devlog/media/2026-11-15-shaft-*.png`.
+
+### 1:50 PM  The sonar ping stops lighting the sub, and a wall hit now shakes the view (orchestrator)
+- **What happened:**
+  - **The ping fix.** The camera engineer fixed the ping that lit the inside of the helm window. Each frame, the game now sends the pulse material a box round the sub's parts, 0.3 m larger than they are, and the material skips every pixel inside it. The cost is three dot products a pixel, with no extra pass.
+  - **The rejected fix.** The engineer turned down the usual fix, a stencil mask. It would have needed a depth pass over about 200 parts and would have clashed with the serpent's own mask. The pulse material now costs 0.030 ms a frame.
+  - **The ping starts closer.** It used to start 6 m out and now starts 0.5 m out, so rock right beside the hull still lights.
+  - **Hull hits shake the view.** Each hull hit now carries its impact speed, and the shake grows with it. A scrape gets a smaller judder.
+  - **The orchestrator's check.** It looked at the frames itself:
+    - at the shaft squeeze, an amber band runs along a rock ridge and the brown frame round the window is gone;
+    - from the water at stop 2, the hull stays dark 0.35 s after a ping.
+    The wall-hit frame is a still, which cannot show a shake, so that is checked by hand in play.
+  - **Merged locally.** The orchestrator merged the lane into integration as `340332f`. The one conflict was in the code map, `ARCHITECTURE.md`, where the cavern and the camera lanes had each added a line, and both were kept. It goes through one gate with the lower cavern roof.
+- **Why it matters:** the ping is how the player sees in the dark (Quinn's lidar idea), and it can now go on by default. The shake makes a hit cost something the player feels, not only a number on the hull bar.
+- **Evidence:**
+  - `polish/camera` `c19f142` and `325903e`, with tests Deep.Camera 6 of 6, Deep.World.Cave 10 of 10 and Deep.Sim.Cave 3 of 3;
+  - frames `devlog/media/2026-11-15-camera-pulse-0.4s.png`, `devlog/media/2026-11-15-camera-pulse-sub.png` and `devlog/media/2026-11-15-camera-wall-hit.png` on that branch;
+  - row 83 in [[Agent Runs]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

@@ -47,7 +47,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-036 | Packs stay where they are installed, agents link to them, and the cook takes only what is used | Decided (orchestrator, 6:55 AM Nov 15) |
 | D-037 | The relic becomes a real object, and the well holds its light | In the integration branch (8:56 AM Nov 15); Quinn can overrule |
 | D-038 | Feature freeze moves from 3 PM to 5:30 PM | Quinn, 11:58 AM Nov 15 |
-| D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; three lanes building |
+| D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; the shaft and caverns gated and pushed at 1:41 PM |
+| D-040 | The Captain becomes a voice on the radio who says less; real sound replaces the synth | Quinn, about 12:15 PM Nov 15; built, waiting on sound files |
+| D-041 | Camera feel: shakes, a found-footage look, and the sonar made visible | Shakes decided; the rest behind switches until Quinn approves frames |
+| D-042 | The cavern reads from the hatch by a lower roof, not nearer walls | Orchestrator, 1:38 PM Nov 15; Quinn can overrule |
 
 ## Open
 
@@ -61,6 +64,23 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-042 The cavern reads from the hatch by a lower roof, not nearer walls
+- **Status:** Decided by the orchestrator at 1:38 PM Nov 15, on the cavern engineer's measurements. Quinn can overrule. Building on `polish/cavern`.
+- **Date:** 2026-11-15, 1:38 PM EST
+- **Who:** the orchestrator.
+- **The problem:** from the hatch at stops 2 and 3 the nearest wall is 60 m or more away, and the lamp lights to 35 m (`FDeepLampTuning.RangeM`) through heavy fog. So the dive still looks like open water, which is what Quinn added caverns to avoid ("if your swimming in an open ocean it really lessens it"). Reach is not the problem: the bed is 8 m under the hatch, and the farthest salvage spot is 44.6 m away on a 60 m tether.
+- **What the engineer measured:**
+  - **Nearer walls by tuning:** not possible. The farthest salvage spot plus its 3 m margin holds the wall at 47.6 m or more, and level rock shows only within about 15 to 20 m.
+  - **A bell-shaped cave** (walls 15 to 18 m out from level upward, opening out below -30°) keeps every spot inside. But the serpent's containment would pull its 75 m lurk circle to 15 to 25 m from the hatch, so it would circle inside the lamp at the start of the dive. It would also break three tests in `DeepCavernTests.cpp`.
+  - **Pillars from the dressing data:** they have no collision, so the tether would pass through them.
+  - **A lower roof:** `RoofAboveAnchorM` 10 to 7.5, `HangTipClearM` 7 to 4 and `HangMinOutM` 19 to 15 put hanging rock about 15 m away looking up. Tuning only.
+- **Decision:** the lower roof. The serpent's first sighting in the dark is the game's best horror beat, and it is worth more than nearer walls.
+- **Checks:**
+  - the sub's descent through the roof opening costs no hull;
+  - the tether never passes through rock;
+  - everything stays in reach;
+  - the cavern and serpent tests stay green.
 
 ### D-041 Camera feel: shakes, a found-footage look, and the sonar made visible
 - **Status:** Shakes are decided; Quinn asked for them. The footage look, the sonar pulse and the interference are built behind switches and stay off until Quinn approves frames. The HUD pass waits for the sonar and shaft merges. Lane `polish/camera` started 12:25 PM.
