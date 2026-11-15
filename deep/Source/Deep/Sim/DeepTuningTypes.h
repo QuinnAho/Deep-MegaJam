@@ -37,7 +37,7 @@ struct FDeepStopTuning
 
 	/** Depth of the submarine's tether anchor at this stop, shown on the depth counter. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stop")
-	float SubDepthM = 300.f;
+	float SubDepthM = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stop")
 	float FogDensity = 0.02f;
@@ -291,6 +291,10 @@ struct FDeepArenaTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorBelowSubM = 120.f;
+
+	/** Displayed depth of the relic (stop 3). Not spawned yet. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
+	float RelicDepthM = 600.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float FloorSizeM = 600.f;

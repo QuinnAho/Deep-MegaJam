@@ -141,7 +141,9 @@ function Get-ProjectEditors([string[]]$Names) {
             continue
         }
         $c = $cl.ToLower().Replace('/', '\')
-        if ($c.Contains($needle) -or $c -match 'deep\.uproject') { $p }
+        if ($c.Contains($needle)) { $p; continue }
+        # A bare "Deep.uproject" (no drive path) may be ours; a full path to another checkout's copy (a worktree) is not.
+        if ($c -match 'deep\.uproject' -and $c -notmatch '[a-z]:\\[^"]*\\deep\.uproject') { $p }
     }
 }
 
@@ -193,7 +195,9 @@ function Invoke-Build {
     }
     Initialize-HarnessDir
     $log = Join-Path $HarnessDir ('build-{0}.log' -f (New-Stamp))
-    $argLine = '/d /s /c ""{0}" DeepEditor Win64 Development -Project="{1}" -WaitMutex"' -f $BuildBat, $UProject
+    # -NoHotReloadFromIDE: an editor open on ANOTHER checkout holds the engine-wide Live Coding mutex and would block
+    # this build. Get-ProjectEditors above already refuses when an editor has this checkout open.
+    $argLine = '/d /s /c ""{0}" DeepEditor Win64 Development -Project="{1}" -WaitMutex -NoHotReloadFromIDE"' -f $BuildBat, $UProject
     Write-Host ('build: DeepEditor Win64 Development, timeout {0} min' -f $TimeoutBuildMin)
     $r = Invoke-Proc 'cmd.exe' $argLine $log ($TimeoutBuildMin * 60)
     if (-not $r.Started) {
