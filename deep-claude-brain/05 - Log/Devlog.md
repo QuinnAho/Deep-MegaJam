@@ -641,6 +641,21 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - **Why it matters:** the team has a tested, packaged entry 2 hours 39 minutes before the deadline, 25 minutes ahead of the plan. What is left is optional or quick: Quinn's calls, the video, the page and the form.
 - **Evidence:** `verify=0 passline=True plays=[all 14 exit 0] package=0 smoke=0 zip=0 end 18:20:32` (the run's own summary); integration `9ac970e`.
 
+### 6:30 PM  The credits named the pack for the wrong part, and the next package waits for the video (orchestrator)
+- **What happened:**
+  - The no-tag change came back at about 6:23 PM (`6946bcc` on `rescope/notag`, row 101). The orchestrator read the diff. In both HUD paths the reticle's label loses its "SERPENT " or "SUB " prefix and keeps the distance. The out-of-range text and the bracket colours are unchanged. It waits on Quinn's "no tag".
+  - While checking the asset list the jam form asks for, the orchestrator found that the in-game credits still said the Dragon Cave pack made "the dragon head of the sea serpent". That head was dropped at 2:20 PM, and the serpent's head has been built in code since. The same agent corrected the row in 32 s (`dc19f58`; `Deep.UI.Settings`, 5 tests passed).
+  - Before accepting the new wording, the orchestrator checked it two ways:
+    - **In the code.** `M_DragonBody` samples the pack's dragon textures, but the serpent wears it only with the mesh head. The body's default skin, `M_SerpentSkin`, uses none of the pack's textures.
+    - **In the freeze package's file index.** The cave rocks, the stones, the relic and their textures are there. No sound files are, because all sound is made in code.
+  - The credits fix goes in with the next package, not now. Quinn may be recording the video on this machine, and a cook would make the capture stutter.
+  - The public dev log stopped at 1 AM, with post 1. A writer is drafting post 2 from this log: Sunday, up to the freeze.
+- **Why it matters:** the credits are the one place in the game that names someone else's work, and a judge can read them. The video is worth more than four minutes of packaging.
+- **Evidence:**
+  - `6946bcc` and `dc19f58`, pushed, not merged;
+  - a search of `Builds\Freeze-1820\Windows\Deep\Content\Paks\Deep-Windows.utoc` for `SM_CaveRock01`, `SM_StoneworksStone01`, `SM_StoneworksSphere01`, `T_CaveRocks01_BC` and `.wav`;
+  - `DeepSerpent.cpp`, around line 504.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

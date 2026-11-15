@@ -60,7 +60,7 @@ In the water:
 - A submarine dressed as a working boat, with a hatch, a settlement console and a helm with throttle and ballast levers.
 - Three stops and a relic, to 600 m. A flashlight and a hull upgrade are bought at settlement.
 - A calm screen. Text shows only while you need it.
-- Camera shake on hits and bites. All sound is made in code. TODO(Quinn): confirm no voice or music files ship.
+- Camera shake on hits and bites. All sound is made in code; no voice or music files ship.
 
 ## How it was made
 
@@ -72,8 +72,7 @@ Dev log: TODO(Quinn): link.
 
 - Unreal Engine 5.9 (MegaJam Preview), Epic Games.
 - All sound generated in code.
-- Dragon Cave, Denys Rutkovskyi, Fab personal licence (the relic and the cave rocks). TODO(Quinn): confirm seller, licence, and whether it still supplies the serpent's head after D-046.
-- Megascans: TODO(Quinn): list only what shipped.
+- Dragon Cave, Denys Rutkovskyi, Fab personal licence (the cave rocks, the stones and the relic; the serpent is built in code). TODO(Quinn): confirm the seller and the licence.
 
 Tools: Unreal Engine 5.9, Unreal MCP, Claude Code. TODO(Quinn): add the others (Obsidian, Google Docs).
 
