@@ -477,6 +477,21 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - frames `devlog/media/2026-11-15-camera-diverping-*.png` (10, on `polish/camera`);
   - rows 84 and 85 in [[Agent Runs]]; D-045 in [[Decision Log]].
 
+### 2:50 PM  The diver's ping passes its gate, three HUD palettes, and the serpent's body is to move by physics (orchestrator)
+- **What happened:**
+  - **The gate on `bbeeb7e`** (the diver's ping on top of `340332f`) passed at 2:33 PM: build, 117 of 117 tests, verify, a 1047.5 MB package, smoke, a 762.7 MB zip and the S8-keys and S9-floor playthroughs. The zip step warned that the team name is still a placeholder. Integration stays unpushed until the S11 fix is in.
+  - **HUD A started at 2:24 PM**, six minutes before the 2:30 PM default the orchestrator had given Quinn for choosing A or B. Saying B still switches it.
+  - **Three palettes (D-044).** A sonnet agent drew them from the theme and put a palette switch on the HUD mockup page (version 2, 2:38 PM): Bone and oxide, the off-white and rust of a worn hull; Tonal water, cut from the water's own blue-grey, which it recommends; and Amber phosphor, the whole HUD as one console screen, which breaks the Style Guide's rule that amber never goes on HUD lines. It measured contrast over the real frames: all panel text clears 4.3, and danger red is never weaker than today's.
+  - **Two problems in every palette, today's included.** Warnings and the machine screens (sonar, helm, the Captain's tag) share one amber, so the sonar walls look like a permanent warning. And the reticle, aim brackets and hatch marker have no panel, so over the lamp glow they drop to about 1 to 2 contrast. At 2:39 PM the HUD A engineer was told to make the two ambers two roles, outline those marks, and build in Tonal water until Quinn picks.
+  - **A lane the orchestrator did not start.** Quinn resumed the camera agent himself with his note on the serpent. It made its own worktree, `.wt\swim` on `polish/serpent-look`, and the orchestrator found it with `git worktree list`. It went back to one model: the code-built head with its jaw is the default again, instead of the Dragon Cave head on a code-built body (`8b5b100`, frames `da36b1f`, pushed, not merged).
+  - **Quinn on the slither (D-046), about 2:36 PM:** "instad of a slither mechanic we need eah spline to have physics so that it moves like an actual snake in 3d space", with "the controller is the head". An Opus engineer started at 2:39 PM on the same branch. The body becomes a chain of points the head drags through the water, integrated the way Epic's CableComponent and Jakobsen's "Advanced Character Physics" (GDC 2001) do it, with fixed spacing, a bend limit, water drag and the cave clearance. The sine weave goes. A small stroke at the head starts a wave, and the chain carries it down the body. Report by 4:00 PM with frames in motion, or stop at 3:45 PM if it does not look right.
+- **Why it matters:** the serpent is the game's one creature, and Quinn has turned down two looks for it. The chain changes how it moves, not how it is drawn, so it costs no new art and keeps the harpoon hit segments. Quinn expects it to be easy, and the chain is. The work is keeping it stable at any frame rate and off the rock in a winding shaft, which is why the brief asks for the solver as a tested pure function. And the worktree list is how the orchestrator learns of work a human starts with an agent directly.
+- **Evidence:**
+  - integration `bbeeb7e` in `.wt\monster`, gate passed at 2:33 PM;
+  - the HUD mockup page, version 2, and [[HUD Palettes]];
+  - `polish/serpent-look` `8b5b100` and `da36b1f`, frames `devlog/media/2026-11-15-serpent-look-*.png` (4) on that branch;
+  - rows 86 to 89 in [[Agent Runs]]; D-046 in [[Decision Log]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

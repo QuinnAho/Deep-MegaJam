@@ -54,6 +54,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-043 | The diver sends the sonar ping, so the cavern walls show from the water | Orchestrator, 1:54 PM Nov 15; replaces D-042; Quinn can overrule |
 | D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
 | D-045 | Toward the end: review each diff, test only what it touches; the full run-through at the freeze | Quinn, about 2:12 PM Nov 15; in `.claude/loop.md` |
+| D-046 | The serpent is one model again, and its body moves by physics, dragged by the head | Quinn, about 2:36 PM Nov 15; being built on `polish/serpent-look` |
 
 ## Open
 
@@ -67,6 +68,16 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-046 The serpent is one model again, and its body moves by physics, dragged by the head
+- **Status:** Quinn's direction, about 2:36 PM Nov 15. Being built on `polish/serpent-look` (row 89 in [[Agent Runs]]); frames before any merge.
+- **Date:** 2026-11-15, about 2:36 PM EST
+- **Who:** Quinn.
+- **His words:** first, to the camera agent before 2:25 PM, as it relayed them: the serpent "doesn't animate at all and looks like two models smooshed together; I think the older one was better". Then to the orchestrator: "so instad of a slither mechanic we need eah spline to have physics so that it moves like an actual snake in 3d space undesrand the slither is not realistic, i feel like this hsoul dbe pretty easy the controller is the head"
+- **What it changes:** the serpent is one model again: the code-built head with its jaw on the code-built body (`8b5b100`), not the Dragon Cave head on our body. Its body stops being laid along the head's path with a sine swing added on top. It becomes a chain of points the head drags through the water: Verlet integration with fixed spacing, a bend limit, water drag and the cave clearance. A small stroke at the head starts the wave, and the chain carries it down the body. The harpoon hit segments and the tube are built from the chain, so the AI, the bite and the harpoon do not change.
+- **Why:** the weave was a formula, a sine wave added to the path, so the body swung without being pulled, and Quinn calls it not realistic. A chain that lags and follows gives an eel's motion with no new art.
+- **His "pretty easy":** the chain itself is short. The work is keeping it stable at any frame rate and off the rock in a winding shaft, so the brief asks for the solver as a pure function with tests.
+- **Fallback:** if the chain is not right by 3:45 PM, merge only the one-model fix (`8b5b100`).
 
 ### D-045 Toward the end: the orchestrator reviews each diff, then tests only what it touches
 - **Status:** Quinn's direction, about 2:12 PM Nov 15. In force; `.claude/loop.md` ("What to run") says how.
