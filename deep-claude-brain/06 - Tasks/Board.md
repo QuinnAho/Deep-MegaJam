@@ -7,10 +7,10 @@ The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules 
 
 ## Handoff for a fresh orchestrator session (written 1:05 AM Nov 15)
 
-A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Two agents are running. Their reports go to the session that started them, so a new session checks their branches instead:
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. One agent is running (item 1). Its report goes to the session that started it, so a new session checks its branch instead:
 
 1. **Fix batch one** (`dev/feel1`, built in `.wt\dev`, Opus at high, started 1:01 AM). The title key press, motion cues while driving, one set of HUD panels per mode, and the tether distance after a cut. Finished when `origin/dev/feel1` has commits and the last one merges `origin/main`. It is C++, so the gate is `.wt\dev\tools\ue.ps1 verify`. Then merge into `main`, push, and tell Quinn to restart the editor.
-2. **Dev log post one** (`devlog/post1`, written in `.wt\text`, Sonnet at medium, started 1:01 AM). One file, `devlog/01-saturday-night.md`. No tests. Read it for anything untrue or private before merging. It is not published anywhere; Quinn decides where it goes.
+2. **Dev log post one** is merged (`c263c9a`): `devlog/01-saturday-night.md`, a draft file covering 8 PM to 1 AM. It is not published anywhere; Quinn reads it and decides where it goes. Post two should cover Sunday from 1 AM.
 3. **Next engineer run** is fix batch two: Quinn's notes from playing and listening, plus whatever batch one left.
 
 After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
@@ -47,7 +47,7 @@ Not in the batch:
 | Lane | Agent | Task | Started |
 |---|---|---|---|
 | Fix batch one | Opus, high, `.wt\dev` on `dev/feel1` | Title key press, driving motion cues, HUD panels per mode, tether distance after a cut. | 1:01 AM |
-| Dev log post one | Sonnet, medium, `.wt\text` on `devlog/post1` | `devlog/01-saturday-night.md`: the first five hours, for the Glass Box prize. A file only; nothing published. | 1:01 AM |
+| Dev log post one | Sonnet, medium, `.wt\text` on `devlog/post1` | **Done 1:03 AM**, merged as `c263c9a`. `devlog/01-saturday-night.md`: the first five hours, for the Glass Box prize. A file only; nothing published. | 1:01 AM |
 
 ## Next, in order
 

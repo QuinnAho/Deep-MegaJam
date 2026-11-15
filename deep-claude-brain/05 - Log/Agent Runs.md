@@ -45,7 +45,7 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 35 | 12:33 AM Nov 15 | fix agent | Sonnet 5.5, medium | In `.wt\monster`: confirm why a committed tree builds differently, make `tools\ue.ps1` build the committed way every time, and fix the name clash in the sound code. | 54k | 16 | 3.2 min | Green, merged with the sound layer as `64f7838` at 12:36 AM. It proved the diagnosis both ways before fixing: with a file uncommitted and no flag the build passed; with `-DisableAdaptiveUnity` it failed. 44 of 44 tests on the clean committed tree, verified again by the orchestrator. Not verified: nobody has heard a sound; not packaged yet. |
 
 | 36 | 1:01 AM Nov 15 | systems engineer | Opus 5.5, high | In `.wt\dev` on `dev/feel1`: fix batch one. Title key press, motion cues while driving, HUD panels per mode, tether distance after a cut. First run under the adaptive testing rule. | | | | Running. |
-| 37 | 1:01 AM Nov 15 | dev log writer | Sonnet 5.5, medium | In `.wt\text` on `devlog/post1`: the first public dev log post, `devlog/01-saturday-night.md`, from the raw notes. A file only. | | | | Running. |
+| 37 | 1:01 AM Nov 15 | dev log writer | Sonnet 5.5, medium | In `.wt\text` on `devlog/post1`: the first public dev log post, `devlog/01-saturday-night.md`, from the raw notes. A file only. | 87k | 26 | 72 s | Done, merged as `c263c9a`. 1,610 words, five frames, a table of runs. The orchestrator checked five of its facts against the notes and git (all held), scanned it for private data (none) and fixed two formatting slips. Not published anywhere. |
 
 ## What the numbers say so far
 
