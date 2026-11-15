@@ -91,4 +91,18 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Deep|Harpoon")
 	static int32 RepairFromCredits(int32 Gross, int32 DirectorCut, int32 Fees, int32 Repair);
+
+	/**
+	 * The shove a shot gives the diver (m/s), SecondsSinceShot after it: straight back from Aim, RecoilMps at once
+	 * (no ramp), fading linearly to zero at RecoilSeconds and zero after. Zero before the shot or with no aim.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Harpoon")
+	static FVector RecoilVelocityMps(const FVector& Aim, float SecondsSinceShot, float RecoilMps, float RecoilSeconds);
+
+	/**
+	 * Metres the shove carries the diver between two times after the shot: the exact area under the fade, so the
+	 * whole shove is RecoilMps * RecoilSeconds / 2 at any frame rate.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Harpoon")
+	static float RecoilTravelM(float FromSeconds, float ToSeconds, float RecoilMps, float RecoilSeconds);
 };

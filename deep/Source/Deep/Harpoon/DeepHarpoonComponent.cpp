@@ -205,6 +205,7 @@ void UDeepHarpoonComponent::PressFire()
 		}
 		else
 		{
+			EndKick();
 			ServerRelease(false);
 		}
 		return;
@@ -220,6 +221,12 @@ void UDeepHarpoonComponent::PressFire()
 	}
 	else
 	{
+		// The owning client shoves its own diver at once, as the server will (no wait for the round trip).
+		const UDeepRunComponent* Run = Diver->GetRun();
+		if (UDeepHarpoonRules::CanFire(ShotsLeft, Run && Run->CanSwim(), Phase))
+		{
+			StartKick(Direction);
+		}
 		ServerFire(Origin, Direction);
 	}
 }
@@ -314,11 +321,64 @@ void UDeepHarpoonComponent::FireAlong(const FVector& OriginCm, const FVector& Di
 		Bolt->PlaceBolt(OriginCm, BoltDir);
 	}
 	SetResult(EDeepHarpoonResult::Fired);
+	StartKick(BoltDir);
 	Fire(DeepHarpoonEvent::Fired);
+}
+
+void UDeepHarpoonComponent::StartKick(const FVector& Aim)
+{
+	KickAim = Aim.GetSafeNormal();
+	KickSeconds = KickAim.IsNearlyZero() ? -1.f : 0.f;
+}
+
+void UDeepHarpoonComponent::EndKick()
+{
+	KickSeconds = -1.f;
+}
+
+void UDeepHarpoonComponent::StepKick(float DeltaSeconds)
+{
+	if (KickSeconds < 0.f)
+	{
+		return;
+	}
+	ADeepDiver* Diver = GetDiver();
+	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
+	// The line takes over (a reel), or the diver is aboard, dead or on the winch: the shove ends at once.
+	if (!Run || !Run->CanSwim() || Run->IsInside() || Diver->IsWinching() || Phase == EDeepHarpoonPhase::Latched)
+	{
+		EndKick();
+		return;
+	}
+	const UDeepHarpoonSettings& Settings = UDeepHarpoonSettings::Get();
+	const float From = KickSeconds;
+	KickSeconds += DeltaSeconds;
+	const float TravelCm = UDeepHarpoonRules::RecoilTravelM(From, KickSeconds, Settings.RecoilMps, Settings.RecoilSeconds) * HarpoonComponentCmPerM;
+	if (KickSeconds >= Settings.RecoilSeconds)
+	{
+		EndKick();
+	}
+	UCharacterMovementComponent* Movement = Diver->GetCharacterMovement();
+	// Only the machine that moves the diver shoves it: the server, or the owning client for its own prediction.
+	if (TravelCm <= 0.f || !Movement || !(Diver->HasAuthority() || Diver->IsLocallyControlled()))
+	{
+		return;
+	}
+	// On top of the diver's own swimming (the movement has already run this frame), swept so rock stops it; it
+	// slides along a glancing surface. The tether clamps the result after physics like any other move.
+	const FVector Delta = -KickAim * TravelCm;
+	FHitResult Hit;
+	UMovementComponent* Mover = Movement;
+	Mover->SafeMoveUpdatedComponent(Delta, Diver->GetActorQuat(), true, Hit);
+	if (Hit.IsValidBlockingHit())
+	{
+		Mover->SlideAlongSurface(Delta, 1.f - Hit.Time, Hit.Normal, Hit, false);
+	}
 }
 
 void UDeepHarpoonComponent::Release()
 {
+	EndKick();
 	if (Phase == EDeepHarpoonPhase::Idle)
 	{
 		return;
@@ -332,6 +392,7 @@ void UDeepHarpoonComponent::Release()
 
 void UDeepHarpoonComponent::Reload()
 {
+	EndKick();
 	if (Phase != EDeepHarpoonPhase::Idle)
 	{
 		Phase = EDeepHarpoonPhase::Idle;
@@ -363,6 +424,7 @@ void UDeepHarpoonComponent::StepHarpoon(float DeltaSeconds)
 		return;
 	}
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	StepKick(Dt);
 	if (Diver->HasAuthority())
 	{
 		const UDeepRunComponent* Run = Diver->GetRun();
@@ -436,6 +498,7 @@ void UDeepHarpoonComponent::HandleHit(const FDeepHarpoonTrace& Hit)
 		{
 			Sub = DeepArena::FindSubmarine(GetWorld());
 		}
+		EndKick();
 		Phase = EDeepHarpoonPhase::Latched;
 		LatchTarget = EDeepHarpoonTarget::Submarine;
 		// Up into the hatch (D-022): the run's hatch rule brings the diver aboard there (a cut diver pays the re-tether).
@@ -461,6 +524,7 @@ void UDeepHarpoonComponent::HandleHit(const FDeepHarpoonTrace& Hit)
 		break;
 	}
 	default:
+		EndKick();
 		Phase = EDeepHarpoonPhase::Latched;
 		LatchTarget = EDeepHarpoonTarget::Terrain;
 		ReelTargetCm = Hit.PointCm + Hit.NormalCm.GetSafeNormal(UE_SMALL_NUMBER, -BoltDir) * Settings.TerrainStandOffM * HarpoonComponentCmPerM;
