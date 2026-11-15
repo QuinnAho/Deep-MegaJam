@@ -45,6 +45,13 @@ namespace
 		return Body.bTubeBody ? Body.HeadLengthM * (1.f - HeadBackFraction) : Body.HeadRadiusM * 0.3f;
 	}
 
+	/** `Deep.Monster.Glow 0` turns its own light off (before-and-after shots of the bite in the dark). */
+	int32 GGlowAllowed = 1;
+	FAutoConsoleVariableRef CVarGlow(
+		TEXT("Deep.Monster.Glow"),
+		GGlowAllowed,
+		TEXT("Deep.Monster.Glow <0|1>: 1 (default) = the serpent's photophores light its head in a bite and faintly on the first pass; 0 = off."));
+
 	/** `Deep.Monster.MeshHead`: the switch for the pack head. Changing it rebuilds every serpent's look at once. */
 	int32 GMeshHeadAllowed = 1;
 	FAutoConsoleVariableRef CVarMeshHead(
@@ -358,8 +365,15 @@ ADeepSerpent::ADeepSerpent()
 		Light->SetIntensityUnits(ELightUnits::Unitless);
 		Light->SetIntensity(0.f);
 	}
+	GlowLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("GlowLight"));
+	GlowLight->SetupAttachment(HeadSocket);
+	GlowLight->SetMobility(EComponentMobility::Movable);
+	GlowLight->SetCastShadows(false);
+	GlowLight->SetIntensityUnits(ELightUnits::Unitless);
+	GlowLight->SetIntensity(0.f);
+	GlowLight->SetVisibility(false);
 
-	Body = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Body"));
+	Body =CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Body"));
 	Body->SetupAttachment(Root);
 	Body->SetStaticMesh(DeepShapes::LoadMesh(DeepShapes::Sphere));
 	QuietMesh(Body);
@@ -819,6 +833,46 @@ void ADeepSerpent::Tick(float DeltaSeconds)
 	LayBody();
 	UpdateEyes(DeltaSeconds);
 	UpdateMarks(DeltaSeconds);
+	UpdateGlow(DeltaSeconds);
+}
+
+void ADeepSerpent::UpdateGlow(float Dt)
+{
+	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
+	const EDeepMonsterState State = static_cast<EDeepMonsterState>(MoodState);
+	const bool bPosed = PoseOverride >= 0;
+	float Target = 0.f;
+	if (GGlowAllowed != 0 && !bPosed)
+	{
+		if (State == EDeepMonsterState::Bite)
+		{
+			// Pulses with the spots (PulsePhase runs at the threat rate), never below the low point.
+			const float Wave = 0.5f + 0.5f * FMath::Sin(PulsePhase);
+			Target = FMath::Lerp(FMath::Clamp(Tuning.GlowPulseLow, 0.f, 1.f), 1.f, Wave);
+		}
+		else if (State == EDeepMonsterState::Pass)
+		{
+			Target = FMath::Clamp(Tuning.GlowPassFraction, 0.f, 1.f);
+		}
+		else if (State == EDeepMonsterState::Recoil)
+		{
+			// The flinch flares its spots (UpdateMarks) and its light with them, then both die: the lamp's hit reads
+			// even though the lamp dims itself for a body this close.
+			Target = FMath::Clamp(Flinch01, 0.f, 1.f);
+		}
+	}
+	const float Rate = Target > Glow01 ? Tuning.GlowAttack : Tuning.GlowRelease;
+	Glow01 = FMath::FInterpTo(Glow01, Target, Dt, Rate);
+	if (Glow01 < 0.005f)
+	{
+		Glow01 = Target > 0.f ? Glow01 : 0.f;
+	}
+	GlowLight->SetRelativeLocation(Tuning.GlowOffsetCm);
+	GlowLight->SetLightColor(Tuning.GlowColor);
+	GlowLight->SetAttenuationRadius(Tuning.GlowRadiusM * CmPerM);
+	GlowLight->SetVolumetricScatteringIntensity(Tuning.GlowScattering);
+	GlowLight->SetIntensity(Tuning.GlowIntensity * Glow01);
+	GlowLight->SetVisibility(Glow01 > 0.f);
 }
 
 void ADeepSerpent::RecordTrail()

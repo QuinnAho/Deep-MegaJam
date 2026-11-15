@@ -35,6 +35,11 @@ namespace DeepHudStyle
 	constexpr float Pad = 16.f;
 	constexpr float Margin = 48.f; // six grid steps from the screen edge (chosen here, on the grid)
 
+	// The title's veil over the room (opening pass, Nov 15, chosen here): near black behind the word, thinner at the
+	// foot of the screen, so the first frame shows where you are (the hatch's red, the console's amber) and not a void.
+	constexpr float TitleVeilTop = 0.95f;
+	constexpr float TitleVeilBottom = 0.62f;
+
 	// Motion, ease-out cubic, no bounce. Seconds.
 	constexpr float PanelOpen = 0.200f;
 	constexpr float PanelClose = 0.120f;

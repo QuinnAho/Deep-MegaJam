@@ -14,6 +14,7 @@
 #include "Game/DeepGameState.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
 #include "Net/UnrealNetwork.h"
 #include "ProceduralMeshComponent.h"
 #include "World/DeepAbyssFloor.h"
@@ -25,6 +26,12 @@
 
 namespace
 {
+	/** `Deep.Room.NoseStrip 0` hides the strip across the nose (before-and-after shots and frame time). */
+	int32 GNoseStrip = 1;
+	FAutoConsoleVariableRef CVarNoseStrip(
+		TEXT("Deep.Room.NoseStrip"),
+		GNoseStrip,
+		TEXT("Deep.Room.NoseStrip <0|1>: 1 (default) = the ceiling strip across the nose lights the helm end and the window; 0 = off."));
 
 	void Solid(UStaticMeshComponent* Shape)
 	{
@@ -196,7 +203,8 @@ ADeepSubmarine::ADeepSubmarine()
 	HelmScreen->SetCastShadow(false);
 	ConsoleScreen->SetCastShadow(false);
 	Window->SetCastShadow(false);
-	for (const TCHAR* Name : { TEXT("StripFixtureA"), TEXT("StripFixtureB") })
+	// A and B run along the room; C runs across the nose over the helm and the window, so that end is not a black hole.
+	for (const TCHAR* Name : { TEXT("StripFixtureA"), TEXT("StripFixtureB"), TEXT("StripFixtureC") })
 	{
 		StripFixtures.Add(Make(Name, DeepShapes::Cube, false));
 	}
@@ -210,6 +218,7 @@ ADeepSubmarine::ADeepSubmarine()
 	};
 	Strips.Add(MakeRect(TEXT("StripA")));
 	Strips.Add(MakeRect(TEXT("StripB")));
+	Strips.Add(MakeRect(TEXT("StripC")));
 	ConsoleLight = MakeRect(TEXT("ConsoleLight"));
 	HelmLight = MakeRect(TEXT("HelmLight"));
 
@@ -375,13 +384,32 @@ void ADeepSubmarine::LayOut()
 	const double StripY = W - 45.0;
 	for (int32 Index = 0; Index < Strips.Num() && Index < StripFixtures.Num(); ++Index)
 	{
+		if (Index == 2)
+		{
+			// Across the nose, aft of the window: it rakes the window bezel and the helm from above.
+			const double NoseX = L - Look.NoseStripBackCm;
+			const double Span = W * 2.0 - 90.0;
+			Place(StripFixtures[Index], FVector(NoseX, 0.0, H * 0.5 - 4.0), FVector(14.0, Span + 20.0, 8.0));
+			Strips[Index]->SetRelativeLocation(FVector(NoseX, 0.0, H * 0.5 - 9.0));
+			// Yawed a quarter turn first, so pitched down its height axis runs across the room.
+			Strips[Index]->SetRelativeRotation(FRotator(-90.f, 90.f, 0.f));
+			Strips[Index]->SetSourceWidth(10.f);
+			Strips[Index]->SetSourceHeight(static_cast<float>(Span));
+			continue;
+		}
 		const double Y = Index == 0 ? StripY : -StripY;
-		Place(StripFixtures[Index], FVector(-60.0, Y, H * 0.5 - 4.0), FVector(520.0, 14.0, 8.0));
-		Strips[Index]->SetRelativeLocation(FVector(-60.0, Y, H * 0.5 - 9.0));
+		// From 30 cm off the aft wall to 2 m forward of the hatch (opening pass: they ended 20 cm forward of the start
+		// spot, so the walls round it were black). Look.StripIntensity keeps the old brightness per metre.
+		const double AftX = -L + 30.0;
+		const double ForeX = 200.0;
+		const double MidX = (AftX + ForeX) * 0.5;
+		const double Len = ForeX - AftX;
+		Place(StripFixtures[Index], FVector(MidX, Y, H * 0.5 - 4.0), FVector(Len + 20.0, 14.0, 8.0));
+		Strips[Index]->SetRelativeLocation(FVector(MidX, Y, H * 0.5 - 9.0));
 		Strips[Index]->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
 		// Pitched down, the light's height axis runs along the room.
 		Strips[Index]->SetSourceWidth(10.f);
-		Strips[Index]->SetSourceHeight(500.f);
+		Strips[Index]->SetSourceHeight(static_cast<float>(Len));
 	}
 	// The practicals face out of their screens.
 	ConsoleLight->SetRelativeLocation(FVector(C.X, C.Y - 12.0, DeckTop + 100.0));
@@ -774,6 +802,23 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	{
 		Light->SetVisibility(bOn && !UDeepTuningSettings::Get().Arena.bGreyBox);
 	}
+	if (Strips.IsValidIndex(2))
+	{
+		Strips[2]->SetVisibility(GNoseStrip != 0 && !UDeepTuningSettings::Get().Arena.bGreyBox);
+	}
+	// While a diver reads the settlement card, the console screen behind it dims, so its graph does not run through
+	// the numbers (the card sits over the screen from where a player stands to bank).
+	if (UMaterialInstanceDynamic* Screen = ConsoleScreen ? Cast<UMaterialInstanceDynamic>(ConsoleScreen->GetMaterial(0)) : nullptr)
+	{
+		bool bSettling = false;
+		for (TActorIterator<APawn> It(GetWorld()); It && !bSettling; ++It)
+		{
+			const UDeepRunComponent* Run = It->FindComponentByClass<UDeepRunComponent>();
+			bSettling = Run && Run->GetState() == EDeepRunState::Settling;
+		}
+		ConsoleGlowScale = FMath::FInterpTo(ConsoleGlowScale, bSettling ? Look.ScreenGlowUnderCard : 1.f, DeltaSeconds, 6.f);
+		Screen->SetScalarParameterValue(TEXT("Glow"), Look.ScreenGlow * ConsoleGlowScale);
+	}
 	TickHelmLook(DeltaSeconds);
 }
 
@@ -923,12 +968,15 @@ void ADeepSubmarine::ApplyLook()
 
 	// Lights (style guide 3): cool strips kept low, amber only at the screens, red at the hatch.
 	const bool bGreyBox = UDeepTuningSettings::Get().Arena.bGreyBox;
-	for (URectLightComponent* Light : Strips)
+	for (int32 Index = 0; Index < Strips.Num(); ++Index)
 	{
+		URectLightComponent* Light = Strips[Index];
 		Light->SetLightColor(Look.StripColor);
-		Light->SetIntensity(Look.StripIntensity);
+		Light->SetIntensity(Index == 2 ? Look.NoseStripIntensity : Look.StripIntensity);
 		Light->SetAttenuationRadius(500.f);
-		Light->SetBarnDoorAngle(45.f);
+		// Opened from 45 degrees (opening pass): at 45 the walls took no light and three of the four views round the
+		// room were black; wider doors let each strip wash down the walls from the ceiling and fade toward the floor.
+		Light->SetBarnDoorAngle(Look.StripBarnDoorDeg);
 		Light->SetBarnDoorLength(12.f);
 		Light->SetCastShadows(true);
 		Light->SetVisibility(!bGreyBox);

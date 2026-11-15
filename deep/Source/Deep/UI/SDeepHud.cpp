@@ -388,7 +388,20 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	if (const float TA = A(EDeepHudPanel::TitleCard); TA > 0.f)
 	{
 		const float Scene = EaseOutCubic(static_cast<float>((Now - TitleStart) / SceneFade));
-		P.Box(0.f, 0.f, L.X, L.Y, FLinearColor(0.f, 0.f, 0.f, TA));
+		// The veil: bands from near black at the top to thinner at the foot (eased), the room showing through below.
+		{
+			constexpr int32 Bands = 24;
+			const float BandH = L.Y / Bands;
+			for (int32 I = 0; I < Bands; ++I)
+			{
+				const float T = FMath::Pow((I + 0.5f) / Bands, 1.6f);
+				const float VeilA = FMath::Lerp(TitleVeilTop, TitleVeilBottom, T);
+				// Whole-unit edges, so neighbouring bands neither overlap (a dark line) nor leave a gap.
+				const float Y0 = FMath::RoundToFloat(I * BandH);
+				const float Y1 = FMath::RoundToFloat((I + 1) * BandH);
+				P.Box(0.f, Y0, L.X, Y1 - Y0, FLinearColor(0.f, 0.f, 0.f, TA * VeilA));
+			}
+		}
 		// A screen over the title (settings, credits, quit): the words step back under its card.
 		const float Cover = FMath::Max3(A(EDeepHudPanel::SettingsCard), A(EDeepHudPanel::CreditsCard), A(EDeepHudPanel::ConfirmCard));
 		const float WA = TA * (1.f - Cover);
