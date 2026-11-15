@@ -16,7 +16,7 @@ Each of these is a message from Quinn. The quotes are his, typos included. The n
 
 ## Research before building
 
-Seven agents ran between 1:32 and 2:07 AM, six on Sonnet at medium effort and one on Opus at high. An asset scout read Quinn's Fab library and the free listings: 61 picks in seven groups, 25 owned and 36 free. It could not see thumbnails, so its style notes came from text and needed a human eye. Quinn's 208 non-Megascans packs held no realistic sea creature. A web researcher covered sound, music, the Captain's voice and fonts with licences, and could not confirm the jam's rules on third-party assets because the Official Rules PDF is unreadable to our tools. Two more looked for other Unreal MCP servers and for a polish checklist. A technical art lead wrote the plan: ten work packages in three lanes.
+Six agents ran between 1:32 and 2:07 AM, five on Sonnet at medium effort and one on Opus at high. An asset scout read Quinn's Fab library and the free listings: 61 picks in seven groups, 25 owned and 36 free. It could not see thumbnails, so its style notes came from text and needed a human eye. Quinn's 208 non-Megascans packs held no realistic sea creature. A web researcher covered sound, music, the Captain's voice and fonts with licences, and could not confirm the jam's rules on third-party assets because the Official Rules PDF is unreadable to our tools. Two more looked for other Unreal MCP servers and for a polish checklist. A technical art lead wrote the plan: ten work packages in three lanes.
 
 The most useful result came from the agent that read Epic's own material. About 41 skills ship inside Unreal 5.9's toolset plugins, for Niagara, MetaSound, Sequencer, widgets and scene capture. They are written for AI agents. That agent found five corrections to our plan, the best being that marine snow can start from a stock Niagara template. The project rule now reads: read Epic's built-in skill first, then documentation or a tutorial, write the recipe down, build once. For the pack pictures, the orchestrator looked at them itself and found that one pack, the Sci-Fi Creatures Research Lab, is clean, bright and teal and does not read as a worn submarine.
 
@@ -32,7 +32,7 @@ Each lane works in its own checkout and branch. The orchestrator looks at the fr
 ![Second water pass: a directed beam raking rippled silt onto a crate](media/2026-11-15-water2-floor-rake.png)
 *Second pass: a cone from low right, rippled silt, a hard shadow. The crate is still a grey-box placeholder.*
 
-**Serpent.** The first pass (46 minutes, 303k tokens) replaced twenty spheres with one tapering body. The engineer's own verdict: "it still reads as a glowing eel, not a horror animal". The orchestrator agreed: a teal rim glow outlined the whole body. The second pass turned the rim off, made the skin near-black with round overlapping scales under a wet clear coat, made the animal 16 m long, and gave it a flat head with two rows of teeth and small eyes that shine only in the lamp. The review kept the side view as the best frame: something big, seen by what it blocks. A third pass staged the first sight: a sound, then the head crossing the beam at 7 m. Its verdicts were mixed. The pass reads as a long-snouted fish with no scale, the body crossing the beam is the good part, and the bite is "frightening as a silhouette, not readable as a bite".
+**Serpent.** The first pass (46 minutes, 303k tokens) replaced twenty spheres with one tapering body. The engineer's own verdict: "it still reads as a glowing eel, not a horror animal". The orchestrator agreed: a teal rim glow outlined the whole body. The second pass turned the rim off, made the skin near-black with round overlapping scales under a wet clear coat, made the animal 16 m long, and gave it a flat head with two rows of teeth and small eyes that shine only in the lamp. The engineer called the side view the best frame: something big, seen by what it blocks. The orchestrator's review picked the recoil frame, a huge scaled body crossing the beam, and the lit eye with its row of teeth. A third pass staged the first sight: a sound, then the head crossing the beam at 7 m. Its verdicts were mixed. The pass reads as a long-snouted fish with no scale, the body crossing the beam is the good part, and the bite is "frightening as a silhouette, not readable as a bite".
 
 ![First serpent pass: a teal glowing body outlined in cyan on black](media/2026-11-15-serpent-side.png)
 *First pass: the glowing teal eel. The rim light draws the whole outline, which is why it read as friendly.*
@@ -40,7 +40,7 @@ Each lane works in its own checkout and branch. The orchestrator looks at the fr
 ![Second serpent pass: a dark scaled body crossing the lamp's beam](media/2026-11-15-serpent2-side.png)
 *Second pass: a dark scaled body that shows only where the lamp catches it. It is faint, and it is the better animal.*
 
-**Room.** The review named five faults: flat orange and grey boxes under flat light, the lamp burning the floor white, a black driving view, a grey slab for a hull from below, and glaring white crates. One pass added a worn-steel material built from 3D noise, two cool ceiling strips, amber screens that light their own corners, red emergency light at the hatch, and a locked interior exposure so the sea's brightness does not leak in. The lamp now dims as the beam meets a surface closer than 7 m. The engineer's verdict on the first view: "It reads as a place now." The window, he said, would not pass, and the walls are still big flat boxes.
+**Room.** The review named five faults: flat orange and grey boxes under flat light, the lamp burning the floor white, a black driving view, a grey slab for a hull from below, and glaring white crates. One pass added a worn-steel material built from 3D noise, two cool ceiling strips, amber screens that light their own corners, red emergency light at the hatch, and a locked interior exposure so the sea's brightness does not leak in. The lamp now dims as the beam meets a surface closer than 7 m. The engineer's verdict on the first view: "It reads as a place now." The window, it said, would not pass, and the walls are still big flat boxes.
 
 ![The first room, orange boxes under flat light](media/2026-11-14-sub-room.png)
 *Before, from the first post: orange walls and a yellow hatch. It was readable, and flat.*
@@ -56,7 +56,7 @@ Each lane works in its own checkout and branch. The orchestrator looks at the fr
 **Driving.** The helm view was near black: a pair of frames one second apart differed in 357 of 14,400 sampled pixels. A pass of floodlights, speed streaks and a trench wall with a ledge every 10 m raised that to 2,691. The engineer's own list of what is wrong: the streaks are uniform white lines that lean toward rain, and the floor rising into the lights is weak.
 
 ![The helm view mid-descent, white streaks over a dark rock wall](media/2026-11-15-helm-mid-a.png)
-*Mid-descent at about 197 m. It reads as moving now. It also looks like rain.*
+*Mid-descent. It reads as moving now. It also looks like rain.*
 
 ## The orchestrator's failures
 
@@ -70,7 +70,7 @@ Each lane works in its own checkout and branch. The orchestrator looks at the fr
 
 - One lane per engineer, each in its own checkout and branch, with its own scratch file names. In the first water pass, two lanes shared one scratch folder and one overwrote the other's draft.
 - A written review of the frames before every second pass.
-- An integration branch for water, room, monster and HUD. At 4:22 AM it passed 54 of 54 tests, at 5:22 AM 60 of 60. Nothing goes from it to `main` until Quinn has seen frames.
+- An integration branch for water, room, monster and HUD. At 4:22 AM it passed 54 of 54 tests, at 5:20 AM 60 of 60. Nothing goes from it to `main` until Quinn has seen frames.
 - A machine-wide lock around Unreal, because the machine has 32 GB of RAM and Quinn's own editor is open, so agents must not start Unreal at once.
 - A packaged build, 427 MB zipped, smoke clean, compared with the editor by eye.
 
@@ -79,7 +79,7 @@ Each lane works in its own checkout and branch. The orchestrator looks at the fr
 | Role | Model, effort | What it did | Tokens | Minutes | Outcome |
 |---|---|---|---|---|---|
 | Engineer, fix batch one | Opus 5.5, high | Title key press and a state bug | 220k | 24 | Merged; cut to two of four items |
-| Research, 5 runs | Sonnet 5.5, medium | Fab library, sound, voice, fonts, MCP servers, polish checklist | 116k to 168k each for scout and skills; 68k to 91k for web | 1.6 to 6.9 each | All merged |
+| Research, 5 runs | Sonnet 5.5, medium | Fab library, Epic's built-in skills, sound, voice, fonts, MCP servers, polish checklist | 68k to 168k each | 1.6 to 6.9 each | All merged |
 | Technical art lead | Opus 5.5, high | The polish plan | 133k | 7.5 | Merged; ten packages in three lanes |
 | Playtest agent | Sonnet 5.5, medium | Stop 1 on simulated keys | 177k | 30 | Found the hatch stall; overran its budget |
 | Engineer, fix batch two | Opus 5.5, high | The hatch stall and the walk layout | 191k | 15 | Merged, 52 of 52 tests |
@@ -87,7 +87,11 @@ Each lane works in its own checkout and branch. The orchestrator looks at the fr
 | Writer | Sonnet 5.5, medium | The style guide | 84k | 2 | Merged; 131 lines, over its 100-line limit |
 | Lighting and water engineer, 2 passes | Opus 5.5, high | The sea | 286k, 274k | 47, 40 | First pass not at the bar; second a real base |
 | Creature engineer, 2 passes | Opus 5.5, high | The serpent | 303k, 269k | 46, 37 | First not good enough; second a step forward |
-| Lighting, creature and interface engineers | Opus 5.5, high | The room, the staged first sight, the HUD | not recorded | not recorded | Merged into the integration branch |
+| Lighting engineer | Opus 5.5, high | The room, the hull, salvage and the lamp at close range | 261k | 36 | Merged into the integration branch; by its own count two of six items done, three improved, driving not solved |
+| Creature engineer, third pass | Opus 5.5, high | The staged first sight, the bite from the side | 238k | 27 | Merged into the integration branch; the staging is right, the head is weak |
+| Interface engineer | Opus 5.5, high | The HUD | 262k | 33 | Merged into the integration branch; the lane that came out best |
+| Lighting engineer | Opus 5.5, high | The view while driving | 227k | 17 | Merged into the integration branch; reads as motion, the arrival does not land |
+| Checker | Sonnet 5.5, low | Three frames from the packaged game, compared with the editor's | 66k | 4 | All three match after a wait before the start command |
 
 A test of NVIDIA's DLSS plugin never started. The session's permission system refused it at 2:42 AM, because it would have downloaded a plugin into the project.
 
