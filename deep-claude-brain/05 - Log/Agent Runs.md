@@ -25,9 +25,11 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 21 | 10:08 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: `DeepToolset` with real game state, scripted playtests S0 to S4 with screenshots, first look at the game. | 107k | 48 | 17 min | Green, commit `d4db244`, merged as `ce7058a`. All five scenarios pass in about 2 minutes. Found a real bug (the winch stalls 7.4 m out from the side) and produced the first screenshots, which show the look is wrong. |
 | 23 | 10:28 PM | look engineer | Opus 5.5, high | In `.wt\pkg` on `look/pass1`: live tuning commands, 16:9 captures, then fix fog, exposure and light per stop by looking at frames. | not reported | | 7 min | Stopped by the orchestrator at 10:35 PM: Quinn wants raw gameplay before any environment work (D-020). Nothing merged. A cost of the orchestrator starting a look pass without asking. |
 
-| 22 | 10:17 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: the sea serpent. Procedural body, five-state brain, tests, console commands, new files only. Redirected mid-run to use Unreal's AI controller and hearing perception. | (to fill) | | 28 min | Green, commit `1ab0f29` on `dev/monster`, not merged. 20 of 20 tests. Not verified: nobody has seen it move. |
+| 22 | 10:17 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: the sea serpent. Procedural body, five-state brain, tests, console commands, new files only. Redirected mid-run to use Unreal's AI controller and hearing perception. | 245k | 106 | 24 min | Green, commit `1ab0f29` on `dev/monster`, not merged. 20 of 20 tests. Not verified: nobody has seen it move. |
 
-| 24 | 10:38 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: take over run 20's uncommitted work, make the grey box plainly visible with no fog (D-020), fix the winch, HUD and tether findings, prove the loop at stops 1 and 2, merge `main` in. | | | | Running. |
+| 24 | 10:38 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: take over run 20's uncommitted work, make the grey box plainly visible with no fog (D-020), fix the winch, HUD and tether findings, prove the loop at stops 1 and 2, merge `main` in. | 177k | 84 | 12 min | Green, merged as `12d026a`. Kept run 20's leftover fixes. 21 of 21 tests, including one that plays stops 1 and 2 start to finish. Verified again by the orchestrator before the merge. Not verified: keyboard play by a person. |
+| 25 | 10:52 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: merge `main`, connect the serpent to the loop, first look at the serpent. | | | | Running. |
+| 26 | 10:52 PM | build-sheriff | Sonnet 5.5, medium | In `.wt\pkg`: scripted playtests for the loop (S4 to S8), then package, smoke and zip. | | | | Running. |
 
 ## What the numbers say so far
 

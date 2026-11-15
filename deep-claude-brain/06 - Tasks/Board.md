@@ -1,75 +1,65 @@
 ---
-updated: 2026-11-14 21:36 EST
+updated: 2026-11-14 22:52 EST
 ---
-WW# Board
+# Board
 
-The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each item are in [[GDD]]. Status words: `todo`, `doing`, `blocked`, `done`.
+The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
+
+## State of the game
+
+`main` is at `12d026a`. 51 source files, about 6,900 lines, 21 tests passing.
+
+- **Playable loop:** dive, grab, weight, tether, winch, the Captain's Patience, the cut, bailout air, re-tether, death and respawn, bank, settlement screen, hull rating, descent to stop 2, the Captain's subtitles. A test plays stops 1 and 2 start to finish.
+- **Plain on purpose:** the grey box is evenly lit with no fog, at Quinn's request (D-020). No atmosphere work until the gameplay is right.
+- **Pipeline:** `tools\ue.ps1` (build, test, verify, package, smoke, zip, shot, editor), `tools\mcp.ps1`, `tools\playtest.ps1` (S0 to S4), and our own `DeepToolset` MCP tools.
+- **Built but not in `main`:** the sea serpent (`dev/monster`, `1ab0f29`). The stopped look pass is parked on `look/pass1`.
+- **Not built:** the relic and the win, stop 3 as a finale, title and menus, sound, voice, models.
 
 ## Running now
 
 | Lane | Agent | Task | Started |
 |---|---|---|---|
-| Pipeline | build-sheriff | **Done 9:32 PM.** `tools\ue.ps1` exists; `build` (45 s cold, 5 s warm), `test` (17 s) and `verify` pass, and a failing test, an empty filter and a compile error each report FAIL. All Toolsets and Unreal MCP are in the `.uproject`. Not yet run: `package`, `zip`, `smoke`, `editor`. | 9:21 PM |
-| Gameplay | systems-engineer (Opus, high) | **Done 10:05 PM**, commit `a445002`. Items 1 and 2: rules with 14 tests, then the playable grey box (38 files, 3,785 lines, 15 of 15 tests). Nobody had pressed Play when it was committed. | 9:34 PM |
-| Gameplay | systems-engineer (Opus, high), in `.wt\dev` on `dev/loop` | Item 3 and item 5: Patience, the cut, bailout, re-tether, respawn, bank, settlement screen, hull, descent, event bus, the Captain's subtitles, `-DeepShot`. | 10:08 PM |
-| MCP tooling | tools agent (Sonnet, medium), in `.wt\pkg` on `tools/playtest` | **Done 10:25 PM**, merged as `ce7058a`. Items 5a and 5b: `DeepToolset` has `GetState`, `Exec` and `GetArena`; `tools\playtest.ps1 all` runs S0 to S4 in about 2 minutes and all pass. First screenshots are in `devlog\media`. | 10:08 PM |
-| Look | look engineer (Opus, high), in `.wt\pkg` on `look/pass1` | **Stopped 10:35 PM at Quinn's request** (D-020: raw gameplay first, no environment yet). Nothing merged. The look pass and the `Deep.Tune` live tuning commands wait until the loop plays. | 10:28 PM |
-| Gameplay | systems-engineer (Opus, high), a new agent continuing in `.wt\dev` | The first engineer was stopped by accident at 10:33 PM and could not be resumed, so a new one took over at 10:38 PM with its uncommitted edits. Already pushed on `dev/loop`: stops at 100 / 300 / 500 m (`e374c6b`), and the run loop with Patience, the cut, bailout, death and respawn, bank, settlement, descent and the Captain's subtitles (`7d3e234`). Now: make the grey box plainly visible with no fog, fix the winch, HUD and tether findings, merge `main` in, verify, push. | 10:36 PM |
-
-**Open bugs from the first playtests**, sent to the core-loop engineer at 10:28 PM: the winch stalls 7.4 m out when approached from the side; HUD text is too small and the TAUT warning has low contrast; the tether renders as a thick glowing rod.
-
-| Monster | systems-engineer (Opus, high), in `.wt\monster` on `dev/monster` | **Done 10:45 PM**, commit `1ab0f29`, pushed, **not merged yet**. The sea serpent (D-019): a Pawn with a procedural body, an `AAIController` with Unreal's hearing perception, a five-state brain as tested pure functions, console commands. 20 of 20 tests. New files only, plus `AIModule` in `Deep.Build.cs`. Nobody has seen it move. Merge it after `dev/loop`, then wire: noise sources, bite to the cut (`NotifyTetherCut` / `NotifyRetethered`), caught to death, threat to sound and HUD. | 10:17 PM |
-
-**Checkouts.** The main checkout is Quinn's: he may keep the editor open on it. Agents build only in `.wt\dev` and `.wt\pkg` and push branches; the orchestrator merges into `main` after `verify` passes. After a merge Quinn restarts the editor to pick up new code.
-| Writing | director-writer | **Done 9:30 PM.** 138 lines across 41 events in `deep\Content\Data\DirectorLines.csv`, 24 fee labels in `SettlementFees.csv`. Checked: ASCII, no duplicate ids, longest line 15 words. | 9:21 PM |
-
-| Packaging | build-sheriff (Sonnet, medium) | **Done 9:53 PM**, merged from `sheriff/package`. On the still-empty game: `package` passes in 5 min 12 s (729 MB on disk), `smoke` passes, `zip` is 449 MB. `shot` verb added; it needs game-side `-DeepShot` support before it can pass. The checkout `.wt\pkg` stays as the packaging lane: merge `main` into it and package there, so packaging never blocks the builder in the main checkout. | 9:43 PM |
-| Writing | writer (Sonnet, medium) | **Done 9:49 PM**, commit `5021c7f`. All 138 lines rewritten for the Captain in `deep\Content\Data\CaptainLines.csv`; fee labels sharpened. Checked: same ids and counts, ASCII, 10 lines say "Director's cut". | 9:47 PM |
-
-| MCP tooling | tools agent (Sonnet, medium) | In `.wt\pkg` on branch `tools/mcp`, against a live 5.9 editor on port 8012: a command-line MCP client `tools\mcp.ps1`, a live catalog of 5.9's toolsets, a proven PIE round trip with a screenshot, and how to write our own toolset. | 9:56 PM |
-
-Models and effort follow `.claude/loop.md`. The submarine AI is now **the Captain**; the Director is its unseen boss. See [[GDD]] v4.
-
-Only one agent builds or tests in the main checkout at a time: a running test or cook holds the module DLL and breaks a parallel build.
+| Monster | systems-engineer (Opus, high), `.wt\monster` on `dev/monster` | Merge `main` in, connect the serpent to the loop (noise, bite to the cut, caught to death, threat on the HUD, the Captain's monster lines), and look at it for the first time. | 10:52 PM |
+| Regression | build-sheriff (Sonnet, medium), `.wt\pkg` on `tools/regress` | Bring the scripted playtests up to the new loop (S4 from the side, S5 cut, S6 bank, S7 descend, S8 full run), then package, smoke and zip the loop build. | 10:52 PM |
 
 ## Next, in order
 
-| # | Item | Agent | Target (EST) | Status |
-|---|---|---|---|---|
-| 1 | Rules in `Sim/` with tests: depth and zones, tether, weight, Patience, settlement, fees, hull. Tuning in `UDeepTuningSettings`. | systems-engineer | Sat 10:15 PM | blocked on pipeline |
-| 2 | Playable grey box: diver (swim, lamp, grab, drop), tether and winch, salvage and weight, Patience, the cut, bailout, a self-building arena, `Deep.*` cheats, `DEEPSTATE`, a plain HUD. | systems-engineer | Sat 11:45 PM | blocked on 1 |
-| 3 | Bank, settlement screen, hull rating, descend by fade, re-tether, respawn counter. | systems-engineer | overnight | blocked on 2 |
-| 4 | Packaged build and smoke run of the playable loop, in `.wt\pkg`. The pipeline itself is proven (9:53 PM). Watch the size: the empty game is already 729 MB on disk and 449 MB zipped, against a 1 GB upload limit. | build-sheriff | overnight | blocked on 3 |
-| 5 | Subtitles: the bark system that plays the Captain's lines on events. Reads `CaptainLines.csv`, fills the `{n}`, `{gross}`, `{cut}`, `{net}`, `{depth}` tokens, never repeats a variant twice running. Voice is optional per line: play the audio for a line id if it exists, otherwise subtitle only. The 12 lines with tokens are subtitle only. | systems-engineer | Sun 10 AM | blocked on 2 |
-| 5a | `DeepToolset`: our own MCP tools for the game. `GetState` (typed, replaces parsing the log), `GotoStop`, `GiveSalvage`, `SetPatience`, `ForceCut`, `SpawnMonster`, `ResetRun`. Editor-only module. Follows the how-to from the MCP tooling agent. | systems-engineer or a second builder in `.wt\pkg` | overnight | blocked on 2 and the MCP tooling agent |
-| 5b | Scripted playtests: `tools\playtest.ps1 S1` drives PIE through `tools\mcp.ps1` and asserts on `GetState`, with a screenshot per scenario. No model tokens per run; an agent only reads the summary. | build-sheriff | Sun 9 AM | blocked on 5a |
-| 6 | AI playtest: scenarios S1 to S6 scripted (5b), plus one exploratory "critic" pass by an agent. Works through `tools\mcp.ps1` on an editor the harness starts, so it does not depend on Claude's own MCP connection. | playtester | Sun 10 AM | blocked on 5b |
-| 7 | Monster pressure cycle and tether bite. | systems-engineer, Quinn tunes | Sun noon | blocked on 3 |
-| 8 | Title, controls card, win and lose screens, restart, quit. | systems-engineer | Sun 2 PM | blocked on 3 |
-| 9 | Voice for the Director's lines. | director-writer | Sun 2 PM | blocked on Quinn's choice |
-| 10 | Feature freeze, then fixes only. | all | Sun 3 PM | todo |
-| 11 | Final package, second PC test, 30 to 60 second video. | Quinn + Colby | Sun 5 PM | todo |
-| 12 | itch.io page, submission form, dev log link. Submitted. | Colby, Claude drafts | Sun 8 PM | todo |
+| # | Item | Owner | Status |
+|---|---|---|---|
+| 1 | Play the loop and tune the feel: swim, sink, tether, winch, Patience. | Quinn | todo |
+| 2 | Merge the serpent once wired; tune it. | orchestrator, Quinn | blocked on the monster lane |
+| 3 | Finish the game's shape: the relic at stop 3 and the win, lose and restart, title and controls card, quit. | systems-engineer | todo |
+| 4 | Sound hooks and a minimum sound set. Needs files from Colby. | systems-engineer, Colby | blocked on files |
+| 5 | Voice for the Captain's lines. | writer | blocked on Quinn's choice |
+| 6 | Look pass, only after the gameplay is right (D-020). | look engineer | deferred |
+| 7 | Ideas Quinn picks from [[Fun Ideas]]. | per idea | waiting on review |
+| 8 | Sunday: feature freeze 3 PM, final package and video 5 PM, submitted 8 PM. | all | todo |
 
 ## Waiting on Quinn
 
-| Item | Why it matters |
-|---|---|
-| Open the editor after the pipeline agent finishes, then reconnect Claude with `/mcp`. | Agents cannot see or play the game until this session is connected to `unreal-mcp`. |
-| May Claude commit at each green checkpoint? | Commits give rollback points and feed the dev log. Nothing has been committed yet. |
-| The Director's voice: an OpenAI key, or a built-in Windows voice as a stand-in. | Decides item 9 and the OpenAI award. |
-| Share [DEEP - Brief](https://docs.google.com/document/d/1s7-gTlxQ-urXaO8CnRa_atFVw1bGDQ9sgtFYwNMFdtM/edit) with Colby. | Claude cannot change sharing. |
-| Delete the stray notes in the vault root (`Welcome.md`, empty `GDD.md`, empty `Co-op, Steam and Voice.md`) and the old long design doc. | The empty notes shadow the real ones in Obsidian. |
+- Close and reopen the editor to get the loop, then play it.
+- The Captain's voice: an OpenAI key, or a built-in Windows voice as a stand-in.
+- Team name, and whether both are enrolled students.
+- Which of the [[Fun Ideas]] to build.
+- Share the Brief doc with Colby. Delete the stray notes in the vault root.
 
 ## For Colby
 
-Models (submarine, salvage pieces, relic, monster), sounds (breathing, winch, tether snap, monster, ambience, one music loop), then the three light and fog settings once the arena exists. Dev log post, video and itch.io page on Sunday.
+Models: submarine first, then salvage pieces, relic, serpent head. Sounds: breathing, winch, tether snap, serpent, ambience, one music loop. Dev log post, gameplay video and itch.io page on Sunday.
+
+## Checkouts
+
+The main checkout is Quinn's and he may keep the editor open on it. Agents build only in `.wt\dev`, `.wt\monster` and `.wt\pkg` and push branches. The orchestrator verifies a branch in its own checkout, merges it into `main`, and tells Quinn to restart the editor.
 
 ## Done
 
-| Item | When | Evidence |
+| Item | When | Commit |
 |---|---|---|
-| Research and setup notes in the vault. | Nov 14, 9:00 PM | [[00 - Start Here]] |
-| Hole pass and narrowed scope. | Nov 14, 9:10 PM | D-013 in [[Decision Log]] |
-| Brief design doc in Google Docs. | Nov 14, 9:13 PM | [[GDD]] |
-| Fun and winning pass; agent role files; `.mcp.json`. | Nov 14, 9:15 PM | D-014 in [[Decision Log]], `.claude/agents` |
+| Research and setup notes in the vault | Nov 14, 9:00 PM | `487d2da` |
+| Build and test pipeline | 9:32 PM | `487d2da` |
+| The Captain's 138 lines | 9:49 PM | `5021c7f` |
+| Packaging proven on the empty game | 9:53 PM | `993155e` |
+| Playable grey box | 10:05 PM | `a445002` |
+| MCP client, live tool catalog, first custom toolset | 10:07 PM | `3dea698` |
+| Game state over MCP, scripted playtests, first screenshots | 10:27 PM | `ce7058a` |
+| The core loop, from dive to descent | 10:49 PM | `12d026a` |

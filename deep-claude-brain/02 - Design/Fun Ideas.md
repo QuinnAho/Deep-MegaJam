@@ -27,6 +27,18 @@ Since 9:45 PM the voice is the Captain, and the Director is its unseen boss (see
 - [ ] Marine snow: drifting specks in the lamp beam, made from instanced meshes so it needs no assets. M.
 - [ ] Title screen: "Press any key to waive your rights." Line exists. S.
 
+## The harpoon (Quinn and Colby's idea, Nov 14, 10:55 PM)
+
+The idea as raised: a harpoon that latches onto terrain or the submarine and pulls you in. Hitting the sub damages it and you have to repair it. Not decided.
+
+Claude's view: yes to a narrow version, and it should make the cut better rather than be a second way to move.
+
+- [ ] **Bailout harpoon.** Cost M. One shot per dive, reloaded at the airlock. It only matters once you have no tether: aim at the sub, it latches and reels you home fast. A miss means you swim. Hitting the hull adds a repair fee to the next settlement, itemised by the Captain. It makes being cut loose a real choice (go past the tether for a pearl, then shoot your way home), puts a skill moment at the most exciting point in the game, and needs no terrain and no new repair system.
+- [ ] **Harpoon to terrain for movement.** Cost L. There is no terrain yet, and Quinn has deferred environment work (D-020). While tethered it also duplicates the winch. Revisit only if a level with walls exists.
+- [ ] **Repair by hand.** Cost M to L. Swim to the damaged plate and hold a key to patch it while the serpent is about. A good tense beat, but it is a second loop to build, teach and tune. Start with repair as a fee; add this only if there is time.
+
+Risk to watch: if the harpoon is cheap and reliable, the cut stops being frightening. Limits are what keep it fair: one shot, about 25 m of range, and a fee higher than the 20 credit re-tether.
+
 ## A live Captain (OpenAI), decide Sunday about 1 PM
 
 Quinn is weighing a live AI brain for the OpenAI awards. It is not needed to be eligible: the award text is "uses OpenAI models or products, during development, gameplay, or both", so voice generated with OpenAI ahead of time already qualifies. A live brain makes a stronger case for "best use", and the prize is API credits, not cash. The scripted Captain stays as the default either way, because a judge may be offline and no key can ship inside the build.
