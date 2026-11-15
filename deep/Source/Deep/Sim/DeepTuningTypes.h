@@ -2108,3 +2108,66 @@ struct FDeepSonarTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float ToneVolumeHigh = 1.f;
 };
+
+/** The room's dressing (World/DeepRoomDress): materials, the clear zones it keeps and its light fixtures (Lane E, rescope). */
+USTRUCT(BlueprintType)
+struct FDeepRoomDressTuning
+{
+	GENERATED_BODY()
+
+	/** 0 hides the dressing and its lights (before-and-after frames). `Deep.Room.Dress 0|1` sets it live. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	bool bEnabled = true;
+
+	/** Material instances of M_WornSteel, built by Content/Deep/Room/build_room_materials.py. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FSoftObjectPath FrameMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/MI_FrameSteel.MI_FrameSteel"));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FSoftObjectPath PipeMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/MI_PipeSteel.MI_PipeSteel"));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FSoftObjectPath BrassMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/MI_DullBrass.MI_DullBrass"));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FSoftObjectPath RubberMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/MI_Rubber.MI_Rubber"));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FSoftObjectPath GlassMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/MI_GrimyGlass.MI_GrimyGlass"));
+
+	/** Pieces below this height over the deck (cm) must keep out of the walks, the hatch and the helm zone. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float HeadClearCm = 200.f;
+
+	/** A walk's half width beyond the walker's capsule radius (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float WalkMarginCm = 3.f;
+
+	/** Kept clear round the hatch opening (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float HatchClearCm = 50.f;
+
+	/** Kept clear round the helm seat (cm): the helm lane's throttle and ballast levers go there. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float HelmClearCm = 100.f;
+
+	/** Caged practicals (#FFB45A) over the console and the helm. Candela-ish units of a point light. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FLinearColor PracticalColor = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float PracticalIntensity = 900.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float PracticalRadiusCm = 260.f;
+
+	/** Caged emergency lights (#D8271C): port bulkhead by the bench and the aft bulkhead. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FLinearColor EmergencyColor = FLinearColor(FColor(0xD8, 0x27, 0x1C));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float EmergencyIntensity = 700.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float EmergencyRadiusCm = 300.f;
+
+	/** Low cool strip (#BFE3EA) under the port pipe run, raking the pipes and the lockers. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	FLinearColor StripColor = FLinearColor(FColor(0xBF, 0xE3, 0xEA));
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float StripIntensity = 350.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
+	float StripRadiusCm = 280.f;
+};

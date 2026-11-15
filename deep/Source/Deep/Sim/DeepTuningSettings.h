@@ -94,4 +94,7 @@ public:
 	/** The helm's sonar (Sonar lane). */
 	UPROPERTY(Config, EditAnywhere, Category = "Sonar")
 	FDeepSonarTuning Sonar;
+	/** The room's dressing: materials, clear zones, caged lights (World/DeepRoomDress). */
+	UPROPERTY(Config, EditAnywhere, Category = "RoomDress")
+	FDeepRoomDressTuning RoomDress;
 };

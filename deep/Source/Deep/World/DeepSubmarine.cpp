@@ -20,6 +20,9 @@
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepHull.h"
+#include "World/DeepRoomDress.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/LocalLightComponent.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -303,6 +306,9 @@ ADeepSubmarine::ADeepSubmarine()
 	RoomGrade->Priority = 10.f;
 	RoomGrade->BlendRadius = 40.f;
 
+	// The room's dressing: ribs, pipes, cables, gauges, lockers, bench, ladder, caged lights (World/DeepRoomDress).
+	DeepRoomDress::Create(this, Root, RoomDressMeshes, RoomDressLights);
+
 	LayOut();
 }
 
@@ -526,6 +532,11 @@ UProceduralMeshComponent* ADeepSubmarine::GetTrench() const
 bool ADeepSubmarine::TrenchShows(bool bHelmView, bool bInRoomView, bool bParked)
 {
 	return bHelmView || (bInRoomView && !bParked);
+}
+
+void ADeepSubmarine::SetRoomDressVisible(bool bVisible)
+{
+	DeepRoomDress::SetVisible(RoomDressMeshes, RoomDressLights, bVisible);
 }
 
 void ADeepSubmarine::SetHullDressVisible(bool bVisible)
@@ -1068,6 +1079,7 @@ void ADeepSubmarine::ApplyLook()
 	S.AutoExposureApplyPhysicalCameraExposure = false;
 	S.bOverride_AutoExposureBias = true;
 	S.AutoExposureBias = Look.RoomExposureBias;
+	DeepRoomDress::Skin(RoomDressMeshes, RoomDressLights, bGreyBox);
 	RoomGrade->bEnabled = !bGreyBox;
 }
 
