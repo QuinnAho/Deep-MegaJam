@@ -647,6 +647,24 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Coming aboard: you keep the pitch you swam up with, so the first frame aboard is the ceiling (`...-05c-aboard.png`); levelled, the room reads (`...-05d-aboard-level.png`). The fix belongs in the run component or the diver, outside this lane.
 - Capture mistakes, for the next lane: the hatch drop leaves the diver 60 cm under the hatch, so frames "at the stop" must move the diver; `Deep.Monster.FirstSight` aims by the lamp, which lags the view, so wait a second after `Deep.Look`; `Deep.Grab` from `Deep.Hover` missed twice: the grab picks by angle and range from the eye, and the hover stopped at the bed.
 
+### 12:30 PM  The Captain learns to shut up (polish/captain, D-040)
+- What happened: Quinn said the Captain "doesn't really bring anything". He now talks less, and only when it matters. In the water he never chats. A notable line waits 30 s after the last one he said. When the serpent closes within 25 m, or a bite alarm sounds, only life-or-death lines get through. A new `tone` column (calm, tense, scared) lets the writer give each danger tier its own lines. Aboard and at settlement he still jokes as before. Driving the sub counts as the water, otherwise every wall hit would get a line. `Deep.Captain.Radio 0` brings back the old Captain exactly.
+- Why it matters: Silence makes a voice worth hearing. The design is a pure rule (`Story/DeepCaptainPacing`) with every number in tuning, so the writer and Quinn can retune him without code.
+- Interpretation flagged: "the serpent hunts" is read as Stalk, Hunt or Bite on this diver, because Hunt alone only happens after a cut. On a client, which cannot see the brain's state, a serpent within 25 m counts.
+- Evidence: commit `c4bcb1a`; Deep.Story 4 of 4 passed (Deep.Story.CaptainPacing and Deep.Story.CaptainRadio are new).
+
+### 12:50 PM  The Captain is on the radio (polish/captain)
+- What happened: Every Captain line now keys a radio. It opens with a click, a burst of squelch and a short hiss, and closes with a squelch and the key's click. Both are synthesized, like every other sound so far: band-passed noise from 450 to 3,200 Hz, sample-held to 8 kHz and crushed to 6 bits. If a voice file named after the line id exists under `/Game/DeepAudio/Captain/`, it plays through the same band on a new `voice` group. The subtitle then stays up for as long as he speaks. While he speaks, music drops 9 dB, ambience 6 dB and effects 3 dB, with a 50 ms attack and a 500 ms release.
+- Found: the radio band can be set at runtime on the audio component (high-pass and low-pass), but the crush cannot be added without a source-effect asset. Voice files have to arrive already crushed.
+- Also: the revised Captain script (74 lines, no numbers in voiced lines) replaces the 185-line CaptainLines.csv. Every event the game fires still has a line.
+- Evidence: build green; Deep.Story, Deep.Sim.Audio and Deep.World.Audio 10 of 10 passed. Deep.Sim.Audio.Duck is new, and Deep.Story.CaptainRadio now also checks the squelch count and the duck release. Commits `6a7c75b` (radio) and `6cbb037` (script).
+
+### 1:05 PM  Music slots and breathing that panics (polish/captain)
+- What happened: The game has a `music` group, but no music yet. Each stop gets a bed: the first to 200 m, the second to 400 m, the third below that. A bed crossfades into the next over 3 s, and a tension layer rises over it while bailout air runs. The title and the settlement receipt have their own beds. A sting plays once, the first time the serpent is seen (its first-sight pass, or within 30 m), and a cue plays when the relic is banked. Every music row names its file under `/Game/DeepAudio/Music/<event>`. Until that file exists the row is silent, because generated music would clash with the style. Breathing now follows the Captain's danger tier: calm breathing, fast when tense, and ragged panic breathing over a 120 bpm heartbeat when scared. The panic breathing and the heartbeat are both new synth loops. `Deep.Music 0` brings back the old mix.
+- Why it matters: The danger the Captain reads is now something the player hears in their own body, even with the music off.
+- Evidence: build green; Deep.Sim.Audio, Deep.World.Audio and Deep.Story 11 of 11 passed (Deep.Sim.Audio.Music is new; the mix test now covers the danger tiers).
+- Not done: the 1.5 kHz low-pass on outside sounds while inside. Inside, the outside drone and the serpent are already silent, so the filter would only touch creature one-shots and would mean editing PlayEvent, which the sonar lane had just changed.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
@@ -685,3 +703,11 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
 - Claude Code
 - Obsidian
 - Google Docs
+
+### 12:40 PM  Captain lane takes the sonar integration (polish/captain)
+- What happened: `origin/polish/integration` (`ea29122`, sonar) was merged into polish/captain. Both sides were kept in DeepSynth (squelch voices and sonar voices), Sounds.csv (radio, music and sonar rows) and ARCHITECTURE (the Audio and Sonar lines). In CaptainLines.csv the revised D-040 script stays: it already had a `sonar_contact` line in its six-column form, and the sonar lane's five-column row would not fit that format. The merged build is green.
+
+### 12:45 PM  Sound files get variations, and the cook knows where they are (polish/captain)
+- What happened: Any Sounds.csv row may now have `<asset>_01` .. `_03` beside its file. A one-shot picks one at random, never the same twice in a row, and plays it at +-3% pitch (music and the Captain are never jittered). If only the variations exist, the row still plays. `/Game/DeepAudio` is cooked whole. Pack sounds are cooked only as Sounds.csv names them (a cook hook like the dressing's), because a pack folder is too big to cook whole. The new test `Deep.Sim.Audio.AssetsResolve` loads every file the table names, but skips a folder that has not arrived. Today it checked 0 rows and skipped 8: no music, serpent or pack sound files are in the checkout yet.
+- Evidence: build green; Deep.Sim.Audio, Deep.World.Audio and Deep.Story 13 of 13 passed (Deep.Sim.Audio.Files and Deep.Sim.Audio.AssetsResolve are new).
+- Not done: no row is mapped to a pack sound yet, because no sound pack folder has arrived. Nothing was imported from `audio-drop/`, which is waiting for the orchestrator's go.
