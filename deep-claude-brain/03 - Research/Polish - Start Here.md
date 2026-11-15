@@ -8,14 +8,14 @@ The one note a polish brief links to. The pass has not started. It waits on Quin
 ## Rules for the pass
 
 - **One planned pass to a professional standard.** No patching of placeholders (D-028). Looks have the same weight as gameplay (D-029).
-- **One style for everything seen and heard** (D-030). The style is written in `02 - Design/Style Guide.md` once Quinn picks it. Until that note exists, no visual work starts.
+- **One style for everything seen and heard** (D-030). The style is dark, worn and realistic, led by light and reflection (D-032), and it is written down as numbers in `02 - Design/Style Guide.md`. Every polish brief links to that guide and to this note. No visual work starts until Quinn says go.
 - **Numbers, not taste.** Type sizes, colours, animation timings and volume levels come from the style guide, so agents working in parallel cannot drift apart. That drift is the commonest way a jam game looks amateur.
 - **Quinn approves frames at each gate.** An agent looks at its own frames before it reports.
 - **One Unreal editor at a time.** The machine has 32 GB of RAM.
 
 ## Waiting on Quinn
 
-1. The style: dark, worn and realistic (recommended by the asset scout and by Claude), or stylised.
+1. ~~The style~~: leaning dark, worn and realistic (D-032). He confirms by approving frames. **Still needed: his go to start.**
 2. Which packs he installs. He marks them on the look board (its URL is in Claude's memory, not in the repo).
 3. Whether agents may create assets through the editor, each in its own folder, with no agent touching a map (the plan, section 6).
 4. Whether the code-only work packages start before 10 AM.
@@ -35,7 +35,8 @@ The one note a polish brief links to. The pass has not started. It waits on Quin
 
 ## Amendments to the plan from the later research
 
-- **Pack list.** The plan's WP0 lists Corals and Atlantis Ruins. The asset scout says both clash with the realistic set. The style choice settles it; if realistic, use the scout's install order.
+- **Pack list.** Realistic is chosen (D-032), so use the asset scout's install order, with two changes from looking at the pack pictures: the room is NOT skinned with the Sci-Fi Creatures Research Lab, which is clean, bright and teal (use Modular Ship Interior and Industrial Infrastructure); and Atlantis Ruins may serve the 500 m site if graded dark. Corals stay out.
+- **Ray tracing.** The project already has Lumen with hardware ray tracing on. The look leans on it: the lamp's hard shadows, the black water in the hatch reflecting the room, the helm window. It must still hold up with ray tracing off. Unreal's Path Tracer is offline and is not used in the game.
 - **Marine snow (WP1).** Start from Epic's `HangingParticulates` Niagara emitter template. `CreateNiagaraSystem` needs a template and cannot make a system from nothing. The plan's instanced spheres become the fallback.
 - **HUD (WP6).** Keep native C++ widgets with the motion written in C++. Epic's widget-animation, MVVM and UMG skills only edit Widget Blueprints and do not apply.
 - **Video (WP10).** Record with `SceneCaptureToolset.RecordViewport`, with resolution and frame rate raised from its defaults (1280 px, 15 fps). Movie Render Queue needs a tool our catalog lacks and a Level Sequence we do not have.

@@ -7,7 +7,7 @@ The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules 
 
 ## Handoff for a fresh orchestrator session (written 2:31 AM Nov 15)
 
-A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Quinn is leaning toward dark realism led by light and reflection (D-032). One agent is writing the style guide (`design/style-guide`, `.wt\text`, Sonnet, started 2:42 AM): merge its note when the branch has a commit. **No visual work is dispatched until Quinn says go.** A DLSS test for the NVIDIA award was refused by the session's permission system and needs Quinn (D-032).
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Quinn is leaning toward dark realism led by light and reflection (D-032), and the style guide is merged: `02 - Design/Style Guide.md`. No agent is running. **No visual work is dispatched until Quinn says go.** When he does, start with the water look and the monster, which he named as the two things the game needs, each on its own branch with frames for him to approve. A DLSS test for the NVIDIA award was refused by the session's permission system and needs Quinn to download the plugin himself (D-032).
 
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
@@ -132,3 +132,4 @@ The main checkout is Quinn's and he may keep the editor open on it (port 8000: n
 | Six research notes for the polish pass, with one index note | 2:10 AM | `7256f6c` |
 | The first stop played on simulated keyboard and mouse (`S8-keys`) | 2:10 AM | `b8b4037` |
 | The diver can return to the hatch from any side; the hatch is off the walking line | 2:27 AM | `0874fe5` |
+| The style guide: dark realism led by light, as numbers | 2:46 AM | `design/style-guide` merge |
