@@ -134,3 +134,17 @@ Quirks found on this project with UE 5.9:
 - **Smoke, proven.** `smoke` PASS in 26 s: the packaged exe ran 25 s windowed, and the log had no fatal error, assertion, ensure or unhandled exception.
 - **`shot` (new).** `ue.ps1 shot -Name <name> [-Delay <s, default 6>] [-Cmds "<console cmds separated by ;>"]` runs `UnrealEditor.exe "<uproject>" -game -windowed -ResX=1280 -ResY=720 -nosplash -unattended -log -abslog="<log>" -DeepShot="<abs png>" -DeepShotDelay=<s> -DeepShotCmds="<cmds>"`. The game must implement the three switches: `-DeepShot` (absolute PNG path to write), `-DeepShotDelay` (seconds to wait after start before capturing), `-DeepShotCmds` (console commands, `;` separated, run before capture). The verb waits up to 120 s for the PNG, kills the process if still running, and prints the path. Proven failure path: with no game-side support it ran 2m01s and printed `FAIL shot - no screenshot produced; game-side -DeepShot support may be missing`. The success path is not yet verified.
 - **Timings.** Cold worktree build 65 s, package 5m12s, smoke 26 s, zip 18 s.
+
+### Scripted playtests
+
+`tools\playtest.ps1 <scenario|all> [-Port 8012] [-KeepEditor]` costs no model tokens. It starts the editor on the port if nothing answers, then per scenario: StartPIE, run steps through `tools\mcp.ps1` (`DeepToolset.Exec` for cheats, `InputToolset.ApplyInput` for held keys), assert on the `DeepToolset.GetState` JSON, capture the game viewport, StopPIE. One `PASS` or `FAIL <scenario>: <reason>` line each, then a `TOTAL` line; exit code 0 only if all pass. It closes the editor only if it started it (and not with `-KeepEditor`). Needs an editor built with the `DeepToolset` module. `playtest.ps1 all` took about 2 minutes with the editor already up.
+
+| Scenario | Asserts |
+|---|---|
+| `S0-boot` | a submarine and at least one salvage piece exist, diver present, stop 1, tether length above 0 and the diver inside it |
+| `S1-grab` | teleport 80 cm beside salvage piece 0, tap E, `cargo_kg` rises above 0 |
+| `S2-overload` | `Deep.GiveSalvage 30 300`, no input for 3 s, `depth_m` increases |
+| `S3-tether` | hold W + Space + Shift for 15 s; max `tether_distance_m` stays within `tether_length_m` + 1 and the diver really moved |
+| `S4-winch` | teleport 29 m out and below the sub, hold R (8 s, retried up to 24 s), diver ends within 5 m of the anchor |
+
+Screenshots: `deep\Saved\Harness\playtest\<scenario>.png` (not committed); copy chosen ones to `devlog\media\`. Known game finding: winching from the side at anchor height stalls 7.4 m out (the sub hull probably blocks the move), so S4 starts below the sub, where a player would be.

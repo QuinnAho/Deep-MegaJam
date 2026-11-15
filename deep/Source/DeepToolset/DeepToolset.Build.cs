@@ -6,7 +6,7 @@ public class DeepToolset : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "Deep" });
 		PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "Json", "ToolsetRegistry" });
 	}
 }
