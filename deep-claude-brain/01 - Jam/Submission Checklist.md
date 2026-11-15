@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 (writer, status pass; sources named per line)
+updated: 2026-11-15 3:05 PM (itch draft refreshed, shot list added, rehearsal package recorded; sources named per line)
 verified: Requirements from the itch.io jam page (Nov 14), status from the repo and from what the orchestrator reported on Nov 15. The Official Rules PDF has still not been read.
 ---
 # Submission Checklist
@@ -10,7 +10,7 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 
 ## The build
 
-- MISSING Packaged for Windows 10/11. A package exists but predates the latest branch; repackage the final build. Source: orchestrator report.
+- MISSING Packaged for Windows 10/11. Final package is due at 6 PM. Last rehearsal package: 2:33 PM Nov 15 on integration `bbeeb7e`, 1047.5 MB packaged, 762.7 MB zip, smoke passed. Source: orchestrator report, Nov 15.
 - DONE (rehearsal, rechecked 8:39 AM Nov 15) With Dragon Cave rock and the dragon's head in the build the zip is 762 MB against the 1 GB limit (8:47 AM, `6746147`). Without the texture limit in `deep/Config/DefaultDeviceProfiles.ini` it was 1,318 MB, over the limit. Source: package logs. Recheck at every package, and again if more packs go in.
 - WAITING Zip named `TeamName_GameName.zip`. Team name is not chosen. Source: this list, Nov 14.
 - MISSING Runs on a second machine that has never had the project on it (Colby's PC). Source: no record in the Devlog.
@@ -20,11 +20,11 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 
 ## The itch.io page and jam form
 
-- MISSING The page does not exist yet. Draft copy is in `devlog/itch-page.md`. Source: orchestrator report.
+- MISSING The page does not exist yet. Draft copy refreshed at about 3:05 PM Nov 15 for the cave-shaft game (D-039 to D-046), checked against integration `f0b7fd0`; TODOs for Quinn remain in it. Source: `devlog/itch-page.md`.
 - MISSING Game uploaded to our own itch.io account, then submitted to the jam.
 - WAITING Team name, and each member's name plus the email tied to their Epic Games account. Only Quinn and Colby have these.
 - DONE Game name: DEEP. Source: `CLAUDE.md`.
-- MISSING Link to a **30 to 60 second gameplay video**. No gameplay video has been recorded. Source: orchestrator report. Stills from the polish pass are in `devlog/media/`; none of it is video. An agent can record a scripted run as a fallback (`SceneCaptureToolset.RecordViewport`), but a hand-played clip is better. OBS Studio is installed on Quinn's PC, so a hand-played clip is a few minutes of his time; the machine has no ffmpeg, so a scripted recording has no encoder yet.
+- MISSING Link to a **30 to 60 second gameplay video**. No gameplay video has been recorded. The shot list exists (`Video Shot List.md`, Nov 15); Quinn records at about 6:15 PM. Source: orchestrator report. Stills from the polish pass are in `devlog/media/`; none of it is video. An agent can record a scripted run as a fallback (`SceneCaptureToolset.RecordViewport`), but a hand-played clip is better. OBS Studio is installed on Quinn's PC, so a hand-played clip is a few minutes of his time; the machine has no ffmpeg, so a scripted recording has no encoder yet.
 - MISSING Dev log link. Required for Glass Box. Two drafts exist in `devlog/`; nothing is published. Decide where (itch.io devlog posts are what other entrants use).
 - WAITING "Tools you used" field. Current list: Unreal Engine 5.9 MegaJam Preview, Unreal MCP, Claude Code, plus Obsidian and Google Docs for notes. Quinn confirms the final list.
 - WAITING List of third-party assets and licences. `Credits.csv` lists the engine and in-code sound only. Dragon Cave (Fab) is being added; its seller and licence text are to-dos. Any Megascans used must be added. Source: `deep/Content/Data/Credits.csv`, D-034.
@@ -40,7 +40,7 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 - DONE Nothing built before Nov 12, so nothing to declare. Source: [[Jam Brief]].
 - DONE Gameplay goes beyond the starter templates (own C++ module). Source: repo.
 - DONE Engine rule: Unreal only, 5.9 MegaJam Preview. Source: `CLAUDE.md`.
-- MISSING **Theme on the page.** The game no longer says the theme (D-025), so the page must, in one sentence. Drafted in `devlog/itch-page.md`; Quinn approves. Source: D-025.
+- MISSING **Theme on the page.** The game no longer says the theme (D-025), so the page must, in one sentence. Redrafted in `devlog/itch-page.md` (Nov 15); Quinn approves. Source: D-025.
 - MISSING **Best Team** is automatic with two people, but the team must be entered as a team on the form. Source: [[Track Strategy]].
 - DONE (n/a) Hyper3D cash pool: needs Rodin. Not used, so nothing to redeem. Source: [[Track Strategy]]; nothing in the repo or Devlog mentions Rodin.
 - WAITING **Check the judged criteria on the first two minutes**: theme, loop and look must show without explanation. Needs a human hand-play. Source: [[Jam Brief]].
@@ -56,4 +56,4 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 
 ## Rehearsal
 
-Package and zip a build long before the deadline, and repeat. A build that has never been packaged is the most common way to miss a jam. The last rehearsal build was 762 MB (8:47 AM Nov 15).
+Package and zip a build long before the deadline, and repeat. A build that has never been packaged is the most common way to miss a jam. The last rehearsal zip was 762.7 MB (2:33 PM Nov 15, integration `bbeeb7e`).

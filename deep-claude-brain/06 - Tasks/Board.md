@@ -1,11 +1,11 @@
 ---
-updated: 2026-11-15 15:00 EST
+updated: 2026-11-15 15:10 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 3:00 PM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 3:10 PM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
@@ -204,7 +204,7 @@ The overnight runs are in [[Agent Runs]].
 | HUD palettes | Sonnet, high, scratchpad only | **Done** at 2:31 PM: three palettes ([[HUD Palettes]]) on the HUD mockup page, version 2. Tonal water recommended. | 2:24 PM |
 | Serpent look | Opus, high (the camera agent, resumed by Quinn), `.wt\swim` on `polish/serpent-look` | **Done** at about 2:35 PM: one model again, the code-built head and jaw (`8b5b100`), frames `da36b1f`. Pushed, not merged. | about 2:16 PM |
 | Serpent physics | Opus, high, `.wt\swim` on `polish/serpent-look` | **Running** since 2:39 PM: the body as a chain the head drags (D-046). Report by 4:00 PM; stops at 3:45 PM if it is not right. | 2:39 PM |
-| Submission text | Sonnet, medium, main checkout, text only | **Running** since 3:03 PM: the itch page rewritten for today's game, a shot list for the 30 to 60 s video, the checklist's status (row 90). Report by 3:45 PM. | 3:03 PM |
+| Submission text | Sonnet, medium, main checkout, text only | **Done** at 3:05 PM (row 90): `devlog/itch-page.md` rewritten for today's game, [[Video Shot List]], the checklist's status. Reviewed against the code, three faults fixed, committed. | 3:03 PM |
 
 ## Next, in order
 
@@ -235,7 +235,7 @@ The overnight runs are in [[Agent Runs]].
   - the HUD: A is built in Tonal water and is in integration (frames page, version 19). Keep it, say B (about an hour more), or name another palette from [[HUD Palettes]] (a one-file change). Amber phosphor breaks the Style Guide's rule that amber never goes on HUD lines;
   - the serpent's hearing (asked at 3:00 PM): sprinting alone never brings it. Sprint noise adds 15 a second against a decay of 10, so reaching Stalk takes about 12 s of unbroken sprinting, and a straight sprint reaches the end of a 60 m line in about 9.4 s. Winching and grabs do bring it. (a) keep it (recommended, and the default), (b) raise sprint noise to about 25 a second or lower Stalk to about 40, (c) count noise at any speed above a swim.
   Asked at about 2 PM: does his "not in the hud" also mean no recording dot or timecode on the HUD?
-- **The video** (required, 30 to 60 s, a link on the form): Quinn records it by hand with OBS on the 6 PM package, at about 6:15 PM. The shot list will be in [[Video Shot List]] by 3:45 PM.
+- **The video** (required, 30 to 60 s, a link on the form): Quinn records it by hand with OBS on the 6 PM package, at about 6:15 PM. The shot list is in [[Video Shot List]]: it opens at the helm, and the lamp shots need the flashlight bought first (one dive, or the console cheat `Deep.BuyGate free`). The itch page draft has his TODOs in it (`devlog/itch-page.md`).
 - **The Official Rules PDF has never been read.** It is on Box and needs a browser. Five minutes before the freeze, or tell the orchestrator it may read it in Chrome.
 - **"Merge" into `main`.** Nothing visual reaches `main` until he has seen frames and says "merge". Ask before the 5:30 PM freeze, so the freeze run-through and the 6 PM package are built from `main`.
 - Tell Colby that the brother is making the serpent and the music, so the two of them don't both make those sounds.

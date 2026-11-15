@@ -506,6 +506,18 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - frames `devlog/media/2026-11-15-hud-a-{swim300,helm-limit,serpent-bite,aboard-bank,settlement}.png` on `polish/hud-a`; the frames page, version 19;
   - rows 85 and 86 in [[Agent Runs]].
 
+### 3:10 PM  The submission text is rewritten for today's game, and review catches two shots that cannot be filmed (orchestrator)
+- **What happened:**
+  - **The itch page was eight hours old.** The draft from 7:05 AM described the game before the cave shaft: a trench, no submarine to drive, a Captain who mocks you the whole way down. The submission window, 6 to 7:30 PM, has room for the video and the form, not for writing. So at 3:03 PM a Sonnet writer (row 90) was sent to rewrite it from the integration code, write a shot list for the 30 to 60 s video Quinn records at about 6:15 PM, and update the checklist. It finished in about 2 minutes.
+  - **It checked the old draft against the code** and fixed what the code disproved: 185 Captain lines (the data has 74), the 66-test count, a helm that only dives (W, A, S and D steer it in the shaft), the vague overload rule (you sink past 10 kg; at 15 kg you cannot swim up), and the missing ping and camera shake.
+  - **The orchestrator then checked the writer against the code (D-045) and found three faults.**
+    - It stamped its files 3:30, 3:40 and 3:45 PM when it was 3:03, probably from its 3:45 PM deadline.
+    - The video's first shot was a sonar ping at the helm. The ping is the diver's and works only in the water (`DeepCameraRules::CanDiverPing` takes `IsInWater()`), so Quinn would have pressed V at the helm on camera and seen nothing. The ping moved to the shot where the diver swims out.
+    - The lamp shots need the flashlight, which the first settlement sells (`HasFlashlight()` is `GatesBought() >= 1`, and `ToggleLamp` does nothing without it). The writer also thought the cheats would not work in the package. `tools/ue.ps1` packages a Development build, so the console should work: the shot list now says to try `Deep.BuyGate free` and `Deep.GotoStop 2` once before recording.
+  - **What the orchestrator confirmed in code:** the 40 percent cut (`DirectorCutPercent`, an internal name the player never sees), the death fee, the 5 s bite alarm, a full-length bite that severs the line (`bSevered`), the lamp that always breaks a bite at once, the hull breach that drowns the diver at the helm, 30 s of bailout air, depth limits of 200, 400 and 600 m with the relic at 600, and the 3 s ping cooldown. The Dragon Cave seller's name comes from `Credits.csv` on integration.
+- **Why it matters:** a video plan that opens on a key that does nothing would have cost a retake in the busiest hour of the jam. A writer that checks claims against code still needs the same check on its own work, and here the review cost six greps.
+- **Evidence:** `devlog/itch-page.md`, [[Video Shot List]], [[Submission Checklist]]; row 90 in [[Agent Runs]]; the code read is integration `f0b7fd0` (`Diver/DeepDiver.cpp`, `Monster/DeepMonsterRules.cpp`, `Sim/DeepTuningTypes.h`, `Diver/DeepRunComponent.cpp`).
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

@@ -2,73 +2,59 @@
 
 *Cheapest submarine on the market. Loudest opinion of you.*
 
-<!-- Draft for itch.io. Body under 500 words. Every TODO(Quinn) is a fact the repo cannot confirm. -->
+<!-- Draft for itch.io, refreshed Nov 15 at about 3:05 PM for the scope change (D-039 to D-046), and checked against polish/integration f0b7fd0. Body (from "The game" to the end) is under 500 words. Every TODO(Quinn) is a fact the repo cannot confirm. TODO(Quinn): the tagline predates D-040, when the Captain began to say little; keep it or change it. -->
 
 ## The game
 
-You are a salvage diver on a tether, lowered from a submarine into a trench that gets darker the further you go. Swim down, grab what is lying on the seabed, and get back up the line. Everything you carry is heavy. Past ten kilograms you sink, and an overloaded diver can only be winched home, which is loud.
+You are a salvage diver on a tether. Your submarine goes down a winding cave shaft, and you drive it by sonar. Every stop is a cavern. Hit the walls and the hull takes damage. Breach it and the diver aboard dies.
 
-Something in the water hears loud. A sea serpent comes in toward the tether when you make noise and backs off when you hold your lamp on it. You hear it long before you see it. A bite on the tether starts a five-second alarm.
+At each stop, drop through the hatch, swim out, grab salvage, and get back up the line. Past 10 kg you sink. At 15 kg you cannot swim up, and the loud winch is the only way home.
 
-The submarine's AI is the Captain, and it works for the company. It mocks you the whole way down, takes 40 percent of every haul, and cuts your tether when its patience runs out. Dying is billed as a fee. The next diver is already on the way.
+A sea serpent hears loud. It comes in toward your tether, and a bite starts a five-second alarm. Turn your lamp on it and it lets go. Too slow, and it bites through the line.
 
-**The theme.** Nobody says the theme in the game, so here: every haul gets edited by the Captain's cut, and the cut tether is the final edit. TODO(Quinn): confirm you want this sentence, and the theme's name, kept in this one place.
+The Captain is a voice on the radio, and he works for the company. He says little. He takes 40 percent of every haul. When his patience runs out he cuts your tether. Dying is billed as a fee. The next diver is already on the way.
+
+**The theme.** Every haul gets edited by the Captain's cut, and the cut tether is the final edit. TODO(Quinn): confirm this sentence, and that the theme's name appears only here (D-025).
 
 ## Controls
 
-Keyboard and mouse. There is no controller support.
-
 | Key | Action |
 |---|---|
-| W A S D | Swim (walk inside the submarine) |
+| W A S D | Swim or walk. At the helm: steer the submarine |
 | Mouse | Look |
-| Space / C or Left Ctrl | Swim up / down |
-| Left Shift | Sprint (noisy) |
-| E | Grab salvage; use the console and helm |
+| Space / C | Up / down. At the helm: hold C to dive, Space to rise |
+| Shift | Sprint (noisy) |
+| E | Grab; use console and helm |
 | G | Drop what you carry |
 | Left click | Harpoon, one per dive |
-| R (hold) | Winch home, loud |
-| F | Lamp, once you have bought the flashlight |
+| V | Sonar ping in the water, every 3 s |
+| R (hold) | Winch home |
+| F | Lamp, once bought |
 | Q (hold) | Ask to be cut loose |
-| Esc or P | Menu |
+| Esc | Menu |
 
-## What is in the build
+## In the build
 
-- A title menu, settings (volume, look sensitivity, invert look, ray tracing), credits, a pause menu and quit.
-- A walkable submarine with a hatch to the sea, a console that banks salvage and shows the settlement screen, and a helm that drives the submarine down.
-- Three depth layers: Sunlight, Twilight and Midnight, to 600 m. The flashlight and a hull upgrade are bought at settlement.
-- The tether, winch, weight, harpoon, the Captain's patience and the cut, with a bailout run on the cut.
-- The sea serpent. WIP: its head is being rebuilt from a dragon model in a third-party pack (see credits). Keep that clause only if the head ships.
-- 185 lines for the Captain, shown as subtitles, and a set of sounds made in code. TODO(Quinn): confirm no voice recordings or real sound files are in the final build.
-- A win screen with the choice to dive again.
+- Title, settings, credits, pause, quit, and a win screen with "dive again".
+- A walkable submarine with a hatch, a settlement console and a helm.
+- Three stops and a relic, to 600 m. A flashlight and a hull upgrade are bought at settlement.
+- Camera shake on hits, bites and the cut. 74 lines for the Captain. TODO(Quinn): confirm no voice or music files ship; the sound is made in code.
 
 ## How it was made
 
-Two people, Quinn and Colby, and Claude agents, in the jam's last day. The first game code was written at about 9 PM on Saturday, with 24 hours left. TODO(Quinn): confirm the start time you want quoted and whether Colby wants his role described.
+Quinn, Colby and Claude agents. The people chose the idea and every call on style and scope. The agents wrote the C++, tests, playtests, the Captain's lines and the dev log. One orchestrating agent wrote no game code. TODO(Quinn): confirm the start time to quote and Colby's role. The commit count and the final test result go in at the 6 PM package.
 
-The people chose the idea, the Captain's voice and every call on style and scope. They approved or rejected frames. The agents wrote the C++, the tests, the scripted playtests, the Captain's lines and the dev log entries, and ran the build and packaging. One orchestrating agent dispatched the others and did not write game code.
+Dev log: TODO(Quinn): link.
 
-- 157 commits on the integration branch at the time of writing. TODO(Quinn): refresh the number at submission.
-- 66 automated tests, all passing at 6:54 AM on Sunday. TODO(Quinn): refresh.
-- 185 lines of Captain dialogue, written as data.
+## Credits
 
-Dev log: TODO(Quinn): link. The drafts are `devlog/01-saturday-night.md` and `devlog/02-sunday-before-dawn.md`.
+- Unreal Engine 5.9 (MegaJam Preview), Epic Games.
+- All sound generated in code.
+- Dragon Cave, Denys Rutkovskyi, Fab personal licence (the relic). TODO(Quinn): confirm seller, licence, and whether it still supplies the serpent's head after D-046.
+- Megascans: TODO(Quinn): list only what shipped.
 
-## Credits and third-party assets
+Tools: Unreal Engine 5.9, Unreal MCP, Claude Code. TODO(Quinn): add the others (Obsidian, Google Docs).
 
-| Item | Author | Licence |
-|---|---|---|
-| Unreal Engine 5.9 (MegaJam Preview) | Epic Games | Unreal Engine EULA |
-| All sound | Generated in code | Original work |
-| Dragon Cave | TODO(Quinn): seller on Fab | TODO(Quinn): Fab licence |
-| Megascans / Quixel assets | Quixel | TODO(Quinn): list only the ones that shipped |
+## To run
 
-Tools used: Unreal Engine 5.9 MegaJam Preview, Unreal MCP, Claude Code. TODO(Quinn): add every other tool actually used (Obsidian and Google Docs were used for notes).
-
-## What it needs to run
-
-Windows 10 or 11, DirectX 12. Ray tracing can be switched off in the settings. TODO(Quinn): minimum GPU and RAM, once someone has tested on a second machine.
-
-## Team
-
-TODO(Quinn): team name, and anything about who made it.
+Windows 10 or 11, DirectX 12. TODO(Quinn): minimum GPU and RAM, and the team name.
