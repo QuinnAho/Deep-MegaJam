@@ -703,3 +703,6 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
 - Claude Code
 - Obsidian
 - Google Docs
+
+### 12:40 PM  Captain lane takes the sonar integration (polish/captain)
+- What happened: `origin/polish/integration` (`ea29122`, sonar) was merged into polish/captain. Both sides were kept in DeepSynth (squelch voices and sonar voices), Sounds.csv (radio, music and sonar rows) and ARCHITECTURE (the Audio and Sonar lines). In CaptainLines.csv the revised D-040 script stays: it already had a `sonar_contact` line in its six-column form, and the sonar lane's five-column row would not fit that format. The merged build is green.

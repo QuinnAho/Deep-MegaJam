@@ -61,3 +61,5 @@
 "music_settlement","music","/Game/DeepAudio/Music/music_settlement","",0.8,1.0,1,"Settlement receipt"
 "music_sting_serpent","music","/Game/DeepAudio/Music/music_sting_serpent","",1.0,1.0,0,"Once, the first time the serpent is seen"
 "music_win","music","/Game/DeepAudio/Music/music_win","",1.0,1.0,0,"The relic banked"
+"sonar_ping","sfx","","sonar_ping",0.5,1.0,0,"Helm sonar: once per sweep (Sonar lane)"
+"sonar_near","ui","","sonar_tick",0.45,1.0,0,"Helm sonar: proximity beep, quicker and higher as a wall closes"

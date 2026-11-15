@@ -154,6 +154,47 @@ namespace
 		return X;
 	}
 
+	/** The helm sonar's sweep ping (Sonar lane): a clean transmit tone, then a long reverberant tail and two returns. */
+	TArray<float> SonarPing()
+	{
+		TArray<float> X = Make(2.4f);
+		float Phase = 0.f;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float F = 1480.f - 40.f * FMath::Min(T, 1.f);
+			Phase += TwoPi * F / SampleRate;
+			// A held 60 ms transmit, then the ring of the transducer dying away.
+			const float Body = Ramp(T, 0.f, 0.006f) * (T < 0.06f ? 1.f : FMath::Exp(-(T - 0.06f) / 0.45f));
+			X[I] = Body * (FMath::Sin(Phase) + 0.08f * FMath::Sin(3.f * Phase));
+		}
+		// Returns off the walls: later and softer.
+		const int32 First = Samples(0.42f);
+		const int32 Second = Samples(0.95f);
+		for (int32 I = X.Num() - 1; I >= Second; --I)
+		{
+			X[I] += 0.32f * X[I - First] + 0.16f * X[I - Second];
+		}
+		for (int32 I = Second - 1; I >= First; --I)
+		{
+			X[I] += 0.32f * X[I - First];
+		}
+		return X;
+	}
+
+	/** The sonar's proximity beep: short and dry so it can repeat fast. */
+	TArray<float> SonarTick()
+	{
+		TArray<float> X = Make(0.11f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Env = Ramp(T, 0.f, 0.004f) * (1.f - Ramp(T, 0.05f, 0.05f));
+			X[I] = Env * (FMath::Sin(TwoPi * 1150.f * T) + 0.2f * FMath::Sin(TwoPi * 2300.f * T));
+		}
+		return X;
+	}
+
 	TArray<float> Harpoon()
 	{
 		TArray<float> X = Make(0.6f);
@@ -433,6 +474,8 @@ namespace
 			{ TEXT("chime"), false, 1.4f, &Chime },
 			{ TEXT("squelch_on"), false, 0.45f, &SquelchOn },
 			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
+			{ TEXT("sonar_ping"), false, 2.4f, &SonarPing },
+			{ TEXT("sonar_tick"), false, 0.11f, &SonarTick },
 			{ TEXT("drone_out"), true, 8.f, &DroneOut },
 			{ TEXT("drone_in"), true, 6.f, &DroneIn },
 			{ TEXT("breath"), true, 8.f, [] { return Breath(4.f, 8.f, 61); } },

@@ -20,6 +20,7 @@
 #include "Misc/AutomationTest.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "Sonar/DeepSonarRules.h"
 #include "Story/DeepEventBus.h"
 #include "World/DeepSubmarine.h"
 
@@ -40,7 +41,7 @@ namespace DeepAudioTest
 	{
 		TArray<FName> Out = DeepEvent::AllFired();
 		for (const TCHAR* Name : { DeepHarpoonEvent::Fired, DeepHarpoonEvent::HitSub, DeepHarpoonEvent::HitTerrain,
-			DeepHarpoonEvent::HitMonster, DeepHarpoonEvent::Missed, DeepHarpoonEvent::Empty })
+			DeepHarpoonEvent::HitMonster, DeepHarpoonEvent::Missed, DeepHarpoonEvent::Empty, DeepSonarEvent::Ping, DeepSonarEvent::Near })
 		{
 			Out.AddUnique(FName(Name));
 		}

@@ -17,6 +17,7 @@ class UDeepRunComponent;
 class UFont;
 class SDeepHud;
 class SWidget;
+class UDeepSonarComponent;
 struct FDeepHudFrame;
 
 UCLASS()
@@ -25,8 +26,13 @@ class DEEP_API ADeepHUD : public AHUD
 	GENERATED_BODY()
 
 public:
+	ADeepHUD();
+
 	virtual void DrawHUD() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** The helm sonar: local to this player, works while their diver is seated at the helm (Sonar lane). */
+	UDeepSonarComponent* GetSonar() const;
 
 private:
 	/** The old canvas HUD (Deep.HUD.Legacy 1). */
@@ -34,6 +40,9 @@ private:
 	/** Fills the frame the widget paints, and raises feedback cues on the frame a state changes. */
 	void GatherFrame(FDeepHudFrame& Frame);
 	void ShowWidget(bool bShow);
+
+	UPROPERTY(VisibleAnywhere, Category = "Sonar")
+	TObjectPtr<UDeepSonarComponent> Sonar;
 
 	TSharedPtr<SDeepHud> Widget;
 	TSharedPtr<SWidget> WidgetRoot;

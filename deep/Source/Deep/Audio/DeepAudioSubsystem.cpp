@@ -281,6 +281,11 @@ void UDeepAudioSubsystem::HandleEvent(FName Event, const FDeepEventPayload& Payl
 
 bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 {
+	return PlayEventScaled(Event, 1.f, 1.f, bForce);
+}
+
+bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce)
+{
 	const FDeepSoundRow* Row = Table.Find(Event);
 	if (!Row || Row->bLoop)
 	{
@@ -297,13 +302,14 @@ bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 	LastPlayed.Add(Event, Clock);
 
 	const EDeepSoundSource Source = Resolve(*Row);
-	const float Volume = RowVolume(*Row);
+	const float Volume = FMath::Clamp(RowVolume(*Row) * FMath::Max(0.f, VolumeScale), 0.f, 1.f);
+	const float Pitch = Row->Pitch * FMath::Clamp(PitchScale, 0.25f, 4.f);
 	if (History.Num() >= MaxAudioHistory)
 	{
 		History.RemoveAt(0);
 	}
 	History.Add({ Event, Source, Volume });
-	LogSound(Event, *Row, Source, Volume, Row->Pitch, TEXT("start"));
+	LogSound(Event, *Row, Source, Volume, Pitch, TEXT("start"));
 
 	// Prune finished one-shots before counting.
 	for (int32 I = OneShotComponents.Num() - 1; I >= 0; --I)
@@ -318,12 +324,12 @@ bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 	{
 		return true;
 	}
-	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Row->Pitch))
+	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Pitch))
 	{
 		double StopAt = TNumericLimits<double>::Max();
 		if (Source == EDeepSoundSource::Generated)
 		{
-			StopAt = Clock + DeepSynth::ExpectedSamples(Row->Builtin) / double(DeepSynth::SampleRate) / FMath::Max(Row->Pitch, 0.1f) + 0.1;
+			StopAt = Clock + DeepSynth::ExpectedSamples(Row->Builtin) / double(DeepSynth::SampleRate) / FMath::Max(Pitch, 0.1f) + 0.1;
 		}
 		OneShotComponents.Add(Comp);
 		OneShotStopAt.Add(StopAt);
