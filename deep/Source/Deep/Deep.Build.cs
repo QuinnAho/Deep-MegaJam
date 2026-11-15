@@ -11,7 +11,7 @@ public class Deep : ModuleRules
 		// Lets code include by folder from the module root, e.g. "Sim/DeepRules.h".
 		PublicIncludePaths.Add(ModuleDirectory);
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "DeveloperSettings", "EnhancedInput" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "DeveloperSettings", "EnhancedInput", "AIModule" });
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Json" });
 	}
