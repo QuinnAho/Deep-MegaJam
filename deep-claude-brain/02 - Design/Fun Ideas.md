@@ -27,6 +27,18 @@ Since 9:45 PM the voice is the Captain, and the Director is its unseen boss (see
 - [ ] Marine snow: drifting specks in the lamp beam, made from instanced meshes so it needs no assets. M.
 - [ ] Title screen: "Press any key to waive your rights." Line exists. S.
 
+## A live Captain (OpenAI), decide Sunday about 1 PM
+
+Quinn is weighing a live AI brain for the OpenAI awards. It is not needed to be eligible: the award text is "uses OpenAI models or products, during development, gameplay, or both", so voice generated with OpenAI ahead of time already qualifies. A live brain makes a stronger case for "best use", and the prize is API credits, not cash. The scripted Captain stays as the default either way, because a judge may be offline and no key can ship inside the build.
+
+It plugs into the event bus the engineer is building, so nothing built now is wasted. Three sizes:
+
+- [ ] **A. Live lines.** Cost M. Each game event plus the game state goes to an OpenAI model, which returns a fresh insult as a subtitle. Falls back to the written lines on any failure or with no key.
+- [ ] **B. Live voice.** Cost M more. The same line spoken through OpenAI text-to-speech at runtime.
+- [ ] **C. Haggle with the Captain.** Cost L, the risky one. Hold a key and plead out loud; the model decides whether to grant more Patience, raise the Director's cut, or cut you now, by calling game functions. This is the "Jarvis" idea from the first notes and the strongest use of a live model, because the model changes the game instead of decorating it.
+
+Open question for any of them: whose key? Either the player pastes their own (judges mostly will not), or a small relay holds ours with a spending cap, which needs about half an hour of setup and an internet connection on the judge's side.
+
 ## Bigger swings, only if we are ahead at noon Sunday
 
 - [ ] The Director turns kind at stop 3. "Take your time." It is more unsettling than threats. Lines only. S.
