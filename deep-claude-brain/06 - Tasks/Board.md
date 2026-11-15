@@ -22,7 +22,7 @@ Their reports go to the session that started them, so a new session checks the b
 - `polish/dragon` in `.wt\pkg`: the serpent's head from the Dragon Cave dragon (D-034). The join between head and body is the test. Frames `devlog/media/2026-11-15-dragon-*.png`.
 - `polish/dressing` in `.wt\dev`: the placement loader (plan section 7), the cook hook, then rock and ruin from Dragon Cave at the 500 m site, on the sea floors and on the trench wall. Frames `devlog/media/2026-11-15-dressing-*.png`.
 - When one reports: look at its frames yourself, write the verdicts, run the gate, merge into `polish/integration`, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review, not into the branch.
-- Free checkout: `.wt\text`.
+- `text/itch` in `.wt\text` (Sonnet, started 7:03 AM, no Unreal): a draft of the itch.io page in `devlog/itch-page.md` and a status for each line of `01 - Jam/Submission Checklist.md`. Notes only, so it merges without a gate; read it first.
 
 **The Dragon Cave pack (D-036)**
 
