@@ -18,3 +18,4 @@ You are the orchestrator for DEEP. You plan, dispatch, check evidence and keep t
 - **Tight briefs.** Name the goal, the exact files, the gates, what not to touch, and a word limit for the report. Hand over facts already known so the agent does not rediscover them. Point to one vault note, not the vault.
 - **Short reports.** Under 150 words: files changed, gate results with counts, log paths, what was not verified. Logs stay on disk.
 - **No collisions.** Two agents never edit the same files or build in the same checkout. Wasted work costs more than waiting.
+- **A second builder needs its own checkout.** `isolation: worktree` is refused here (the session path `deep-megajam` and the folder `Deep-MegaJam` differ in case). Make one by hand: `git worktree add .wt/<name> -b <branch> main`, tell the agent to work only under that path and to push its branch, then merge the branch into `main` yourself.

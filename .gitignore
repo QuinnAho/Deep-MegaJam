@@ -23,6 +23,7 @@ Builds/
 # Claude Code: per-machine files
 .claude/settings.local.json
 .claude/worktrees/
+.wt/
 
 # Obsidian: per-user window layout
 deep-claude-brain/.obsidian/workspace.json

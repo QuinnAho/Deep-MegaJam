@@ -31,10 +31,10 @@ Open in [[Decision Log]]. Nothing gets built until the first two are answered.
 ## Map of the vault
 
 - **01 - Jam**: [[Jam Brief]] (facts), [[Track Strategy]] (which prizes and what each needs), [[Submission Checklist]], [[Partner Perks]].
-- **02 - Design**: [[GDD]] (short agent copy, with the Google Doc link).
+- **02 - Design**: [[GDD]] (short agent copy, with the Google Doc link), [[Fun Ideas]] (suggestions waiting for Quinn's review; not on the Board).
 - **03 - Research**: [[Unreal MCP in UE 5.9]], [[Engine Choice - 5.9 vs 5.8]], [[Validation Loop]], [[Agent Orchestration]], [[NVIDIA RTX, DLSS and ACE]], [[Co-op, Steam and Voice]].
-- **04 - Workflow**: [[How We Work]], [[Teammate Access]], [[Environment]].
-- **05 - Log**: [[Decision Log]], [[Devlog]] (raw material for the Glass Box prize), [[Inbox]] (humans leave notes for Claude here).
+- **04 - Workflow**: [[How We Work]], [[Agent Visibility]] (what is captured, from logs to video), [[Teammate Access]], [[Environment]].
+- **05 - Log**: [[Decision Log]], [[Devlog]] (raw material for the Glass Box prize), [[Agent Runs]] (one row per subagent run, with cost), [[Inbox]] (humans leave notes for Claude here).
 - **06 - Tasks**: [[Board]].
 
 ## Rules for whoever writes here

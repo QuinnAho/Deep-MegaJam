@@ -123,6 +123,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: Agents can now prove their work in about 25 s (build about 5 s, headless tests about 18 s), and the gameplay engineer is unblocked. The MCP toolsets are switched on in the project too (Epic's fix for known issue UE-412135).
 - Evidence: `.\tools\ue.ps1 verify` gives `PASS verify (21.9s)` with 1 of 1 tests passed. Logs and report in `deep\Saved\Harness\test-20261114-212927-report\index.json`. See [[Validation Loop]].
 
+### 9:37 PM  First commit, three hours in
+- What happened: Quinn gives Claude full permission to commit and push. The first commit goes to GitHub: 50 files covering the project, the pipeline script, the Director's lines, the vault and the agent role files. It is taken at the exact state the pipeline agent proved green, before the gameplay engineer had written a file. The staged files are scanned for keys and perk codes before the push.
+- Why it matters: From here every green checkpoint is a commit, so there is always a working build to fall back to, Colby can clone, and the history becomes part of this dev log.
+- Evidence: commit `487d2da` on `main`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
