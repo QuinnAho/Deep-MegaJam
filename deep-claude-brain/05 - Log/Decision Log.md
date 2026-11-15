@@ -156,6 +156,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **Megascans:** any Quixel Megascans asset may be used, not only the ones the asset scout listed: rocks, surfaces, decals, plants.
 - **What it needs:** the pack installed in the project, which only Quinn's Fab account can do. Until then nobody has seen what meshes it holds: whether the dragon is one mesh or pieces, static or rigged. The creature engineer is building the body with an attach point, a tunable neck and a slot for the dragon's material, so the head drops in when it arrives.
 - **Also worth using from the same pack:** its gothic stone arches, for the 500 m relic site as a drowned temple to the thing that hunts the diver. That ties the monster to the place.
+- **Risk Quinn raised at about 3:00 AM:** "im worried about this not looking cood we maybe need to move it to some ai mesh enditor but we can cross that bridge when we get there". The weak points are the neck join, a skin that does not match between a detailed head and a code-built body, and a static head with no jaw. The test is the first frame of the join, taken as soon as the pack is installed. If it reads as two things stuck together, the fallbacks in order are: hide the join (darkness, a frill or fins at the neck); use more of the dragon mesh; make one serpent mesh with an AI mesh tool from the dragon as reference (Rodin, which also counts for the Hyper3D prize, or Meshy), which needs a key or perk from Quinn.
 
 ### D-033 Go for the polish pass
 - **Status:** Decided.
