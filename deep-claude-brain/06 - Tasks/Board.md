@@ -1,13 +1,13 @@
 ---
-updated: 2026-11-15 02:45 EST
+updated: 2026-11-15 02:56 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (written 2:31 AM Nov 15)
+## Handoff for a fresh orchestrator session (written 2:56 AM Nov 15)
 
-A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Quinn is leaning toward dark realism led by light and reflection (D-032), and the style guide is merged: `02 - Design/Style Guide.md`. No agent is running. **No visual work is dispatched until Quinn says go.** When he does, start with the water look and the monster, which he named as the two things the game needs, each on its own branch with frames for him to approve. A DLSS test for the NVIDIA award was refused by the session's permission system and needs Quinn to download the plugin himself (D-032).
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. **The polish pass has started (D-033, Quinn's go at about 2:47 AM).** Two Opus engineers are running, and their reports go to the session that started them, so a new session checks their branches: (a) `polish/water` in `.wt\dev`: the sea at each depth, the lamp, particles, the hatch pool, ray tracing; (b) `polish/monster` in `.wt\monster`: the serpent's body, skin, markings, eyes and motion. **Neither merges until Quinn has seen its frames** (`devlog/media/2026-11-15-water-*.png` and `2026-11-15-serpent-*.png`). When he approves: run `verify` in the branch's checkout, merge, push. Every polish brief links to `02 - Design/Style Guide.md` and `03 - Research/Polish - Start Here.md`. Next lanes, once one of these frees a checkout: the placement loader (plan WP2), then the room inside and the HUD. Waiting on Quinn: installing packs (Megascans rocks, Modular Ship Interior, Industrial Infrastructure, and Dragon Cave, which has realistic dragon meshes that could serve as the serpent's head and the 500 m site); the DLSS plugin download for the NVIDIA award (D-032); an OpenAI key for the Captain's voice.
 
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
