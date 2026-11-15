@@ -1682,13 +1682,13 @@ struct FDeepCavernTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float SpotMarginM = 3.f;
 
-	/** The clear space reaches this high over the anchor everywhere (m). The sub's roof and dress top out near 5 m. */
+	/** The clear space reaches this high over the anchor everywhere (m). The sub's roof and dress top out near 7 m, under the opening. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float ClearAboveAnchorM = 6.f;
 
 	/** The roof's height over the anchor before relief (m): low, so the lamp finds it from the hatch. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
-	float RoofAboveAnchorM = 10.f;
+	float RoofAboveAnchorM = 8.5f;
 
 	/** How square the vault is where the roof meets the wall (superellipse power; 2 = an ellipse, higher = flatter roof, sharper corner). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
@@ -1752,7 +1752,7 @@ struct FDeepCavernTuning
 
 	/** Overhangs: rock spurs hanging from the roof. Their tips stay at least TipClearM above the clear space. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
-	int32 HangCount = 22;
+	int32 HangCount = 64;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float HangRadiusMinM = 1.2f;
@@ -1765,7 +1765,7 @@ struct FDeepCavernTuning
 
 	/** Spurs hang no nearer the shaft's axis than this (m), clear of the shaft and the sub. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
-	float HangMinOutM = 19.f;
+	float HangMinOutM = 15.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	int32 Seed = 1931;
