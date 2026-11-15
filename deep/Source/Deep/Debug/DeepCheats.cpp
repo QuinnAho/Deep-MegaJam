@@ -12,7 +12,6 @@
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
 #include "World/DeepArena.h"
-#include "World/DeepBubblesComponent.h"
 #include "World/DeepRopeComponent.h"
 #include "World/DeepSalvage.h"
 #include "GameFramework/Controller.h"
@@ -573,9 +572,5 @@ namespace
 			}
 			UE_LOG(LogDeepCheats, Display, TEXT("DEEPROPE {\"points\":%d,\"linked\":%d,\"links\":%d,\"parted\":%d,\"shown_m\":%.2f,\"visible\":%s}"),
 				Sim.Pos.Num(), Sim.CountLinked(), Sim.NumLinks(), Parted, Tether->GetShownLengthCm() / 100.f, Rope->IsShown() ? TEXT("true") : TEXT("false"));
-			if (const UDeepBubblesComponent* Air = Diver->GetBubbles())
-			{
-				UE_LOG(LogDeepCheats, Display, TEXT("DEEPBUBBLES {\"alive\":%d}"), Air->CountAlive());
-			}
 		}));
 }

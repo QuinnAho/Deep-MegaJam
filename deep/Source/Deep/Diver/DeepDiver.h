@@ -14,7 +14,6 @@ class USpotLightComponent;
 class UStaticMeshComponent;
 class UDeepTetherComponent;
 class UDeepRopeComponent;
-class UDeepBubblesComponent;
 class UDeepRunComponent;
 class UDeepHarpoonComponent;
 class ADeepSalvage;
@@ -69,7 +68,6 @@ public:
 	bool HasFlashlight() const;
 	const TArray<FDeepCargoItem>& GetCargo() const { return Cargo; }
 	UDeepTetherComponent* GetTether() const { return Tether; }
-	UDeepBubblesComponent* GetBubbles() const { return Bubbles; }
 	UDeepRunComponent* GetRun() const { return Run; }
 	UDeepHarpoonComponent* GetHarpoon() const { return Harpoon; }
 	/** 0..1 progress of the held cut key. */
@@ -142,9 +140,6 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UDeepRopeComponent> TetherLine;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UDeepBubblesComponent> Bubbles;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UDeepRunComponent> Run;
