@@ -307,6 +307,35 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Evidence: integration `ad644df` (`.wt\monster\deep\Saved\Harness\package-20261115-114533.log`, 0 usage-flag lines); `polish/aboard` `2f27da3`; `polish/fx-wip4` `f7a3fce`; D-038 and D-039 in [[Decision Log]].
 
 
+### 12:40 PM  The Captain gets a radio and fewer lines, the sonar ships, the camera gets a body (orchestrator)
+- **What happened:**
+  - **Quinn's questions.** Just after noon Quinn asked two design questions. The first: "so what do you think we make the game fun look at game psychology ect how do we make this feel less hacky more professional and polished". The second: "the capitian feature doesnt really bring anything in here too how hsould we change that".
+  - **What reads as hacky.** The orchestrator named three things:
+    - every sound is synthesized in code;
+    - the Captain is subtitles with no pacing;
+    - the look still has leftovers.
+  - **Keep the Captain, change how he talks.** He carries the theme, so the orchestrator argued for keeping him and changing how he talks. Quinn said "Captain direction yes", and offered a Fab sound pack and his brother's music and sounds.
+  - **The Captain lane and the writer.** Two agents started at 12:17 PM: an Opus engineer for the Captain's radio, pacing, music and pack sounds (`polish/captain`), and a Sonnet writer.
+    - The writer took 2.4 minutes to cut 185 lines to 74 (calm 50, tense 19, scared 5), with jokes only where the player is safe.
+    - Its brief said 45 events. It counted 55 in the file, and it found that `{credits}` was never a token.
+    - At 12:26 PM it took every number out of the voiced lines in 36 seconds, rewriting 25 lines. The receipt, the depth readout and the diver number already show those numbers on screen.
+  - **The sonar landed first.** The sonar lane committed its first version at 12:14 PM and its last at 12:23 PM, an hour and a half before its first deadline. At the helm it draws a sweeping plan view of the walls round the sub, and it costs 0.069 ms a frame.
+    - It cannot show walls yet, because the trench has no collision. The shaft and cavern lanes add walls the sonar can see.
+    - It merged into integration at 12:26 PM. The gate then ran in five minutes: verify, a package with no usage-flag lines, smoke and a 799 MB zip.
+    - Four scripted playthroughs passed: `S0-title` (13 s), `S2-gate` (35 s), `S6-bank` (14 s) and `S7-run` (49 s).
+    - It was pushed at 12:33 PM.
+  - **Quinn's next ideas.** Around 12:20 PM Quinn sent more: lidar beams to see in the dark, a HUD that matches the theme, camera shakes, breathing, post-processing and a found-footage camera.
+    - The orchestrator folded the lidar into the sonar: the ping made visible in the world, not a second tool.
+    - At 12:25 PM it started an Opus camera engineer for the shakes, the footage look and the pulse. Every part is behind a switch, off until Quinn approves frames.
+    - The HUD pass waits until the sonar and shaft lanes merge, because both changed the HUD.
+    - When Quinn said he might own a camera-shake pack, the orchestrator said it wasn't needed: Unreal shakes are a few numbers on Epic's built-in patterns. The one exception would be recorded handheld motion.
+- **Why it matters:** Audio and Theme are two of the seven judged scores, and both were weak in the same place, the Captain. The camera idea makes the theme something the player sees: the Captain watches through your helmet camera and makes his cut.
+- **Evidence:**
+  - D-040 and D-041 in [[Decision Log]];
+  - [[Captain Script]] and [[Sound Brief]];
+  - integration `ea29122`, with the logs in `.wt\monster\deep\Saved\Harness\` (`test-20261115-122703`, `package-20261115-122726`, `smoke-20261115-122821` and `zip-20261115-122847`);
+  - sonar frames `devlog/media/2026-11-15-sonar-parked300.png` and `devlog/media/2026-11-15-sonar-driving.png` on `polish/sonar`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

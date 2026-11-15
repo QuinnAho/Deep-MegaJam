@@ -62,6 +62,48 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 
 ## Proposed
 
+### D-041 Camera feel: shakes, a found-footage look, and the sonar made visible
+- **Status:** Shakes are decided; Quinn asked for them. The footage look, the sonar pulse and the interference are built behind switches and stay off until Quinn approves frames. The HUD pass waits for the sonar and shaft merges. Lane `polish/camera` started 12:25 PM.
+- **Date:** 2026-11-15, about 12:20 PM EST
+- **Who:** The ideas are Quinn's; the orchestrator shaped them.
+- **Quinn's words:** "i thinking of having a mechanic where you send out almost lidar tye beams to see whats in front of you when it gets dark, not sure if thats too much something diffrent, als not that the HUD doesnt match the theme and we need to do a pass there too, also we should add like camera shakes, your right more audio breathing ect any post porcessing motion blur ect, also had the idea like your looing through a camera and we have camera elements to it to give it that found footage look, but idk". Then, at 12:34 PM: "i might have camera shake in my library".
+- **Decision:**
+  - **The lidar:** not a second tool. The sonar ping becomes visible in the world. A shell expands from the sub over the sonar's range and outlines the walls for about 1.5 s in the sonar's amber, leaving lidar dots that fade. It is one mechanic, seen on the panel and in the world. It is a sensor overlay and lights nothing.
+  - **Camera shakes** on hull hits, bites, the cut, the harpoon, the hatch, the descents and the serpent's approach. All of them are tuning values in C++. Quinn's shake pack is not needed: Unreal shakes are a few numbers on Epic's built-in patterns. It is worth adding only if it has recorded handheld motion, which would beat a noise sway for the footage look.
+  - **The footage look:** the player sees through the diver's helmet camera, which the Captain watches from the sub. He cuts the footage as well as the line, which is the theme.
+    - Grain rises with depth, like a camera pushing its gain.
+    - Vignette, fringe at the edges, a slight lens distortion and a handheld sway.
+    - Static before shape: the feed breaks up as the serpent closes.
+  - **Motion blur:** frames with it off and at 0.2 decide it. The cave has to stay readable while driving.
+  - **Breathing** follows the danger tier: calm, then fast, then panic with a heartbeat. The Captain-and-sound lane builds it.
+  - **HUD:** one planned pass (D-028), after the sonar and shaft merges, since both change the HUD. It uses whichever look Quinn approves, and a mockup comes first.
+- **Pushback:** a separate lidar tool would compete with the sonar panel for the player's attention and double the work. Five lanes already share one Unreal slot.
+- **Safety:** `Deep.Camera.Shake` is on. `Deep.Look.Footage`, `Deep.Sonar.Pulse` and `Deep.Look.Interference` are off until approved. With all of them at 0, the game is today's.
+
+### D-040 The Captain becomes a voice on the radio who says less; real sound replaces the synth
+- **Status:** Decided by Quinn at about 12:15 PM, Nov 15. Lane `polish/captain` and a writer started at 12:17 PM. The lines were revised at 12:26 PM.
+- **Date:** 2026-11-15, about 12:15 PM EST
+- **Who:** Quinn, on the orchestrator's proposal.
+- **Quinn's words:** "the capitian feature doesnt really bring anything in here too how hsould we change that", then "Captain direction yes, I'll add a Fab pack  - tell me what you are looking ffor my brother can make sounds or music too".
+- **Decision:**
+  - **Keep the Captain.** He carries the theme: he takes a cut of every haul and holds the tether cutter.
+  - **Change how he talks.** He is a voice on the sub's radio. In the water, and while the sub is being driven, he says only what the diver needs:
+    - chatter is silent;
+    - a notable line waits at least 30 s after the last one;
+    - when the serpent is close, only life-or-death lines get through.
+    That silence is designed.
+  - **His tone follows the danger:** smug when calm, clipped when tense, cracking when scared. His jokes move to the safe moments: the title, aboard, death and the settlement.
+  - **Fewer lines:** 185 lines on 55 events become 74 on 59, each with a tone ([[Captain Script]]). The voice never says a number. Numbers stay on screen: the receipt, the depth readout and the diver number.
+  - **The radio:** squelch on and off, and a voice file per line id when one exists. The other buses duck under him (Style Guide section 9).
+  - **Real sound where we have it.** A Fab pack from Quinn covers the world. Quinn's brother makes the music and the serpent's voice, and perhaps the Captain's voice. What to get and how is in [[Sound Brief]].
+  - **Fixed names, so his files drop in:**
+    - music events `music_depth1`, `music_depth2`, `music_depth3`, `music_sting_serpent`, `music_tension`, `music_title`, `music_win` and `music_settlement`;
+    - our own audio under `/Game/DeepAudio/`: `Captain/<line id>`, `Music/<event>`, and `Serpent/<event>_01` to `_03`.
+- **Open:**
+  - Who voices the Captain: Quinn's brother, OpenAI text to speech, or text only.
+  - Whether an agent may import the brother's files headless into `deep/Content/DeepAudio/`. That would be a new exception to the binary-asset rule.
+- **Safety:** with `Deep.Captain.Radio` and `Deep.Music` at 0, the game is today's.
+
 ### D-039 Drive the sub down a winding cave shaft with a sonar; every stop is a cavern
 - **Status:** Decided by Quinn (11:55 AM Nov 15). Three lanes building: `polish/shaft`, `polish/cavern`, `polish/sonar`.
 - **Date:** 2026-11-15, 11:55 AM EST

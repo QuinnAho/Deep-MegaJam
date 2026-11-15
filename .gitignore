@@ -39,3 +39,6 @@ deep-claude-brain/.obsidian/workspace-mobile.json
 # No trailing slash: a worktree holds a link of this name, not a folder.
 deep/Content/Packs/
 deep/Content/DragonCave
+
+# Sound files from Quinn's brother, waiting to be imported (D-040). The imported assets go in deep/Content/DeepAudio.
+audio-drop/
