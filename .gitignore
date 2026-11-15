@@ -34,5 +34,8 @@ deep-claude-brain/.obsidian/workspace-mobile.json
 .env.*
 *.key
 
-# Third-party packs are installed outside git and linked in (D-033)
+# Third-party packs stay outside git (D-033). Each pack sits in its own folder under deep/Content,
+# where Fab or a migrate puts it, and is linked into the agents' worktrees. One line per pack.
+# No trailing slash: a worktree holds a link of this name, not a folder.
 deep/Content/Packs/
+deep/Content/DragonCave
