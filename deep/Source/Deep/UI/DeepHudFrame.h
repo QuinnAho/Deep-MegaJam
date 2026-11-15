@@ -44,6 +44,44 @@ struct FDeepHudCue
 	EDeepHudTone Tone = EDeepHudTone::Primary;
 };
 
+/** The helm sonar (Sonar lane): one beam's return on a slice. RangeM < 0 = nothing; Strength 0..1 is the phosphor fade. */
+struct FDeepHudSonarReturn
+{
+	float RangeM = -1.f;
+	float Strength = 0.f;
+};
+
+/** A contact on the sonar. Kind: 0 salvage, 1 relic, 2 serpent. */
+struct FDeepHudSonarBlip
+{
+	float BearingDeg = 0.f;
+	float RangeM = 0.f;
+	float DzM = 0.f;
+	float Strength = 0.f;
+	uint8 Kind = 0;
+};
+
+/** The sonar scope's picture: per-beam returns on both slices (beam i at 360 * i / N degrees, clockwise from the bow). */
+struct FDeepHudSonar
+{
+	TArray<FDeepHudSonarReturn> Upper;
+	TArray<FDeepHudSonarReturn> Lower;
+	TArray<FDeepHudSonarBlip> Blips;
+	float SweepDeg = 0.f;
+	float RangeM = 60.f;
+	float RingStepM = 20.f;
+	/** Neighbouring returns closer in range than this join into one wall line. */
+	float JoinM = 6.f;
+	float LowerBelowM = 20.f;
+	/** Straight down to the bottom, metres; negative = none in range. */
+	float BedM = -1.f;
+	/** From the hull's side to the nearest wall at the sub's depth; negative = none. */
+	float ClearanceM = -1.f;
+	float Proximity01 = 0.f;
+	/** The hull's half size in metres: x along the bow, y across. */
+	FVector2f HullHalfM = FVector2f::ZeroVector;
+};
+
 struct FDeepHudFrame
 {
 	EDeepHudMode Mode = EDeepHudMode::None;
@@ -104,6 +142,8 @@ struct FDeepHudFrame
 	bool bAtLimit = false;
 	FString HelmStatus;
 	FString HelmReason;
+	/** The helm sonar, when EDeepHudPanel::Sonar is on. */
+	FDeepHudSonar Sonar;
 
 	int32 Credits = 0;
 	FString CaptainLine;

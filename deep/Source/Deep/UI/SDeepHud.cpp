@@ -6,6 +6,7 @@
 #include "Rendering/DrawElements.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "Sonar/DeepSonarRules.h"
 #include "UI/DeepHudStyle.h"
 
 namespace
@@ -639,6 +640,143 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		{
 			P.Text(TEXT("THE HELM WILL NOT GO DEEPER"), X + Pad, Y + H - Pad - LabelH, LabelFont, Alert(GA));
 		}
+	}
+
+	// ------------------------------------------------ the helm sonar: an amber scope, bottom left (Sonar lane)
+	if (const float SA = A(EDeepHudPanel::Sonar); SA > 0.f && Frame.Sonar.RangeM > 0.f)
+	{
+		const FDeepHudSonar& S = Frame.Sonar;
+		FDeepHudRect R = DeepHudLayout::Sonar(L);
+		R.X -= SlideOf(SA);
+		P.Panel(R.X, R.Y, R.W, R.H, SA);
+		FVector2f C;
+		float Radius = 0.f;
+		DeepHudLayout::SonarScope(R, C, Radius);
+		auto At = [&](float BearingDeg, float RangeM)
+		{
+			const FVector2D V = UDeepSonarRules::PanelPoint(BearingDeg, RangeM, S.RangeM, Radius);
+			return C + FVector2f(static_cast<float>(V.X), static_cast<float>(V.Y));
+		};
+
+		// Header: the instrument's name in the helm's amber, its range on the right.
+		const float HY = R.Y + Pad;
+		P.Text(TEXT("SONAR"), R.X + Pad, HY, LabelFont, Amber(SA));
+		P.TextRight(FString::Printf(TEXT("RANGE %.0f m"), S.RangeM), R.Right() - Pad, HY, MonoFont, Secondary(0.6f * SA));
+
+		// The scope: rim, range rings with their metres, a faint cross on the bow and beam.
+		const float Near = S.Proximity01;
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(static_cast<float>(Now) * FMath::Lerp(2.f, 9.f, Near) * 2.f * PI);
+		P.Arc(C, Radius, 1.f, Near > 0.f ? FMath::Lerp(Amber(SonarRimAlpha * SA), Alert((0.55f + 0.45f * Pulse) * SA), FMath::Min(1.f, Near * 1.5f)) : Amber(SonarRimAlpha * SA), Near > 0.f ? 2.f : 1.5f);
+		for (float Ring = S.RingStepM; Ring < S.RangeM - 0.5f; Ring += FMath::Max(1.f, S.RingStepM))
+		{
+			const float RR = Radius * Ring / S.RangeM;
+			P.Arc(C, RR, 1.f, Amber(SonarRingAlpha * SA), 1.f);
+		}
+		for (float Ring = S.RingStepM; Ring <= S.RangeM + 0.5f; Ring += FMath::Max(1.f, S.RingStepM))
+		{
+			const FVector2f LabelAt = At(135.f, Ring);
+			P.Text(FString::Printf(TEXT("%.0f"), Ring), LabelAt.X + 3.f, LabelAt.Y - 2.f, MonoFont, Amber(0.45f * SA));
+		}
+		P.Box(C.X - Radius, C.Y, Radius * 2.f, P.Hair, Amber(0.08f * SA));
+		P.Box(C.X, C.Y - Radius, P.Hair, Radius * 2.f, Amber(0.08f * SA));
+		P.Lines({ C + FVector2f(-5.f, -Radius - 9.f), C + FVector2f(0.f, -Radius - 2.f), C + FVector2f(5.f, -Radius - 9.f) }, Amber(0.7f * SA), 1.5f);
+
+		// The sweep line and its fading trail behind it.
+		for (int32 I = SonarTrailSteps; I >= 0; --I)
+		{
+			const float Back = SonarTrailDeg * I / SonarTrailSteps;
+			const float TA = I == 0 ? 0.9f : 0.22f * FMath::Square(1.f - static_cast<float>(I) / SonarTrailSteps);
+			P.Lines({ C, At(S.SweepDeg - Back, S.RangeM) }, Amber(TA * SA), I == 0 ? 1.5f : 3.f);
+		}
+
+		// Returns: neighbouring beams at about the same range join into a wall; a lone return is a speck.
+		auto DrawSlice = [&](const TArray<FDeepHudSonarReturn>& Slice, float SliceAlpha, float Thickness)
+		{
+			const int32 N = Slice.Num();
+			for (int32 I = 0; I < N; ++I)
+			{
+				const FDeepHudSonarReturn& Here = Slice[I];
+				if (Here.RangeM < 0.f || Here.Strength <= 0.01f)
+				{
+					continue;
+				}
+				const float Bearing = 360.f * I / N;
+				const FVector2f HereAt = At(Bearing, Here.RangeM);
+				const FDeepHudSonarReturn& Next = Slice[(I + 1) % N];
+				const FDeepHudSonarReturn& Prev = Slice[(I + N - 1) % N];
+				const bool bJoinNext = Next.RangeM >= 0.f && Next.Strength > 0.01f && FMath::Abs(Next.RangeM - Here.RangeM) < S.JoinM;
+				const bool bJoinPrev = Prev.RangeM >= 0.f && Prev.Strength > 0.01f && FMath::Abs(Prev.RangeM - Here.RangeM) < S.JoinM;
+				const FLinearColor Col = Amber(SliceAlpha * FMath::Min(Here.Strength, bJoinNext ? Next.Strength : 1.f) * SA);
+				if (bJoinNext)
+				{
+					P.Lines({ HereAt, At(360.f * (I + 1) / N, Next.RangeM) }, Col, Thickness);
+				}
+				else if (!bJoinPrev)
+				{
+					P.Box(HereAt.X - Thickness, HereAt.Y - Thickness, Thickness * 2.f, Thickness * 2.f, Amber(SliceAlpha * Here.Strength * SA));
+				}
+			}
+		};
+		DrawSlice(S.Lower, SonarLowerAlpha, SonarLowerPx);
+		DrawSlice(S.Upper, 1.f, SonarWallPx);
+
+		// The sub at its true size in the middle, bow up.
+		if (S.HullHalfM.X > 0.f && S.HullHalfM.Y > 0.f)
+		{
+			const float K = Radius / S.RangeM;
+			const float HX = FMath::Max(3.f, S.HullHalfM.Y * K);
+			const float HY2 = FMath::Max(4.f, S.HullHalfM.X * K);
+			P.Lines({ C + FVector2f(-HX, HY2), C + FVector2f(-HX, -HY2 + HX * 0.6f), C + FVector2f(0.f, -HY2), C + FVector2f(HX, -HY2 + HX * 0.6f), C + FVector2f(HX, HY2), C + FVector2f(-HX, HY2) }, Secondary(0.85f * SA), 1.5f);
+		}
+		else
+		{
+			P.Box(C.X - 3.f, C.Y - 3.f, 6.f, 6.f, Secondary(0.85f * SA));
+		}
+
+		// Contacts: salvage in HUD primary (a relic in a ring), the serpent in red; a caret says above or below.
+		for (const FDeepHudSonarBlip& B : S.Blips)
+		{
+			if (B.Strength <= 0.01f)
+			{
+				continue;
+			}
+			const FVector2f BAt = At(B.BearingDeg, B.RangeM);
+			const float BA = B.Strength * SA;
+			const float H = SonarBlipPx * 0.5f;
+			if (B.Kind == 2)
+			{
+				const float Big = H * 1.8f;
+				P.Lines({ BAt + FVector2f(0.f, -Big), BAt + FVector2f(Big, 0.f), BAt + FVector2f(0.f, Big), BAt + FVector2f(-Big, 0.f), BAt + FVector2f(0.f, -Big) }, Alert(BA), 2.f);
+				P.Box(BAt.X - H * 0.6f, BAt.Y - H * 0.6f, H * 1.2f, H * 1.2f, Alert(BA));
+			}
+			else
+			{
+				P.Box(BAt.X - H * 0.5f, BAt.Y - H * 0.5f, H, H, Primary(BA));
+				if (B.Kind == 1)
+				{
+					P.Arc(BAt, H * 1.6f, 1.f, Primary(BA), 1.f);
+				}
+			}
+			if (FMath::Abs(B.DzM) >= 4.f)
+			{
+				const float Dir = B.DzM > 0.f ? -1.f : 1.f;
+				const FVector2f Tip = BAt + FVector2f(H * 2.f + 4.f, Dir * 5.f);
+				P.Lines({ Tip + FVector2f(-4.f, -Dir * 4.f), Tip, Tip + FVector2f(4.f, -Dir * 4.f) }, B.Kind == 2 ? Alert(BA) : Primary(BA), 1.5f);
+			}
+		}
+
+		// Footer: the nearest wall from the hull, the dim slice's depth, the bottom under the keel.
+		const float FY = C.Y + Radius + Grid * 2.f;
+		const FString Wall = S.ClearanceM >= 0.f ? FString::Printf(TEXT("WALL %.0f m"), S.ClearanceM) : FString(TEXT("WALL --"));
+		const FLinearColor WallColor = Near > 0.5f ? Alert(SA) : (Near > 0.f ? Amber(SA) : Secondary(0.8f * SA));
+		P.Text(Wall, R.X + Pad, FY, MonoFont, WallColor);
+		P.TextRight(S.BedM >= 0.f ? FString::Printf(TEXT("BED %.0f m"), S.BedM) : FString(TEXT("BED --")), R.Right() - Pad, FY, MonoFont, Secondary(0.8f * SA));
+		const float LY = FY + LabelH + Grid;
+		P.Box(R.X + Pad, LY + LabelH * 0.5f, 20.f, SonarWallPx, Amber(SA));
+		const float LW = P.Text(TEXT("AT DEPTH"), R.X + Pad + 28.f, LY, LabelFont, Secondary(0.6f * SA));
+		const float L2 = R.X + Pad + 28.f + LW + Grid * 3.f;
+		P.Box(L2, LY + LabelH * 0.5f, 20.f, SonarLowerPx, Amber(SonarLowerAlpha * SA));
+		P.Text(FString::Printf(TEXT("%.0f m BELOW"), S.LowerBelowM), L2 + 28.f, LY, LabelFont, Secondary(0.6f * SA));
 	}
 
 	// ------------------------------------------------ prompts: aboard on objects, in the water under the reticle

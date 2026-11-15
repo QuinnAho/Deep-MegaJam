@@ -49,3 +49,5 @@
 "loop_winch","sfx","","winch",0.4,1.0,1,"While the winch runs"
 "loop_serpent","creature","","serpent",0.6,1.0,1,"Follows the serpent threat"
 "loop_helm","ambience","","hum",0.45,1.0,1,"While the helm moves the sub"
+"sonar_ping","sfx","","sonar_ping",0.5,1.0,0,"Helm sonar: once per sweep (Sonar lane)"
+"sonar_near","ui","","sonar_tick",0.45,1.0,0,"Helm sonar: proximity beep, quicker and higher as a wall closes"
