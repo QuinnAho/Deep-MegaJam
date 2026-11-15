@@ -6,6 +6,7 @@
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
+#include "Game/DeepGameState.h"
 #include "EngineUtils.h"
 #include "GameFramework/HUD.h"
 #include "GameFramework/PlayerController.h"
@@ -15,6 +16,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Sonar/DeepSonarRules.h"
+#include "Story/DeepEventBus.h"
 #include "UI/DeepHudFrame.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArena.h"
@@ -243,6 +245,29 @@ void UDeepSonarComponent::UpdateContacts(const FVector& OriginCm, const FVector&
 			See(*It, EDeepSonarContact::Serpent, It->GetHeadLocation(), T.SerpentHeightM);
 		}
 	}
+	// The Captain calls the serpent's first contact at each stop (sonar_contact, DepthM = its range). The sonar is the
+	// helmsman's own, so this goes on the bus of the world it runs in: the Captain answers the one at the helm.
+	const ADeepGameState* Game = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	const int32 StopNow = Game ? Game->Stop : 0;
+	if (UDeepSonarRules::SerpentCallDue(SerpentCalledStop, StopNow))
+	{
+		const FDeepSonarContactSample* Serpent = Contacts.FindByPredicate([this](const FDeepSonarContactSample& C)
+		{
+			return C.Kind == EDeepSonarContact::Serpent && C.At == Clock && C.Actor.IsValid();
+		});
+		if (Serpent)
+		{
+			SerpentCalledStop = StopNow;
+			++ContactCalls;
+			if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+			{
+				FDeepEventPayload Payload;
+				Payload.DepthM = Serpent->RangeM;
+				Payload.Source = Serpent->Actor.Get();
+				Bus->Broadcast(DeepSonarEvent::Contact, Payload);
+			}
+		}
+	}
 	// A contact the sweep has not refreshed fades with its return; gone ones drop.
 	Contacts.RemoveAll([&](const FDeepSonarContactSample& C)
 	{
@@ -320,7 +345,7 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 	// The bottom: one probe straight down, then the dim slice rides above it when it is nearer than SliceBelowM.
 	{
 		FHitResult Hit;
-		const float ReachCm = T.RangeM * UDeepRules::CmPerM;
+		const float ReachCm = T.BedProbeM * UDeepRules::CmPerM;
 		BedBelowM = GetWorld()->LineTraceSingleByChannel(Hit, Origin, Origin - FVector(0.f, 0.f, ReachCm), ECC_Visibility, Params)
 			? static_cast<float>(Hit.Distance / UDeepRules::CmPerM) : -1.f;
 		LowerBelowM = UDeepSonarRules::LowerSliceBelowM(BedBelowM, T);
@@ -381,7 +406,7 @@ void UDeepSonarComponent::SweepNow()
 	BuildQuery(Params);
 	{
 		FHitResult Hit;
-		const float ReachCm = Tune().RangeM * UDeepRules::CmPerM;
+		const float ReachCm = Tune().BedProbeM * UDeepRules::CmPerM;
 		BedBelowM = GetWorld()->LineTraceSingleByChannel(Hit, Origin, Origin - FVector(0.f, 0.f, ReachCm), ECC_Visibility, Params)
 			? static_cast<float>(Hit.Distance / UDeepRules::CmPerM) : -1.f;
 		LowerBelowM = UDeepSonarRules::LowerSliceBelowM(BedBelowM, Tune());
@@ -438,16 +463,35 @@ void UDeepSonarComponent::StartBench(float Seconds)
 
 FString UDeepSonarComponent::StateJson() const
 {
-	int32 Returns = 0;
-	for (const TArray<FDeepSonarSample>* Slice : { &Upper, &Lower })
+	int32 Returns[2] = { 0, 0 };
+	float LowerMin = -1.f;
+	for (int32 Slice = 0; Slice < 2; ++Slice)
 	{
-		for (const FDeepSonarSample& S : *Slice)
+		for (const FDeepSonarSample& S : GetSlice(Slice))
 		{
-			Returns += S.RangeM >= 0.f && Clock - S.At < Tune().PersistS ? 1 : 0;
+			if (S.RangeM >= 0.f && Clock - S.At < Tune().PersistS)
+			{
+				++Returns[Slice];
+				LowerMin = Slice == 1 && (LowerMin < 0.f || S.RangeM < LowerMin) ? S.RangeM : LowerMin;
+			}
 		}
 	}
-	return FString::Printf(TEXT("{\"on\":%d,\"manned\":%d,\"sweep_deg\":%.0f,\"nearest_m\":%.1f,\"clearance_m\":%.1f,\"bed_m\":%.1f,\"lower_m\":%.1f,\"returns\":%d,\"contacts\":%d,\"pings\":%d,\"beeps\":%d}"),
-		bSonarEnabled ? 1 : 0, IsManned() ? 1 : 0, SweepDegNow, NearestM, ClearanceM, BedBelowM, LowerBelowM, Returns, Contacts.Num(), Pings, Beeps);
+	// For testers: what is straight below, with nothing ignored (the bed probe ignores the sub, pawns and salvage).
+	FString Below = TEXT("none");
+	FVector Origin = FVector::ZeroVector;
+	FVector Forward;
+	FVector2D HullHalf;
+	if (GetWorld() && GetFrame(Origin, Forward, HullHalf))
+	{
+		FHitResult Hit;
+		if (GetWorld()->LineTraceSingleByChannel(Hit, Origin, Origin - FVector(0.f, 0.f, 200.f * UDeepRules::CmPerM), ECC_Visibility))
+		{
+			Below = FString::Printf(TEXT("%s@%.1f"), Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("?"), Hit.Distance / UDeepRules::CmPerM);
+		}
+	}
+	return FString::Printf(TEXT("{\"on\":%d,\"manned\":%d,\"sweep_deg\":%.0f,\"nearest_m\":%.1f,\"clearance_m\":%.1f,\"bed_m\":%.1f,\"lower_m\":%.1f,\"returns\":%d,\"lower_returns\":%d,\"lower_min_m\":%.1f,\"below\":\"%s\",\"origin_cm\":\"%.0f,%.0f,%.0f\",\"contacts\":%d,\"pings\":%d,\"beeps\":%d,\"contact_calls\":%d}"),
+		bSonarEnabled ? 1 : 0, IsManned() ? 1 : 0, SweepDegNow, NearestM, ClearanceM, BedBelowM, LowerBelowM, Returns[0], Returns[1], LowerMin, *Below,
+		Origin.X, Origin.Y, Origin.Z, Contacts.Num(), Pings, Beeps, ContactCalls);
 }
 
 void UDeepSonarComponent::FillHud(FDeepHudSonar& Out) const

@@ -58,7 +58,7 @@ namespace DeepHudStyle
 	constexpr float SonarRimAlpha = 0.45f;
 	constexpr float SonarWallPx = 2.f;
 	constexpr float SonarLowerPx = 1.5f;
-	constexpr float SonarBlipPx = 7.f;
+	constexpr float SonarBlipPx = 10.f;
 	constexpr int32 SonarTrailSteps = 10;
 	constexpr float SonarTrailDeg = 36.f;
 }

@@ -9,11 +9,13 @@
 #include "Sim/DeepTuningTypes.h"
 #include "DeepSonarRules.generated.h"
 
-/** Sound rows the sonar plays itself (local, not on the event bus: the Captain does not answer them). */
+/** Sound rows the sonar plays itself (Ping, Near: local, not on the bus), and the one bus event it raises (Contact). */
 namespace DeepSonarEvent
 {
 	inline const TCHAR* Ping = TEXT("sonar_ping");
 	inline const TCHAR* Near = TEXT("sonar_near");
+	/** On the event bus: the serpent first shows on the sonar at this stop. Payload DepthM = its range in metres. */
+	inline const TCHAR* Contact = TEXT("sonar_contact");
 }
 
 UCLASS()
@@ -75,4 +77,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
 	static float ToneVolume(float Level, const FDeepSonarTuning& Tuning);
+
+	/**
+	 * The Captain's call on the serpent's first sonar contact: once per stop the sub is at (a new stop, or a new run
+	 * that comes back to it, calls again). CalledStop is the stop of the last call (-1 = none yet).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
+	static bool SerpentCallDue(int32 CalledStop, int32 Stop);
 };

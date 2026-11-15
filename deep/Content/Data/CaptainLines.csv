@@ -184,3 +184,4 @@
 "idle_inside_02","idle_inside",2,"Dry, warm, and still unprofitable. Impressive consistency.","bored"
 "idle_inside_03","idle_inside",3,"The salvage will not bank itself. I looked into it.","smug"
 "idle_inside_04","idle_inside",4,"You are loitering. I bill for loitering.","bored"
+"sonar_contact_01","sonar_contact",1,"Something large on the sonar, {depth} metres out. It is not a rock. Rocks do not swim.","bored"

@@ -124,3 +124,8 @@ float UDeepSonarRules::ToneVolume(float Level, const FDeepSonarTuning& Tuning)
 {
 	return Level <= 0.f ? 0.f : FMath::Lerp(Tuning.ToneVolumeLow, Tuning.ToneVolumeHigh, FMath::Clamp(Level, 0.f, 1.f));
 }
+
+bool UDeepSonarRules::SerpentCallDue(int32 CalledStop, int32 Stop)
+{
+	return CalledStop != Stop;
+}

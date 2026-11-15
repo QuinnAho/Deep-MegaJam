@@ -13,6 +13,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "Sonar/DeepSonarComponent.h"
 #include "Sonar/DeepSonarRules.h"
+#include "Story/DeepEventBus.h"
 #include "UI/DeepHudFrame.h"
 #include "UI/DeepHudModel.h"
 #include "World/DeepSalvage.h"
@@ -126,6 +127,10 @@ bool FDeepSonarTimingTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("The arc's start was swept last frame"), UDeepSonarRules::SweptOver(10.f, 10.f, 30.f));
 	TestTrue(TEXT("The arc's end is swept"), UDeepSonarRules::SweptOver(30.f, 10.f, 30.f));
 	TestTrue(TEXT("An arc over the bow wraps"), UDeepSonarRules::SweptOver(2.f, 350.f, 10.f));
+	// The Captain's serpent call: once per stop.
+	TestTrue(TEXT("The first contact calls"), UDeepSonarRules::SerpentCallDue(-1, 2));
+	TestFalse(TEXT("Not twice at a stop"), UDeepSonarRules::SerpentCallDue(2, 2));
+	TestTrue(TEXT("A new stop calls again"), UDeepSonarRules::SerpentCallDue(2, 3));
 	TestFalse(TEXT("A still sweep sweeps nothing"), UDeepSonarRules::SweptOver(10.f, 10.f, 10.f));
 
 	// One turn in frames: exactly one ping, and every beam bearing is swept exactly once.
@@ -334,6 +339,16 @@ bool FDeepSonarBlipsTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
+	UDeepEventBus* Bus = UDeepEventBus::Get(W.World);
+	float CalledM = -1.f;
+	FDelegateHandle Listen;
+	if (Bus)
+	{
+		Listen = Bus->OnEvent.AddLambda([&CalledM](FName Event, const FDeepEventPayload& Payload)
+		{
+			CalledM = Event == FName(DeepSonarEvent::Contact) ? Payload.DepthM : CalledM;
+		});
+	}
 	W.Sonar->SweepNow();
 	const TArray<FDeepSonarContactSample>& Contacts = W.Sonar->GetContacts();
 	auto Find = [&Contacts](const AActor* Actor) { return Contacts.FindByPredicate([Actor](const FDeepSonarContactSample& C) { return C.Actor.Get() == Actor; }); };
@@ -382,6 +397,11 @@ bool FDeepSonarBlipsTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("A fresh blip is full"), B.Strength, 1.f, 1e-3f);
 	}
 	TestEqual(TEXT("One serpent blip"), Serpents, 1);
+	TestEqual(TEXT("One sonar_contact for the serpent"), W.Sonar->GetContactCalls(), 1);
+	TestEqual(TEXT("On the bus"), Bus ? Bus->CountOf(DeepSonarEvent::Contact) : -1, 1);
+	TestEqual(TEXT("The call carries the serpent's range"), CalledM, UDeepSonarRules::PlanRangeM(Serpent->GetHeadLocation()), 0.05f);
+	W.Sonar->SweepNow();
+	TestEqual(TEXT("No second call at the same stop"), W.Sonar->GetContactCalls(), 1);
 
 	// A contact that leaves fades out and drops once the sweep has passed without it.
 	Scrap->Destroy();
@@ -390,6 +410,11 @@ bool FDeepSonarBlipsTest::RunTest(const FString& Parameters)
 		W.Sonar->StepSonar(0.1f);
 	}
 	TestNull(TEXT("A destroyed contact drops"), Find(Scrap));
+	TestEqual(TEXT("Still one call while the serpent stays"), W.Sonar->GetContactCalls(), 1);
+	if (Bus)
+	{
+		Bus->OnEvent.Remove(Listen);
+	}
 	return true;
 }
 

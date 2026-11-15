@@ -85,6 +85,8 @@ public:
 	float GetProximity01() const { return Proximity01; }
 	FVector2D GetHullHalfM() const { return HullHalfM; }
 	int32 GetPings() const { return Pings; }
+	/** How many times the sonar raised sonar_contact (the serpent's first contact at a stop). */
+	int32 GetContactCalls() const { return ContactCalls; }
 	int32 GetBeeps() const { return Beeps; }
 	int32 GetTracesLastStep() const { return TracesLastStep; }
 
@@ -132,6 +134,9 @@ private:
 	float SinceBeep = 1000.f;
 	int32 Pings = 0;
 	int32 Beeps = 0;
+	int32 ContactCalls = 0;
+	/** The stop of the last sonar_contact call; -1 = none yet. Kept when the helm is left: once per stop. */
+	int32 SerpentCalledStop = -1;
 	int32 TracesLastStep = 0;
 	bool bWasWorking = false;
 

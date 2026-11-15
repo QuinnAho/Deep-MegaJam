@@ -1505,6 +1505,10 @@ struct FDeepSonarTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float BedClearanceM = 2.f;
 
+	/** How far down the bottom probe reaches (the BED readout). Longer than RangeM: over a shaft the bottom is far. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float BedProbeM = 150.f;
+
 	/** A return glows this long after its beam passes, fading (a little longer than a turn, so the picture never blanks). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float PersistS = 3.2f;
