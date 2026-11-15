@@ -24,7 +24,10 @@ Branch `rescope/monster`, worktree `.wt/dev`, Nov 15, 5 PM. Quinn: "teh monster 
 `Deep.Monster.Taunt [n]`, `Deep.Monster.Call [0|1|2]`.
 
 ## Gates
-Build PASS. Deep.Sim.Monster 14/14 (new: `.Taunt`, `.Hearing`), Deep.Sim.Audio 8/8, Deep.World.Monster 3/3.
+Build PASS. Deep.Sim.Monster 14/14 (new: `.Taunt`, `.Hearing`), Deep.Sim.Audio 8/8, Deep.World.Monster 3/3. S3-serpent PASS on port 8027 on the second run (serpent present at stop 2, Lurk). The first run failed before the serpent: the game ran at about 5 fps with 1.5 GB free, and no diver appeared within 25 s. S11-pass and S10-relic were not run (slot time).
 
 ## Not verified
 Not listened to by anyone (no agent can hear). Levels are numbers only. Playtests and the taunt frame: see the report.
+
+## Frame
+`devlog/media/2026-11-15-rescope-monster-taunt.png`: stop 2, lamp on, the serpent placed 9 m out and 3.5 m right with `Deep.Monster.Place`. Its body lies along the upper edge of the beam. This is a staged pose. A live taunt was not caught on camera, and the calls and taunt beats were not seen in a live run (no `DEEPMONSTER_TAUNT` or `DEEPMONSTER_CALL` in a game log yet).
