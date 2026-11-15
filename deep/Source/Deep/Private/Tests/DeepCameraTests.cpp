@@ -108,6 +108,8 @@ bool FDeepCameraLookTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Live while the dots fade"), DeepCameraRules::IsPulseLive(T.PulseSeconds + T.PulseDotFadeS * 0.5f, T));
 	TestFalse(TEXT("Gone after"), DeepCameraRules::IsPulseLive(T.PulseSeconds + T.PulseDotFadeS + 0.01f, T));
 	TestTrue(TEXT("About 1.5 s and 2 s (brief)"), FMath::IsNearlyEqual(T.PulseSeconds, 1.5f) && FMath::IsNearlyEqual(T.PulseDotFadeS, 2.f));
+	TestTrue(TEXT("The pulse skips the sub's own room and reaches past it"), T.PulseStartM > 0.f && T.PulseStartM < T.PulseRangeM && T.PulseBandM > 0.f);
+	TestTrue(TEXT("Lidar dots fade with distance, inside the range"), T.PulseDotFarM > 0.f && T.PulseDotFarM <= T.PulseRangeM);
 
 	// Interference: static before shape.
 	TestEqual(TEXT("None far away"), DeepCameraRules::InterferenceTarget(100.f, false, 0.f, T), 0.f);

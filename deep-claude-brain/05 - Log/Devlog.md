@@ -647,6 +647,21 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Coming aboard: you keep the pitch you swam up with, so the first frame aboard is the ceiling (`...-05c-aboard.png`); levelled, the room reads (`...-05d-aboard-level.png`). The fix belongs in the run component or the diver, outside this lane.
 - Capture mistakes, for the next lane: the hatch drop leaves the diver 60 cm under the hatch, so frames "at the stop" must move the diver; `Deep.Monster.FirstSight` aims by the lamp, which lags the view, so wait a second after `Deep.Look`; `Deep.Grab` from `Deep.Hover` missed twice: the grab picks by angle and range from the eye, and the hover stopped at the bed.
 
+### 12:47 PM  The footage look: a helmet camera on top of the depth look, switched off until Quinn sees it (polish/camera)
+- What happened: `Deep.Look.Footage 1` adds grain that rises with depth, a darker vignette, colour fringe only toward the edges, a slight barrel bend and the handheld sway from step 1. Exposure and fog are untouched. The bend is the lane's first post-process material written from text (`build_camera_materials.py`, one headless run, 0 compile errors). It hangs on the environment's post-process volume through a new `SetCameraBlendable`, because the camera manager has no lasting blendable list in 5.9, only a per-frame one.
+- Measured: 100 m in the water, GPU 7.95 ms off and 8.04 ms on. At the helm driving down the shaft, 8.14 ms off and 8.37 ms on (1707x1067, RTX 4080 Laptop). The look costs about 0.1 to 0.2 ms.
+- Motion blur at 0.2 against off, while driving: in stills the two are hard to tell apart. The marine snow already streaks on its own, and the shaft passes slowly. Kept at 0.2 inside the footage look only: it costs nothing visible and softens a fast mouse turn.
+- Capture mistake: `Deep.Look -8 0` in the water at the start pointed the camera at the sub's belly. The pair still shows the bend (the hull line bows) and the corners darkening.
+- Evidence: commit 6be7d0b. `Deep.Camera` 3 of 3. Frames in `.wt/camera/deep/Saved/Harness/shots/camera/`: `water100-off/-footage`, `dark300-off/-footage`, `helm-off/-footage`, `drive-footage-blur0/-blur02`.
+
+### 1:05 PM  The sonar ping becomes a shell of amber you can see sweep the cavern, switched off until Quinn sees it (polish/camera)
+- What happened: `Deep.Sonar.Pulse 1` turns each sonar ping into a shell that grows from the sub to the sonar's 60 m in 1.5 s. A thin #FFB45A band shows where the shell meets rock, and a faint lidar dot grid stays on the surfaces it passed, fading over 2 s. It is one post-process material, `M_SonarPulse`, written from text like the lens. It rebuilds each pixel's world position from depth, so it adds colour on top of the picture and lights nothing. The serpent writes custom depth, so it gets only the band and never the dots. `Deep.Camera.TestPing [m]` fires one by hand.
+- First-time: the sonar never told the event bus about its pings (the lane kept the ping sound local). The camera lane added one `sonar_ping` broadcast after each ping, with the sub as Source and the range in DepthM. The audio subsystem plays every bus event, but its 0.08 s repeat guard drops the second copy of the ping, so it is still heard once.
+- Surprise in the frames: at 24 m the shell meets the cavern wall all round the sub at once, so the whole rim of the view lights tan for a moment, like a ring. At 36 m the band is a clean amber line tracing the rock. On the flat seabed the dots read as a lidar scan.
+- Measured: at the helm at 300 m, GPU 8.23 ms off and 8.47 ms while pulsing every 2.5 s. About 0.25 ms while a pulse is live, nothing between pulses.
+- Not seen yet: the serpent inside a pulse (none was near in the shot).
+- Evidence: `Deep.Camera` 3 of 3. Frames in `.wt/camera/deep/Saved/Harness/shots/camera/`: `pulse-helm-0.6s`, `pulse-helm-0.9s`, `pulse-helm-2.1s`, `pulse-water-0.5s`, `pulse-water-1.8s`. The log shows `DEEPCAMERA pulse=2..6` from real pings, every 2.5 s.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

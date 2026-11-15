@@ -13,7 +13,10 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "Components/PrimitiveComponent.h"
+#include "Monster/DeepSerpent.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Sonar/DeepSonarRules.h"
 #include "Story/DeepEventBus.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepCamera, Log, All);
@@ -24,6 +27,8 @@ namespace
 		TEXT("Deep.Camera.Shake 0|1: camera shakes on events. -1 = DEEP Tuning > Camera > bShakeOn."));
 	TAutoConsoleVariable<int32> CVarFootage(TEXT("Deep.Look.Footage"), -1,
 		TEXT("Deep.Look.Footage 0|1: the helmet-camera footage look (grain, edges, lens, handheld sway). -1 = DEEP Tuning > Camera > bFootageOn."));
+	TAutoConsoleVariable<int32> CVarPulse(TEXT("Deep.Sonar.Pulse"), -1,
+		TEXT("Deep.Sonar.Pulse 0|1: each sonar ping draws an amber shell over the surfaces and leaves lidar dots. -1 = DEEP Tuning > Camera > bPulseOn."));
 
 	bool Switch(const TAutoConsoleVariable<int32>& Var, bool bDefault)
 	{
@@ -46,6 +51,11 @@ bool UDeepCameraSubsystem::IsShakeOn()
 bool UDeepCameraSubsystem::IsFootageOn()
 {
 	return Switch(CVarFootage, UDeepTuningSettings::Get().Camera.bFootageOn);
+}
+
+bool UDeepCameraSubsystem::IsPulseOn()
+{
+	return Switch(CVarPulse, UDeepTuningSettings::Get().Camera.bPulseOn);
 }
 
 bool UDeepCameraSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
@@ -97,6 +107,14 @@ APlayerCameraManager* UDeepCameraSubsystem::LocalCamera() const
 
 void UDeepCameraSubsystem::HandleEvent(FName Event, const FDeepEventPayload& Payload)
 {
+	// The sonar pings on the local HUD; Source is the sub, DepthM the sonar's range.
+	if (Event == FName(DeepSonarEvent::Ping) && IsPulseOn())
+	{
+		const AActor* Sub = Payload.Source.Get();
+		const APlayerCameraManager* Camera = LocalCamera();
+		const FVector Origin = Sub ? Sub->GetActorLocation() : (Camera ? Camera->GetCameraLocation() : FVector::ZeroVector);
+		StartPulse(Origin, Payload.DepthM > 0.f ? Payload.DepthM : UDeepTuningSettings::Get().Camera.PulseRangeM);
+	}
 	// The host's bus also carries events about other players' divers; their own machines shake for those.
 	if (const APawn* Pawn = Cast<APawn>(Payload.Source.Get()))
 	{
@@ -180,6 +198,7 @@ void UDeepCameraSubsystem::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	UpdateSway();
 	UpdateLens();
+	UpdatePulse(DeltaTime);
 }
 
 TSharedRef<FJsonObject> UDeepCameraSubsystem::BuildStateJson() const
@@ -191,6 +210,9 @@ TSharedRef<FJsonObject> UDeepCameraSubsystem::BuildStateJson() const
 	Json->SetStringField(TEXT("last_shake"), LastShake.IsNone() ? FString() : LastShake.ToString());
 	Json->SetBoolField(TEXT("sway"), IsSwaying());
 	Json->SetBoolField(TEXT("lens"), bLensOn);
+	Json->SetBoolField(TEXT("pulse"), IsPulseOn());
+	Json->SetNumberField(TEXT("pulses"), Pulses);
+	Json->SetBoolField(TEXT("pulse_live"), IsPulseLive());
 	return Json;
 }
 
@@ -241,4 +263,90 @@ void UDeepCameraSubsystem::UpdateLens()
 	// Set every tick (a short list): survives the environment being respawned.
 	Env->SetCameraBlendable(LensMID, bOn ? 1.f : 0.f);
 	bLensOn = bOn;
+}
+
+bool UDeepCameraSubsystem::StartPulse(const FVector& Origin, float RangeM)
+{
+	const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+	if (!PulseMID && !bPulseTried)
+	{
+		bPulseTried = true;
+		PulseMID = MakeMaterial(T.PulseMaterial, TEXT("pulse"));
+	}
+	if (!PulseMID || RangeM <= 0.f)
+	{
+		return false;
+	}
+	MarkSerpents();
+	PulseOrigin = Origin;
+	PulseRangeM = RangeM;
+	PulseAgeS = 0.f;
+	++Pulses;
+	UE_LOG(LogDeepCamera, Display, TEXT("DEEPCAMERA pulse=%d origin=%s range=%.0fm"), Pulses, *Origin.ToCompactString(), RangeM);
+	return true;
+}
+
+void UDeepCameraSubsystem::MarkSerpents()
+{
+	if (!GetWorld())
+	{
+		return;
+	}
+	for (TActorIterator<ADeepSerpent> It(GetWorld()); It; ++It)
+	{
+		TArray<UPrimitiveComponent*> Parts;
+		It->GetComponents<UPrimitiveComponent>(Parts);
+		for (UPrimitiveComponent* Part : Parts)
+		{
+			if (Part && !Part->bRenderCustomDepth)
+			{
+				Part->SetRenderCustomDepth(true);
+			}
+		}
+	}
+}
+
+void UDeepCameraSubsystem::UpdatePulse(float DeltaTime)
+{
+	const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+	if (PulseAgeS >= 0.f)
+	{
+		PulseAgeS += DeltaTime;
+		if (!DeepCameraRules::IsPulseLive(PulseAgeS, T))
+		{
+			PulseAgeS = -1.f;
+		}
+	}
+	ADeepEnvironment* Env = FindEnvironment();
+	if (!PulseMID || !Env)
+	{
+		return;
+	}
+	const bool bShow = PulseAgeS >= 0.f;
+	if (bShow)
+	{
+		// After the tonemapper the buffer is display-encoded: the amber goes in as its sRGB value, not linear.
+		const FLinearColor Amber = T.PulseColor.ToFColor(true).ReinterpretAsLinear();
+		PulseMID->SetVectorParameterValue(TEXT("Origin"), FLinearColor(PulseOrigin.X, PulseOrigin.Y, PulseOrigin.Z, 0.f));
+		PulseMID->SetVectorParameterValue(TEXT("Color"), Amber);
+		PulseMID->SetScalarParameterValue(TEXT("RadiusCm"), DeepCameraRules::PulseRadiusCm(PulseAgeS, PulseRangeM, T));
+		PulseMID->SetScalarParameterValue(TEXT("MaxRadiusCm"), PulseRangeM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("StartCm"), T.PulseStartM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("BandCm"), T.PulseBandM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("AgeS"), PulseAgeS);
+		PulseMID->SetScalarParameterValue(TEXT("ShellS"), T.PulseSeconds);
+		PulseMID->SetScalarParameterValue(TEXT("SpeedCmPerS"), PulseRangeM * 100.f / FMath::Max(T.PulseSeconds, 0.01f));
+		PulseMID->SetScalarParameterValue(TEXT("DotFadeS"), T.PulseDotFadeS);
+		PulseMID->SetScalarParameterValue(TEXT("SpacingCm"), T.PulseDotSpacingM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("DotFarCm"), T.PulseDotFarM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("BandIntensity"), T.PulseBandIntensity);
+		PulseMID->SetScalarParameterValue(TEXT("DotIntensity"), T.PulseDotIntensity);
+		PulseMID->SetScalarParameterValue(TEXT("Intensity"), 1.f);
+	}
+	// Weight 0 between pings: the material costs nothing when it is not drawn.
+	if (bShow || bPulseShown)
+	{
+		Env->SetCameraBlendable(PulseMID, bShow ? 1.f : 0.f);
+		bPulseShown = bShow;
+	}
 }

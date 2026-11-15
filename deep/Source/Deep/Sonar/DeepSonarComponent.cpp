@@ -27,6 +27,19 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepSonar, Log, All);
 
 namespace
 {
+	// The ping on the bus too (camera lane, Nov 15): the camera draws the pulse from it. Source = the sub (the pulse
+	// origin), DepthM = the sonar range. The audio repeat guard drops the second play of the sound in the same frame.
+	void BroadcastPing(const UObject* Context, AActor* SubActor, float RangeM)
+	{
+		if (UDeepEventBus* Bus = UDeepEventBus::Get(Context))
+		{
+			FDeepEventPayload Payload;
+			Payload.DepthM = RangeM;
+			Payload.Source = SubActor;
+			Bus->Broadcast(FName(DeepSonarEvent::Ping), Payload);
+		}
+	}
+
 	const FDeepSonarTuning& Tune() { return UDeepTuningSettings::Get().Sonar; }
 
 	/** Distance from the centre to the side of a box hull (half sizes in metres, x bow, y beam) along a bearing. */
@@ -332,6 +345,7 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 		SweepNow();
 		PlaySonarSound(DeepSonarEvent::Ping, 1.f, 1.f);
 		++Pings;
+		BroadcastPing(this, Sub.Get(), T.RangeM);
 		return;
 	}
 
@@ -375,6 +389,7 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 	{
 		PlaySonarSound(DeepSonarEvent::Ping, 1.f, 1.f);
 		++Pings;
+		BroadcastPing(this, Sub.Get(), T.RangeM);
 	}
 
 	// The proximity tone: beeps that quicken and rise as the nearest wall closes on the hull.
