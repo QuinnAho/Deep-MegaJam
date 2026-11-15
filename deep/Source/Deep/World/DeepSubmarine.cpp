@@ -18,6 +18,7 @@
 #include "ProceduralMeshComponent.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepHull.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepShapes.h"
@@ -72,6 +73,38 @@ namespace
 		M->SetVectorParameterValue(TEXT("PuddleCentre"), FLinearColor(PuddleCentre.X, PuddleCentre.Y, PuddleCentre.Z));
 		M->SetScalarParameterValue(TEXT("PuddleRadius"), PuddleRadius);
 		Shape->SetMaterial(0, M);
+	}
+
+	/** One shared instance of the worn steel with this paint, or null when the asset is missing. */
+	UMaterialInstanceDynamic* SteelInstance(UObject* Outer, const FSubSteel& S)
+	{
+		UMaterialInterface* Base = Cast<UMaterialInterface>(UDeepTuningSettings::Get().Look.SteelMaterial.TryLoad());
+		if (!Base)
+		{
+			return nullptr;
+		}
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Outer);
+		M->SetVectorParameterValue(TEXT("PaintColor"), S.Paint);
+		M->SetScalarParameterValue(TEXT("Wear"), S.Wear);
+		M->SetScalarParameterValue(TEXT("Rust"), S.Rust);
+		M->SetScalarParameterValue(TEXT("Wet"), S.Wet);
+		M->SetScalarParameterValue(TEXT("PaintRoughness"), S.PaintRough);
+		M->SetScalarParameterValue(TEXT("PaintMetal"), S.PaintMetal);
+		M->SetScalarParameterValue(TEXT("PuddleRadius"), 0.f);
+		return M;
+	}
+
+	/** The room's outer half extents (cm): the colliding box the dress is built round. */
+	FVector HullOuterCm(const FDeepSubTuning& T)
+	{
+		const double M = UDeepRules::CmPerM;
+		return FVector((T.RoomHalfLengthM + T.WallThicknessM) * M, (T.RoomHalfWidthM + T.WallThicknessM) * M, (T.RoomHeightM * 0.5 + T.WallThicknessM) * M);
+	}
+
+	TArray<FDeepHullPart> HullParts()
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		return DeepHull::Parts(HullOuterCm(Tuning.Sub), Tuning.Sub.HatchHalfSizeM * UDeepRules::CmPerM, -Tuning.Arena.AnchorBelowSubM * UDeepRules::CmPerM);
 	}
 
 	void SubScreen(UStaticMeshComponent* Shape, float Glow)
@@ -192,6 +225,14 @@ ADeepSubmarine::ADeepSubmarine()
 		Light->SetCastShadows(false);
 		BowLights.Add(Light);
 	}
+	for (const TCHAR* Name : { TEXT("HullLightPort"), TEXT("HullLightStarboard") })
+	{
+		USpotLightComponent* Light = CreateDefaultSubobject<USpotLightComponent>(Name);
+		Light->SetupAttachment(Root);
+		Light->SetMobility(EComponentMobility::Movable);
+		Light->SetCastShadows(false);
+		HullLights.Add(Light);
+	}
 	for (const TCHAR* Name : { TEXT("MarkerPort"), TEXT("MarkerStarboard") })
 	{
 		UPointLightComponent* Light = CreateDefaultSubobject<UPointLightComponent>(Name);
@@ -199,6 +240,36 @@ ADeepSubmarine::ADeepSubmarine()
 		Light->SetMobility(EComponentMobility::Movable);
 		Light->SetCastShadows(false);
 		Markers.Add(Light);
+	}
+
+	// The outside dress: visual only (CreateShape gives no collision), so the colliding box stays the hull.
+	for (const FDeepHullPart& Part : HullParts())
+	{
+		UStaticMeshComponent* Shape = Make(*Part.Name.ToString(), Part.Mesh, false);
+		Shape->SetCastShadow(Part.bShadow);
+		// Small parts (rods, straps, plates) stay out of ray tracing and Lumen's scene: they cost per instance and
+		// nobody sees them in a reflection. The big ones (foam, tanks, ducts, collar) stay in.
+		Shape->bAffectDistanceFieldLighting = Part.bShadow;
+		Shape->bVisibleInRayTracing = Part.bShadow;
+		Shape->bAffectDynamicIndirectLighting = Part.bShadow;
+		HullDress.Add(Shape);
+	}
+	for (int32 Index = 0; Index < BowLights.Num(); ++Index)
+	{
+		UStaticMeshComponent* Shape = DeepShapes::CreateShape(this, Index == 0 ? TEXT("Hull_BowHousingPort") : TEXT("Hull_BowHousingStbd"), DeepShapes::Cylinder);
+		Shape->SetupAttachment(BowLights[Index]);
+		// The light faces +X: the housing sits behind it along that axis, its open end at the light.
+		Shape->SetRelativeLocation(FVector(-16.0, 0.0, 0.0));
+		Shape->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
+		Shape->SetRelativeScale3D(FVector(24.0, 24.0, 30.0) / DeepShapes::ShapeSizeCm);
+		Shape->SetCastShadow(false);
+		BowHousings.Add(Shape);
+	}
+	for (const TCHAR* Name : { TEXT("WindowBezelTop"), TEXT("WindowBezelBottom"), TEXT("WindowBezelPort"), TEXT("WindowBezelStbd") })
+	{
+		UStaticMeshComponent* Shape = Make(Name, DeepShapes::Cube, false);
+		Shape->SetCastShadow(false);
+		WindowBezel.Add(Shape);
 	}
 
 	// The trench wall ahead of the helm: built at BeginPlay, shown only through the helm camera.
@@ -297,7 +368,8 @@ void ADeepSubmarine::LayOut()
 	// The bow sits under the window line so the window looks out over it, not into it.
 	const double NoseTop = SubWinZ - SubWinHalfH - 15.0;
 	const double NoseBottom = -H * 0.5 - Th;
-	Place(NoseCone, FVector(OuterL + 150.0, 0.0, (NoseTop + NoseBottom) * 0.5), FVector(300.0, OuterW * 2.0 * 0.9, NoseTop - NoseBottom));
+	// Narrower than the hull: a chin fairing under the window, the stowed arm along its starboard side (DeepHull).
+	Place(NoseCone, FVector(OuterL + 140.0, 0.0, (NoseTop + NoseBottom) * 0.5), FVector(280.0, OuterW * 2.0 * 0.68, NoseTop - NoseBottom));
 
 	// Ceiling strips along the room, low and cool, aimed down; their fixtures are thin housings on the ceiling.
 	const double StripY = W - 45.0;
@@ -329,9 +401,35 @@ void ADeepSubmarine::LayOut()
 		BowLights[Index]->SetRelativeLocation(FVector(OuterL + 120.0, Index == 0 ? -90.0 : 90.0, NoseBottom - 5.0));
 		BowLights[Index]->SetRelativeRotation(FRotator(-18.f, Index == 0 ? -8.f : 8.f, 0.f));
 	}
+	// Hull work lights in the work-lamp heads on the top rails (DeepHull: WorkLamp), aimed down and a little out.
+	for (int32 Index = 0; Index < HullLights.Num(); ++Index)
+	{
+		const double Sgn = Index == 0 ? -1.0 : 1.0;
+		HullLights[Index]->SetRelativeLocation(FVector(95.0, Sgn * (OuterW + 14.0), H * 0.5 + Th - 2.0));
+		HullLights[Index]->SetRelativeRotation(FRotator(-72.f, Index == 0 ? -90.f : 90.f, 0.f));
+	}
 	for (int32 Index = 0; Index < Markers.Num(); ++Index)
 	{
 		Markers[Index]->SetRelativeLocation(FVector(L - 50.0, Index == 0 ? -OuterW - 12.0 : OuterW + 12.0, H * 0.5 - 20.0));
+	}
+
+	// The outside dress, from the same part list the constructor made the components from.
+	const TArray<FDeepHullPart> Parts = HullParts();
+	for (int32 Index = 0; Index < Parts.Num() && Index < HullDress.Num(); ++Index)
+	{
+		Place(HullDress[Index], Parts[Index].Centre, Parts[Index].Size);
+		HullDress[Index]->SetRelativeRotation(Parts[Index].Rotation);
+	}
+
+	// The window from inside: a bezel proud of the wall's inner face round the opening.
+	const double BezelX = L - 4.0;
+	const double BezelW = 12.0;
+	if (WindowBezel.Num() == 4)
+	{
+		Place(WindowBezel[0], FVector(BezelX, 0.0, SubWinZ + SubWinHalfH + BezelW * 0.5), FVector(8.0, 2.0 * (SubWinHalfW + BezelW), BezelW));
+		Place(WindowBezel[1], FVector(BezelX, 0.0, SubWinZ - SubWinHalfH - BezelW * 0.5), FVector(8.0, 2.0 * (SubWinHalfW + BezelW), BezelW));
+		Place(WindowBezel[2], FVector(BezelX, -(SubWinHalfW + BezelW * 0.5), SubWinZ), FVector(8.0, BezelW, 2.0 * SubWinHalfH));
+		Place(WindowBezel[3], FVector(BezelX, SubWinHalfW + BezelW * 0.5, SubWinZ), FVector(8.0, BezelW, 2.0 * SubWinHalfH));
 	}
 
 	RoomVolume->SetRelativeLocation(FVector::ZeroVector);
@@ -359,6 +457,12 @@ void ADeepSubmarine::SetOutsideLights(float Scale, float Fog)
 	AirlockLight->SetVolumetricScatteringIntensity(FMath::Max(0.f, Fog));
 	BellyFlood->SetIntensity(Look.BellyFloodIntensity * S);
 	BellyFlood->SetVisibility(S > 0.f);
+	for (USpotLightComponent* Light : HullLights)
+	{
+		Light->SetIntensity(Look.HullLightIntensity * S);
+		Light->SetVisibility(S > 0.f);
+		Light->SetVolumetricScatteringIntensity(FMath::Max(0.f, Fog) * 0.5f);
+	}
 	OutsideScale = S;
 	OutsideFog = FMath::Max(0.f, Fog);
 	if (bHelmManned)
@@ -387,6 +491,23 @@ float ADeepSubmarine::HelmStreakM(float SpeedMps, float ShutterSeconds)
 UProceduralMeshComponent* ADeepSubmarine::GetTrench() const
 {
 	return Trench;
+}
+
+bool ADeepSubmarine::TrenchShows(bool bHelmView, bool bInRoomView, bool bParked)
+{
+	return bHelmView || (bInRoomView && !bParked);
+}
+
+void ADeepSubmarine::SetHullDressVisible(bool bVisible)
+{
+	for (UStaticMeshComponent* Shape : HullDress)
+	{
+		Shape->SetVisibility(bVisible);
+	}
+	for (UStaticMeshComponent* Shape : BowHousings)
+	{
+		Shape->SetVisibility(bVisible);
+	}
 }
 
 float ADeepSubmarine::TrenchReliefM(float AlongM, float DepthM, float LedgeEveryM, float LedgeOutM)
@@ -575,8 +696,12 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	}
 
 	// The trench wall: only for a local player looking through this sub's helm camera (a diver outside never sees it).
+	// Also through the window, for a local player standing in the room while the sub moves (the hatch is shut then, so
+	// no diver is outside to find the wall missing). Parked, the window shows the stop's open water.
 	const APlayerController* PC = World->GetFirstPlayerController();
-	const bool bLocalHelmView = !bGreyBox && PC && PC->GetViewTarget() == this;
+	const APawn* Viewer = PC ? PC->GetPawn() : nullptr;
+	const bool bInRoomView = Viewer && PC->GetViewTarget() == Viewer && IsInRoom(Viewer->GetActorLocation());
+	const bool bLocalHelmView = !bGreyBox && PC && TrenchShows(PC->GetViewTarget() == this, bInRoomView, bParked);
 	if (bLocalHelmView && Trench->GetNumSections() == 0)
 	{
 		BuildTrench();
@@ -718,9 +843,78 @@ void ADeepSubmarine::ApplyLook()
 	}
 	SubScreen(ConsoleScreen, Look.ScreenGlow);
 	SubScreen(HelmScreen, Look.ScreenGlow);
+
+	// The outside dress (style guide 4): one shared instance per paint. Saturation under 35%, value under 70%.
+	{
+		FSubSteel Paints[uint8(EDeepHullPaint::Count)];
+		Paints[uint8(EDeepHullPaint::Hull)] = Wall;
+		FSubSteel& FrameP = Paints[uint8(EDeepHullPaint::Frame)];
+		FrameP.Paint = FLinearColor(0.028f, 0.03f, 0.03f);
+		FrameP.Wear = 0.38f;
+		FrameP.Rust = 0.42f;
+		FrameP.Wet = 0.1f;
+		FrameP.PaintRough = 0.55f;
+		// Syntactic foam: faded, dirty ochre (sRGB about 101, 87, 69; 32% saturation), matte, stained, hardly chipped.
+		FSubSteel& FoamP = Paints[uint8(EDeepHullPaint::Foam)];
+		FoamP.Paint = FLinearColor(0.13f, 0.095f, 0.06f);
+		FoamP.Wear = 0.05f;
+		FoamP.Rust = 0.22f;
+		FoamP.PaintRough = 0.85f;
+		FSubSteel& TankP = Paints[uint8(EDeepHullPaint::Tank)];
+		TankP.Paint = FLinearColor(0.062f, 0.066f, 0.062f);
+		TankP.Wear = 0.26f;
+		TankP.Rust = 0.45f;
+		TankP.Wet = 0.1f;
+		TankP.PaintRough = 0.6f;
+		FSubSteel& DarkP = Paints[uint8(EDeepHullPaint::Dark)];
+		DarkP.Paint = FLinearColor(0.006f, 0.006f, 0.006f);
+		DarkP.Wear = 0.f;
+		DarkP.Rust = 0.f;
+		DarkP.PaintRough = 0.45f;
+		Paints[uint8(EDeepHullPaint::Rim)] = Rim;
+		FSubSteel& PatchP = Paints[uint8(EDeepHullPaint::Patch)];
+		PatchP = Wall;
+		PatchP.Paint = FLinearColor(0.055f, 0.058f, 0.05f);
+		PatchP.Wear = 0.3f;
+		PatchP.Rust = 0.62f;
+		UMaterialInstanceDynamic* Shared[uint8(EDeepHullPaint::Count)] = {};
+		for (uint8 P = 0; P < uint8(EDeepHullPaint::Count); ++P)
+		{
+			Shared[P] = SteelInstance(this, Paints[P]);
+		}
+		const TArray<FDeepHullPart> Parts = HullParts();
+		for (int32 Index = 0; Index < Parts.Num() && Index < HullDress.Num(); ++Index)
+		{
+			const uint8 P = uint8(Parts[Index].Paint);
+			if (Shared[P])
+			{
+				HullDress[Index]->SetMaterial(0, Shared[P]);
+			}
+			else
+			{
+				DeepShapes::Tint(HullDress[Index], Paints[P].Paint);
+			}
+		}
+		for (UStaticMeshComponent* Shape : BowHousings)
+		{
+			Shape->SetMaterial(0, Shared[uint8(EDeepHullPaint::Frame)] ? Shared[uint8(EDeepHullPaint::Frame)] : Shape->GetMaterial(0));
+		}
+		// The bezel in the wall's paint, worn through at the edges so light finds bare metal.
+		FSubSteel Bezel = Wall;
+		Bezel.Wear = 0.45f;
+		for (UStaticMeshComponent* Shape : WindowBezel)
+		{
+			SubSteel(Shape, Bezel);
+		}
+	}
 	if (UMaterialInterface* Glass = Cast<UMaterialInterface>(Look.GlassMaterial.TryLoad()))
 	{
-		Window->SetMaterial(0, Glass);
+		// Clearer when looked through straight, more mirror toward the frame (M_Glass's own parameters).
+		UMaterialInstanceDynamic* G = UMaterialInstanceDynamic::Create(Glass, Window);
+		G->SetScalarParameterValue(TEXT("OpacityFacing"), 0.06f);
+		G->SetScalarParameterValue(TEXT("OpacityGrazing"), 0.6f);
+		G->SetScalarParameterValue(TEXT("Roughness"), 0.03f);
+		Window->SetMaterial(0, G);
 	}
 	else
 	{
@@ -769,6 +963,15 @@ void ADeepSubmarine::ApplyLook()
 		Light->SetInnerConeAngle(Look.BowLightConeDeg * 0.4f);
 		Light->SetOuterConeAngle(Look.BowLightConeDeg);
 		Light->SetAttenuationRadius(Look.BowLightRangeM * UDeepRules::CmPerM);
+		Light->SetVisibility(!bGreyBox);
+	}
+	for (USpotLightComponent* Light : HullLights)
+	{
+		Light->SetLightColor(Lamp.Color);
+		Light->SetIntensity(Look.HullLightIntensity * OutsideScale);
+		Light->SetInnerConeAngle(Look.HullLightConeDeg * 0.5f);
+		Light->SetOuterConeAngle(Look.HullLightConeDeg);
+		Light->SetAttenuationRadius(Look.HullLightRangeM * UDeepRules::CmPerM);
 		Light->SetVisibility(!bGreyBox);
 	}
 	for (int32 Index = 0; Index < Markers.Num(); ++Index)

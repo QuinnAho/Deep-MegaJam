@@ -14,6 +14,7 @@
 #include "World/DeepArena.h"
 #include "World/DeepRopeComponent.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepSubmarine.h"
 #include "GameFramework/Controller.h"
 #include "HAL/IConsoleManager.h"
 #include "Sim/DeepTuningSettings.h"
@@ -572,5 +573,20 @@ namespace
 			}
 			UE_LOG(LogDeepCheats, Display, TEXT("DEEPROPE {\"points\":%d,\"linked\":%d,\"links\":%d,\"parted\":%d,\"shown_m\":%.2f,\"visible\":%s}"),
 				Sim.Pos.Num(), Sim.CountLinked(), Sim.NumLinks(), Parted, Tether->GetShownLengthCm() / 100.f, Rope->IsShown() ? TEXT("true") : TEXT("false"));
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HullCommand(
+		TEXT("Deep.Hull"),
+		TEXT("Deep.Hull <0|1>: hides (0) or shows (1) the submarine's outside dress and lamp housings (frame-time A/B; visual only)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const bool bShow = Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0;
+			int32 Count = 0;
+			for (TActorIterator<ADeepSubmarine> It(World); It; ++It)
+			{
+				It->SetHullDressVisible(bShow);
+				++Count;
+			}
+			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Hull: dress %s on %d sub(s)"), bShow ? TEXT("shown") : TEXT("hidden"), Count);
 		}));
 }

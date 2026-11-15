@@ -90,6 +90,15 @@ public:
 	/** The trench wall (its frame: -X out of the face toward the sub, Y along the wall, Z = -absolute depth). Dressing rows with parent "trench" hang from it. */
 	class UProceduralMeshComponent* GetTrench() const;
 
+	/** The outside dress (DeepHull::Parts): frame, foam, tanks, skids, thrusters, hatch well. Visual only, no collision. */
+	const TArray<TObjectPtr<UStaticMeshComponent>>& GetHullDress() const { return HullDress; }
+
+	/** Shows or hides the outside dress and the lamp housings (Deep.Hull, frame-time A/B). */
+	void SetHullDressVisible(bool bVisible);
+
+	/** The trench shows to a local viewer: through the helm camera, or from inside the room while the sub is not parked (the window). */
+	static bool TrenchShows(bool bHelmView, bool bInRoomView, bool bParked);
+
 protected:
 	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
 	void TickHelmLook(float DeltaSeconds);
@@ -173,6 +182,22 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> RoomLight;
+
+	/** The outside dress, one component per DeepHull::Parts entry (same order). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> HullDress;
+
+	/** Work lights on the top rails amidships, aimed down each side (Look.HullLight*). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<USpotLightComponent>> HullLights;
+
+	/** A housing on each bow light, attached to the light so it turns with it when the helm floods aim. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> BowHousings;
+
+	/** The helm window from inside: a bezel round the glass (top, bottom, port, starboard). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> WindowBezel;
 
 	/** Lights the water under the hatch (was the airlock light). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
