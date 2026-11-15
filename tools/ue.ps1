@@ -2,7 +2,8 @@
 ue.ps1 - DEEP build / test / package harness. Windows PowerShell 5.1. Keep this file pure ASCII.
 
 Usage:  .\tools\ue.ps1 <verb> [-Filter Deep] [-SmokeSeconds 25]
-Verbs:  info | build | test | verify | package | zip | smoke | editor | clean
+        .\tools\ue.ps1 shot -Name <name> [-Delay 6] [-Cmds "cmd1;cmd2"]
+Verbs:  info | build | test | verify | package | zip | smoke | shot | editor | clean
 Exit code 0 means PASS. Anything else is FAIL. Full logs go to deep\Saved\Harness\.
 Engine root: $env:DEEP_UE_ROOT if set, else C:\Program Files\Epic Games\UE_5.9.
 If scripts are blocked: powershell -ExecutionPolicy Bypass -File tools\ue.ps1 <verb>
@@ -10,10 +11,13 @@ If scripts are blocked: powershell -ExecutionPolicy Bypass -File tools\ue.ps1 <v
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('info', 'build', 'test', 'verify', 'package', 'zip', 'smoke', 'editor', 'clean', 'help')]
+    [ValidateSet('info', 'build', 'test', 'verify', 'package', 'zip', 'smoke', 'shot', 'editor', 'clean', 'help')]
     [string]$Verb = 'help',
     [string]$Filter = 'Deep',
-    [int]$SmokeSeconds = 25
+    [int]$SmokeSeconds = 25,
+    [string]$Name = 'shot',
+    [int]$Delay = 6,
+    [string]$Cmds = ''
 )
 
 $ErrorActionPreference = 'Continue'
@@ -458,6 +462,58 @@ function Invoke-Smoke {
     if ($pass) { return 0 } else { return 1 }
 }
 
+function Invoke-Shot {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    if (-not (Test-EngineOk 'shot' $sw $EditorExe)) { return 1 }
+    $busy = @(Get-ProjectEditors @('UnrealEditor.exe'))
+    if ($busy.Count -gt 0) {
+        Write-Result $false 'shot' $sw.Elapsed 'an editor/game is running on this project'
+        Write-BusyEditors $busy
+        return 1
+    }
+    $safe = $Name -replace '[^A-Za-z0-9_-]', ''
+    if (-not $safe) { $safe = 'shot' }
+    $shotDir = Join-Path $HarnessDir 'shots'
+    if (-not (Test-Path -LiteralPath $shotDir)) { $null = New-Item -ItemType Directory -Force -Path $shotDir }
+    $stamp = New-Stamp
+    $png = Join-Path $shotDir ('{0}-{1}.png' -f $safe, $stamp)
+    $log = Join-Path $HarnessDir ('shot-{0}.log' -f $stamp)
+    $argLine = ('"{0}" -game -windowed -ResX=1280 -ResY=720 -nosplash -unattended -log -abslog="{1}" ' +
+        '-ModelContextProtocolPort={2} -DeepShot="{3}" -DeepShotDelay={4} -DeepShotCmds="{5}"') -f $UProject, $log, $McpPortHeadless, $png, $Delay, $Cmds
+    Write-Host ('shot: {0} (delay {1}s, timeout 120s)' -f $safe, $Delay)
+    try {
+        $p = Start-Process -FilePath $EditorExe -ArgumentList $argLine -PassThru -ErrorAction Stop
+    } catch {
+        Write-Result $false 'shot' $sw.Elapsed ('could not start: ' + $_.Exception.Message)
+        return 1
+    }
+    $null = $p.Handle
+    $found = $false
+    while ($sw.Elapsed.TotalSeconds -lt 120) {
+        if (Test-Path -LiteralPath $png) {
+            Start-Sleep -Milliseconds 1500   # let the writer finish
+            $found = $true
+            break
+        }
+        if ($p.HasExited) { Start-Sleep -Milliseconds 800; if (Test-Path -LiteralPath $png) { $found = $true }; break }
+        Start-Sleep -Milliseconds 500
+    }
+    if (-not $p.HasExited) {
+        Stop-Tree $p.Id
+        $null = $p.WaitForExit(10000)
+    }
+    if (-not $found -or -not (Test-Path -LiteralPath $png) -or (Get-Item -LiteralPath $png).Length -eq 0) {
+        Write-Result $false 'shot' $sw.Elapsed 'no screenshot produced; game-side -DeepShot support may be missing'
+        Write-Host ('  expected: ' + $png)
+        Write-Host ('  log: ' + $log)
+        return 1
+    }
+    Write-Result $true 'shot' $sw.Elapsed ''
+    Write-Host ('  png: ' + $png)
+    Write-Host ('  log: ' + $log)
+    return 0
+}
+
 function Invoke-Editor {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     if (-not (Test-EngineOk 'editor' $sw $EditorExe)) { return 1 }
@@ -541,6 +597,7 @@ function Show-Help {
     Write-Host '  package  RunUAT BuildCookRun Win64 Development to Builds\'
     Write-Host '  zip      Builds\<team>_<game>.zip from tools\jam.json'
     Write-Host '  smoke    run the packaged exe for N seconds, scan the log'
+    Write-Host '  shot     -Name n [-Delay 6] [-Cmds "a;b"] launch game, wait for -DeepShot png'
     Write-Host '  editor   start the interactive editor with MCP on port 8000'
     Write-Host '  clean    delete deep\Binaries and deep\Intermediate'
     return 0
@@ -556,6 +613,7 @@ switch ($Verb) {
     'package' { $code = Invoke-Package }
     'zip'     { $code = Invoke-Zip }
     'smoke'   { $code = Invoke-Smoke }
+    'shot'    { $code = Invoke-Shot }
     'editor'  { $code = Invoke-Editor }
     'clean'   { $code = Invoke-Clean }
     default   { $code = Show-Help }
