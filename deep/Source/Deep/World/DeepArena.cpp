@@ -7,9 +7,11 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArenaRoot.h"
+#include "World/DeepCavern.h"
 #include "World/DeepDressing.h"
 #include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepArena, Log, All);
@@ -211,6 +213,15 @@ namespace DeepArena
 			}
 		}
 
+		if (!FindFirst<ADeepCavern>(World))
+		{
+			// Rock walls and a roof round the arena, built round the same anchor and hung the same way (ADeepCavern).
+			if (ADeepCavern* Cavern = World->SpawnActor<ADeepCavern>(ArenaAnchor(World), FRotator::ZeroRotator, SpawnParams()))
+			{
+				HangFromRoot(World, Cavern);
+			}
+		}
+
 		if (!FindFirst<ADeepEnvironment>(World))
 		{
 			World->SpawnActor<ADeepEnvironment>(Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
@@ -234,9 +245,23 @@ namespace DeepArena
 		{
 			return;
 		}
-		// Deeper than the loaded stop: the world is above us, so the root goes up.
+		// Deeper than the loaded stop: the world is above us, so the root goes up. Steered to starboard in the cave
+		// shaft: the world slides to port (SubOffsetM, in the sub's frame).
 		const float OffsetM = State->SubDepthM - UDeepTuningSettings::Get().GetStop(State->Stop).SubDepthM;
-		Root->SetActorLocation(Sub->GetActorLocation() + FVector(0.f, 0.f, OffsetM * UDeepRules::CmPerM));
+		const FVector Side = Sub->GetActorRotation().RotateVector(FVector(State->SubOffsetM.X, State->SubOffsetM.Y, 0.f));
+		Root->SetActorLocation(Sub->GetActorLocation() + (FVector(0.f, 0.f, OffsetM) - Side) * UDeepRules::CmPerM);
+		if (ADeepShaft* Shaft = FindFirst<ADeepShaft>(World))
+		{
+			Shaft->Follow();
+		}
+	}
+
+	void MoveRoot(UWorld* World)
+	{
+		if (World && World->GetNetMode() != NM_Client)
+		{
+			PositionRoot(World);
+		}
 	}
 
 	void ApplyStop(UWorld* World, int32 Stop)
@@ -255,7 +280,8 @@ namespace DeepArena
 		if (ADeepSubmarine* Sub = FindSubmarine(World))
 		{
 			const ADeepGameState* State = World->GetGameState<ADeepGameState>();
-			Sub->SetHatchOpen(!State || State->bParked);
+			// Parked off the stop's centre (the cave shaft), the sub glides home first; the hatch opens once it is there.
+			Sub->SetHatchOpen(!State || (State->bParked && State->SubOffsetM.IsNearlyZero(0.01f)));
 		}
 	}
 

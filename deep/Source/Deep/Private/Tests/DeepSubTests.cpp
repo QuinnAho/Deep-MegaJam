@@ -12,6 +12,7 @@
 #include "Game/DeepGameMode.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -212,10 +213,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubHelmLimitsTest, "Deep.World.SubHelmLimi
 bool FDeepSubHelmLimitsTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepSubTest;
+	// The depth limits on the straight drive: the cave shaft off, so 100 s of holding the helm down meets no rock.
+	struct FShaftOff
+	{
+		IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Cave.Shaft"));
+		int32 Before = Var ? Var->GetInt() : -1;
+		FShaftOff() { if (Var) { Var->Set(0, ECVF_SetByCode); } }
+		~FShaftOff() { if (Var) { Var->Set(Before, ECVF_SetByCode); } }
+	} ShaftOff;
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	FSubWorld W;
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
-	const float Deepest = Tuning.GetStop(Tuning.NumStops()).SubDepthM + 100.f;
+	const float Deepest =Tuning.GetStop(Tuning.NumStops()).SubDepthM + 100.f;
 
 	for (int32 Gates = 0; Gates <= 2; ++Gates)
 	{

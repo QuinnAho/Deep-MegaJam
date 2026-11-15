@@ -119,6 +119,7 @@ protected:
 	/** Keeps the movement mode and the view target in step with the run (aboard, seated) on the owning machine. */
 	void SyncAboardMode();
 	float LastHelmInputSent = 0.f;
+	FVector2D LastHelmSteerSent = FVector2D::ZeroVector;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWinching(bool bInWinching);

@@ -432,6 +432,14 @@ struct FDeepCaptainTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "1"))
 	float TensePatienceFraction = 0.25f;
 
+	/** Seated at the helm: tense while the hull is under this integrity (0..1)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "1"))
+	float TenseHull01 = 0.5f;
+
+	/** ... and scared under this one (the hull_critical line is at Cave.HullCriticalIntegrity01). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "1"))
+	float ScaredHull01 = 0.25f;
+
 	/** Scared and in the water: only lines at or above this urgency show (the planned near-silence). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "3"))
 	int32 ScaredMinUrgency = 3;
@@ -1481,6 +1489,159 @@ struct FDeepSubTuning
 	float HelmCameraFovDeg = 95.f;
 };
 
+/**
+ * The cave shaft between stops (Nov 15, Quinn: driving the sub is the fun, open water kills the dread). The passage is a
+ * function of depth: a centre (metres, X = ahead, Y = starboard, relative to the stops' column) and a radius. At every
+ * stop it is centred on the parked sub with StopRadiusM (the Cavern lane cuts its roof opening to match); in between it
+ * bends, opens into caverns and pinches into squeezes. The sub's box against that wall is the hit. Sim/DeepCaveRules.
+ */
+USTRUCT(BlueprintType)
+struct FDeepCaveTuning
+{
+	GENERATED_BODY()
+
+	/** The shaft on. Off (or Deep.Cave.Shaft 0): the old straight drive, no offset, no wall, no hits. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	bool bShaft = true;
+
+	/** Radius of the passage at every stop (and the Cavern lane's roof opening). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float StopRadiusM = 14.f;
+
+	/** Below a stop the passage stays straight, at StopRadiusM, this far; then it eases into bends over the same distance. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float StraightBelowStopM = 20.f;
+
+	/** Above the next stop the passage is straight, at StopRadiusM, this far (it drops through the cavern roof). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float StraightAboveStopM = 15.f;
+
+	/** How far the centre swings ahead/astern (X) and to the sides (Y) at most, mid-shaft. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	FVector2D BendAmplitudeM = FVector2D(8.f, 12.f);
+
+	/** Depth for one full swing of the bend, X and Y. Lower = sharper bends (more steering per metre of depth). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	FVector2D BendWavelengthM = FVector2D(150.f, 130.f);
+
+	/** Radius of the open caverns. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float CavernRadiusM = 30.f;
+
+	/** Free room (m) left round the sub's widest corner in the tightest squeeze. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float SqueezeMarginM = 2.5f;
+
+	/** Depth for one cavern-to-squeeze cycle of the radius. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float RadiusWavelengthM = 90.f;
+
+	/** Each segment between two stops gets its own phase from this, so no two look alike. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	int32 Seed = 7;
+
+	/** The shaft goes on this far below the deepest stop (straight, StopRadiusM). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float BelowLastStopM = 110.f;
+
+	/**
+	 * The rock tube starts this far below each stop (it shows once the sub leaves the stop downward and the stop's bed
+	 * hides) and ends this far above the next one, where the cavern roof takes over.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float TubeStartBelowStopM = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float TubeEndAboveStopM = 10.f;
+
+	/** Added round the sub's collision box for the wall test: the outside dress, the tanks and the helm camera stick out. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Helm")
+	float HullPadM = 0.6f;
+
+	/** Full speed at the helm, sideways (A/D) and ahead or astern (W/S). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Helm")
+	float SteerSpeedMps = 6.f;
+
+	/** How fast that speed follows the control (m/s per second): a little inertia, so a hit can be misjudged. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Helm")
+	float SteerAccelMps2 = 7.f;
+
+	/** Parked, the sub glides back to the stop's centre at this speed (the hatch opens once it is there). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Helm")
+	float ParkGlideMps = 5.f;
+
+	/** Fraction of the impact speed the wall throws the sub back with. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float Bounce = 0.35f;
+
+	/** Closing on the wall at least this fast is a hit; slower is a scrape. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float HitMinSpeedMps = 1.5f;
+
+	/** Hull damage per m/s of impact speed (rounded, at least 1 for a hit). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float DamagePerMps = 0.5f;
+
+	/** One hit does no more than this: a squeeze closing on an off-centre sub at full descent would otherwise breach at once. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	int32 MaxHitDamage = 3;
+
+	/** No second hit within this long of the last. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float HitCooldownSeconds = 1.f;
+
+	/** Grinding along the wall: one point of damage per this many seconds of contact. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float ScrapeSecondsPerDamage = 2.5f;
+
+	/** The scrape sound and line come again no sooner than this. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float ScrapeCooldownSeconds = 4.f;
+
+	/** At this much hull damage (cave hits and harpoon hits together) the hull breaches. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	int32 HullBreachDamage = 10;
+
+	/** hull_critical fires when a dent takes the hull's integrity (0..1) under this. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	float HullCriticalIntegrity01 = 0.25f;
+
+	/** A breach kills the diver aboard (death fee, a new diver, the hull patched and billed). Off: the hull holds at the limit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
+	bool bHullBreachKills = true;
+
+	/** The helm camera's jolt on a hit: degrees per m/s of impact, and how fast it dies away (1/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	float JoltDegPerMps = 1.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	float JoltDecayPerSecond = 5.f;
+
+	/** The rock wall's mesh: rows this tall and this many points round. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	float WallRowM = 0.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	int32 WallSides = 72;
+
+	/**
+	 * The drawn wall stands this much outside the rule's radius on average, its relief (Look.TrenchLedge*) scaled by
+	 * WallReliefScale round that: the rock never stands inside the line the hits are measured on by more than a hand.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	float WallReliefOutM = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	float WallReliefScale = 0.5f;
+
+	/** The wall's surface: the sea bed's silt by default (UV0 in tiles of Look.SeabedUvTileM). Falls back to WallColor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	FSoftObjectPath WallMaterial = FSoftObjectPath(TEXT("/Game/Deep/Look/M_Silt.M_Silt"));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Look")
+	FLinearColor WallColor = FLinearColor(0.035f, 0.036f, 0.034f);
+};
+
 /** One helm step: the new depth, and whether the control pushed against the limit or the top. */
 USTRUCT(BlueprintType)
 struct FDeepHelmStep
@@ -1706,6 +1867,127 @@ struct FDeepCameraTuning
 	/** Bands down the screen that tear as one (fewer = thicker tears). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")
 	float InterferenceBands = 70.f;
+};
+
+/**
+ * The cavern (ADeepCavern): rock walls and a roof round each stop's arena, the sea bed as its floor. Quinn, 11:55 AM
+ * Nov 15: "if you're swimming in an open ocean it really lessens it". Sized from the rules, not by eye: the walls stand
+ * past both the tether's reach and the farthest salvage spot, plus a margin, at every height a diver uses (up to
+ * ClearAboveAnchorM over the hatch); every bump of relief only pushes rock outward, so the clearance holds by
+ * construction. The roof has an opening of HoleRadiusM centred over the sub, where the descent shaft comes down.
+ */
+USTRUCT(BlueprintType)
+struct FDeepCavernTuning
+{
+	GENERATED_BODY()
+
+	/** Off: today's open arena (the cheat Deep.Cave.Cavern 0 does the same at run time). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	bool bEnabled = true;
+
+	/** Rock stands at least this far past the tether's full length (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float TetherMarginM = 3.f;
+
+	/** ... and this far past the farthest salvage spot (m from the anchor). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float SpotMarginM = 3.f;
+
+	/** The clear space reaches this high over the anchor everywhere (m). The sub's roof and dress top out near 5 m. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float ClearAboveAnchorM = 6.f;
+
+	/** The roof's height over the anchor before relief (m): low, so the lamp finds it from the hatch. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float RoofAboveAnchorM = 10.f;
+
+	/** How square the vault is where the roof meets the wall (superellipse power; 2 = an ellipse, higher = flatter roof, sharper corner). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float RoofPower = 4.f;
+
+	/** The roof's opening over the sub (m): the descent shaft's radius (the Shaft lane's contract). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HoleRadiusM = 14.f;
+
+	/** A short collar of rock up from the opening's rim, so the shaft's tube never shows a gap at the roof (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float NeckHeightM = 8.f;
+
+	/** The collar widens by this much at its top (m), so it sits just behind the shaft's tube, never in front. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float NeckFlareM = 0.6f;
+
+	/** The walls run this far down into the silt, so no gap shows where they meet the bed (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float SkirtBelowBedM = 4.f;
+
+	/** Rock relief, outward only (m): a large lumpy noise on every face. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float ReliefM = 5.f;
+
+	/** The relief's wavelength (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float ReliefScaleM = 11.f;
+
+	/** Alcoves: this many bays round the wall, each up to AlcoveDepthM deep. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 AlcoveCount = 7;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float AlcoveDepthM = 7.f;
+
+	/** Horizontal strata on the walls: ledges StrataM deep, one every StrataEveryM of height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float StrataM = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float StrataEveryM = 3.f;
+
+	/** An uneven roof: extra relief, upward only (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float RoofReliefM = 3.f;
+
+	/** Crags: sharp ridged relief at lamp scale, CragM deep and CragScaleM across, so a wall 10 m off in the lamp shows facets, not a flat grey. Outward only. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float CragM = 1.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float CragScaleM = 3.5f;
+
+	/** Mesh resolution: columns round the cave, rows from the collar's top to the wall's foot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Columns = 384;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Rows = 180;
+
+	/** Overhangs: rock spurs hanging from the roof. Their tips stay at least TipClearM above the clear space. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 HangCount = 22;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangRadiusMinM = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangRadiusMaxM = 3.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangTipClearM = 1.f;
+
+	/** Spurs hang no nearer the shaft's axis than this (m), clear of the shaft and the sub. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangMinOutM = 19.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Seed = 1931;
+
+	/** The rock's surface. Empty = the sea bed's (FDeepLookTuning::SeabedMaterial), worked out from world position. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	FSoftObjectPath Material;
+
+	/** UV tile (m), for a material that reads UV0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float UvTileM = 4.f;
 };
 
 /** The helm's sonar (Sonar lane, Nov 15): a sweeping plan view round the sub, two slices, contacts and a proximity tone. */

@@ -8,14 +8,18 @@ namespace DeepCaptainPacing
 	{
 		if (!In.bInWater)
 		{
-			return EDeepCaptainDanger::Calm;
+			// Aboard the only danger is the hull (at the helm, in the cave shaft).
+			if (In.Hull01 < Tuning.ScaredHull01)
+			{
+				return EDeepCaptainDanger::Scared;
+			}
+			return In.Hull01 < Tuning.TenseHull01 ? EDeepCaptainDanger::Tense : EDeepCaptainDanger::Calm;
 		}
 		const bool bSerpentClose = In.bSerpentClosing && In.SerpentDistanceM >= 0.f && In.SerpentDistanceM <= Tuning.ScaredSerpentM;
 		if (bSerpentClose || In.bBiteAlarm)
 		{
 			return EDeepCaptainDanger::Scared;
 		}
-		// HOOK(hull): hull integrity joins here once ADeepGameState::GetHullIntegrity01() is on integration.
 		if (In.bBailout || (In.bTethered && In.PatienceFraction < Tuning.TensePatienceFraction))
 		{
 			return EDeepCaptainDanger::Tense;

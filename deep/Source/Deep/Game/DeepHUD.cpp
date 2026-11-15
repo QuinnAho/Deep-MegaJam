@@ -17,6 +17,7 @@
 #include "Sonar/DeepSonarComponent.h"
 #include "Story/DeepCaptain.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
@@ -1091,7 +1092,7 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 		const int32 NewStop = NewReachableStop(State);
 		Next = FString::Printf(TEXT("PARKED AT %.0f m"), Tuning.GetStop(Parked).SubDepthM);
 		Why = NewStop > 0
-			? FString::Printf(TEXT("Hold [%s] or [S] to dive to %.0f m.  [%s] stand up, then drop through the hatch."), *Down, Tuning.GetStop(NewStop).SubDepthM, *ADeepPlayerController::KeyHint(TEXT("Use")))
+			? FString::Printf(TEXT("Hold [%s] to dive to %.0f m.  [%s] stand up, then drop through the hatch."), *Down, Tuning.GetStop(NewStop).SubDepthM, *ADeepPlayerController::KeyHint(TEXT("Use")))
 			: FString::Printf(TEXT("[%s] stand up, then drop through the hatch to dive here."), *ADeepPlayerController::KeyHint(TEXT("Use")));
 	}
 	else
@@ -1493,6 +1494,9 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 		}
 		Frame.ParkedStop = GameState->ParkedStop();
 		Frame.bAtLimit = Run->IsHelmAtLimit();
+		// The hull bar: only in the cave shaft, the one place the hull takes knocks.
+		Frame.Hull01 = DeepShaft::IsOn() ? GameState->GetHullIntegrity01() : -1.f;
+		Frame.HullTone = Frame.Hull01 < 0.f ? EDeepHudTone::Normal : Frame.Hull01 < Tuning.Captain.ScaredHull01 ? EDeepHudTone::Danger : Frame.Hull01 < Tuning.Captain.TenseHull01 ? EDeepHudTone::Warning : EDeepHudTone::Normal;
 		if ((Frame.Panels & EDeepHudPanel::Sonar) && Sonar)
 		{
 			Sonar->FillHud(Frame.Sonar);
@@ -1617,11 +1621,17 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 	}
 	else if (Frame.Mode == EDeepHudMode::Helm)
 	{
+		// In the cave shaft W/S/A/D steer, so only C and Space change depth.
+		const bool bShaft = DeepShaft::IsOn();
 		Frame.Hint = {
-			MakePrompt(TEXT("h1"), FString::Printf(TEXT("%s / S"), *Key(TEXT("Down"))), TEXT("DIVE"), TEXT("hold")),
-			MakePrompt(TEXT("h2"), FString::Printf(TEXT("%s / W"), *Key(TEXT("Up"))), TEXT("RISE"), TEXT("hold")),
-			MakePrompt(TEXT("h3"), Key(TEXT("Use")), TEXT("STAND UP")),
+			MakePrompt(TEXT("h1"), bShaft ? Key(TEXT("Down")) : FString::Printf(TEXT("%s / S"), *Key(TEXT("Down"))), TEXT("DIVE"), TEXT("hold")),
+			MakePrompt(TEXT("h2"), bShaft ? Key(TEXT("Up")) : FString::Printf(TEXT("%s / W"), *Key(TEXT("Up"))), TEXT("RISE"), TEXT("hold")),
 		};
+		if (bShaft)
+		{
+			Frame.Hint.Add(MakePrompt(TEXT("h4"), TEXT("WASD"), TEXT("STEER"), TEXT("off the rock")));
+		}
+		Frame.Hint.Add(MakePrompt(TEXT("h3"), Key(TEXT("Use")), TEXT("STAND UP")));
 	}
 
 	// ---- feedback cues, on the frame the state changes (well inside 100 ms)
