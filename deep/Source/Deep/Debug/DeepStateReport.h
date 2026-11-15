@@ -15,7 +15,8 @@ namespace DeepStateReport
 	/**
 	 * Condensed JSON. Keys: diver_present, depth_m, zone, cargo_kg, cargo_value, cargo_items, overloaded,
 	 * tether_length_m, tether_distance_m, tether_left_m, tether_strain, tether_taut, winching, home, lamp,
-	 * credits, hull_rating, stop, diver_number, salvage_in_world, pos_cm [x,y,z]. Positions are Unreal units (cm).
+	 * run_state (tethered/cut/dead/settling/descending), patience (0..1), patience_s, bailout_air_s, last_bank {gross,cut,fees,net,hull_bought} (after a bank),
+	 * last_event, captain_line, credits, hull_rating, stop, diver_number, salvage_in_world, pos_cm [x,y,z]. Positions are Unreal units (cm).
 	 */
 	DEEP_API FString BuildJson(UWorld* World);
 

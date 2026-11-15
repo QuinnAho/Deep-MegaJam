@@ -1,5 +1,6 @@
-// Water look for a stop: downwelling light, height fog (with volumetric shafts) and an exposure clamp.
-// One per world, spawned by DeepArena::EnsureArena. SetStop switches between the stops' settings and replicates.
+// Light for a stop. One per world, spawned by DeepArena::EnsureArena. SetStop switches between the stops and replicates.
+// Grey box (Arena.bGreyBox, the default): even key + fill light, fixed exposure, no fog shafts, a mild tint per stop.
+// Otherwise the water look: downwelling light, height fog with volumetric shafts and an exposure clamp.
 
 #pragma once
 
@@ -25,6 +26,9 @@ public:
 
 	int32 GetStop() const { return Stop; }
 
+	/** The light colour for a stop in grey-box mode: white leaning a little toward the stop's water colour. */
+	static FLinearColor GreyBoxTint(const FDeepStopTuning& StopTuning, const FDeepArenaTuning& Arena);
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
@@ -40,6 +44,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UDirectionalLightComponent> Downlight;
+
+	/** Grey box only: soft light from below and the far side. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UDirectionalLightComponent> Fill;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UExponentialHeightFogComponent> Fog;

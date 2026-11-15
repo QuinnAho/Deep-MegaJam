@@ -50,6 +50,8 @@ FString ADeepPlayerController::KeyHint(FName Action)
 		{ TEXT("Sprint"), TEXT("Shift") },
 		{ TEXT("Up"), TEXT("Space") },
 		{ TEXT("Down"), TEXT("C") },
+		{ TEXT("Cut"), TEXT("Q") },
+		{ TEXT("Continue"), TEXT("Space") },
 	};
 	const FString* Hint = Hints.Find(Action);
 	return Hint ? *Hint : FString(TEXT("?"));
@@ -69,6 +71,8 @@ void ADeepPlayerController::BuildInputObjects()
 	DropAction = MakeAction(this, TEXT("IA_Drop"), EInputActionValueType::Boolean);
 	WinchAction = MakeAction(this, TEXT("IA_Winch"), EInputActionValueType::Boolean);
 	LampAction = MakeAction(this, TEXT("IA_Lamp"), EInputActionValueType::Boolean);
+	CutAction = MakeAction(this, TEXT("IA_Cut"), EInputActionValueType::Boolean);
+	ContinueAction = MakeAction(this, TEXT("IA_Continue"), EInputActionValueType::Boolean);
 
 	Mapping = NewObject<UInputMappingContext>(this, TEXT("IMC_Diver"));
 
@@ -91,6 +95,12 @@ void ADeepPlayerController::BuildInputObjects()
 	Mapping->MapKey(DropAction, EKeys::G);
 	Mapping->MapKey(WinchAction, EKeys::R);
 	Mapping->MapKey(LampAction, EKeys::F);
+	Mapping->MapKey(CutAction, EKeys::Q);
+	// Continue shares keys with swim-up and grab; it only acts on the settlement screen.
+	Mapping->MapKey(ContinueAction, EKeys::SpaceBar);
+	Mapping->MapKey(ContinueAction, EKeys::Enter);
+	Mapping->MapKey(ContinueAction, EKeys::E);
+	Mapping->MapKey(ContinueAction, EKeys::LeftMouseButton);
 }
 
 void ADeepPlayerController::AddMappingToLocalPlayer()
@@ -126,6 +136,9 @@ void ADeepPlayerController::SetupInputComponent()
 	Input->BindAction(WinchAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnWinchStart);
 	Input->BindAction(WinchAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnWinchStop);
 	Input->BindAction(LampAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnLamp);
+	Input->BindAction(CutAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnCutStart);
+	Input->BindAction(CutAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnCutStop);
+	Input->BindAction(ContinueAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnContinue);
 
 	AddMappingToLocalPlayer();
 }
@@ -215,5 +228,29 @@ void ADeepPlayerController::OnLamp()
 	if (ADeepDiver* Diver = GetDiver())
 	{
 		Diver->ToggleLamp();
+	}
+}
+
+void ADeepPlayerController::OnCutStart()
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->SetCutHeld(true);
+	}
+}
+
+void ADeepPlayerController::OnCutStop()
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->SetCutHeld(false);
+	}
+}
+
+void ADeepPlayerController::OnContinue()
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->Continue();
 	}
 }

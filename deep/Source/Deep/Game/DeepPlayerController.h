@@ -40,6 +40,9 @@ protected:
 	void OnWinchStart();
 	void OnWinchStop();
 	void OnLamp();
+	void OnCutStart();
+	void OnCutStop();
+	void OnContinue();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> Mapping;
@@ -67,4 +70,10 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LampAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CutAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ContinueAction;
 };

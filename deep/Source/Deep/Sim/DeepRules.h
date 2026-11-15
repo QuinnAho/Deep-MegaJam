@@ -44,6 +44,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FVector WinchStep(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);
 
+	/**
+	 * The winch the game uses: reels toward a point WinchApproachBelowM under the airlock (inside the home radius,
+	 * below the hull) and stops there. Does nothing once home.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
+	static FVector WinchStepToAirlock(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning);
+
 	/** True when the diver is within WinchArriveM of the anchor (home). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static bool IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning);
@@ -103,6 +110,18 @@ public:
 	/** Buys at most one hull rating if affordable (one per settlement, so descent is one stop at a time). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
 	static FDeepHullPurchase TryBuyHull(int32 Credits, int32 HullRating, const FDeepEconomyTuning& Tuning);
+
+	/** Total settlement fees for a haul: FeePercent of gross rounded up, plus FeeFlat (charged even on nothing). */
+	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
+	static int32 SettlementFeeTotal(int32 Gross, const FDeepEconomyTuning& Tuning);
+
+	/** Splits Total into Lines non-negative amounts that sum to Total (each at least 1 when Total allows). Seeded. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
+	static TArray<int32> SplitFee(int32 Total, int32 Lines, int32 Seed);
+
+	/** Empty when nothing was banked, Good when net reaches GoodBankNet, else Poor. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Economy")
+	static EDeepBankMood BankMood(int32 Gross, int32 Net, const FDeepEconomyTuning& Tuning);
 
 	// ---- Bailout ----
 

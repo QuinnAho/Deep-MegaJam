@@ -12,6 +12,7 @@ class UCameraComponent;
 class USpotLightComponent;
 class UStaticMeshComponent;
 class UDeepTetherComponent;
+class UDeepRunComponent;
 class ADeepSalvage;
 
 UCLASS()
@@ -30,6 +31,10 @@ public:
 	void Drop();
 	void SetWinching(bool bInWinching);
 	void ToggleLamp();
+	/** Hold to ask the Captain to cut the tether (CutHoldSeconds). */
+	void SetCutHeld(bool bHeld) { bCutHeld = bHeld; }
+	/** The continue key on the settlement screen. */
+	void Continue();
 
 	// ---- State ----
 	UFUNCTION(BlueprintPure, Category = "Deep")
@@ -51,6 +56,15 @@ public:
 	bool IsLampOn() const { return bLampOn; }
 	const TArray<FDeepCargoItem>& GetCargo() const { return Cargo; }
 	UDeepTetherComponent* GetTether() const { return Tether; }
+	UDeepRunComponent* GetRun() const { return Run; }
+	/** 0..1 progress of the held cut key. */
+	float GetCutHoldFraction() const;
+
+	/** Server: empties the cargo (bank, death). */
+	void ClearCargo();
+
+	/** Back under the airlock, stopped, looking down at the salvage. */
+	void ResetToStart();
 
 	/** The salvage piece Grab would take right now, or null. */
 	ADeepSalvage* FindGrabTarget() const;
@@ -101,6 +115,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> TetherLine;
 
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UDeepRunComponent> Run;
+
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
 	TArray<FDeepCargoItem> Cargo;
 
@@ -113,4 +130,6 @@ protected:
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	float VerticalInput = 0.f;
 	bool bSprinting = false;
+	bool bCutHeld = false;
+	float CutHoldSeconds = 0.f;
 };

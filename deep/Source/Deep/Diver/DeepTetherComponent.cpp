@@ -2,6 +2,7 @@
 
 #include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -71,13 +72,30 @@ void UDeepTetherComponent::UpdateTether(float DeltaSeconds)
 	const FVector Anchor = GetAnchorLocation();
 	UCharacterMovementComponent* Movement = Diver->GetCharacterMovement();
 
+	// Cut (or dead): no limit, no line. Home still counts, so a cut diver can re-tether at the airlock.
+	if (const UDeepRunComponent* Run = Diver->GetRun(); Run && !Run->HasTether())
+	{
+		Solve = FDeepTetherSolve();
+		bHome = UDeepRules::IsHome(Diver->GetActorLocation(), Anchor, Tuning);
+		if (Line)
+		{
+			Line->SetVisibility(false);
+		}
+		return;
+	}
+
 	// Only the machine that moves the diver corrects it: the server, or the owning client for its own prediction.
 	const bool bMovesDiver = Diver->HasAuthority() || Diver->IsLocallyControlled();
 
 	if (bMovesDiver && Diver->IsWinching())
 	{
-		const FVector Reeled = UDeepRules::WinchStep(Diver->GetActorLocation(), Anchor, DeltaSeconds, Tuning);
+		const FVector Reeled = UDeepRules::WinchStepToAirlock(Diver->GetActorLocation(), Anchor, DeltaSeconds, Tuning);
 		Diver->SetActorLocation(Reeled, true);
+		// The winch always wins: if the hull (or anything) blocked the sweep, the cable drags the diver through.
+		if (FVector::DistSquared(Diver->GetActorLocation(), Reeled) > 1.0)
+		{
+			Diver->SetActorLocation(Reeled, false, nullptr, ETeleportType::TeleportPhysics);
+		}
 		if (Movement)
 		{
 			Movement->Velocity = FVector::ZeroVector;

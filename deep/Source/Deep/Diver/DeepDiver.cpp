@@ -4,8 +4,10 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "EngineUtils.h"
+#include "World/DeepSubmarine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
@@ -18,6 +20,8 @@ namespace
 {
 	constexpr float EyeHeightCm = 55.f;
 	constexpr float HarnessHeightCm = -30.f;
+	constexpr float HarnessBackCm = 45.f;
+	constexpr float HarnessSideCm = 35.f;
 }
 
 ADeepDiver::ADeepDiver()
@@ -47,8 +51,11 @@ ADeepDiver::ADeepDiver()
 	Lamp->SetRelativeLocation(FVector(10.f, 18.f, -12.f));
 	Lamp->SetMobility(EComponentMobility::Movable);
 	Lamp->SetLightColor(FLinearColor(1.f, 0.95f, 0.85f));
+	// A plain spotlight: no light shafts.
+	Lamp->SetVolumetricScatteringIntensity(0.f);
 
 	Tether = CreateDefaultSubobject<UDeepTetherComponent>(TEXT("Tether"));
+	Run = CreateDefaultSubobject<UDeepRunComponent>(TEXT("Run"));
 
 	TetherLine = DeepShapes::CreateShape(this, TEXT("TetherLine"), DeepShapes::Cylinder);
 	TetherLine->SetupAttachment(GetCapsuleComponent());
@@ -56,6 +63,9 @@ ADeepDiver::ADeepDiver()
 	TetherLine->SetUsingAbsoluteRotation(true);
 	TetherLine->SetUsingAbsoluteScale(true);
 	TetherLine->SetCastShadow(false);
+	// Lighting channel 1 only: lit by the scene's even key and fill (ADeepEnvironment), not by the helmet lamp right
+	// next to it, which made it glow.
+	TetherLine->SetLightingChannels(false, true, false);
 	Tether->SetLineMesh(TetherLine);
 }
 
@@ -75,7 +85,8 @@ void ADeepDiver::BeginPlay()
 	}
 	OnRep_Lamp();
 
-	DeepShapes::Tint(TetherLine, FLinearColor(0.9f, 0.8f, 0.2f));
+	// A dull yellow cable: reads against the dark water and the floor without glowing.
+	DeepShapes::Tint(TetherLine, FLinearColor(0.45f, 0.36f, 0.08f));
 }
 
 void ADeepDiver::ApplySwimTuning()
@@ -103,6 +114,29 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	if (Movement->MovementMode != MOVE_Flying)
 	{
 		Movement->SetMovementMode(MOVE_Flying);
+	}
+
+	// Asking to be cut loose: hold the key while tethered.
+	if (bCutHeld && Run->GetState() == EDeepRunState::Tethered)
+	{
+		CutHoldSeconds += DeltaSeconds;
+		if (CutHoldSeconds >= UDeepTuningSettings::Get().Run.CutHoldSeconds)
+		{
+			CutHoldSeconds = 0.f;
+			bCutHeld = false;
+			Run->RequestCut();
+		}
+	}
+	else
+	{
+		CutHoldSeconds = 0.f;
+	}
+
+	if (!Run->CanSwim())
+	{
+		// Dead, settling or descending: the diver hangs still.
+		Movement->Velocity = FVector::ZeroVector;
+		return;
 	}
 	if (bWinching)
 	{
@@ -150,7 +184,9 @@ FString ADeepDiver::GetZoneName() const
 
 FVector ADeepDiver::GetTetherAttachLocation() const
 {
-	return GetActorLocation() + FVector(0.f, 0.f, HarnessHeightCm);
+	// On the back, behind the camera: the line leaves the diver out of view instead of streaking up the middle
+	// of the screen, lit by the lamp.
+	return GetActorLocation() + FVector(0.f, 0.f, HarnessHeightCm) - GetActorForwardVector() * HarnessBackCm - GetActorRightVector() * HarnessSideCm;
 }
 
 ADeepSalvage* ADeepDiver::FindGrabTarget() const
@@ -190,10 +226,57 @@ void ADeepDiver::ServerGrab_Implementation()
 
 void ADeepDiver::DoGrab()
 {
+	if (!Run->CanSwim())
+	{
+		return;
+	}
 	if (ADeepSalvage* Target = FindGrabTarget())
 	{
-		Cargo.Add(Target->ToCargo());
+		const FDeepCargoItem Item = Target->ToCargo();
+		Cargo.Add(Item);
 		Target->Destroy();
+		Run->NotifyPickup(Item);
+	}
+}
+
+float ADeepDiver::GetCutHoldFraction() const
+{
+	const float Hold = UDeepTuningSettings::Get().Run.CutHoldSeconds;
+	return Hold > 0.f ? FMath::Clamp(CutHoldSeconds / Hold, 0.f, 1.f) : 0.f;
+}
+
+void ADeepDiver::Continue()
+{
+	if (Run->GetState() == EDeepRunState::Settling)
+	{
+		Run->RequestContinue();
+	}
+}
+
+void ADeepDiver::ClearCargo()
+{
+	if (HasAuthority())
+	{
+		Cargo.Reset();
+	}
+}
+
+void ADeepDiver::ResetToStart()
+{
+	const ADeepSubmarine* Sub = Tether->GetSubmarine();
+	if (!Sub)
+	{
+		return;
+	}
+	const FTransform Start = Sub->GetDiverStartTransform();
+	TeleportDiver(Start.GetLocation());
+	FRotator View = Start.Rotator();
+	View.Pitch = UDeepTuningSettings::Get().Arena.DiverStartPitchDeg;
+	View.Roll = 0.f;
+	SetActorRotation(FRotator(0.f, View.Yaw, 0.f));
+	if (AController* PawnController = GetController())
+	{
+		PawnController->SetControlRotation(View);
 	}
 }
 
@@ -232,6 +315,10 @@ void ADeepDiver::DoDrop()
 
 void ADeepDiver::SetWinching(bool bInWinching)
 {
+	if (bInWinching && Run->GetState() != EDeepRunState::Tethered)
+	{
+		bInWinching = false;
+	}
 	bWinching = bInWinching;
 	if (!HasAuthority())
 	{
@@ -241,7 +328,7 @@ void ADeepDiver::SetWinching(bool bInWinching)
 
 void ADeepDiver::ServerSetWinching_Implementation(bool bInWinching)
 {
-	bWinching = bInWinching;
+	bWinching = bInWinching && Run->GetState() == EDeepRunState::Tethered;
 }
 
 void ADeepDiver::ToggleLamp()
