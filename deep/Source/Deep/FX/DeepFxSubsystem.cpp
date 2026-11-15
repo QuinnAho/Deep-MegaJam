@@ -47,7 +47,7 @@ bool UDeepFxSubsystem::IsTickable() const
 
 bool UDeepFxSubsystem::IsEnabled() const
 {
-	return bRuntimeEnabled && UDeepFxSettings::Get().bEnabled && !IsRunningDedicatedServer();
+	return (RuntimeOverride >= 0 ? RuntimeOverride == 1 : UDeepFxSettings::Get().bEnabled) && !IsRunningDedicatedServer();
 }
 
 UNiagaraSystem* UDeepFxSubsystem::LoadSystem(bool bSilt)
@@ -266,12 +266,12 @@ void UDeepFxSubsystem::StepBreath(ADeepDiver& Diver, FDiverFx& Fx, float DeltaTi
 	const FTransform View = Camera ? Camera->GetComponentTransform() : Diver.GetActorTransform();
 	for (const int32 Index : Puffs)
 	{
-		// The exhaust alternates sides of the regulator, so the bubbles rise past one cheek then the other.
+		// The exhaust ports either side of the regulator: each breath out leaves 5 cm left or right of the last one.
 		if (Index == 0)
 		{
 			Fx.PuffSide = -Fx.PuffSide;
 		}
-		const FVector Mouth = View.TransformPosition(FVector(S.MouthOffsetCm.X, S.MouthOffsetCm.Y * Fx.PuffSide, S.MouthOffsetCm.Z));
+		const FVector Mouth = View.TransformPosition(FVector(S.MouthOffsetCm.X, S.MouthOffsetCm.Y + 5.f * Fx.PuffSide, S.MouthOffsetCm.Z));
 		SpawnBubbles(Mouth, DeepFxRules::PuffCount(Index, S), (bFast ? S.FastSizeScale : 1.f) * S.BreathSizeScale);
 		++BreathBursts;
 	}

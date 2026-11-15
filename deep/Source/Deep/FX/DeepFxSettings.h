@@ -19,9 +19,10 @@ public:
 
 	static const UDeepFxSettings& Get() { return *GetDefault<UDeepFxSettings>(); }
 
-	/** Off: no bubbles or silt at all (frame-time A/B; `Deep.Fx 0`). */
+	/** Off by default (Nov 15, 11 AM): no frame met the standard yet (first pearls, then too faint to read), so
+	 *  nothing ships until one does. `Deep.Fx 1` turns them on for a session to look at them. */
 	UPROPERTY(Config, EditAnywhere, Category = "General")
-	bool bEnabled = true;
+	bool bEnabled = false;
 
 	UPROPERTY(Config, EditAnywhere, Category = "General")
 	TSoftObjectPtr<UNiagaraSystem> BubbleSystem;
@@ -50,14 +51,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Breath", meta = (ClampMin = "1"))
 	int32 MinPuffCount = 3;
 
-	/** The regulator's exhaust, from the eye: forward, right (both sides alternate), up, in cm. A little ahead of the
-	 *  lamp (held 20 cm forward), so the first rise of a breath crosses the beam's spill instead of starting behind it. */
+	/** Where the breath leaves, from the eye: forward, right, up, in cm. Toward the lamp side and just ahead of the
+	 *  lamp head (held 20 cm forward, 35 right), so a breath out crosses the first decimetres of the beam and flashes there. */
 	UPROPERTY(Config, EditAnywhere, Category = "Breath")
-	FVector MouthOffsetCm = FVector(26.f, 9.f, -16.f);
+	FVector MouthOffsetCm = FVector(30.f, 20.f, -20.f);
 
 	/** Breath bubbles' size against NS_Bubbles' own 0.6 to 2.4 cm (so close to the eye they read big). */
 	UPROPERTY(Config, EditAnywhere, Category = "Breath")
-	float BreathSizeScale = 0.7f;
+	float BreathSizeScale = 0.85f;
 
 	/** Fast breath: bubbles a little smaller (shallow breaths). */
 	UPROPERTY(Config, EditAnywhere, Category = "Breath")
@@ -74,7 +75,7 @@ public:
 	int32 EntryCount = 6;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Hatch")
-	float EntrySizeScale = 1.5f;
+	float EntrySizeScale = 1.8f;
 
 	/** While the winch runs: a churn under the hatch, round the line, this far below the deck. */
 	UPROPERTY(Config, EditAnywhere, Category = "Hatch")
@@ -87,10 +88,10 @@ public:
 	float ChurnIntervalS = 0.09f;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Hatch")
-	int32 ChurnCount = 4;
+	int32 ChurnCount = 10;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Hatch")
-	float ChurnSizeScale = 1.3f;
+	float ChurnSizeScale = 2.5f;
 
 	/** Silt: a puff where salvage leaves the bed, and where the diver touches it. */
 	UPROPERTY(Config, EditAnywhere, Category = "Silt")

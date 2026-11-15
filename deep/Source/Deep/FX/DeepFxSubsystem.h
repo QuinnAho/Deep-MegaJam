@@ -36,7 +36,7 @@ public:
 	int32 GetBreathBursts() const { return BreathBursts; }
 
 	/** Runtime switch for frame-time A/B (`Deep.Fx 0|1`). */
-	void SetEnabled(bool bInEnabled) { bRuntimeEnabled = bInEnabled; }
+	void SetEnabled(bool bInEnabled) { RuntimeOverride = bInEnabled ? 1 : 0; }
 	bool IsEnabled() const;
 
 protected:
@@ -71,7 +71,8 @@ private:
 	TObjectPtr<UNiagaraSystem> SiltSystem;
 
 	bool bTriedLoad[2] = { false, false };
-	bool bRuntimeEnabled = true;
+	/** -1: follow DEEP FX bEnabled; 0 or 1: `Deep.Fx` for this session. */
+	int8 RuntimeOverride = -1;
 	int32 BubbleBursts = 0;
 	int32 SiltPuffs = 0;
 	int32 BreathBursts = 0;

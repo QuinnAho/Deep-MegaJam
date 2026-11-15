@@ -10,7 +10,8 @@
 #            bright rim and a nearly clear middle. No emissive at all: in black water with no light on it the rim is
 #            lit by nothing and the bubble is all but invisible (style guide: "light must come from a source").
 #   Silt   : translucent, Volumetric NonDirectional (soft, cheap), a soft radial falloff with a little break-up,
-#            silt colour from M_Silt's albedo range (0.09 to 0.16), depth fade so it does not cut a line in the bed.
+#            silt colour from M_Silt's albedo range (0.09 to 0.16), lit per pixel (Surface ForwardShading: the first try with
+#            Volumetric NonDirectional did not pick up the lamp's narrow cone at all), depth fade so it does not cut a line in the bed.
 #   Both   : particle colour alpha fades them; usage flag "Used with Niagara Sprites" set HERE and read back from
 #            the saved asset (a cooked game cannot set a flag on the fly: it shows the default grey material).
 import unreal
@@ -127,8 +128,8 @@ def build_bubble():
 
     rim = custom(mat, RIM_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, ["UV", "RimPower", "Clear", "Alpha"], "BubbleRim", -500, 0)
     link(uv, "", rim, "UV")
-    link(scalar(mat, "RimPower", 4.0, -800, 80), "", rim, "RimPower")
-    link(scalar(mat, "Clear", 0.01, -800, 140), "", rim, "Clear")
+    link(scalar(mat, "RimPower", 2.5, -800, 80), "", rim, "RimPower")
+    link(scalar(mat, "Clear", 0.04, -800, 140), "", rim, "Clear")
     link(pc, "A", rim, "Alpha")
     mel.connect_material_property(rim, "", unreal.MaterialProperty.MP_OPACITY)
 
@@ -138,9 +139,9 @@ def build_bubble():
     mel.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
 
     # A neutral film: the colour comes from the light that falls on it (lamp #F2F4EE, hatch amber, water blue).
-    mel.connect_material_property(vector(mat, "FilmColour", (0.30, 0.32, 0.32), -500, -200), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(vector(mat, "FilmColour", (0.50, 0.53, 0.53), -500, -200), "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(scalar(mat, "Specular", 1.0, -500, 460), "", unreal.MaterialProperty.MP_SPECULAR)
-    mel.connect_material_property(scalar(mat, "Roughness", 0.1, -500, 520), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(scalar(mat, "Roughness", 0.15, -500, 520), "", unreal.MaterialProperty.MP_ROUGHNESS)
     finish(mat, name)
 
 
@@ -149,7 +150,7 @@ def build_silt():
     mat = fresh(name)
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
-    mat.set_editor_property("translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_VOLUMETRIC_NON_DIRECTIONAL)
+    mat.set_editor_property("translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE_PER_PIXEL_LIGHTING)
     uv = mel.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -900, 0)
     pc = mel.create_material_expression(mat, unreal.MaterialExpressionParticleColor, -900, 200)
     rnd = mel.create_material_expression(mat, unreal.MaterialExpressionParticleRandom, -900, 300)
@@ -157,7 +158,7 @@ def build_silt():
     puff = custom(mat, SILT_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT1, ["UV", "Seed", "Density", "Alpha"], "SiltPuff", -500, 0)
     link(uv, "", puff, "UV")
     link(rnd, "", puff, "Seed")
-    link(scalar(mat, "Density", 0.45, -800, 120), "", puff, "Density")
+    link(scalar(mat, "Density", 0.8, -800, 120), "", puff, "Density")
     link(pc, "A", puff, "Alpha")
 
     fade = mel.create_material_expression(mat, unreal.MaterialExpressionDepthFade, -250, 0)
