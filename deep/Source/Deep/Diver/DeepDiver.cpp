@@ -164,17 +164,9 @@ void ADeepDiver::Tick(float DeltaSeconds)
 			LastPilotHoldSent = Hold;
 			Run->SetPilotHold(Hold.X, Hold.Y);
 		}
-		const APlayerController* Pilot = Cast<APlayerController>(GetController());
-		const bool bAllStop = Pilot && Pilot->IsInputKeyDown(EKeys::X);
-		if (bAllStop && !bAllStopHeld)
-		{
-			Run->AllStop();
-		}
-		bAllStopHeld = bAllStop;
 		return;
 	}
 	LastThrottleAxis = 0;
-	bAllStopHeld = false;
 	if (!LastPilotHoldSent.IsZero())
 	{
 		LastPilotHoldSent = FVector2D::ZeroVector;
@@ -538,6 +530,14 @@ void ADeepDiver::ToggleLamp()
 bool ADeepDiver::IsInWater() const
 {
 	return Run && (Run->GetState() == EDeepRunState::Tethered || Run->GetState() == EDeepRunState::Cut);
+}
+
+void ADeepDiver::AllStopKey()
+{
+	if (Run && Run->IsSeated())
+	{
+		Run->AllStop();
+	}
 }
 
 float ADeepDiver::GetPingWaitS() const

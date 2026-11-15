@@ -535,9 +535,11 @@ void UDeepRunComponent::StepShaft(float DeltaSeconds, bool bAutopilot)
 			continue;
 		}
 		bTouching = true;
-		ImpactMps = FMath::Max(ImpactMps, Hit.PenetrationM / Dt);
-		Offset -= Hit.Normal * Hit.PenetrationM;
+		// Impact speed is the velocity into the wall before the bounce, or the penetration rate if that is larger: a sub
+		// that stopped just short of the rock last substep still knocks at the speed it was going.
 		const float Into = FVector2D::DotProduct(SteerVelMps, Hit.Normal);
+		ImpactMps = FMath::Max(ImpactMps, FMath::Max(Into, Hit.PenetrationM / Dt));
+		Offset -= Hit.Normal * Hit.PenetrationM;
 		if (Into > 0.f)
 		{
 			SteerVelMps -= Hit.Normal * Into * (1.f + FMath::Clamp(Cave.Bounce, 0.f, 1.f));

@@ -83,6 +83,7 @@ void ADeepPlayerController::BuildInputObjects()
 	WinchAction = MakeAction(this, TEXT("IA_Winch"), EInputActionValueType::Boolean);
 	LampAction = MakeAction(this, TEXT("IA_Lamp"), EInputActionValueType::Boolean);
 	PingAction = MakeAction(this, TEXT("IA_Ping"), EInputActionValueType::Boolean);
+	AllStopAction = MakeAction(this, TEXT("IA_AllStop"), EInputActionValueType::Boolean);
 	CutAction = MakeAction(this, TEXT("IA_Cut"), EInputActionValueType::Boolean);
 	ContinueAction = MakeAction(this, TEXT("IA_Continue"), EInputActionValueType::Boolean);
 	TitleAction = MakeAction(this, TEXT("IA_Title"), EInputActionValueType::Boolean);
@@ -112,6 +113,8 @@ void ADeepPlayerController::BuildInputObjects()
 	Mapping->MapKey(LampAction, EKeys::F);
 	// The diver's sonar ping (in the water only; the diver checks).
 	Mapping->MapKey(PingAction, EKeys::V);
+	// All stop at the helm (the diver checks it is seated).
+	Mapping->MapKey(AllStopAction, EKeys::X);
 	Mapping->MapKey(CutAction, EKeys::Q);
 	// Continue shares keys with swim-up and grab; it only acts on the settlement screen.
 	Mapping->MapKey(ContinueAction, EKeys::SpaceBar);
@@ -157,6 +160,7 @@ void ADeepPlayerController::SetupInputComponent()
 	Input->BindAction(WinchAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnWinchStop);
 	Input->BindAction(LampAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnLamp);
 	Input->BindAction(PingAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnPing);
+	Input->BindAction(AllStopAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnAllStop);
 	Input->BindAction(CutAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnCutStart);
 	Input->BindAction(CutAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnCutStop);
 	Input->BindAction(ContinueAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnContinue);
@@ -263,6 +267,14 @@ void ADeepPlayerController::OnPing()
 	if (ADeepDiver* Diver = GetDiver())
 	{
 		Diver->Ping();
+	}
+}
+
+void ADeepPlayerController::OnAllStop()
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->AllStopKey();
 	}
 }
 

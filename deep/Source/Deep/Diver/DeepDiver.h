@@ -41,6 +41,9 @@ public:
 	 * machine's bus from this diver, which the camera draws as a pulse out to DiverPingRangeM. True if it went out (on a
 	 * client: if it was sent to the server, which decides). */
 	bool Ping();
+
+	/** X at the helm: all stop (throttle to stop, ballast to neutral). Does nothing out of the seat. */
+	void AllStopKey();
 	/** In the water (tethered or cut loose), where the ping works. */
 	bool IsInWater() const;
 	/** Seconds until the next ping is allowed (server's count; 0 = ready). */
@@ -131,7 +134,6 @@ protected:
 	/** The pilot's levers as last sent: the throttle key held (-1 S, 0, 1 W; a press is an edge), the ballast and rudder holds, X held. */
 	int32 LastThrottleAxis = 0;
 	FVector2D LastPilotHoldSent = FVector2D::ZeroVector;
-	bool bAllStopHeld = false;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWinching(bool bInWinching);
