@@ -118,13 +118,21 @@ APlayerCameraManager* UDeepCameraSubsystem::LocalCamera() const
 
 void UDeepCameraSubsystem::HandleEvent(FName Event, const FDeepEventPayload& Payload)
 {
-	// The sonar pings on the local HUD; Source is the sub, DepthM the sonar's range.
+	// A ping: Source is the sub (the helm sonar) or a diver (his own ping in the water), DepthM the range. The pulse
+	// leaves from the source. A diver's longer ping is not cut short by the helm's next sweep.
 	if (Event == FName(DeepSonarEvent::Ping) && IsPulseOn())
 	{
-		const AActor* Sub = Payload.Source.Get();
-		const APlayerCameraManager* Camera = LocalCamera();
-		const FVector Origin = Sub ? Sub->GetActorLocation() : (Camera ? Camera->GetCameraLocation() : FVector::ZeroVector);
-		StartPulse(Origin, Payload.DepthM > 0.f ? Payload.DepthM : UDeepTuningSettings::Get().Camera.PulseRangeM);
+		const AActor* From = Payload.Source.Get();
+		const bool bFromDiver = Cast<APawn>(From) != nullptr;
+		if (bFromDiver || !(bPulseFromDiver && IsPulseLive()))
+		{
+			const APlayerCameraManager* Camera = LocalCamera();
+			const FVector Origin = From ? From->GetActorLocation() : (Camera ? Camera->GetCameraLocation() : FVector::ZeroVector);
+			if (StartPulse(Origin, Payload.DepthM > 0.f ? Payload.DepthM : UDeepTuningSettings::Get().Camera.PulseRangeM))
+			{
+				bPulseFromDiver = bFromDiver;
+			}
+		}
 	}
 	// A blow to the hull breaks the feed up for a moment.
 	if (Event == FName(TEXT("hull_hit")) || Event == FName(TEXT("hull_critical")) || Event == FName(TEXT("hull_breach")))
@@ -328,6 +336,7 @@ bool UDeepCameraSubsystem::StartPulse(const FVector& Origin, float RangeM)
 	PulseOrigin = Origin;
 	PulseRangeM = RangeM;
 	PulseAgeS = 0.f;
+	bPulseFromDiver = false;
 	++Pulses;
 	// The sub nearest the origin (the one that pinged): its parts' box is masked out of the pulse.
 	PulseSub.Reset();
@@ -400,6 +409,8 @@ void UDeepCameraSubsystem::UpdatePulse(float DeltaTime)
 		PulseMID->SetScalarParameterValue(TEXT("DotFadeS"), T.PulseDotFadeS);
 		PulseMID->SetScalarParameterValue(TEXT("SpacingCm"), T.PulseDotSpacingM * 100.f);
 		PulseMID->SetScalarParameterValue(TEXT("DotFarCm"), T.PulseDotFarM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("BandFarCm"), T.PulseBandFarM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("DotNearCm"), T.PulseDotNearM * 100.f);
 		PulseMID->SetScalarParameterValue(TEXT("BandIntensity"), T.PulseBandIntensity);
 		PulseMID->SetScalarParameterValue(TEXT("DotIntensity"), T.PulseDotIntensity);
 		PulseMID->SetScalarParameterValue(TEXT("Intensity"), 1.f);

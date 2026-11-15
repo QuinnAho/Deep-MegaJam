@@ -56,6 +56,7 @@ FString ADeepPlayerController::KeyHint(FName Action)
 		{ TEXT("Drop"), TEXT("G") },
 		{ TEXT("Winch"), TEXT("R") },
 		{ TEXT("Lamp"), TEXT("F") },
+		{ TEXT("Ping"), TEXT("V") },
 		{ TEXT("Sprint"), TEXT("Shift") },
 		{ TEXT("Up"), TEXT("Space") },
 		{ TEXT("Down"), TEXT("C") },
@@ -81,6 +82,7 @@ void ADeepPlayerController::BuildInputObjects()
 	DropAction = MakeAction(this, TEXT("IA_Drop"), EInputActionValueType::Boolean);
 	WinchAction = MakeAction(this, TEXT("IA_Winch"), EInputActionValueType::Boolean);
 	LampAction = MakeAction(this, TEXT("IA_Lamp"), EInputActionValueType::Boolean);
+	PingAction = MakeAction(this, TEXT("IA_Ping"), EInputActionValueType::Boolean);
 	CutAction = MakeAction(this, TEXT("IA_Cut"), EInputActionValueType::Boolean);
 	ContinueAction = MakeAction(this, TEXT("IA_Continue"), EInputActionValueType::Boolean);
 	TitleAction = MakeAction(this, TEXT("IA_Title"), EInputActionValueType::Boolean);
@@ -108,6 +110,8 @@ void ADeepPlayerController::BuildInputObjects()
 	Mapping->MapKey(DropAction, EKeys::G);
 	Mapping->MapKey(WinchAction, EKeys::R);
 	Mapping->MapKey(LampAction, EKeys::F);
+	// The diver's sonar ping (in the water only; the diver checks).
+	Mapping->MapKey(PingAction, EKeys::V);
 	Mapping->MapKey(CutAction, EKeys::Q);
 	// Continue shares keys with swim-up and grab; it only acts on the settlement screen.
 	Mapping->MapKey(ContinueAction, EKeys::SpaceBar);
@@ -152,6 +156,7 @@ void ADeepPlayerController::SetupInputComponent()
 	Input->BindAction(WinchAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnWinchStart);
 	Input->BindAction(WinchAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnWinchStop);
 	Input->BindAction(LampAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnLamp);
+	Input->BindAction(PingAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnPing);
 	Input->BindAction(CutAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnCutStart);
 	Input->BindAction(CutAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnCutStop);
 	Input->BindAction(ContinueAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnContinue);
@@ -250,6 +255,14 @@ void ADeepPlayerController::OnLamp()
 	if (ADeepDiver* Diver = GetDiver())
 	{
 		Diver->ToggleLamp();
+	}
+}
+
+void ADeepPlayerController::OnPing()
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->Ping();
 	}
 }
 

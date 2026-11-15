@@ -738,3 +738,15 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
 - Why it matters: The ping reads as the world answering, never as a light on our own hull. A glancing scrape and a ram now feel different through the camera.
 - Failure on the way: the first `Deep.Camera.HitShake` run failed on float-vs-double: `FVector2D` is double in UE5, so `row * range` came out a hair off. The test now compares with a tolerance.
 - Evidence: build green; Deep.Camera 6/6 (new: HitShake, PulseBox, HullHit), Deep.World.Cave 10/10, Deep.Sim.Cave 3/3. ProfileGPU: `M_SonarPulse` 0.030 ms at 1707x1067. Shot log: `hull_hit` at 4.3 m/s gave a shake of rot 2.01 (row 1.4); a 0.1 m/s scrape gave 0.30. Frames: `devlog/media/2026-11-15-camera-pulse-0.4s.png`, `-0.6s.png` and `-0.9s.png` (helm, shaft squeeze), `-pulse-sub.png` (diver beside the sub at stop 2, 0.35 s after a ping: dots on the dark beyond, none on the hull), `-wall-hit.png` (the frame after the hit, wall filling the view).
+
+### 2:16 PM  The diver gets a sonar ping (polish/camera)
+- What happened: In the water, V sends a sonar ping from the diver: a 3 s cooldown and a 100 m range, both tuning (`DiverPingCooldownS`, `DiverPingRangeM`). The rule is `DeepCameraRules::CanDiverPing`. The ping goes from the server to every machine (`ServerPing`, then a reliable multicast) and goes out on the bus as the existing `sonar_ping`, so the sound plays with no new row. The pulse is now on by default (D-041), and its colour was already tuning (`PulseColor`). For 90 m to read, the band widens with distance, the lidar dots step to a coarser grid as the walls get farther away, and the dots fade out at 96 to 120 m. While a diver's pulse is still showing, a helm ping does not replace it. Fog needed no fix: the pulse is drawn after the tonemapper, from scene depth, so fog never dims it. The cheat is `Deep.Ping`, and the key hint is on the HUD.
+- Why it matters: The cavern walls at stops 2 and 3 are 60 to 94 m from the hatch, out past the lamp's 35 m. Before this, a diver outside the hatch saw black. Now one key draws the cave.
+- Failure on the way: One old camera test pinned the dot fade inside the helm's 80 m range. The change moves that fade on purpose, so the assertion now checks that the fade reaches the diver ping's range.
+- Evidence:
+  - Build green.
+  - Deep.Camera 8 of 8, including the new DiverPing.Rule and DiverPing.World. The rule test checks the on-screen size at 90 m: a 25.6 px band and 13.3 px dot spacing.
+  - ProfileGPU: `M_SonarPulse` costs 0.021 ms.
+  - Frames, each before the ping and 1 s after it:
+    - `devlog/media/2026-11-15-camera-diverping-stop2-level-*.png` and `-stop3-level-*.png`, from the hatch (the stop 2 level frames also have a +1.4 s frame);
+    - `-stop2-up-*.png` and `-stop3-up-*.png`, 20 m to the side of the sub, looking 55 degrees up. From the hatch, the sub fills the upward view.

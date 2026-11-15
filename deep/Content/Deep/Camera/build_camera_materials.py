@@ -30,8 +30,10 @@ float3 wp = WP;
 float depth = Depth.r;
 float d = length(wp - Origin.xyz);
 float3 scene = Scene.rgb;
+// The band thickens past BandFarCm from the eye so a far wall's band keeps its width on screen (PulseBandCm).
+float bandCm = BandCm * max(1.0, depth / max(BandFarCm, 1.0));
 // Sky and anything past the range: untouched.
-if (d > MaxRadiusCm + BandCm || d < StartCm || depth > 1.0e6)
+if (d > MaxRadiusCm + bandCm || d < StartCm || depth > 1.0e6)
 {
     return scene;
 }
@@ -45,17 +47,23 @@ if (max(q.x, max(q.y, q.z)) < 1.0)
 }
 // The shell: a sharp leading edge, a short trail behind it; gone once the shell has reached its range.
 float ahead = d - RadiusCm;
-float band = ahead > 0.0 ? saturate(1.0 - ahead / (BandCm * 0.35)) : exp(ahead / BandCm);
-band *= saturate((ShellS - AgeS) / 0.3) * saturate(RadiusCm / 200.0);
-// Lidar dots: a world grid on the surface's dominant plane, lit when the shell passes and fading after.
+float band = ahead > 0.0 ? saturate(1.0 - ahead / (bandCm * 0.35)) : exp(ahead / bandCm);
+band *= saturate((ShellS - AgeS) / 0.15) * saturate(RadiusCm / 200.0);
+// Lidar dots: a world grid on the surface's dominant plane, lit when the shell passes and fading after. Past DotNearCm
+// the grid doubles its spacing each time the distance doubles (PulseDotSpacingCm); the coarse grid is every other
+// dot of the fine one, so the extra dots fade out over the last 40% of each step instead of popping.
 float3 n = abs(normalize(Normal.xyz * 2.0 - 1.0));
 float2 uv = n.z >= max(n.x, n.y) ? wp.xy : (n.x >= n.y ? wp.yz : wp.xz);
-float2 g = (frac(uv / SpacingCm) - 0.5) * SpacingCm;
-float r = max(1.2, depth * 0.0018);
-float dotMask = 1.0 - smoothstep(r * 0.6, r, length(g));
+float steps = log2(max(depth, 1.0) / max(DotNearCm, 1.0));
+float fine = SpacingCm * exp2(max(0.0, floor(steps)));
+float toCoarse = steps > 0.0 ? saturate((frac(steps) - 0.6) / 0.4) : 0.0;
+float r = max(1.2, depth * 0.0025);
+float2 gFine = (frac(uv / fine) - 0.5) * fine;
+float2 gCoarse = (frac(uv / (fine * 2.0)) - 0.5) * (fine * 2.0);
+float dotMask = lerp(1.0 - smoothstep(r * 0.6, r, length(gFine)), 1.0 - smoothstep(r * 0.6, r, length(gCoarse)), toCoarse);
 float passed = AgeS - d / max(SpeedCmPerS, 1.0);
 float dotFade = passed >= 0.0 ? saturate(1.0 - passed / max(DotFadeS, 0.01)) : 0.0;
-float farFade = 1.0 - smoothstep(DotFarCm * 0.5, DotFarCm, depth);
+float farFade = 1.0 - smoothstep(DotFarCm * 0.8, DotFarCm, depth);
 // The serpent writes custom depth: where it is the nearest surface it shows only the band, never the dots.
 float serpent = CustomDepth.r < depth + 5.0 ? 1.0 : 0.0;
 float dots = dotMask * dotFade * farFade * (1.0 - serpent);
@@ -153,7 +161,7 @@ def build_pulse():
     mat = fresh("M_SonarPulse")
     post_process(mat, 0)
     inputs = ["WP", "Depth", "CustomDepth", "Normal", "Scene", "Origin", "RadiusCm", "MaxRadiusCm", "StartCm", "BandCm",
-              "AgeS", "ShellS", "SpeedCmPerS", "DotFadeS", "SpacingCm", "DotFarCm", "BandIntensity", "DotIntensity",
+              "AgeS", "ShellS", "SpeedCmPerS", "DotFadeS", "SpacingCm", "DotFarCm", "BandFarCm", "DotNearCm", "BandIntensity", "DotIntensity",
               "Intensity", "Color", "HullCentre", "HullX", "HullY", "HullZ"]
     pulse = custom(mat, PULSE_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, inputs, "SonarPulse", -400, 0)
     wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1400, -600)
@@ -166,7 +174,8 @@ def build_pulse():
     y = 80
     for name, value in [("RadiusCm", 0.0), ("MaxRadiusCm", 6000.0), ("StartCm", 600.0), ("BandCm", 60.0),
                         ("AgeS", 100.0), ("ShellS", 1.5), ("SpeedCmPerS", 4000.0), ("DotFadeS", 2.0),
-                        ("SpacingCm", 35.0), ("DotFarCm", 4000.0), ("BandIntensity", 0.9), ("DotIntensity", 0.35),
+                        ("SpacingCm", 35.0), ("DotFarCm", 12000.0), ("BandFarCm", 2000.0), ("DotNearCm", 1200.0),
+                        ("BandIntensity", 0.9), ("DotIntensity", 0.35),
                         ("Intensity", 0.0)]:
         link(scalar(mat, name, value, -1100, y), "", pulse, name)
         y += 80

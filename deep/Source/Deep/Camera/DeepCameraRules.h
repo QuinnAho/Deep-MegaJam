@@ -49,6 +49,20 @@ namespace DeepCameraRules
 	/** The pulse is drawn until the band has reached its range and the last dots have faded. */
 	DEEP_API bool IsPulseLive(float AgeS, const FDeepCameraTuning& Tuning);
 
+	/** The diver may ping now: in the water (bInWater), and the first ping (LastPingS < 0) or DiverPingCooldownS since. */
+	DEEP_API bool CanDiverPing(float NowS, float LastPingS, bool bInWater, const FDeepCameraTuning& Tuning);
+
+	/** Seconds until the diver may ping again (0 = ready). */
+	DEEP_API float DiverPingWaitS(float NowS, float LastPingS, const FDeepCameraTuning& Tuning);
+
+	/** The band's trail (cm) on a surface EyeCm from the eye: PulseBandM, growing with distance past PulseBandFarM so
+	 * it keeps its width on screen (mirrors M_SonarPulse). */
+	DEEP_API float PulseBandCm(float EyeCm, const FDeepCameraTuning& Tuning);
+
+	/** The fine lidar grid's spacing (cm) on a surface EyeCm from the eye: PulseDotSpacingM, doubled each time the distance
+	 * doubles past PulseDotNearM (mirrors M_SonarPulse). */
+	DEEP_API float PulseDotSpacingCm(float EyeCm, const FDeepCameraTuning& Tuning);
+
 	/** Interference target 0..1: 0 beyond the far distance, NearMax at the near one, 1 in a bite, at least the burst. */
 	DEEP_API float InterferenceTarget(float SerpentDistanceM, bool bBiting, float BurstLeftS, const FDeepCameraTuning& Tuning);
 

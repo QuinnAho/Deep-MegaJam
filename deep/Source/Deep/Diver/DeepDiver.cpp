@@ -1,6 +1,9 @@
 #include "Diver/DeepDiver.h"
 
 #include "Camera/CameraComponent.h"
+#include "Camera/DeepCameraRules.h"
+#include "Sonar/DeepSonarRules.h"
+#include "Story/DeepEventBus.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -513,6 +516,55 @@ void ADeepDiver::ToggleLamp()
 	if (!HasAuthority())
 	{
 		ServerSetLamp(bLampOn);
+	}
+}
+
+bool ADeepDiver::IsInWater() const
+{
+	return Run && (Run->GetState() == EDeepRunState::Tethered || Run->GetState() == EDeepRunState::Cut);
+}
+
+float ADeepDiver::GetPingWaitS() const
+{
+	const UWorld* World = GetWorld();
+	return World ? DeepCameraRules::DiverPingWaitS(World->GetTimeSeconds(), LastPingS, UDeepTuningSettings::Get().Camera) : 0.f;
+}
+
+bool ADeepDiver::Ping()
+{
+	if (!HasAuthority())
+	{
+		if (!IsInWater())
+		{
+			return false;
+		}
+		ServerPing();
+		return true;
+	}
+	const UWorld* World = GetWorld();
+	const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+	if (!World || !DeepCameraRules::CanDiverPing(World->GetTimeSeconds(), LastPingS, IsInWater(), T))
+	{
+		return false;
+	}
+	LastPingS = World->GetTimeSeconds();
+	MulticastPing(T.DiverPingRangeM);
+	return true;
+}
+
+void ADeepDiver::ServerPing_Implementation()
+{
+	Ping();
+}
+
+void ADeepDiver::MulticastPing_Implementation(float RangeM)
+{
+	if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+	{
+		FDeepEventPayload Payload;
+		Payload.Source = this;
+		Payload.DepthM = RangeM;
+		Bus->Broadcast(FName(DeepSonarEvent::Ping), Payload);
 	}
 }
 

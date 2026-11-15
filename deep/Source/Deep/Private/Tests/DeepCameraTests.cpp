@@ -90,8 +90,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCameraLookTest, "Deep.Camera.Look", EAutom
 bool FDeepCameraLookTest::RunTest(const FString& Parameters)
 {
 	const FDeepCameraTuning T;
-	TestTrue(TEXT("Switches: shakes on; footage, pulse, interference off until Quinn approves"),
-		T.bShakeOn && !T.bFootageOn && !T.bPulseOn && !T.bInterferenceOn);
+	TestTrue(TEXT("Switches: shakes and the sonar pulse on (D-041); footage, interference off until Quinn approves"),
+		T.bShakeOn && !T.bFootageOn && T.bPulseOn && !T.bInterferenceOn);
 	const FVector2D G100 = DeepCameraRules::FootageGrain(100.f, T);
 	const FVector2D G300 = DeepCameraRules::FootageGrain(300.f, T);
 	const FVector2D G500 = DeepCameraRules::FootageGrain(500.f, T);
@@ -109,7 +109,7 @@ bool FDeepCameraLookTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Gone after"), DeepCameraRules::IsPulseLive(T.PulseSeconds + T.PulseDotFadeS + 0.01f, T));
 	TestTrue(TEXT("About 1.5 s and 2 s (brief)"), FMath::IsNearlyEqual(T.PulseSeconds, 1.5f) && FMath::IsNearlyEqual(T.PulseDotFadeS, 2.f));
 	TestTrue(TEXT("The pulse skips the sub's own room and reaches past it"), T.PulseStartM > 0.f && T.PulseStartM < T.PulseRangeM && T.PulseBandM > 0.f);
-	TestTrue(TEXT("Lidar dots fade with distance, inside the range"), T.PulseDotFarM > 0.f && T.PulseDotFarM <= T.PulseRangeM);
+	TestTrue(TEXT("Lidar dots fade with distance, past the diver ping's far walls (D-041)"), T.PulseDotFarM > 0.f && T.PulseDotFarM >= T.DiverPingRangeM);
 
 	// Interference: static before shape.
 	TestEqual(TEXT("None far away"), DeepCameraRules::InterferenceTarget(100.f, false, 0.f, T), 0.f);

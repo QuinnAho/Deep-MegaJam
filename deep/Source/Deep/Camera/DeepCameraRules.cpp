@@ -171,6 +171,29 @@ bool DeepCameraRules::IsPulseLive(float AgeS, const FDeepCameraTuning& Tuning)
 	return AgeS >= 0.f && AgeS < FMath::Max(0.f, Tuning.PulseSeconds) + FMath::Max(0.f, Tuning.PulseDotFadeS);
 }
 
+bool DeepCameraRules::CanDiverPing(float NowS, float LastPingS, bool bInWater, const FDeepCameraTuning& Tuning)
+{
+	return bInWater && DiverPingWaitS(NowS, LastPingS, Tuning) <= 0.f;
+}
+
+float DeepCameraRules::DiverPingWaitS(float NowS, float LastPingS, const FDeepCameraTuning& Tuning)
+{
+	return LastPingS < 0.f ? 0.f : FMath::Max(0.f, LastPingS + FMath::Max(0.f, Tuning.DiverPingCooldownS) - NowS);
+}
+
+float DeepCameraRules::PulseBandCm(float EyeCm, const FDeepCameraTuning& Tuning)
+{
+	const float FarCm = FMath::Max(1.f, Tuning.PulseBandFarM * UDeepRules::CmPerM);
+	return Tuning.PulseBandM * UDeepRules::CmPerM * FMath::Max(1.f, EyeCm / FarCm);
+}
+
+float DeepCameraRules::PulseDotSpacingCm(float EyeCm, const FDeepCameraTuning& Tuning)
+{
+	const float NearCm = FMath::Max(1.f, Tuning.PulseDotNearM * UDeepRules::CmPerM);
+	const float Tier = FMath::Exp2(FMath::Max(0.f, FMath::FloorToFloat(FMath::Log2(FMath::Max(EyeCm, 1.f) / NearCm))));
+	return Tuning.PulseDotSpacingM * UDeepRules::CmPerM * Tier;
+}
+
 float DeepCameraRules::InterferenceTarget(float SerpentDistanceM, bool bBiting, float BurstLeftS, const FDeepCameraTuning& Tuning)
 {
 	float Target = 0.f;

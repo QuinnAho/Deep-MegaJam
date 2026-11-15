@@ -21,15 +21,21 @@ How the camera lane builds its post-process effects, and the sources each step c
 - Sway: the step-1 Perlin shake `Sway`, constant while the switch is on, under a degree.
 - Cost: 1707x1067 at 100 m, GPU 7.95 ms off and 8.04 ms on; at the helm while driving, 8.14 ms off and 8.37 ms on. The look costs about 0.1 to 0.2 ms.
 
-## Sonar pulse (`Deep.Sonar.Pulse`, default 0)
+## Sonar pulse (`Deep.Sonar.Pulse`, default 1 since Nov 15, D-041)
 - Each `sonar_ping` on the bus (the sonar broadcasts it, with Source as the sub and DepthM as the range) starts a pulse. `UDeepCameraSubsystem` drives a dynamic instance of `M_SonarPulse` and hangs it on the environment's unbound volume through `SetCameraBlendable`. The weight is 0 between pings.
 - In the material, after the tonemapper, priority 0, one Custom node:
   - `d = |WorldPosition - Origin|`. Sky (depth over 1e6), beyond the range, or within `PulseStartM` 0.5 m of the origin is returned untouched. The sub itself is left out by the hull box below, not by distance.
-  - Band: in front of the radius, a hard edge over 0.35 × band. Behind it, `exp(ahead/BandCm)` with a 0.6 m band. It fades out over 0.3 s once the shell reaches range at `PulseSeconds` 1.5 s.
-  - Dots: a world grid at 0.35 m on the surface's dominant axis (triplanar from WorldNormal). The dot radius grows with depth so the dots stay about a pixel wide far away. Each dot lights as the shell passes, fades over `PulseDotFadeS` 2 s, and fades with distance from half of `PulseDotFarM` 40 m to all of it.
+  - Band: in front of the radius, a hard edge over 0.35 × band. Behind it, `exp(ahead/band)` with a 0.6 m band, widened by `depth / PulseBandFarM` past 20 m from the eye so it keeps its width on screen (2.7 m at 90 m, about 25 px). It fades out over the last 0.15 s before the shell reaches range at `PulseSeconds` 1.5 s (was 0.3 s; now a wall at 94 m in a 100 m ping still gets its band).
+  - Dots: a world grid at 0.35 m on the surface's dominant axis (triplanar from WorldNormal). Past `PulseDotNearM` 12 m the spacing doubles each time the distance doubles: power-of-two tiers like mips. Each coarse grid is every other dot of the fine one, so the extra dots fade out over the last 40% of a tier instead of popping. At 90 m the spacing is 1.4 m, about 13 px. Dot radius `depth × 0.0025`, about 2 px. Each dot lights as the shell passes, fades over `PulseDotFadeS` 2 s, and fades with distance from 80% of `PulseDotFarM` 120 m to all of it. The old fade ran from half of 40 m, which hid every dot on a cavern wall.
   - Serpent: the camera sets Render CustomDepth on `ADeepSerpent`'s primitives. Where custom depth is the nearest surface the dots are masked, so only the band crosses it.
   - Out: `scene + amber × (band×0.9 + dots×0.35)`. Added on top of the colour, so it lights nothing: no light, no GI, no exposure.
-- Colour: after the tonemapper the buffer is display-encoded, so the amber goes in as its raw sRGB value (`FColor(FF,B4,5A)` reinterpreted, not converted to linear).
+- Colour: `FDeepCameraTuning::PulseColor` (amber `FF B4 5A` today) is sent with each pulse as the `Color` vector parameter, so a palette change is a data change. After the tonemapper the buffer is display-encoded, so C++ sends the colour as its raw sRGB value (`ToFColor(true).ReinterpretAsLinear()`), not converted to linear.
+- Fog: the material runs after the tonemapper and adds to the final colour. Its world position comes from scene depth. So height fog, volumetric fog and the depth grade never dim it, and any opaque rock in range lights even where fog has turned it black. Nothing else was needed.
+- Diver ping (Nov 15, D-041):
+  - V in the water, no flashlight needed, once every `DiverPingCooldownS` 3 s. Range `DiverPingRangeM` 100 m; the cavern walls at stops 2 and 3 are 60–94 m from the hatch.
+  - `ADeepDiver::Ping` → the server checks `DeepCameraRules::CanDiverPing` → `MulticastPing` puts `sonar_ping` (Source = the diver) on every machine's bus. The sound is the existing `sonar_ping` row in Sounds.csv.
+  - The pulse leaves from the diver, and the sub nearest it is still masked. A helm ping does not restart a live diver pulse.
+  - Cheat: `Deep.Ping`.
 - Cheat: `Deep.Camera.TestPing [rangeM]` draws a pulse from the sub even with the switch off.
 - Cost: at the helm at 300 m (1707x1067), GPU 8.23 ms with the pulse off and 8.47 ms with a pulse every 2.5 s. About 0.25 ms while a pulse is live, 0 between pulses (weight 0).
 - Seen in frames: the cavern wall around the sub lights as one ring when the shell meets it, because the wall is about the same distance away all round. Dots on a flat floor at a grazing angle make faint moire lines; a larger `PulseDotSpacingM` or a smaller `PulseDotFarM` thins them.

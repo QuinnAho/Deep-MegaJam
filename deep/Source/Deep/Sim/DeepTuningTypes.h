@@ -1787,8 +1787,26 @@ struct FDeepCameraTuning
 
 	// ---- The sonar made visible
 
+	/** On by default since Nov 15 (D-041): the pulse is how the player sees the caverns. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	bool bPulseOn = false;
+	bool bPulseOn = true;
+
+	/** The diver's own ping (V in the water, no flashlight needed): this long between pings (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DiverPingCooldownS = 3.f;
+
+	/** The diver's ping reaches this far (m): past the cavern walls at stops 2 and 3 (60-94 m from the hatch). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DiverPingRangeM = 100.f;
+
+	/** Past this eye distance (m) the band thickens with distance, so a far wall's band keeps its width on screen. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseBandFarM = 20.f;
+
+	/** Past this eye distance (m) the lidar grid doubles its spacing each time the distance doubles: far dots stay
+	 * a few pixels apart instead of shimmering, and each coarser grid is every other dot of the finer one. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseDotNearM = 12.f;
 
 	/** The shell's growth from the sub to PulseRangeM. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
@@ -1833,9 +1851,9 @@ struct FDeepCameraTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	float PulseHullMarginM = 0.3f;
 
-	/** Lidar dots fade out between half this distance from the eye and this (metres): far dots would shimmer. */
+	/** Lidar dots fade out between 80% of this distance from the eye and this (metres). Past the cavern walls. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotFarM = 40.f;
+	float PulseDotFarM = 120.f;
 
 	// ---- Interference (the feed degrades as the serpent closes)
 
