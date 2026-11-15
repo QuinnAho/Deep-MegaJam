@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 05:03 EST
+updated: 2026-11-15 05:06 EST
 ---
 # Board
 
@@ -22,6 +22,8 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. **The pol
 **Water, second pass (4:20 AM): now a real base.** `polish/water` at `5b3b0e7`: a silt sea floor, a cone beam that lands on things, drifting matter only in light, black at 500 m, 6 to 8 ms a frame. Frames `2026-11-15-water2-*.png`; `floor-rake` is the standard. It moved the relic into a sinkhole (gameplay data: Quinn's eye needed).
 
 **`polish/integration` is at `14400e6`: water + the room, hull and salvage + monster third pass + the new HUD + `main`. Full suite: 59 of 59.** This is the branch to merge into `main` when Quinn approves the frames (his page: URL in Claude's memory), and the base for new polish lanes. Use the gate snippet in `.claude/loop.md`. It is checked out in `.wt\monster`, which is the orchestrator's merge checkout. **Running, started 5:02 AM:** (a) a package, smoke test and zip of the integration branch in `.wt\pkg` (branch `polish/package`), a background shell command of the orchestrator's: its output is `/tmp/package_integration.txt`, and if a new session finds no result, run `tools\ue.ps1 package`, `smoke` and `zip` there again; (b) `polish/helm` in `.wt\dev` (Opus): the view while driving, which is still near black. When it reports: look at its frames, merge into integration, run the gate, push, update Quinn's page. **Then, with no packs installed, what is left that agents can do:** volume and mouse settings in the pause menu; a frame set of the whole run from the integration branch; the Captain's voice if Quinn gives a key. **Waiting on Quinn's installs:** the Dragon Cave head for the monster (D-034), Megascans rocks and surfaces, the interior and hull packs.
+
+**Package of the integration branch, 5:05 AM: pass.** 708.1 MB on disk, zip 427.2 MB, smoke clean. A Sonnet agent (`.wt\pkg`, branch `polish/package`, started 5:06 AM) is capturing three frames from the packaged game to compare with the editor's, since nobody has looked at the packaged build.
 
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
