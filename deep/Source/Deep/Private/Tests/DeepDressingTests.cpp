@@ -172,6 +172,24 @@ bool FDeepDressingScatterTest::RunTest(const FString& Parameters)
 	LowContext.LowCm = 0.f;
 	TestEqual(TEXT("... but not if low pieces are not allowed"), DeepDressing::Expand(Low, LowContext).Num(), 0);
 
+	// Shaft rows: the block's inner face stands Out in front of the shaft's wall at that depth, facing the axis.
+	FDeepDressContext Shaft = Context;
+	Shaft.BedBelowM = [](const FVector2D& P) { return 10.f + 30.f * FMath::Exp(-FMath::Pow(P.Size() / 4.f, 4.f)); };
+	Shaft.LowCm = 60.f;
+	FDeepDressRow Lining;
+	Lining.Id = TEXT("lining");
+	Lining.Ref = EDeepDressRef::Shaft;
+	Lining.YM = 90.f;
+	Lining.ZM = 25.f;
+	Lining.XM = 0.2f;
+	const TArray<FTransform> Block = DeepDressing::Expand(Lining, Shaft);
+	UTEST_EQUAL(TEXT("A lining block against the wall is kept, though it is inside the shaft's capsule"), Block.Num(), 1);
+	const double WallR = 4.0 * FMath::Pow(FMath::Loge(2.0), 0.25);
+	const FVector Inner = Block[0].TransformPosition(FVector(-50.0, 0.0, 0.0)) - Shaft.AnchorCm;
+	TestEqual(TEXT("Its inner face is 0.2 m in front of the wall"), FVector2D(Inner).Size() / 100.0, WallR - 0.2, 0.02);
+	TestEqual(TEXT("... on the wall's side at 90 degrees"), Inner.X / 100.0, 0.0, 0.02);
+	TestEqual(TEXT("... centred on its depth"), (Block[0].GetLocation().Z - Shaft.AnchorCm.Z) / 100.0, -25.0, 0.02);
+
 	// Depth rows: wherever the root stands for a stop, a point lands at (sub depth - depth) above the sub.
 	for (const float SubDepth : { 199.f, 201.f, 450.f })
 	{

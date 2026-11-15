@@ -60,6 +60,17 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UStaticMeshComponent>> RelicParts;
 
+	/** The relic as a pack mesh (Arena.RelicMesh) in the dressing skin; when it loads, the basic shapes above stay hidden. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UStaticMeshComponent> RelicMesh;
+
+	/** The beacon: a narrow spot straight up the shaft, scattering in the fog (Arena.RelicBeacon*). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<class USpotLightComponent> Beacon;
+
+	/** True when RelicMesh shows the relic. */
+	bool ApplyRelicMesh();
+
 	bool IsRelic() const { return Kind.Size == EDeepSalvageSize::Relic; }
 
 public:

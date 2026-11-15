@@ -28,8 +28,7 @@ float3 nt = normalize(NWS);
 float up = lerp(VN.z, nt.z, 0.6);
 float2 p = WP.xy * 0.01;
 float wob = 0.5 * sin(1.7 * p.x + 1.3 * sin(0.9 * p.y)) + 0.5 * sin(2.3 * p.y - 1.1 * p.x + 0.7);
-float g = frac(sin(dot(floor(WP.xy * 0.25), float2(12.9898, 78.233))) * 43758.5453);
-return saturate((up - (1.0 - Amount) + 0.12 * wob + 0.06 * (g - 0.5)) * Sharpness);
+return saturate((up - (1.0 - Amount) + 0.12 * wob) * Sharpness);
 """
 
 COLOR_HLSL = r"""
@@ -125,6 +124,9 @@ def sampler_for(info):
 
 
 # Engine textures with each sampler type's settings, for the parameters' defaults (no pack content in the lane asset).
+USAGE_FLAGS = ("used_with_instanced_static_meshes", "used_with_nanite")
+
+
 DEFAULTS_VT = {
     "SAMPLERTYPE_COLOR": "/Engine/EngineMaterials/BaseFlattenDiffuseMap_VT",
     "SAMPLERTYPE_NORMAL": "/Engine/EngineMaterials/BaseFlattenNormalMap_VT",
@@ -168,14 +170,19 @@ def build(name, vt):
 
     mat = fresh(name)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
-    # Moving instanced meshes (the root moves while driving).
-    mat.set_editor_property("used_with_instanced_static_meshes", True)
+    # Usage flags a cooked build cannot set on the fly (it falls back to the default material): instanced meshes (the
+    # loader's HISMs), Nanite (most pack meshes are Nanite; the first package showed every one in the default material),
+    # and plain static meshes (the relic).
+    for flag in USAGE_FLAGS:
+        mat.set_editor_property(flag, True)
 
     bc = texture_param(mat, "BaseColorMap", bc_s, -1600, -400)
     n = texture_param(mat, "NormalMap", n_s, -1600, 0)
     orm = texture_param(mat, "ORMMap", orm_s, -1600, 400)
 
-    wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1600, 800)
+    # Object (instance) space, not world: in world space the wobble swam over pieces that move with the arena root, and a
+    # 4 cm hash grain made a fine checker on the trench rocks while the sub drove (trench frames, pass one).
+    wp = mel.create_material_expression(mat, unreal.MaterialExpressionLocalPosition, -1600, 800)
     vn = mel.create_material_expression(mat, unreal.MaterialExpressionVertexNormalWS, -1600, 950)
     tw = mel.create_material_expression(mat, unreal.MaterialExpressionTransform, -1200, 100)
     tw.set_editor_property("transform_source_type", unreal.MaterialVectorCoordTransformSource.TRANSFORMSOURCE_TANGENT)
@@ -228,6 +235,9 @@ def build(name, vt):
         unreal.log_error("DEEPDRESSMAT compile %s: %s" % (name, str(e)))
     ok = unreal.EditorLoadingAndSavingUtils.save_packages([mat.get_outermost()], False)
     unreal.log("DEEPDRESSMAT %s saved=%s expressions=%d errors=%d" % (name, ok, mel.get_num_material_expressions(mat), len(errors or [])))
+    # Read the flags back from the saved asset, as proof.
+    saved = unreal.EditorAssetLibrary.load_asset(PATH + "/" + name)
+    unreal.log("DEEPDRESSMAT %s usage %s" % (name, ", ".join("%s=%s" % (f, saved.get_editor_property(f)) for f in USAGE_FLAGS)))
 
 
 # Two masters, the same graph: the pack streams some textures virtually (the bridge and ruin set), and a virtual texture

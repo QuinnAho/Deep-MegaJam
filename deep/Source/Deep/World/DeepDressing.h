@@ -33,7 +33,7 @@ class UMaterialInterface;
 
 enum class EDeepDressKind : uint8 { Place, Scatter };
 enum class EDeepDressParent : uint8 { Root, Trench };
-enum class EDeepDressRef : uint8 { Bed, Anchor, Depth, Wall };
+enum class EDeepDressRef : uint8 { Bed, Anchor, Depth, Wall, Shaft };
 
 struct DEEP_API FDeepDressRow
 {
@@ -44,6 +44,8 @@ struct DEEP_API FDeepDressRow
 	EDeepDressRef Ref = EDeepDressRef::Bed;
 	FString Mesh;
 	FString Material;
+	/** Where a skin takes its pack textures from (a material instance), when the mesh's own slot is a bare master with none. */
+	FString Tex;
 	float XM = 0.f;
 	float YM = 0.f;
 	float ZM = 0.f;
@@ -61,6 +63,8 @@ struct DEEP_API FDeepDressRow
 	int32 Seed = 0;
 	/** SiltAmount for a skin material (0 none .. 1 thick); negative keeps the material's own. */
 	float Silt = -1.f;
+	/** Saturation for a skin material (its grade; 0.65 by default); negative keeps the material's own. Gold wants more. */
+	float Sat = -1.f;
 
 	/** Hidden with the bed while the sub is below the loaded stop. */
 	bool HidesBelowStop() const { return Parent == EDeepDressParent::Root && Ref != EDeepDressRef::Depth; }
@@ -121,7 +125,7 @@ namespace DeepDressing
 	 * /Game/Deep/Dressing/M_DressSilt) becomes a dynamic instance carrying the slot's own pack textures (_BC, _N, _ORM)
 	 * and SiltAmount (if Silt >= 0); any other material is used as it is.
 	 */
-	DEEP_API UMaterialInterface* Skin(UMaterialInterface* Master, UMaterialInterface* Original, float Silt, UObject* Outer);
+	DEEP_API UMaterialInterface* Skin(UMaterialInterface* Master, UMaterialInterface* Original, float Silt, UObject* Outer, float Saturation = -1.f);
 }
 
 UCLASS()
