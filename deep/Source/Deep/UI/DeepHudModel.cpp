@@ -2,15 +2,33 @@
 
 namespace DeepHudModel
 {
+	/** The screen open over a menu, or None. */
+	static EDeepHudMode DeepHudScreenMode(uint8 MenuScreen)
+	{
+		switch (MenuScreen)
+		{
+		case 1: return EDeepHudMode::Settings;
+		case 2: return EDeepHudMode::Credits;
+		case 3: return EDeepHudMode::ConfirmQuit;
+		default: return EDeepHudMode::None;
+		}
+	}
+
 	EDeepHudMode ChooseMode(const FDeepHudModeInputs& In)
 	{
+		const EDeepHudMode Screen = DeepHudScreenMode(In.MenuScreen);
 		if (In.bOnTitle)
 		{
-			return EDeepHudMode::Title;
+			return Screen != EDeepHudMode::None ? Screen : EDeepHudMode::Title;
 		}
 		if (!In.bHasDiver)
 		{
 			return EDeepHudMode::None;
+		}
+		// The controller opens a screen only over the pause menu or the review.
+		if (Screen != EDeepHudMode::None && (In.bPauseOpen || In.RunState == 5))
+		{
+			return Screen;
 		}
 		if (In.bPauseOpen)
 		{
@@ -53,6 +71,13 @@ namespace DeepHudModel
 			return ReviewCard;
 		case EDeepHudMode::Pause:
 			return PauseCard;
+		// Over the title the black title card stays behind the screen (its words fade under any card).
+		case EDeepHudMode::Settings:
+			return SettingsCard | (In.bOnTitle ? TitleCard : None);
+		case EDeepHudMode::Credits:
+			return CreditsCard | (In.bOnTitle ? TitleCard : None);
+		case EDeepHudMode::ConfirmQuit:
+			return ConfirmCard | (In.bOnTitle ? TitleCard : None);
 		default:
 			return None;
 		}
@@ -71,6 +96,9 @@ namespace DeepHudModel
 		case EDeepHudMode::Settlement: return TEXT("settlement");
 		case EDeepHudMode::Review: return TEXT("review");
 		case EDeepHudMode::Pause: return TEXT("pause");
+		case EDeepHudMode::Settings: return TEXT("settings");
+		case EDeepHudMode::Credits: return TEXT("credits");
+		case EDeepHudMode::ConfirmQuit: return TEXT("confirm_quit");
 		default: return TEXT("none");
 		}
 	}

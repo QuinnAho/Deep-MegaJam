@@ -110,7 +110,7 @@ struct FDeepHudFrame
 	/** Title: the subtitle shows the Captain's last line here when he is quiet. */
 	FString TitleLine;
 
-	// Full-screen cards (dead, settlement, review, pause).
+	// Full-screen cards (dead, settlement, review, pause, settings, credits, quit). The title uses the menu fields too.
 	FString CardTitle;
 	FString CardLead;
 	TArray<FDeepHudRow> Rows;
@@ -121,6 +121,10 @@ struct FDeepHudFrame
 	bool bFooterReady = true;
 	TArray<FString> MenuItems;
 	int32 MenuIndex = 0;
+	/** Settings: a value shown at the right of each menu item (empty for none). */
+	TArray<FString> MenuValues;
+	/** Settings: a 0..1 bar beside the value, negative for none. */
+	TArray<float> MenuBars;
 	bool bMenuEnabled = true;
 	FString MenuHint;
 

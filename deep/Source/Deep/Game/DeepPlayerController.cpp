@@ -15,6 +15,7 @@
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "Sim/DeepTuningSettings.h"
+#include "UI/DeepUserSettings.h"
 
 namespace
 {
@@ -168,6 +169,8 @@ void ADeepPlayerController::BeginPlay()
 		AddMappingToLocalPlayer();
 		SetInputMode(FInputModeGameOnly());
 		SetShowMouseCursor(false);
+		// The player's saved volume and ray tracing choice, before the first frame.
+		UDeepUserSettings::Get().ApplyAll(this);
 	}
 }
 
@@ -186,7 +189,10 @@ void ADeepPlayerController::OnMove(const FInputActionValue& Value)
 
 void ADeepPlayerController::OnLook(const FInputActionValue& Value)
 {
-	const FVector2D Look = Value.Get<FVector2D>() * UDeepTuningSettings::Get().Swim.LookSensitivity;
+	// The tuned sensitivity times the player's own scale, and their invert choice (UDeepUserSettings).
+	const UDeepUserSettings& Settings = UDeepUserSettings::Get();
+	const FVector2D Look = DeepSettingsRules::ScaleLook(Value.Get<FVector2D>(), UDeepTuningSettings::Get().Swim.LookSensitivity,
+		Settings.LookSensitivity, Settings.bInvertLook);
 	AddYawInput(Look.X);
 	AddPitchInput(Look.Y);
 }
@@ -271,6 +277,9 @@ FString ADeepPlayerController::MenuItemLabel(EMenuItem Item)
 	case EMenuItem::Restart: return TEXT("RESTART THE RUN");
 	case EMenuItem::DiveAgain: return TEXT("DIVE AGAIN");
 	case EMenuItem::Quit: return TEXT("QUIT");
+	case EMenuItem::Start: return TEXT("START THE DIVE");
+	case EMenuItem::Settings: return TEXT("SETTINGS");
+	case EMenuItem::Credits: return TEXT("CREDITS");
 	}
 	return FString();
 }
@@ -301,6 +310,8 @@ void ADeepPlayerController::SetPauseMenu(bool bOpen)
 {
 	bPauseMenu = bOpen;
 	MenuIndex = 0;
+	Screen = EMenuScreen::None;
+	ScreenIndex = 0;
 	if (bOpen)
 	{
 		ClearDiverInput();
@@ -308,33 +319,188 @@ void ADeepPlayerController::SetPauseMenu(bool bOpen)
 	SetPause(bOpen);
 }
 
+void ADeepPlayerController::OpenMenuScreen(EMenuScreen InScreen)
+{
+	Screen = InScreen;
+	// Quit starts on "stay": a stray Enter never leaves the game.
+	ScreenIndex = 0;
+}
+
+bool ADeepPlayerController::StepMenuCursor(const FKey& Key, int32 Count, int32& Index)
+{
+	const bool bUp = Key == EKeys::Up || Key == EKeys::W || Key == EKeys::MouseScrollUp || Key == EKeys::Gamepad_DPad_Up;
+	const bool bDown = Key == EKeys::Down || Key == EKeys::S || Key == EKeys::MouseScrollDown || Key == EKeys::Gamepad_DPad_Down;
+	if (!bUp && !bDown)
+	{
+		return false;
+	}
+	if (Count > 0)
+	{
+		Index = (FMath::Clamp(Index, 0, Count - 1) + (bDown ? 1 : Count - 1)) % Count;
+	}
+	return true;
+}
+
+namespace
+{
+	bool DeepMenuIsSelectKey(const FKey& Key)
+	{
+		return Key == EKeys::Enter || Key == EKeys::SpaceBar || Key == EKeys::E || Key == EKeys::LeftMouseButton || Key == EKeys::Gamepad_FaceButton_Bottom;
+	}
+
+	bool DeepMenuIsBackKey(const FKey& Key)
+	{
+		return Key == EKeys::Escape || Key == EKeys::P || Key == EKeys::RightMouseButton || Key == EKeys::BackSpace || Key == EKeys::Gamepad_FaceButton_Right;
+	}
+
+	/** -1 left, +1 right, 0 neither. */
+	int32 DeepMenuSideways(const FKey& Key)
+	{
+		if (Key == EKeys::Left || Key == EKeys::A || Key == EKeys::Gamepad_DPad_Left)
+		{
+			return -1;
+		}
+		if (Key == EKeys::Right || Key == EKeys::D || Key == EKeys::Gamepad_DPad_Right)
+		{
+			return 1;
+		}
+		return 0;
+	}
+}
+
+void ADeepPlayerController::HandleScreenKey(const FKey& Key)
+{
+	const bool bSelect = DeepMenuIsSelectKey(Key);
+	const bool bBack = DeepMenuIsBackKey(Key);
+	switch (Screen)
+	{
+	case EMenuScreen::Settings:
+	{
+		const int32 Count = static_cast<int32>(EDeepSettingRow::Count);
+		if (bBack)
+		{
+			Screen = EMenuScreen::None;
+			return;
+		}
+		if (StepMenuCursor(Key, Count, ScreenIndex))
+		{
+			return;
+		}
+		UDeepUserSettings& Settings = UDeepUserSettings::Get();
+		const int32 Side = DeepMenuSideways(Key);
+		if (Side == 0 && !bSelect)
+		{
+			return;
+		}
+		switch (static_cast<EDeepSettingRow>(ScreenIndex))
+		{
+		case EDeepSettingRow::Volume:
+			if (Side != 0)
+			{
+				Settings.SetVolume(this, DeepSettingsRules::StepVolume(Settings.MasterVolume, Side));
+			}
+			break;
+		case EDeepSettingRow::Sensitivity:
+			if (Side != 0)
+			{
+				Settings.SetSensitivity(DeepSettingsRules::StepSensitivity(Settings.LookSensitivity, Side));
+			}
+			break;
+		case EDeepSettingRow::InvertLook:
+			Settings.SetInvertLook(!Settings.bInvertLook);
+			break;
+		case EDeepSettingRow::RayTracing:
+			Settings.SetRayTracing(!Settings.IsRayTracingOn());
+			break;
+		case EDeepSettingRow::Back:
+			if (bSelect)
+			{
+				Screen = EMenuScreen::None;
+			}
+			break;
+		default:
+			break;
+		}
+		return;
+	}
+	case EMenuScreen::Credits:
+		if (bBack || bSelect)
+		{
+			Screen = EMenuScreen::None;
+		}
+		return;
+	case EMenuScreen::ConfirmQuit:
+		if (bBack)
+		{
+			Screen = EMenuScreen::None;
+		}
+		else if (StepMenuCursor(Key, 2, ScreenIndex))
+		{
+		}
+		else if (bSelect)
+		{
+			if (ScreenIndex == 1)
+			{
+				UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+			}
+			Screen = EMenuScreen::None;
+		}
+		return;
+	default:
+		Screen = EMenuScreen::None;
+		return;
+	}
+}
+
 bool ADeepPlayerController::HandleMenuKey(const FKey& Key)
 {
 	const ADeepDiver* Diver = GetDiver();
 	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
-	const bool bUp = Key == EKeys::Up || Key == EKeys::W;
-	const bool bDown = Key == EKeys::Down || Key == EKeys::S;
-	const bool bSelect = Key == EKeys::Enter || Key == EKeys::SpaceBar || Key == EKeys::E || Key == EKeys::LeftMouseButton;
-	const bool bMenuKey = Key == EKeys::Escape || Key == EKeys::P;
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	const bool bOnTitle = State && State->bOnTitle;
+	const bool bWon = Run && Run->GetState() == EDeepRunState::Won && !bPauseMenu;
+	const bool bSelect = DeepMenuIsSelectKey(Key);
+	const bool bMenuKey = Key == EKeys::Escape || Key == EKeys::P || Key == EKeys::Gamepad_Special_Right;
 
-	// The title: any key starts the run.
-	if (TryStartFromTitle())
+	// A screen over the title, the pause menu or the review takes every key until it closes.
+	if (Screen != EMenuScreen::None)
 	{
-		return true;
+		if (bOnTitle || bPauseMenu || bWon)
+		{
+			HandleScreenKey(Key);
+			return true;
+		}
+		Screen = EMenuScreen::None;
 	}
 
-	// The win screen: dive again or quit.
-	if (Run && Run->GetState() == EDeepRunState::Won && !bPauseMenu)
+	// The title: a menu, and any other key starts the run (the title has always left on any key).
+	if (bOnTitle)
+	{
+		const TArray<EMenuItem> Items = TitleItems();
+		if (StepMenuCursor(Key, Items.Num(), MenuIndex))
+		{
+			return true;
+		}
+		if (bSelect)
+		{
+			ActivateMenuItem(Items[FMath::Clamp(MenuIndex, 0, Items.Num() - 1)]);
+			return true;
+		}
+		if (Key == EKeys::Escape)
+		{
+			OpenMenuScreen(EMenuScreen::ConfirmQuit);
+			return true;
+		}
+		return TryStartFromTitle();
+	}
+
+	// The win screen: dive again, credits or quit.
+	if (bWon)
 	{
 		const TArray<EMenuItem> Items = WinItems();
-		MenuIndex = FMath::Clamp(MenuIndex, 0, Items.Num() - 1);
-		if (bUp || bDown)
+		if (!StepMenuCursor(Key, Items.Num(), MenuIndex) && bSelect && Run->CanLeaveReview())
 		{
-			MenuIndex = (MenuIndex + (bDown ? 1 : Items.Num() - 1)) % Items.Num();
-		}
-		else if (bSelect && Run->CanLeaveReview())
-		{
-			ActivateMenuItem(Items[MenuIndex]);
+			ActivateMenuItem(Items[FMath::Clamp(MenuIndex, 0, Items.Num() - 1)]);
 		}
 		return true;
 	}
@@ -347,11 +513,7 @@ bool ADeepPlayerController::HandleMenuKey(const FKey& Key)
 		{
 			SetPauseMenu(false);
 		}
-		else if (bUp || bDown)
-		{
-			MenuIndex = (MenuIndex + (bDown ? 1 : Items.Num() - 1)) % Items.Num();
-		}
-		else if (bSelect)
+		else if (!StepMenuCursor(Key, Items.Num(), MenuIndex) && bSelect)
 		{
 			ActivateMenuItem(Items[FMath::Clamp(MenuIndex, 0, Items.Num() - 1)]);
 		}
@@ -372,14 +534,24 @@ void ADeepPlayerController::ActivateMenuItem(EMenuItem Item)
 	case EMenuItem::Resume:
 		SetPauseMenu(false);
 		break;
+	case EMenuItem::Start:
+		TryStartFromTitle();
+		break;
 	case EMenuItem::Restart:
 	case EMenuItem::DiveAgain:
 		SetPauseMenu(false);
 		ClearDiverInput();
 		ServerRestartRun();
 		break;
+	case EMenuItem::Settings:
+		OpenMenuScreen(EMenuScreen::Settings);
+		break;
+	case EMenuItem::Credits:
+		OpenMenuScreen(EMenuScreen::Credits);
+		break;
 	case EMenuItem::Quit:
-		UKismetSystemLibrary::QuitGame(this, this, EQuitPreference::Quit, false);
+		// Quit asks once.
+		OpenMenuScreen(EMenuScreen::ConfirmQuit);
 		break;
 	}
 }
@@ -408,6 +580,8 @@ bool ADeepPlayerController::TryStartFromTitle()
 		return false;
 	}
 	ClearDiverInput();
+	MenuIndex = 0;
+	Screen = EMenuScreen::None;
 	// On the server (standalone, listen host) start directly; a remote client asks the server.
 	if (HasAuthority())
 	{
@@ -431,7 +605,11 @@ bool ADeepPlayerController::TryStartFromTitle()
 
 void ADeepPlayerController::OnTitleKey()
 {
-	TryStartFromTitle();
+	// A screen over the title (settings, credits, quit) keeps the title up.
+	if (Screen == EMenuScreen::None)
+	{
+		TryStartFromTitle();
+	}
 }
 
 void ADeepPlayerController::OnContinue()

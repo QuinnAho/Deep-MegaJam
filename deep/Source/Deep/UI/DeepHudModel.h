@@ -18,6 +18,9 @@ enum class EDeepHudMode : uint8
 	Settlement,
 	Review,
 	Pause,
+	Settings,     // over the title, the pause menu or the review
+	Credits,
+	ConfirmQuit,
 };
 
 /** The panels. A mode is a set of these, chosen in one place: DeepHudModel::PanelsFor. */
@@ -45,7 +48,10 @@ namespace EDeepHudPanel
 		SettlementCard = 1 << 16,
 		ReviewCard = 1 << 17,
 		PauseCard = 1 << 18,
-		Count = 19,
+		SettingsCard = 1 << 19,
+		CreditsCard = 1 << 20,
+		ConfirmCard = 1 << 21,  // quit asks once
+		Count = 22,
 	};
 }
 
@@ -60,6 +66,8 @@ struct FDeepHudModeInputs
 	uint8 RunState = 0;
 	bool bBiteAlarm = false;
 	bool bCarryingOrCut = false;
+	/** The screen open over a menu: 0 none, 1 settings, 2 credits, 3 the quit confirmation. */
+	uint8 MenuScreen = 0;
 };
 
 namespace DeepHudModel

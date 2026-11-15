@@ -47,6 +47,8 @@ private:
 
 	EDeepHudMode LastMode = EDeepHudMode::None;
 	double ModeStart = 0.0;
+	/** When the title card last opened: a screen over the title and back does not replay its entrance. */
+	double TitleStart = 0.0;
 	/** Modes whose controls hint has shown this run. */
 	TSet<EDeepHudMode> HintShown;
 	EDeepHudMode HintMode = EDeepHudMode::None;

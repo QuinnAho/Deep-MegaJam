@@ -93,7 +93,8 @@ bool FDeepTitleKeyTest::RunTest(const FString& Parameters)
 	{
 		return PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, IE_Pressed, Amount));
 	};
-	for (const FKey& Key : { EKeys::K, EKeys::SpaceBar, EKeys::Enter, EKeys::LeftMouseButton, EKeys::RightMouseButton, EKeys::Escape, EKeys::Gamepad_FaceButton_Bottom })
+	// Esc is the one key that does not start (Nov 15, settings pass): on the title it asks to quit (Deep.UI.Settings.MenuKeys).
+	for (const FKey& Key : { EKeys::K, EKeys::SpaceBar, EKeys::Enter, EKeys::LeftMouseButton, EKeys::RightMouseButton, EKeys::Gamepad_FaceButton_Bottom })
 	{
 		W.Cmd(TEXT("Deep.Title"));
 		UTEST_TRUE(TEXT("On the title"), W.State->bOnTitle);
@@ -103,6 +104,14 @@ bool FDeepTitleKeyTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("%s: aboard"), *Key.ToString()), W.Run->GetState(), EDeepRunState::Aboard);
 		TestFalse(FString::Printf(TEXT("%s: no pause menu"), *Key.ToString()), PC->IsPauseMenuOpen());
 	}
+
+	// Esc on the title asks to quit and keeps the title; Esc again stays.
+	W.Cmd(TEXT("Deep.Title"));
+	TestTrue(TEXT("Esc was used by the title"), Press(EKeys::Escape));
+	TestTrue(TEXT("Esc keeps the title"), W.State->bOnTitle);
+	TestEqual(TEXT("Esc asks to quit"), PC->GetMenuScreen(), ADeepPlayerController::EMenuScreen::ConfirmQuit);
+	Press(EKeys::Escape);
+	TestEqual(TEXT("Esc again stays"), PC->GetMenuScreen(), ADeepPlayerController::EMenuScreen::None);
 
 	// Moving the mouse is not a key: the title stays.
 	W.Cmd(TEXT("Deep.Title"));

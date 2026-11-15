@@ -269,6 +269,10 @@ void SDeepHud::Advance(const FDeepHudFrame& InFrame, double RealNow, float Delta
 		HintShown.Reset();
 	}
 
+	if ((Frame.Panels & EDeepHudPanel::TitleCard) && !Fades[FMath::FloorLog2(static_cast<uint32>(EDeepHudPanel::TitleCard))].bTarget)
+	{
+		TitleStart = Now;
+	}
 	for (int32 Index = 0; Index < EDeepHudPanel::Count; ++Index)
 	{
 		Fades[Index].Step((Frame.Panels & (1u << Index)) != 0, DeltaSeconds, PanelOpen, PanelClose);
@@ -383,17 +387,37 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	// ------------------------------------------------ title
 	if (const float TA = A(EDeepHudPanel::TitleCard); TA > 0.f)
 	{
-		const float Scene = EaseOutCubic(static_cast<float>((Now - ModeStart) / SceneFade));
+		const float Scene = EaseOutCubic(static_cast<float>((Now - TitleStart) / SceneFade));
 		P.Box(0.f, 0.f, L.X, L.Y, FLinearColor(0.f, 0.f, 0.f, TA));
-		const float TitleY = L.Y * 0.34f;
+		// A screen over the title (settings, credits, quit): the words step back under its card.
+		const float Cover = FMath::Max3(A(EDeepHudPanel::SettingsCard), A(EDeepHudPanel::CreditsCard), A(EDeepHudPanel::ConfirmCard));
+		const float WA = TA * (1.f - Cover);
+		const float TitleY = L.Y * 0.30f;
 		// The tether: a hairline from the top of the screen down to the word.
-		P.Box(Centre.X, 0.f, P.Hair, (TitleY - Grid * 3.f) * Scene, Primary(0.5f * TA));
+		P.Box(Centre.X, 0.f, P.Hair, (TitleY - Grid * 3.f) * Scene, Primary(0.5f * WA));
 		FSlateFontInfo TitleFont = DepthFont;
 		TitleFont.LetterSpacing = 600; // the title only (chosen here): the guide's 72 px, set wide
-		P.TextCentre(TEXT("DEEP"), Centre.X + 12.f, TitleY, TitleFont, Secondary(TA * Scene));
-		P.TextCentre(TEXT("Salvage, a tether, and a Captain who hates you."), Centre.X, TitleY + 112.f, BodyFont, Secondary(0.6f * TA * Scene));
-		const float PromptA = EaseOutCubic(static_cast<float>((Now - ModeStart - SceneFade) / PanelOpen));
-		P.TextCentre(TEXT("PRESS ANY KEY"), Centre.X, L.Y * 0.62f, LabelFont, Primary(TA * PromptA));
+		P.TextCentre(TEXT("DEEP"), Centre.X + 12.f, TitleY, TitleFont, Secondary(WA * Scene));
+		P.TextCentre(TEXT("Salvage, a tether, and a Captain who hates you."), Centre.X, TitleY + 112.f, BodyFont, Secondary(0.6f * WA * Scene));
+		const float PromptA = WA * EaseOutCubic(static_cast<float>((Now - TitleStart - SceneFade) / PanelOpen));
+		// The title menu: the pause card's rows, centred, no panel.
+		const float ItemW = 360.f;
+		float MY = L.Y * 0.56f;
+		for (int32 Index = 0; Index < Frame.MenuItems.Num(); ++Index)
+		{
+			const bool bOn = Index == Frame.MenuIndex;
+			if (bOn)
+			{
+				P.Box(Centre.X - ItemW * 0.5f, MY, ItemW, 40.f, Primary(0.08f * PromptA));
+				P.Box(Centre.X - ItemW * 0.5f, MY, 2.f, 40.f, Primary(PromptA));
+			}
+			P.TextCentre(Frame.MenuItems[Index].ToUpper(), Centre.X, MY + (40.f - LabelH) * 0.5f, LabelFont, bOn ? Primary(PromptA) : Secondary(PromptA));
+			MY += 48.f;
+		}
+		if (!Frame.MenuHint.IsEmpty())
+		{
+			P.TextCentre(Frame.MenuHint, Centre.X, MY + Grid * 2.f, LabelFont, Secondary(0.5f * PromptA));
+		}
 	}
 
 	// ------------------------------------------------ the water: depth and the tether, bottom left
@@ -696,16 +720,27 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	}
 
 	// ------------------------------------------------ full-screen cards: dead, settlement, review, pause
+	// One card at a time: moving between cards (pause -> settings) swaps the card and keeps the dim behind it.
+	const uint32 AllCards = EDeepHudPanel::DeadCard | EDeepHudPanel::SettlementCard | EDeepHudPanel::ReviewCard | EDeepHudPanel::PauseCard
+		| EDeepHudPanel::SettingsCard | EDeepHudPanel::CreditsCard | EDeepHudPanel::ConfirmCard;
+	float LeavingCards = 0.f;
+	for (uint32 Bit = EDeepHudPanel::DeadCard; Bit <= EDeepHudPanel::ConfirmCard; Bit <<= 1)
+	{
+		if ((AllCards & Bit) && !(Frame.Panels & Bit))
+		{
+			LeavingCards = FMath::Max(LeavingCards, A(Bit));
+		}
+	}
 	auto Card = [&](uint32 Which, float Width)
 	{
 		const float CA = A(Which);
-		if (CA <= 0.f)
+		if (CA <= 0.f || (!(Frame.Panels & Which) && (Frame.Panels & AllCards)))
 		{
 			return;
 		}
 		const float Since = static_cast<float>(Now - ModeStart);
 		const float Count = EaseOutCubic(Since / NumberTween);
-		P.Box(0.f, 0.f, L.X, L.Y, PanelFill(CA));
+		P.Box(0.f, 0.f, L.X, L.Y, PanelFill((Frame.Panels & Which) ? FMath::Max(CA, LeavingCards) : CA));
 		// Height from the same steps the layout uses.
 		const float RowH = 40.f;
 		float H = Pad * 2.f + 40.f;
@@ -792,6 +827,20 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 					P.Box(X + Pad, CY, 2.f, 40.f, Primary(IA));
 				}
 				P.Text(Frame.MenuItems[Index].ToUpper(), X + Pad + Grid * 2.f, CY + (40.f - LabelH) * 0.5f, LabelFont, bOn ? Primary(IA) : Secondary(IA));
+				// Settings: the value at the right, and a bar before it for the sliders.
+				if (Frame.MenuValues.IsValidIndex(Index) && !Frame.MenuValues[Index].IsEmpty())
+				{
+					const float Right = X + Width - Pad - Grid * 2.f;
+					P.TextRight(Frame.MenuValues[Index], Right, CY + (40.f - LabelH) * 0.5f, MonoFont, bOn ? Primary(IA) : Secondary(IA));
+					if (Frame.MenuBars.IsValidIndex(Index) && Frame.MenuBars[Index] >= 0.f)
+					{
+						const float BarW = 160.f;
+						const float BarX = Right - 64.f - Grid * 2.f - BarW;
+						const float BarY = CY + 20.f - 1.f;
+						P.Box(BarX, BarY, BarW, 2.f, Secondary(0.18f * IA));
+						P.Box(BarX, BarY, BarW * FMath::Clamp(Frame.MenuBars[Index], 0.f, 1.f), 2.f, bOn ? Primary(IA) : Secondary(0.7f * IA));
+					}
+				}
 				CY += 48.f;
 			}
 		}
@@ -805,6 +854,9 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 	Card(EDeepHudPanel::SettlementCard, 720.f);
 	Card(EDeepHudPanel::ReviewCard, 720.f);
 	Card(EDeepHudPanel::PauseCard, 480.f);
+	Card(EDeepHudPanel::SettingsCard, 720.f);
+	Card(EDeepHudPanel::CreditsCard, 720.f);
+	Card(EDeepHudPanel::ConfirmCard, 480.f);
 
 	// ------------------------------------------------ feedback: one small cue above the reticle, and a ping
 	if (const float FA = A(EDeepHudPanel::Feedback); FA > 0.f && !Cue.Label.IsEmpty())

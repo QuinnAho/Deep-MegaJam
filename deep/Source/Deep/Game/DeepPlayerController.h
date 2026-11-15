@@ -1,6 +1,7 @@
 // Builds all input in code (Enhanced Input actions and one mapping context via NewObject; no assets)
 // and forwards it to the possessed ADeepDiver. Also owns the menus, read raw in InputKey so they work while paused:
-// the title screen (any key), the pause menu (Esc or P) and the win screen's choices. The HUD draws them.
+// the title menu (and any other key starts), the pause menu (Esc or P), the win screen's choices, and the screens
+// over them: settings, credits and the quit confirmation. The HUD draws them.
 
 #pragma once
 
@@ -24,11 +25,19 @@ public:
 
 	const UInputMappingContext* GetMappingContext() const { return Mapping; }
 
-	/** The menus. Pause: resume, restart the run, quit. Win: dive again, quit. */
-	enum class EMenuItem : uint8 { Resume, Restart, DiveAgain, Quit };
-	static TArray<EMenuItem> PauseItems() { return { EMenuItem::Resume, EMenuItem::Restart, EMenuItem::Quit }; }
-	static TArray<EMenuItem> WinItems() { return { EMenuItem::DiveAgain, EMenuItem::Quit }; }
+	/** The menus. Title: start, settings, credits, quit. Pause: resume, settings, credits, restart, quit. Win: dive again, credits, quit. */
+	enum class EMenuItem : uint8 { Resume, Restart, DiveAgain, Quit, Start, Settings, Credits };
+	static TArray<EMenuItem> TitleItems() { return { EMenuItem::Start, EMenuItem::Settings, EMenuItem::Credits, EMenuItem::Quit }; }
+	static TArray<EMenuItem> PauseItems() { return { EMenuItem::Resume, EMenuItem::Settings, EMenuItem::Credits, EMenuItem::Restart, EMenuItem::Quit }; }
+	static TArray<EMenuItem> WinItems() { return { EMenuItem::DiveAgain, EMenuItem::Credits, EMenuItem::Quit }; }
 	static FString MenuItemLabel(EMenuItem Item);
+
+	/** A screen over the title, the pause menu or the review. Quit always passes through ConfirmQuit. */
+	enum class EMenuScreen : uint8 { None, Settings, Credits, ConfirmQuit };
+	void OpenMenuScreen(EMenuScreen Screen);
+	EMenuScreen GetMenuScreen() const { return Screen; }
+	/** The cursor on the open screen (settings row, or 0 stay / 1 quit). */
+	int32 GetScreenIndex() const { return ScreenIndex; }
 
 	bool IsPauseMenuOpen() const { return bPauseMenu; }
 	int32 GetMenuIndex() const { return MenuIndex; }
@@ -68,6 +77,10 @@ protected:
 
 	/** A key press while a menu or the title is up. True when it was used (and must not reach the diver). */
 	bool HandleMenuKey(const FKey& Key);
+	/** Keys on an open screen (settings, credits, quit). Always used. */
+	void HandleScreenKey(const FKey& Key);
+	/** Up/down on a list of Count items: moves Index, wrapping. True when the key was up or down. */
+	static bool StepMenuCursor(const FKey& Key, int32 Count, int32& Index);
 	void ActivateMenuItem(EMenuItem Item);
 	void ClearDiverInput();
 
@@ -79,6 +92,8 @@ protected:
 
 	bool bPauseMenu = false;
 	int32 MenuIndex = 0;
+	EMenuScreen Screen = EMenuScreen::None;
+	int32 ScreenIndex = 0;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> Mapping;

@@ -23,6 +23,7 @@
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "Harpoon/DeepHarpoonSettings.h"
 #include "UI/DeepHudFrame.h"
+#include "UI/DeepUserSettings.h"
 #include "UI/SDeepHud.h"
 
 static TAutoConsoleVariable<int32> CVarDeepHudLegacy(
@@ -1118,6 +1119,104 @@ namespace
 	{
 		return ADeepPlayerController::KeyHint(Action).ToUpper();
 	}
+
+	/** The title menu and the screens over the menus (settings, credits, quit). True when it filled the frame. */
+	bool DeepHudFillMenuScreens(FDeepHudFrame& Frame, const ADeepPlayerController* Player, bool bOnTitle)
+	{
+		const int32 Cursor = Player ? Player->GetScreenIndex() : 0;
+		switch (Frame.Mode)
+		{
+		case EDeepHudMode::Title:
+			for (const ADeepPlayerController::EMenuItem Item : ADeepPlayerController::TitleItems())
+			{
+				Frame.MenuItems.Add(ADeepPlayerController::MenuItemLabel(Item));
+			}
+			Frame.MenuIndex = Player ? Player->GetMenuIndex() : 0;
+			Frame.MenuHint = TEXT("UP / DOWN   ENTER TO SELECT");
+			return true;
+		case EDeepHudMode::Settings:
+		{
+			const UDeepUserSettings& Settings = UDeepUserSettings::Get();
+			Frame.CardTitle = TEXT("Settings");
+			Frame.CardLead = TEXT("Changes apply at once and are kept for next time.");
+			for (int32 Row = 0; Row < static_cast<int32>(EDeepSettingRow::Count); ++Row)
+			{
+				const EDeepSettingRow Which = static_cast<EDeepSettingRow>(Row);
+				Frame.MenuItems.Add(DeepSettingsRules::RowLabel(Which));
+				switch (Which)
+				{
+				case EDeepSettingRow::Volume:
+					Frame.MenuValues.Add(DeepSettingsRules::VolumeLabel(Settings.MasterVolume));
+					Frame.MenuBars.Add(Settings.MasterVolume);
+					break;
+				case EDeepSettingRow::Sensitivity:
+					Frame.MenuValues.Add(DeepSettingsRules::SensitivityLabel(Settings.LookSensitivity));
+					Frame.MenuBars.Add(DeepSettingsRules::SensitivityBar(Settings.LookSensitivity));
+					break;
+				case EDeepSettingRow::InvertLook:
+					Frame.MenuValues.Add(Settings.bInvertLook ? TEXT("ON") : TEXT("OFF"));
+					Frame.MenuBars.Add(-1.f);
+					break;
+				case EDeepSettingRow::RayTracing:
+					Frame.MenuValues.Add(Settings.IsRayTracingOn() ? TEXT("ON") : TEXT("OFF"));
+					Frame.MenuBars.Add(-1.f);
+					break;
+				default:
+					Frame.MenuValues.Add(FString());
+					Frame.MenuBars.Add(-1.f);
+					break;
+				}
+			}
+			Frame.MenuIndex = Cursor;
+			Frame.MenuHint = TEXT("UP / DOWN   LEFT / RIGHT TO CHANGE   ESC TO GO BACK");
+			return true;
+		}
+		case EDeepHudMode::Credits:
+		{
+			Frame.CardTitle = TEXT("Credits");
+			Frame.CardLead = TEXT("DEEP. Made for the 2026 Epic AI MegaJam.");
+			auto AddRow = [&Frame](const FString& Label, const FString& Text, EDeepHudTone Tone, bool bRule)
+			{
+				FDeepHudRow Row;
+				Row.Label = Label;
+				Row.Text = Text.IsEmpty() ? FString(TEXT(" ")) : Text;
+				Row.Tone = Tone;
+				Row.bRuleAbove = bRule;
+				Frame.Rows.Add(Row);
+			};
+			AddRow(TEXT("Made by"), TEXT("Quinn and Colby"), EDeepHudTone::Normal, false);
+			AddRow(TEXT("Built with"), TEXT("Claude agents"), EDeepHudTone::Normal, false);
+			bool bFirst = true;
+			for (const FDeepCreditRow& Credit : DeepCredits::Get())
+			{
+				FString Text = Credit.Author;
+				if (!Credit.Licence.IsEmpty())
+				{
+					Text += Text.IsEmpty() ? Credit.Licence : TEXT(", ") + Credit.Licence;
+				}
+				AddRow(Credit.Item, Text, EDeepHudTone::Normal, bFirst);
+				if (!Credit.Note.IsEmpty())
+				{
+					AddRow(Credit.Note, FString(), EDeepHudTone::Dim, false);
+				}
+				bFirst = false;
+			}
+			Frame.MenuItems.Add(TEXT("BACK"));
+			Frame.MenuIndex = 0;
+			Frame.MenuHint = TEXT("ENTER OR ESC TO GO BACK");
+			return true;
+		}
+		case EDeepHudMode::ConfirmQuit:
+			Frame.CardTitle = TEXT("Quit DEEP?");
+			Frame.CardLead = bOnTitle ? TEXT("Leave for the desktop?") : TEXT("Leave for the desktop? The run in progress is not kept.");
+			Frame.MenuItems = { TEXT("STAY"), TEXT("QUIT TO DESKTOP") };
+			Frame.MenuIndex = Cursor;
+			Frame.MenuHint = TEXT("ENTER TO SELECT   ESC TO STAY");
+			return true;
+		default:
+			return false;
+		}
+	}
 }
 
 void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
@@ -1147,14 +1246,20 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 	In.RunState = Run ? static_cast<uint8>(Run->GetState()) : 0;
 	In.bBiteAlarm = Run && Run->IsBiteAlarmOn();
 	In.bCarryingOrCut = Diver && (Diver->GetCargo().Num() > 0 || (Run && Run->GetState() == EDeepRunState::Cut));
+	In.MenuScreen = Player ? static_cast<uint8>(Player->GetMenuScreen()) : 0;
 	Frame.Mode = DeepHudModel::ChooseMode(In);
 	Frame.Panels = DeepHudModel::PanelsFor(Frame.Mode, In);
 	Frame.HintSeconds = Tuning.Run.ControlsCardSeconds;
 
 	UDeepCaptain* Captain = UDeepCaptain::Get(this);
+	const bool bScreen = DeepHudFillMenuScreens(Frame, Player, In.bOnTitle);
 	if (Frame.Mode == EDeepHudMode::Title)
 	{
 		Frame.CaptainLine = Captain && !Captain->GetLastText().IsEmpty() ? Captain->GetLastText() : FString(TEXT("Press any key. Any key."));
+		return;
+	}
+	if (bScreen)
+	{
 		return;
 	}
 	if (!Diver || !Run || !GameState)
