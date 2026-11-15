@@ -7,7 +7,8 @@
 #            Mode "Surface ForwardShading" (fundamentals: translucent needs a directional/surface mode before
 #            roughness, specular and normal do anything). A fake sphere normal from the sprite UV goes to Normal, so
 #            the lamp puts a highlight on the side it comes from. Opacity is a fresnel term on that fake sphere: a thin
-#            bright rim and a nearly clear middle. No emissive at all: in black water with no light on it the rim is
+#            bright rim and a nearly clear middle. Emissive only on the rim, times MPC_FxLight.Spill (the diver's own
+#            light, set by C++; try 4): in black water with the lamp off the rim
 #            lit by nothing and the bubble is all but invisible (style guide: "light must come from a source").
 #   Silt   : translucent, Volumetric NonDirectional (soft, cheap), a soft radial falloff with a little break-up,
 #            silt colour from M_Silt's albedo range (0.09 to 0.16), lit per pixel (Surface ForwardShading: the first try with
@@ -103,7 +104,7 @@ def finish(mat, name):
         errors = []
     for e in errors or []:
         unreal.log_error("%s compile: %s" % (TAG, e))
-    for prop in ("MP_OPACITY", "MP_NORMAL", "MP_BASE_COLOR"):
+    for prop in ("MP_OPACITY", "MP_NORMAL", "MP_BASE_COLOR", "MP_EMISSIVE_COLOR"):
         try:
             node = mel.get_material_property_input_node(mat, getattr(unreal.MaterialProperty, prop))
             unreal.log("%s %s %s <- %s" % (TAG, name, prop, node.get_name() if node else "NOTHING"))
@@ -117,7 +118,23 @@ def finish(mat, name):
         back.get_editor_property("translucency_lighting_mode")))
 
 
-def build_bubble():
+def build_collection():
+    """MPC_FxLight: Spill, set every frame by UDeepFxSubsystem from the local diver: 1 with the lamp on, less near the
+    hatch light, a floor in the blue water at 100 m, 0 in black water with the lamp off."""
+    full = PATH + "/MPC_FxLight"
+    mpc = unreal.load_asset(full)
+    if not mpc:
+        mpc = unreal.AssetToolsHelpers.get_asset_tools().create_asset("MPC_FxLight", PATH, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
+    p = unreal.CollectionScalarParameter()
+    p.set_editor_property("parameter_name", "Spill")
+    p.set_editor_property("default_value", 0.0)
+    mpc.set_editor_property("scalar_parameters", [p])
+    ok = unreal.EditorLoadingAndSavingUtils.save_packages([mpc.get_outermost()], False)
+    unreal.log("%s MPC_FxLight saved=%s scalars=%d" % (TAG, ok, len(mpc.get_editor_property("scalar_parameters"))))
+    return mpc
+
+
+def build_bubble(mpc):
     name = "M_Bubble"
     mat = fresh(name)
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
@@ -142,6 +159,19 @@ def build_bubble():
     mel.connect_material_property(vector(mat, "FilmColour", (0.50, 0.53, 0.53), -500, -200), "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(scalar(mat, "Specular", 1.0, -500, 460), "", unreal.MaterialProperty.MP_SPECULAR)
     mel.connect_material_property(scalar(mat, "Roughness", 0.15, -500, 520), "", unreal.MaterialProperty.MP_ROUGHNESS)
+
+    # The lamp's spill on the rim only (orchestrator, try 4): the lamp's narrow cone never reaches a bubble at the
+    # mask, so the rim answers the diver's own light through Spill. With Spill 0 (black water, lamp off) it is dark.
+    spill = mel.create_material_expression(mat, unreal.MaterialExpressionCollectionParameter, -500, 640)
+    spill.set_editor_property("collection", mpc)
+    spill.set_editor_property("parameter_name", "Spill")
+    m1 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -250, 600)
+    link(rim, "", m1, "A")
+    link(spill, "", m1, "B")
+    m2 = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -100, 600)
+    link(m1, "", m2, "A")
+    link(vector(mat, "SpillColour", (0.55, 0.62, 0.66), -250, 720), "", m2, "B")
+    mel.connect_material_property(m2, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     finish(mat, name)
 
 
@@ -171,5 +201,5 @@ def build_silt():
     finish(mat, name)
 
 
-build_bubble()
+build_bubble(build_collection())
 build_silt()

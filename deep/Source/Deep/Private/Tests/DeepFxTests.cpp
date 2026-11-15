@@ -72,3 +72,21 @@ bool FDeepFxSiltTest::RunTest(const FString&)
 	TestFalse(TEXT("not again within the cooldown"), DeepFxRules::KicksSilt(10.f, 100.f, 0.5f, *S));
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepFxSpillTest, "Deep.Sim.Rules.Fx.Spill", DEEP_FX_TEST_FLAGS)
+bool FDeepFxSpillTest::RunTest(const FString&)
+{
+	UDeepFxSettings* S = NewObject<UDeepFxSettings>();
+	S->LampSpill = 1.f;
+	S->HatchSpill = 0.6f;
+	S->HatchSpillRangeM = 10.f;
+	S->AmbientSpill = 0.3f;
+	S->AmbientFullDepthM = 120.f;
+	S->AmbientZeroDepthM = 250.f;
+	TestEqual(TEXT("lamp on in black water: full spill"), DeepFxRules::Spill(true, 50.f, 300.f, *S), 1.f);
+	TestEqual(TEXT("lamp off in black water, far from the hatch: nothing"), DeepFxRules::Spill(false, 50.f, 300.f, *S), 0.f);
+	TestEqual(TEXT("lamp off at 100 m: the blue water's floor"), DeepFxRules::Spill(false, 50.f, 100.f, *S), 0.3f);
+	TestEqual(TEXT("lamp off right under the hatch"), DeepFxRules::Spill(false, 0.f, 300.f, *S), 0.6f);
+	TestEqual(TEXT("halfway out from the hatch"), DeepFxRules::Spill(false, 5.f, 300.f, *S), 0.3f);
+	return true;
+}

@@ -9,6 +9,8 @@
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialParameterCollection.h"
 #include "EngineUtils.h"
 #include "FX/DeepFxRules.h"
 #include "FX/DeepFxSettings.h"
@@ -47,7 +49,7 @@ bool UDeepFxSubsystem::IsTickable() const
 
 bool UDeepFxSubsystem::IsEnabled() const
 {
-	return (RuntimeOverride >= 0 ? RuntimeOverride == 1 : UDeepFxSettings::Get().bEnabled) && !IsRunningDedicatedServer();
+	return (RuntimeOverride >= 0 ? RuntimeOverride >= 1 : UDeepFxSettings::Get().bEnabled) && !IsRunningDedicatedServer();
 }
 
 UNiagaraSystem* UDeepFxSubsystem::LoadSystem(bool bSilt)
@@ -111,6 +113,7 @@ void UDeepFxSubsystem::Tick(float DeltaTime)
 	{
 		return;
 	}
+	UpdateSpill();
 	for (TActorIterator<ADeepDiver> It(World); It; ++It)
 	{
 		StepDiver(**It, Divers.FindOrAdd(*It), DeltaTime);
@@ -121,6 +124,29 @@ void UDeepFxSubsystem::Tick(float DeltaTime)
 		{
 			It.RemoveCurrent();
 		}
+	}
+}
+
+void UDeepFxSubsystem::UpdateSpill()
+{
+	if (!LightCollection && !bTriedCollection)
+	{
+		bTriedCollection = true;
+		LightCollection = UDeepFxSettings::Get().LightCollection.LoadSynchronous();
+	}
+	UWorld* World = GetWorld();
+	const ADeepDiver* Diver = DeepStateReport::FindDiver(World);
+	float Spill = 0.f;
+	if (Diver)
+	{
+		const ADeepSubmarine* Sub = TActorIterator<ADeepSubmarine>(World) ? *TActorIterator<ADeepSubmarine>(World) : nullptr;
+		const float HatchM = Sub ? FVector::Dist(Sub->GetHatchLocation(), Diver->GetActorLocation()) / 100.f : 1000.f;
+		Spill = DeepFxRules::Spill(Diver->IsLampOn(), HatchM, Diver->GetDepthM(), UDeepFxSettings::Get());
+	}
+	LastSpill = Spill;
+	if (LightCollection)
+	{
+		UKismetMaterialLibrary::SetScalarParameterValue(World, LightCollection, TEXT("Spill"), Spill);
 	}
 }
 
@@ -163,7 +189,7 @@ void UDeepFxSubsystem::StepDiver(ADeepDiver& Diver, FDiverFx& Fx, float DeltaTim
 		Fx.EntryLeftS = Run->GetState() == EDeepRunState::Tethered ? S.EntryStreamS : 0.f;
 		Fx.EntryNextS = 0.f;
 	}
-	if (Fx.EntryLeftS > 0.f)
+	if (Fx.EntryLeftS > 0.f && Wants(S.bEntryStream))
 	{
 		Fx.EntryLeftS -= DeltaTime;
 		Fx.EntryNextS -= DeltaTime;
@@ -175,10 +201,13 @@ void UDeepFxSubsystem::StepDiver(ADeepDiver& Diver, FDiverFx& Fx, float DeltaTim
 		}
 	}
 
-	StepBreath(Diver, Fx, DeltaTime);
+	if (Wants(S.bBreath))
+	{
+		StepBreath(Diver, Fx, DeltaTime);
+	}
 
 	// The winch: a churn under the hatch, round the line, while it hauls.
-	if (Diver.IsWinching())
+	if (Diver.IsWinching() && Wants(S.bWinchChurn))
 	{
 		Fx.ChurnNextS -= DeltaTime;
 		if (!Fx.bWasWinching || Fx.ChurnNextS <= 0.f)
@@ -196,7 +225,7 @@ void UDeepFxSubsystem::StepDiver(ADeepDiver& Diver, FDiverFx& Fx, float DeltaTim
 
 	// Salvage off the bed: a puff where it lay. The diver grabs what it looks at, so follow the view to the bed;
 	// failing that, the bed under the diver's reach.
-	if (Cargo > Fx.CargoCount)
+	if (Cargo > Fx.CargoCount && Wants(S.bSilt))
 	{
 		FVector Bed;
 		const UCameraComponent* Camera = Diver.FindComponentByClass<UCameraComponent>();
@@ -218,7 +247,7 @@ void UDeepFxSubsystem::StepDiver(ADeepDiver& Diver, FDiverFx& Fx, float DeltaTim
 	Fx.CargoCount = Cargo;
 
 	// Touching the bed: a smaller puff, not more than once per cooldown.
-	if (Fx.SinceSiltS >= S.TouchCooldownS)
+	if (Fx.SinceSiltS >= S.TouchCooldownS && Wants(S.bSilt))
 	{
 		const UCapsuleComponent* Capsule = Diver.GetCapsuleComponent();
 		const float Half = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 90.f;

@@ -11,6 +11,7 @@
 #include "DeepFxSubsystem.generated.h"
 
 class ADeepDiver;
+class UMaterialParameterCollection;
 class UNiagaraSystem;
 
 UCLASS()
@@ -36,8 +37,12 @@ public:
 	int32 GetBreathBursts() const { return BreathBursts; }
 
 	/** Runtime switch for frame-time A/B (`Deep.Fx 0|1`). */
-	void SetEnabled(bool bInEnabled) { RuntimeOverride = bInEnabled ? 1 : 0; }
+	void SetEnabled(int32 Mode) { RuntimeOverride = static_cast<int8>(FMath::Clamp(Mode, 0, 2)); }
+	/** The Spill last written to MPC_FxLight (tests and `Deep.Fx.State`). */
+	float GetSpill() const { return LastSpill; }
 	bool IsEnabled() const;
+	/** Whether one effect runs: its DEEP FX switch, or `Deep.Fx 2` (all on). */
+	bool Wants(bool bSetting) const { return IsEnabled() && (RuntimeOverride == 2 || bSetting); }
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
@@ -70,8 +75,15 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraSystem> SiltSystem;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialParameterCollection> LightCollection;
+
+	void UpdateSpill();
+	float LastSpill = 0.f;
+	bool bTriedCollection = false;
+
 	bool bTriedLoad[2] = { false, false };
-	/** -1: follow DEEP FX bEnabled; 0 or 1: `Deep.Fx` for this session. */
+	/** -1: follow DEEP FX bEnabled; 0, 1 or 2 (all effects): `Deep.Fx` for this session. */
 	int8 RuntimeOverride = -1;
 	int32 BubbleBursts = 0;
 	int32 SiltPuffs = 0;

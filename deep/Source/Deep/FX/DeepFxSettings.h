@@ -7,6 +7,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "DeepFxSettings.generated.h"
 
+class UMaterialParameterCollection;
 class UNiagaraSystem;
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "DEEP FX"))
@@ -24,8 +25,46 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "General")
 	bool bEnabled = false;
 
+	/** Each effect on its own (only with bEnabled). Off: no frame of it has met the standard yet. `Deep.Fx 2` = all on. */
+	UPROPERTY(Config, EditAnywhere, Category = "General")
+	bool bBreath = true;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General")
+	bool bEntryStream = false;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General")
+	bool bWinchChurn = false;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General")
+	bool bSilt = false;
+
 	UPROPERTY(Config, EditAnywhere, Category = "General")
 	TSoftObjectPtr<UNiagaraSystem> BubbleSystem;
+
+	/** MPC_FxLight: `Spill`, how much of the diver's own light a bubble's rim catches (M_Bubble's emissive rim). */
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	TSoftObjectPtr<UMaterialParameterCollection> LightCollection;
+
+	/** Spill with this diver's lamp on. */
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	float LampSpill = 1.f;
+
+	/** Near the hatch light: up to HatchSpill at the hatch, fading to 0 at HatchSpillRangeM. */
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	float HatchSpill = 0.6f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	float HatchSpillRangeM = 10.f;
+
+	/** The blue water's ambient floor: AmbientSpill down to AmbientFullDepthM, gone by AmbientZeroDepthM (black water). */
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	float AmbientSpill = 0.3f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	float AmbientFullDepthM = 120.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Spill")
+	float AmbientZeroDepthM = 250.f;
 
 	UPROPERTY(Config, EditAnywhere, Category = "General")
 	TSoftObjectPtr<UNiagaraSystem> SiltSystem;
@@ -51,10 +90,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Breath", meta = (ClampMin = "1"))
 	int32 MinPuffCount = 3;
 
-	/** Where the breath leaves, from the eye: forward, right, up, in cm. Toward the lamp side and just ahead of the
-	 *  lamp head (held 20 cm forward, 35 right), so a breath out crosses the first decimetres of the beam and flashes there. */
+	/** Where the breath leaves, from the eye: forward, right, up, in cm: just below the view, so a breath out rises
+	 *  up through it. */
 	UPROPERTY(Config, EditAnywhere, Category = "Breath")
-	FVector MouthOffsetCm = FVector(30.f, 20.f, -20.f);
+	FVector MouthOffsetCm = FVector(28.f, 6.f, -18.f);
 
 	/** Breath bubbles' size against NS_Bubbles' own 0.6 to 2.4 cm (so close to the eye they read big). */
 	UPROPERTY(Config, EditAnywhere, Category = "Breath")

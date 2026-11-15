@@ -21,12 +21,12 @@ namespace DeepFxCheats
 
 	FAutoConsoleCommandWithWorldAndArgs FxCommand(
 		TEXT("Deep.Fx"),
-		TEXT("Deep.Fx <0|1>: bubbles and silt off or on (frame-time A/B)."),
+		TEXT("Deep.Fx <0|1|2>: water effects off, on as DEEP FX sets each one, or every one on (staging)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UDeepFxSubsystem* Fx = UDeepFxSubsystem::Get(World))
 			{
-				Fx->SetEnabled(Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0);
+				Fx->SetEnabled(Args.Num() < 1 ? 1 : FCString::Atoi(*Args[0]));
 				UE_LOG(LogTemp, Display, TEXT("DEEPFX enabled=%d"), Fx->IsEnabled() ? 1 : 0);
 			}
 		}));
@@ -58,8 +58,8 @@ namespace DeepFxCheats
 		{
 			if (const UDeepFxSubsystem* Fx = UDeepFxSubsystem::Get(World))
 			{
-				UE_LOG(LogTemp, Display, TEXT("DEEPFX {\"enabled\":%d,\"bubble_bursts\":%d,\"breath_bursts\":%d,\"silt_puffs\":%d}"),
-					Fx->IsEnabled() ? 1 : 0, Fx->GetBubbleBursts(), Fx->GetBreathBursts(), Fx->GetSiltPuffs());
+				UE_LOG(LogTemp, Display, TEXT("DEEPFX {\"enabled\":%d,\"spill\":%.2f,\"bubble_bursts\":%d,\"breath_bursts\":%d,\"silt_puffs\":%d}"),
+					Fx->IsEnabled() ? 1 : 0, Fx->GetSpill(), Fx->GetBubbleBursts(), Fx->GetBreathBursts(), Fx->GetSiltPuffs());
 			}
 		}));
 

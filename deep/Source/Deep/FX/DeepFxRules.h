@@ -24,6 +24,10 @@ namespace DeepFxRules
 	/** Bubbles in the burst for puff Index of a breath out: the first is the full breath, later ones trail off. */
 	DEEP_API int32 PuffCount(int32 Index, const UDeepFxSettings& Settings);
 
+	/** How much of the diver's own light a bubble rim catches: the lamp, else the hatch light by distance, else the
+	 *  blue water's ambient floor by depth; 0 in black water with the lamp off. */
+	DEEP_API float Spill(bool bLampOn, float HatchDistanceM, float DepthM, const UDeepFxSettings& Settings);
+
 	/** Whether a diver this close above the bed, moving this fast, kicks up silt (and not again within the cooldown). */
 	DEEP_API bool KicksSilt(float HeightAboveBedCm, float SpeedCmS, float SecondsSinceLastPuff, const UDeepFxSettings& Settings);
 }
