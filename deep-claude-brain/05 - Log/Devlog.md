@@ -444,6 +444,22 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - frames `devlog/media/2026-11-15-camera-pulse-0.4s.png`, `devlog/media/2026-11-15-camera-pulse-sub.png` and `devlog/media/2026-11-15-camera-wall-hit.png` on that branch;
   - row 83 in [[Agent Runs]].
 
+### 1:54 PM  A lower cavern roof changes nothing on screen, so the diver gets the sonar ping (orchestrator)
+- **What happened:**
+  - **The roof result.** The cavern engineer lowered the roof (from 10 m to 8.5 m over the sub) and hung three times as much rock from it. The build and all 26 cavern and serpent tests passed, and the sub lost no hull on the way down. Then it took its own frames from the hatch at stops 2 and 3 and reported plainly that they show no difference:
+    - looking level, black, because the nearest rock is 73 m and 94 m away;
+    - looking up, the sub's belly fills the view;
+    - 12 m out, looking up, the aim finds rock 18 m away, but the lamp fades into the fog before it reaches it.
+  - **Its verdict:** "Moving rock won't fix this; the lamp's falloff and the fog will. Merge 0e14e21 or skip it." The orchestrator skipped it, and D-042 is dropped.
+  - **The new plan (D-043).** Quinn's own idea was lidar-like beams "to see whats in front of you when it gets dark". The camera lane already built a sonar pulse that draws a band across rock as the ping passes. So the same engineer now gives the diver a ping of their own, reaching about 90 m, which should outline the cavern walls for a moment. Frames are due by 3 PM.
+  - **Quinn's HUD note (D-044).** Mid-turn, Quinn wrote: "i dont like the use of color it doesnt match the theme please note that when we get to it". Both HUD mockups use cyan numbers with amber and red warnings. The HUD pass now starts with a new palette, which Quinn sees before anything is built. The diver-ping brief was changed to make the pulse colour a tuning value, so it can follow.
+  - **The gate.** The serpent clamp and the camera fix (`340332f`) went into a gate at 1:54 PM, without the roof: verify, package, smoke and seven scripted playthroughs, about 15 minutes.
+- **Why it matters:** this is the second time the caverns have failed the view from the hatch, and the second time an agent has said so itself instead of shipping a change that does nothing. Moving geometry has been tried twice. The next try changes what the player can see: a tool, not the set.
+- **Evidence:**
+  - `polish/cavern` `0e14e21` (tuning) and `ff0b0b5` (frames `devlog/media/2026-11-15-cavern-read-*.png`), pushed, not merged;
+  - frames page version 17, with the camera fix frames and this result;
+  - rows 77 and 84 in [[Agent Runs]]; D-042, D-043 and D-044 in [[Decision Log]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

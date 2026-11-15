@@ -50,7 +50,9 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; the shaft and caverns gated and pushed at 1:41 PM |
 | D-040 | The Captain becomes a voice on the radio who says less; real sound replaces the synth | Quinn, about 12:15 PM Nov 15; built, waiting on sound files |
 | D-041 | Camera feel: shakes, a found-footage look, and the sonar made visible | Shakes decided; the rest behind switches until Quinn approves frames |
-| D-042 | The cavern reads from the hatch by a lower roof, not nearer walls | Orchestrator, 1:38 PM Nov 15; Quinn can overrule |
+| D-042 | The cavern reads from the hatch by a lower roof, not nearer walls | Orchestrator, 1:38 PM Nov 15; built, made no visible difference, dropped at 1:54 PM for D-043 |
+| D-043 | The diver sends the sonar ping, so the cavern walls show from the water | Orchestrator, 1:54 PM Nov 15; replaces D-042; Quinn can overrule |
+| D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
 
 ## Open
 
@@ -65,8 +67,25 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 
 ## Proposed
 
+### D-044 The HUD palette changes: the colours do not match the theme
+- **Status:** Quinn's direction, 1:54 PM Nov 15. For the HUD pass; nothing is built yet.
+- **Date:** 2026-11-15, 1:54 PM EST
+- **Who:** Quinn.
+- **His words:** "not in the hud i dont like the use of color it doesnt match the theme please note that when we get to it"
+- **What it changes:** both mockups use the style guide's HUD colours: cyan `#58E1D6` for numbers and hairlines, amber `#FFB45A` for warnings and red `#E5484D` for danger. The HUD pass reworks that palette whichever layout Quinn picks, and Quinn sees the new palette on frames before it goes in. [[Style Guide]] section 3 changes with it.
+- **Open:** whether "not in the hud" also means no found-footage marks (a recording dot, a timecode) on the HUD. Asked at about 2 PM.
+
+### D-043 The diver sends the sonar ping, so the cavern walls show from the water
+- **Status:** Decided by the orchestrator at 1:54 PM Nov 15. Replaces D-042. Quinn can overrule. Building on `polish/camera`.
+- **Date:** 2026-11-15, 1:54 PM EST
+- **Who:** the orchestrator.
+- **Why:** the lower roof (D-042) was built and measured, and it made no visible difference. From the hatch at stops 2 and 3, a level view is black (rock 73 m and 94 m away) and an upward view is the sub's belly. From 12 m out, looking up, the reticle finds rock at 18 m, but the lamp fades into the fog before it gets there. The cavern engineer's verdict: moving rock won't fix it; only the lamp's falloff and the fog will. Quinn asked for lidar-like beams "to see whats in front of you when it gets dark" (D-041), and the camera lane already has a sonar pulse that draws a band on rock as the ping passes.
+- **Decision:** the diver gets a ping of their own: a key, a cooldown of about 3 s and a reach of about 90 m. For a moment it outlines the cavern. `Deep.Sonar.Pulse` goes on by default (Quinn was told at 1:46 PM that it would unless he said no). The pulse colour becomes a tuning value, because of D-044.
+- **Not merged:** `0e14e21` (the roof tuning) and `ff0b0b5` (its frames) stay on `polish/cavern`.
+- **Risk:** if the pulse cannot read through the fog at 60 to 95 m without a big change, the engineer stops and says why.
+
 ### D-042 The cavern reads from the hatch by a lower roof, not nearer walls
-- **Status:** Decided by the orchestrator at 1:38 PM Nov 15, on the cavern engineer's measurements. Quinn can overrule. Building on `polish/cavern`.
+- **Status:** Dropped at 1:54 PM Nov 15: built (`0e14e21`) and measured, it made no visible difference. Replaced by D-043. It was decided by the orchestrator at 1:38 PM, on the cavern engineer's measurements.
 - **Date:** 2026-11-15, 1:38 PM EST
 - **Who:** the orchestrator.
 - **The problem:** from the hatch at stops 2 and 3 the nearest wall is 60 m or more away, and the lamp lights to 35 m (`FDeepLampTuning.RangeM`) through heavy fog. So the dive still looks like open water, which is what Quinn added caverns to avoid ("if your swimming in an open ocean it really lessens it"). Reach is not the problem: the bed is 8 m under the hatch, and the farthest salvage spot is 44.6 m away on a 60 m tether.

@@ -5,7 +5,7 @@ updated: 2026-11-15 12:50 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 1:50 PM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 1:58 PM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
@@ -13,7 +13,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
 - `polish/integration` on origin at `59af289` (1:41 PM: the cave shaft and the caverns; verify 107 of 107, a package with 0 usage-flag lines, smoke, a 762.6 MB zip, and S2, S7, S8, S9, S10, S11 and S12 passed; before it `6aeafc8` at 12:56 PM: the Captain lane, 94 tests; before it `ea29122` at 12:33 PM, the sonar; and `a2e696d` at 12:06 PM: the first-five-minutes pass and the level view aboard merged; verify 79 of 79, package and smoke green, zip 762 MB, 0 usage-flag lines; all 14 scripted playthroughs passed on `ad644df` in 745 s, and S1, S4, S5, S6, S7 again on `a2e696d`): everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit, rebuilt silt, and the serpent kept inside the well on the last ascent. Full suite 78 of 78; packaged and smoke-tested at `b7755a1` (11:18 AM), zip 762 MB, no usage-flag lines. All 14 scripted playthroughs passed at `a942e1c`; the ending set has not run on `b7755a1`, because the machine went down as it started. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
-- **Local, not pushed and not gated:** `.wt\monster` holds integration at `340332f`. That is the cavern lane's serpent clamp (`ef84d37`: the serpent keeps 3 m off the rock) and the camera lane's fix (`c19f142`: the ping never lights the sub, and wall hits shake the view by speed). The lower roof (`0e14e21` on `polish/cavern`) joins them, and then one gate runs on all three.
+- **Local, not pushed and not gated:** `.wt\monster` holds integration at `340332f`. That is the cavern lane's serpent clamp (`ef84d37`: the serpent keeps 3 m off the rock) and the camera lane's fix (`c19f142`: the ping never lights the sub, and wall hits shake the view by speed). The gate on it started at 1:54 PM (verify, package, smoke, S2, S3, S7, S9, S10-relic, S11, S12); push it if green. The lower roof (`0e14e21`) is **not** merged: it made no visible difference (D-043).
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
@@ -32,7 +32,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
   - `polish/cavern` in `.wt\dev`:
     - walls and a roof round each stop, gated with the shaft;
     - the serpent kept 3 m off the rock (`ef84d37`, merged locally);
-    - the lower roof (D-042), committed as `0e14e21`. Frames, and a check that the descent costs no hull, are still to come.
+    - the lower roof (D-042), committed as `0e14e21`: no hull lost on the descent, but no visible difference from the hatch either, so not merged. D-042 is dropped for D-043, the diver's sonar ping.
   - `polish/sonar` in `.wt\text`: **done** at about 12:25 PM (`d8c2f53`). It merged into integration as `ea29122`, passed the gate and the S0, S2, S6 and S7 playthroughs, and was pushed at 12:33 PM. The hull bar it was to build next came with the shaft lane (`8ac8efc`).
   - Every `tools\ue.ps1` call by an engineer holds the `Global\DeepUnrealSlot` mutex. The orchestrator's playtest script also waits for any other `UnrealEditor.exe` to close. One Unreal process at a time, since the 11:19 crash had two editors up.
   - When they report, expect conflicts in `DeepArena.cpp` (shaft: `ApplySubDepth`; cavern: `EnsureArena`), `Sim/DeepTuningTypes.h` (three new tuning structs) and the CSVs (rows appended at the end). After each merge, run the scripted playthroughs that drive or swim (`S2-gate`, `S7-run`, `S9-floor`, `S10-relic`, `S11-pass`, `S12-sidehome`). Quinn sees frames before any part is called done.
@@ -41,7 +41,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
     - point the six serpent rows in `Sounds.csv` at the files, with pitch back to 1.0;
     - map the Fab pack's rows;
     - import `audio-drop/`, if Quinn allows it.
-  - `polish/camera` in `.wt\camera`: **done** (`c19f142`), merged locally as `340332f`.
+  - `polish/camera` in `.wt\camera`: the fix is **done** (`c19f142`), merged locally as `340332f`. Since 1:54 PM it builds the diver's sonar ping (D-043): about 90 m, outlining the cavern walls, with the pulse on by default and its colour as tuning. Frames by 3 PM.
     - Shakes are on, now also on wall hits, scaled by impact speed.
     - The footage look, the sonar pulse and interference stay behind their switches until Quinn decides.
     - The ping skips a box round the sub, so it never lights the hull (0.03 ms on the GPU).
@@ -49,7 +49,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
     - Plan: turn the pulse on by default unless Quinn says no.
   - Both were told at 12:35 PM to merge `origin/polish/integration` (`ea29122`, with sonar). At 12:57 PM the shaft, cavern and camera lanes were told to merge `6aeafc8` before they report.
   - The new lines are in [[Captain Script]]: 74 of them, with no numbers in the voice. The Captain lane copies the CSV block.
-  - The HUD pass: one planned pass (D-028), in the look Quinn approves.
+  - The HUD pass: one planned pass (D-028), in the look Quinn approves. **Quinn, 1:54 PM (D-044): the colours do not match the theme.** The pass starts with a new palette and shows it to him before building.
     - The mockup is done: [[HUD Mockup Spec]], with the pictures on a private page for Quinn.
     - It offers A, the instrument HUD, or B, the diver's camera display, which costs about an hour more to build.
     - An Opus engineer builds his pick.
@@ -57,7 +57,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 - `polish/aboard` (`2f27da3`, pushed): coming aboard levels the view (`Arena.AboardPitchDeg`, test `Deep.World.SubAboardPitch`, `Deep.World.Sub` 9 of 9). Merged at 12:06 PM (`a2e696d`).
 - Bubbles are parked. The fourth try, half-built at the crash, is committed unfinished on `polish/fx-wip4` (`f7a3fce`). `polish/fx` has all effects off by default.
 - The crash (11:19:45 AM, Kernel-Power 41, no bugcheck): the orchestrator and all three engineers died. Every lane that had committed work survived, and `polish/wellserpent` was merged and pushed (`b7755a1`).
-- The frames page is current: version 16 at 1:45 PM. It has the opening, the well, the camera, the shaft and the caverns, and the 2:15 asks. The camera fix frames go on next. The generator is in the old session's scratch folder (`C:\Users\quinn\AppData\Local\Temp\claude\4cf960466880eab9\f3fa3667-c758-4612-8d67-d2bda7e089c8\scratchpad\frames_gen\`; Python is `py`).
+- The frames page is current: version 17 at 1:56 PM. It has the opening, the well, the camera with its fix, the shaft and the caverns, the roof result, Quinn's HUD colour note and the 2:15 asks. The generator is in the old session's scratch folder (`C:\Users\quinn\AppData\Local\Temp\claude\4cf960466880eab9\f3fa3667-c758-4612-8d67-d2bda7e089c8\scratchpad\frames_gen\`; Python is `py`).
 - Left from the opening: the walls by the start spot are near black, the serpent's first sight is faint, and the boulders at the 300 m gate are pale grey.
 
 **How a lane is merged**
@@ -190,11 +190,11 @@ The overnight runs are in [[Agent Runs]].
 | Lane | Agent | Task | Started |
 |---|---|---|---|
 | Cave shaft | Opus, high, `.wt\pkg` on `polish/shaft` | **Done** (`59af289`): steering, hull hits, the cook key and a hull bar. Gated and pushed at 1:41 PM. | 12:02 PM |
-| Caverns | Opus, high, `.wt\dev` on `polish/cavern` | Walls and roof gated at 1:41 PM; the serpent clamp is `ef84d37`. Now: the lower roof (D-042), committed as `0e14e21`, with frames due. | 12:02 PM |
+| Caverns | Opus, high, `.wt\dev` on `polish/cavern` | Walls and roof gated at 1:41 PM; the serpent clamp is `ef84d37`. The lower roof (`0e14e21`, `ff0b0b5`) made no visible difference and is not merged. **Finished** at about 1:53 PM. | 12:02 PM |
 | Sonar | Opus, high, `.wt\text` on `polish/sonar` | **Done**, `d8c2f53`. Merged as `ea29122` and pushed at 12:33 PM. | 12:02 PM |
 | Captain and sound | Opus, high, `.wt\voice` on `polish/captain` | **Done** at about 12:43 PM (`0063051`): radio voice, pacing, danger tone, music slots, breathing by danger, variations. Merged as `6aeafc8`, gate green, pushed at 12:56 PM. Waits for sound files. | 12:17 PM |
 | Captain lines | Sonnet, medium (writer) | **Done**: 74 lines, no numbers in the voice. [[Captain Script]] | 12:17 PM |
-| Camera | Opus, high, `.wt\camera` on `polish/camera` | **Done** (`c19f142`). First frames came at 1:13 PM; then the fix: the ping skips the sub, and wall hits shake by speed. Merged locally as `340332f`; the gate is next. | 12:25 PM |
+| Camera | Opus, high, `.wt\camera` on `polish/camera` | **Done** (`c19f142`). First frames came at 1:13 PM; then the fix: the ping skips the sub, and wall hits shake by speed. Merged locally as `340332f`, in the gate since 1:54 PM. **Now:** the diver's sonar ping (D-043), frames by 3 PM. | 12:25 PM |
 | HUD mockup | Sonnet, high, scratchpad only | **Done** at 1:11 PM: [[HUD Mockup Spec]] and a private page with both directions. Waiting for Quinn's pick of A or B. | 12:49 PM |
 
 ## Next, in order
@@ -224,7 +224,7 @@ The overnight runs are in [[Agent Runs]].
 - **At about 2:15 PM, two calls:**
   - the footage look, yes or no;
   - the HUD, A or B.
-  Both are on his frames page and the HUD mockup page. Advice: B if the footage look is yes, A if it is no. With no answer by about 2:30, build A, which costs an hour less.
+  Both are on his frames page and the HUD mockup page. Advice: B if the footage look is yes, A if it is no. With no answer by about 2:30, build A, which costs an hour less. Either way the palette changes (D-044). Asked at about 2 PM: does his "not in the hud" also mean no recording dot or timecode on the HUD?
 - Tell Colby that the brother is making the serpent and the music, so the two of them don't both make those sounds.
 
 **Older, still open:**

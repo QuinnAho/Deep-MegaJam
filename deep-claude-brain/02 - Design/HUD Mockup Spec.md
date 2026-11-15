@@ -3,6 +3,8 @@ updated: 2026-11-15 13:15 EST
 ---
 # DEEP HUD spec (two directions)
 
+> **Quinn, 1:54 PM (D-044): the colours do not match the theme.** "i dont like the use of color it doesnt match the theme please note that when we get to it". The colours below (cyan, amber, red) are not final. The HUD pass reworks the palette first, shows Quinn frames, and only then builds. The layouts stand.
+
 Copied at 1:15 PM from the mockup agent's scratchpad so it survives a reboot. The pictures (both directions, four states, over real frames) are on Quinn's private HUD mockup page; the orchestrator has the link. Quinn picks A or B; the HUD pass lane builds from this note and [[Style Guide]] section 8.
 
 Companion to `index.html` (open it for the pictures, the per-element number badges, and the Today view that shows the old HUD). Quinn picks A or B at about 2:15 PM. Then the engineer builds the chosen one in `SDeepHud` (Slate), with text, boxes, lines and images only, in the engine's own fonts. Source of truth for values: Style Guide sections 3 and 8.
