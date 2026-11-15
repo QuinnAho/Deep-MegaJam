@@ -230,6 +230,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The first thing a judge does is press a key on the title, and now the scripted playtest proves it without the `Deep.Start` cheat. A first version of the new test failed for a test reason: a test world spawns the game mode as a plain actor, so `GetAuthGameMode` is empty. The controller now finds the game mode the same way the cheats do.
 - Evidence: `Deep.World.TitleKey` (K, Space, Enter, LMB, RMB, Esc, a gamepad button through `InputKey`; mouse movement does not start), `Deep.World.TetherDistanceAfterCut`, `Deep.World.FullRunCommands` all pass; `playtest.ps1 S0-title` PASS with no fallback note; frame `devlog/media/2026-11-15-feel-title.png`. A physical keyboard is still unchecked.
 
+### About 1:10 AM  No half-done polish
+- What happened: the orchestrator had just started a batch that patched the placeholder HUD and added grey-box motion cues for driving. Quinn stopped it. The gameplay loop is the work, and polish waits until it can be done properly, to a professional standard. Two of the batch's four items were cut mid-run. The title key press and one state bug stayed, because they are function.
+- Why it matters: it is the second time tonight the orchestrator reached for visuals before being asked. The first was the atmosphere pass at 10:28 PM. Patching a HUD that will be replaced is work thrown away. The rule is now written down for every agent: fix function, not finish.
+- Evidence: D-028 in the decision log, `CLAUDE.md`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
