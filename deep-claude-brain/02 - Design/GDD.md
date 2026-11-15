@@ -57,6 +57,33 @@ Every number is tuning and lives in config.
 | Monster | A sea serpent (Quinn, Nov 14: a snake, because it needs no animation assets). Its body is a chain of segments that follow the head's path. Two points of light for eyes. Stops 2 and 3. A pressure cycle, not a patrol: noise (sprint, winch, grabs) brings it in from the dark toward the tether; the lamp beam held on it drives it back for a while. A bite on the tether starts a 5 s alarm, then the cut. It kills an untethered diver on contact. Heard long before it is seen. |
 | Relic | Stop 3. About 60 kg: it cannot be swum up, only winched, which is loud. Banking it wins. |
 
+## Progression: three layers and their gates (D-023, Quinn, 11:25 PM Nov 14)
+
+The player drives the submarine down. Each layer has one gate, bought at the console, and one new threat.
+
+| Layer | Depth | What is new | Gate to go deeper |
+|---|---|---|---|
+| 1, Sunlight | to 200 m | Learn the loop. No lamp, no monster. | Buy the **flashlight** (50 credits). It is needed to see further down. Until it is bought the helm will not go below 200 m. |
+| 2, Twilight | to 400 m | The **serpent is introduced**. The flashlight is also the thing that drives it back. | Buy the **hull upgrade** (200 credits). |
+| 3, Midnight | to 600 m | The **serpent is aggressive**: shorter cooldown, faster approach. The relic. | None. Bank the relic to win. |
+
+What this changes from the earlier rules: the diver no longer starts with a lamp, and the first purchase is the flashlight, not a hull rating. The prices are unchanged. "Hull rating" in the rules table below now means these two purchases in order.
+
+## Water and rope feel (Quinn, 11:25 PM Nov 14; later, after the gameplay is right)
+
+Quinn: good water physics matter for immersion, especially the harpoon rope and the tether and the effects that come from them. Not started. When it is: swimming with weight and drag you can feel (inertia, buoyancy, a slow stop); the tether as a rope that sags when slack, snaps straight when taut and whips away when cut; the harpoon line stretching and recoiling; bubbles and silt from movement, the winch and impacts. Until then the tether and harpoon line should stay simple, and nothing built now should make a real rope harder to add.
+
+## Inside the submarine (D-022, decided by Quinn at 11:20 PM Nov 14; not built yet)
+
+Quinn's design: "once we are inside the sub is static and the world moves around us", salvage is returned "to a console inside the sub", and "inside the sub we are able to drive it", because "we will need the sub to go deeper".
+
+- **The submarine never moves in the level.** It is the fixed point. Everything outside it (salvage, floor, the relic, the serpent) hangs from one arena root, and driving moves that root the other way. Nobody ever stands inside a moving object, so there is no jitter to fight.
+- **One room.** You come up into it through an open hatch in the floor (a moon pool) directly above where the winch brings you. Below the hatch is water and swimming; on the deck is air and walking. Dropping back through the hatch starts a dive and attaches the tether.
+- **The console.** Salvage is banked here, not at the hatch. Using it opens the settlement screen. The hull rating is still bought automatically when affordable.
+- **The helm.** Using it seats the diver with a fixed view and a depth gauge. Driving is how the sub goes deeper: it replaces the fade. The hull rating is a depth limit (200 m, 400 m, 600 m): the helm will not go below it, and the Captain says why. Reaching a stop's depth parks the sub and brings in that stop's arena. First version: down and up only. Moving sideways comes later if there is time.
+- **While inside:** Patience does not run, the serpent cannot reach you, and the Captain still talks.
+- **Later, if time:** hull damage from the harpoon and the serpent shows as leaks in the room that are patched by holding a key.
+
 ## How it is built
 
 - **The arena builds itself from code and config.** If a map has no submarine actor, the game spawns the sub, salvage and an abyss floor. The game is playable in an empty map and testable headless. Art replaces the stand-ins through config, with no code change.

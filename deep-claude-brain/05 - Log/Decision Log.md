@@ -29,6 +29,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-018 | A live AI brain for the Captain: later, as an add-on over the scripted lines | Deferred to about 1 PM Sunday (Quinn agrees it comes later) |
 | D-019 | The monster is a sea serpent with a procedural body and a five-state brain | Decided (snake by Quinn; the behaviour is Claude's first version, all tunable) |
 | D-020 | Raw gameplay first: no environment or atmosphere work until the loop plays | Decided (Quinn, 10:35 PM Nov 14) |
+| D-021 | The harpoon is in | Decided (Quinn, 11:10 PM Nov 14) |
+| D-022 | The player goes inside the submarine and drives it | Decided (Quinn, 11:10 and 11:20 PM): the sub is static and the world moves |
+| D-023 | Three layers, each with one gate: flashlight, then hull upgrade; serpent at layer 2, aggressive at layer 3 | Decided (Quinn, 11:25 PM Nov 14) |
+| D-024 | Water and rope feel matter for immersion, and come after the gameplay | Decided (Quinn, 11:25 PM Nov 14) |
 
 ## Open
 
@@ -133,6 +137,48 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-024 Water and rope feel, later
+- **Status:** Decided
+- **Date:** 2026-11-14, 11:25 PM EST
+- **Who:** Quinn: "it will be importatn for this games immersie at the water phsyics are good, so think wit hthe harpoon rope and tether and effects that come from it, btu thats alter down the line".
+- **Decision:** A pass on how the water, the tether and the harpoon line feel is planned, after the gameplay is right. It is not started.
+- **What follows:** The scope is in the "Water and rope feel" section of [[GDD]]. Until then the tether and the harpoon line stay simple, and nothing built now should make a real rope harder to add.
+
+### D-023 Three layers and their gates
+- **Status:** Decided
+- **Date:** 2026-11-14, 11:25 PM EST
+- **Who:** Quinn: "for layer one you need to get a flashlight to see farthere down layer two, your hull needs upgrading, with this layer two the monster is introduced layer three the monetser is aggressive".
+- **Decision:** Layer 1: no lamp and no monster; buying the flashlight is the gate to go deeper. Layer 2: the serpent is introduced; buying the hull upgrade is the gate. Layer 3: the serpent is aggressive; the relic.
+- **Already true before this:** the serpent starts at layer 2 and is meaner at layer 3; there are two purchases at 50 and 200 credits.
+- **What changes:** the diver no longer starts with a lamp, and the first purchase is the flashlight, not a hull rating. The flashlight is also the serpent's counter, so the player buys the tool one layer before meeting the thing it works on.
+- **A note for now:** the scene is deliberately lit with no darkness (D-020), so "you need it to see" is not yet true on screen. Until there is darkness the gate is enforced at the helm: no flashlight, no deeper than 200 m.
+- **What follows:** built as part of the submarine interior and driving task, which already reworks banking and descent. The table is in [[GDD]].
+
+### D-022 Go inside the submarine and drive it
+- **Status:** Direction decided by Quinn. The shape and the order are Claude's proposal and still open.
+- **Date:** 2026-11-14, 11:10 PM EST
+- **Who:** Quinn: "we will need to go inside the submarie and we will be able to drive it thats part of this".
+- **What it reverses:** the submarine interior was on the cut list, and descending was a fade.
+- **Claude's warning:** this is the largest addition so far, about 22 hours before the deadline, on a game no human has played yet and that has no sound, models, voice or look. The riskiest part is a character moving about inside a moving vehicle, which is a classic source of jitter and bugs.
+- **Claude's proposed shape, to keep it cheap:**
+  1. One room, entered through the airlock. Banking moves to a console inside.
+  2. The room is flooded, so the diver swims inside as outside and no walking mode is needed. It also fits a submarine "held together by duct tape".
+  3. Driving happens seated at a helm with a fixed view, and only while seated, so nobody moves around inside a moving hull.
+  4. Driving is how the player descends to the next stop, replacing the fade. The hull rating becomes a depth limit: go deeper than rated and the hull takes damage.
+  5. Hull damage from the harpoon and the serpent shows as leaks inside that the player patches by holding a key.
+- **Proposed order:** the ending (running), then the harpoon (running), then this, and only after Quinn has played the current build by hand.
+- **What follows:** waiting on Quinn for two answers: flooded room or walking, and whether driving is for descending only or for moving around freely. The harpoon already keeps hull damage as real state so this can use it.
+- **Quinn's answer, 11:20 PM:** "once we are inside the sub is static and the world moves around use ... this is common game pattern and we will return salveage to a console inside the sub, inside the sub we are able to drive it, this make sense because we will need to sub to go deeper". This settles the shape and removes Claude's main worry: the submarine is the fixed point and the outside world moves, so nobody stands inside a moving object. Claude's reading of the rest, stated back to Quinn: a dry room you walk in, entered through a hatch in the floor; a console for banking; a helm for driving; driving goes down and up first, sideways later. The full spec is the "Inside the submarine" section of [[GDD]].
+- **Order:** built after the ending and the harpoon are merged, because it changes the same files as both.
+
+### D-021 The harpoon is in
+- **Status:** Decided
+- **Date:** 2026-11-14, 11:10 PM EST
+- **Who:** Quinn: "i want the harpoon".
+- **Decision:** One shot per dive. It latches onto the submarine and reels the diver home, which is what makes being cut survivable by skill. It also latches onto anything else solid, so it will work on terrain when there is some, and it drives the serpent back. Each hit on the submarine damages the hull and adds a repair fee to the next settlement.
+- **Why this shape:** see [[Fun Ideas]]. The limits (one shot, about 25 m, a fee above the re-tether fee) keep the cut frightening.
+- **What follows:** being built in `.wt\monster` on `dev/harpoon`, in parallel with the ending. Six new Captain events need lines.
 
 ### D-020 Raw gameplay first, no environment yet
 - **Status:** Decided

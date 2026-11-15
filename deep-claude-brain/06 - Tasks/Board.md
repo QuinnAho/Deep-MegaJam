@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-14 22:52 EST
+updated: 2026-11-14 23:07 EST
 ---
 # Board
 
@@ -7,19 +7,20 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 
 ## State of the game
 
-`main` is at `12d026a`. 51 source files, about 6,900 lines, 21 tests passing.
+`main` is at `bf58444`. 27 tests passing.
 
 - **Playable loop:** dive, grab, weight, tether, winch, the Captain's Patience, the cut, bailout air, re-tether, death and respawn, bank, settlement screen, hull rating, descent to stop 2, the Captain's subtitles. A test plays stops 1 and 2 start to finish.
 - **Plain on purpose:** the grey box is evenly lit with no fog, at Quinn's request (D-020). No atmosphere work until the gameplay is right.
 - **Pipeline:** `tools\ue.ps1` (build, test, verify, package, smoke, zip, shot, editor), `tools\mcp.ps1`, `tools\playtest.ps1` (S0 to S4), and our own `DeepToolset` MCP tools.
-- **Built but not in `main`:** the sea serpent (`dev/monster`, `1ab0f29`). The stopped look pass is parked on `look/pass1`.
+- **The sea serpent** is in from stop 2: it hears winching, sprinting and grabs, the lamp drives it back, a bite on the tether shows a 5 second alarm then cuts, and it kills an untethered diver. A red pulse and a bar show how close it is.
+- **Parked, not in `main`:** the stopped look pass, on `look/pass1`.
 - **Not built:** the relic and the win, stop 3 as a finale, title and menus, sound, voice, models.
 
 ## Running now
 
 | Lane | Agent | Task | Started |
 |---|---|---|---|
-| Monster | systems-engineer (Opus, high), `.wt\monster` on `dev/monster` | Merge `main` in, connect the serpent to the loop (noise, bite to the cut, caught to death, threat on the HUD, the Captain's monster lines), and look at it for the first time. | 10:52 PM |
+| Ending | systems-engineer (Opus, high), `.wt\dev` on `dev/ending` | Item 3: stop 3 and the relic, the win and a performance review, title screen, pause and quit, restart. | 11:07 PM |
 | Regression | build-sheriff (Sonnet, medium), `.wt\pkg` on `tools/regress` | Bring the scripted playtests up to the new loop (S4 from the side, S5 cut, S6 bank, S7 descend, S8 full run), then package, smoke and zip the loop build. | 10:52 PM |
 
 ## Next, in order
@@ -27,8 +28,12 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 | # | Item | Owner | Status |
 |---|---|---|---|
 | 1 | Play the loop and tune the feel: swim, sink, tether, winch, Patience. | Quinn | todo |
-| 2 | Merge the serpent once wired; tune it. | orchestrator, Quinn | blocked on the monster lane |
-| 3 | Finish the game's shape: the relic at stop 3 and the win, lose and restart, title and controls card, quit. | systems-engineer | todo |
+| 2 | Play against the serpent and tune it (Project Settings > Game > DEEP Monster). | Quinn | todo |
+| 3 | Finish the game's shape: the relic at stop 3 and the win, restart, title, pause and quit. | systems-engineer | doing |
+| 3a | The harpoon (D-021). Running in `.wt\monster` on `dev/harpoon` since 11:13 PM. | systems-engineer (Opus, high) | doing |
+| 3b | Captain lines for the six harpoon events, and for the submarine interior and driving once that design is settled. | writer | todo |
+| 3c | Go inside the submarine and drive it (D-022). Quinn settled the shape at 11:20 PM: the sub is static and the world moves; salvage goes to a console inside; a helm drives the sub deeper. Spec in the "Inside the submarine" section of [[GDD]]. Starts when the ending and the harpoon are merged, because it changes the same files. Includes the layer gates (D-023): no lamp at the start, the flashlight is the first purchase and the gate to layer 2, the hull upgrade is the gate to layer 3. | systems-engineer (Opus, high) | blocked on 3 and 3a |
+| 3d | Water and rope feel (D-024): swim inertia and buoyancy, a tether and harpoon line that sag, snap taut and whip when cut, bubbles and silt. After the gameplay is right. | systems-engineer, Quinn tunes | later |
 | 4 | Sound hooks and a minimum sound set. Needs files from Colby. | systems-engineer, Colby | blocked on files |
 | 5 | Voice for the Captain's lines. | writer | blocked on Quinn's choice |
 | 6 | Look pass, only after the gameplay is right (D-020). | look engineer | deferred |
@@ -63,3 +68,4 @@ The main checkout is Quinn's and he may keep the editor open on it. Agents build
 | MCP client, live tool catalog, first custom toolset | 10:07 PM | `3dea698` |
 | Game state over MCP, scripted playtests, first screenshots | 10:27 PM | `ce7058a` |
 | The core loop, from dive to descent | 10:49 PM | `12d026a` |
+| The sea serpent, wired into the loop | 11:06 PM | `bf58444` |
