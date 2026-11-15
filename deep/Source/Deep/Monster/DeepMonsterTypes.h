@@ -171,7 +171,7 @@ struct FDeepMonsterStopTuning
 	float HuntSpeedMps = 8.f;
 };
 
-/** The body built from basic shapes. */
+/** The serpent's look and motion. Values follow the Style Guide, section 6 ("chosen here" marks a value it did not give). */
 USTRUCT(BlueprintType)
 struct FDeepSerpentBodyTuning
 {
@@ -179,44 +179,241 @@ struct FDeepSerpentBodyTuning
 
 	/** Head tip to tail tip. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float LengthM = 8.f;
+	float LengthM = 11.f;
 
+	/** Hit spheres along the body (the harpoon tests against these; the sphere fallback draws them). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body", meta = (ClampMin = "2", ClampMax = "64"))
 	int32 Segments = 20;
 
+	/** Gameplay size of the head (the lamp test uses it). The drawn head is sized by the Head settings. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
 	float HeadRadiusM = 0.4f;
 
-	/** Radius of the first segment behind the head. */
+	/** Body radius at the front, where it meets the head (style guide: 0.9 m thick). Match a mesh head's neck here. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float NeckRadiusM = 0.33f;
+	float NeckRadiusM = 0.45f;
 
+	/** Body radius at the tail tip (style guide: 0.1 m thick). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float TailRadiusM = 0.06f;
+	float TailRadiusM = 0.05f;
+
+	/** Taper shape from neck to tail: 1 = straight cone, above 1 = stays thick longer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
+	float TaperPower = 1.6f;
+
+	/** The body swells to this times NeckRadiusM a little behind the head (chosen here). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
+	float BellySwell = 1.12f;
 
 	/** Sideways swing at the widest point of the weave. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveAmplitudeM = 0.35f;
+	float WeaveAmplitudeM = 0.45f;
 
 	/** Length of one full S of the weave along the body. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveWavelengthM = 3.5f;
+	float WeaveWavelengthM = 4.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveHz = 0.7f;
+	float WeaveHz = 0.6f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	FLinearColor SkinColor = FLinearColor(0.05f, 0.09f, 0.08f);
+	// ---- The tube: one continuous body, rebuilt each frame along the head's path ----
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	FLinearColor EyeColor = FLinearColor(0.9f, 1.f, 0.35f);
+	/** False = the old instanced spheres (fallback). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
+	bool bTubeBody = true;
 
-	/** Eye point light intensity (unitless, like the sub's airlock light) and reach. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float EyeLightIntensity = 3000.f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube", meta = (ClampMin = "4", ClampMax = "128"))
+	int32 TubeRings = 48;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float EyeLightRadiusM = 2.5f;
+	/** Vertices per ring; a multiple of 4 keeps one vertex on the ridge line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube", meta = (ClampMin = "8", ClampMax = "32"))
+	int32 TubeSides = 12;
+
+	/** Dorsal ridge: the top vertex raised by this fraction of the radius (plan: 30 percent). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
+	float RidgeHeight = 0.3f;
+
+	/** Bank into each curve of the weave (plan: 10 degrees). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
+	float WeaveRollDeg = 10.f;
+
+	/** Bank of the head and neck per 90 deg/s of turning (chosen here). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
+	float TurnRollDeg = 14.f;
+
+	// ---- The head: a socket at the front of the body; a code-built wedge with a jaw, or a mesh ----
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	float HeadLengthM = 1.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	float HeadWidthM = 1.f;
+
+	/** Skull height above the head centre at its highest (the jaw hangs below). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	float HeadHeightM = 0.36f;
+
+	/** Head yaw sway with the weave, so the head never rides rigid (chosen here). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	float HeadSwayDeg = 5.f;
+
+	/**
+	 * Mesh head: a static mesh set here replaces the code-built head and jaw at the head socket (the head centre,
+	 * X forward, Z up). Eyes, eyeshine and the rim stay on top. Empty = the code-built head.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head", meta = (AllowedClasses = "/Script/Engine.StaticMesh"))
+	FSoftObjectPath HeadMesh;
+
+	/** Mesh head placement relative to the head socket, in cm. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	FVector HeadMeshOffsetCm = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	FRotator HeadMeshRotation = FRotator::ZeroRotator;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	FVector HeadMeshScale = FVector::OneVector;
+
+	/** Material for the mesh head. Empty = the mesh's own materials. Set it to the body material to make one animal. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath HeadMeshMaterial;
+
+	/** Eye centre from the head socket: forward, half the spacing, up (metres). Move to a mesh's eye sockets. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	FVector EyeOffsetM = FVector(0.5f, 0.3f, 0.15f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	float EyeRadiusM = 0.045f;
+
+	// ---- Skin (the body material slot) and the markings layer ----
+
+	/**
+	 * The body and code-built head material. Default: M_SerpentSkin (built by Content/Deep/Serpent/build_serpent_skin.py).
+	 * A third-party material (a pack dragon's, graded through an instance in Content/Deep/Serpent) can go here; it
+	 * reads UV0, which is tiled by the two settings below.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath SkinMaterial = FSoftObjectPath(TEXT("/Game/Deep/Serpent/M_SerpentSkin.M_SerpentSkin"));
+
+	/** UV0 repeats per metre of body length, and around the girth. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SkinTilesPerM = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SkinTilesAround = 2.f;
+
+	/** The markings, an unlit additive layer drawn just over the body whatever it wears. Empty = no markings. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath MarksMaterial = FSoftObjectPath(TEXT("/Game/Deep/Serpent/M_SerpentMarks.M_SerpentMarks"));
+
+	/** Near-black (linear). Used directly when the skin material is missing. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	FLinearColor SkinColor = FLinearColor(0.012f, 0.016f, 0.016f);
+
+	/** Rim and spots: cyan-green #3FE0B0 (chosen here; the style guide names the hue only). Linear. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	FLinearColor MarkColor = FLinearColor(0.05f, 0.75f, 0.43f);
+
+	/** Spot brightness at full reveal and full threat. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SpotGain = 6.f;
+
+	/** Spot radius on the thickest part of the body, and the spacing along each row (metres). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SpotSizeM = 0.06f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SpotSpacingM = 0.5f;
+
+	/** Spot brightness kept at threat 0 (fraction of SpotGain). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SpotCalmFraction = 0.25f;
+
+	/** Rim brightness at threat 0 and threat 1. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float RimGainCalm = 0.06f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float RimGainThreat = 0.45f;
+
+	/** Spot pulse rate at threat 0 and threat 1 (it speeds up as threat rises). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float PulseHzCalm = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float PulseHzThreat = 2.5f;
+
+	/** Not shown in the first minute: the markings stay dark this long after it spawns, and until it first stalks (a sound). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float RevealDelayS = 60.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float RevealFadeS = 4.f;
+
+	// ---- Eyes: retro-reflective, they shine back only while a diver's lamp is on them ----
+
+	/** Eyeshine colour (pale cyan-green: a tapetum tint of the white lamp). Linear. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	FLinearColor EyeColor = FLinearColor(0.55f, 1.f, 0.8f);
+
+	/** Emissive multiplier at full shine. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	float EyeShineEmissive = 20.f;
+
+	/** How tightly an eye must face the lamp to shine (power on the facing cosine). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	float EyeShineFacingPower = 2.f;
+
+	/** Shine rise and fall rates (per second, exponential). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	float EyeShineAttack = 25.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	float EyeShineRelease = 8.f;
+
+	/** Eye point light intensity at full shine (unitless, like the sub's airlock light) and reach. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	float EyeLightIntensity = 1500.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
+	float EyeLightRadiusM = 1.2f;
+
+	// ---- Motion cues ----
+
+	/** Recoil from the lamp: the flinch lasts this long (chosen here). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float RecoilFlinchS = 0.9f;
+
+	/** Head thrown up and back at the flinch's peak. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float RecoilPitchDeg = 28.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float RecoilPullM = 0.5f;
+
+	/** Weave amplitude and rate multiplier at the flinch's peak (the body convulses). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float RecoilWeaveBoost = 2.5f;
+
+	/** The bite: the head strikes forward this far in LungeS, then thrashes while it holds the line. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float LungeM = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float LungeS = 0.15f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float BiteThrashDeg = 12.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float BiteThrashHz = 4.5f;
+
+	/** Jaw gape: wide on the strike and the hiss, a little open while hunting. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float JawOpenDeg = 42.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float JawHuntDeg = 14.f;
 };
 
 /** Everything the state rule needs for one step. Distances in metres. */

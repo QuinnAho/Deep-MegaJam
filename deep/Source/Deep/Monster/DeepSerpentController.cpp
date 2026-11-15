@@ -283,6 +283,7 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 
 	Steer(Tuning, Dt);
 	Threat01 = Target ? UDeepMonsterRules::Threat01(State, DiverDistanceM, Tuning) : 0.f;
+	Body->SetMood(State, Threat01);
 }
 
 void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float DeltaSeconds)

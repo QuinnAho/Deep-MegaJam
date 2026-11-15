@@ -124,4 +124,19 @@ namespace
 				LogMonster(Brain);
 			}
 		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterRevealCommand(
+		TEXT("Deep.Monster.Reveal"),
+		TEXT("Shows the serpent's markings now, skipping the first-minute rule (for shots)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Reveal")))
+			{
+				if (ADeepSerpent* Serpent = Brain->SpawnSerpent(true))
+				{
+					Serpent->RevealNow();
+				}
+				LogMonster(Brain);
+			}
+		}));
 }

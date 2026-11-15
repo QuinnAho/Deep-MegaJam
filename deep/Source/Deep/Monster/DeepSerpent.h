@@ -1,17 +1,25 @@
-// The sea serpent's body: engine basic shapes, no animation assets. A head steers (speed + max turn rate);
-// about 20 instanced spheres follow the path the head actually travelled, tapering to the tail, with a
-// travelling sideways weave. Two small glowing eyes show as a pair of points in the dark.
-// A Pawn possessed by ADeepSerpentController, which decides where it goes (server) and calls SwimToward.
-// No movement component and no navmesh: open water, own steering. The body lays itself out every tick on every machine.
+// The sea serpent's body. A head steers (speed + max turn rate); the body follows the path the head actually
+// travelled (follow-the-leader), with a travelling sideways weave that banks into each curve.
+// Look (Style Guide, section 6): one continuous tapering tube with a dorsal ridge, rebuilt each frame as a
+// procedural mesh along the trail (parallel-transport ring frames, so it never twists); a code-built wedge head
+// with a hinged jaw on a head socket, which a static mesh head can replace from the settings; near-black wet
+// skin; markings (rim + two rows of spots pulsing faster with threat) as an unlit additive layer drawn just over
+// whatever the body wears; eyes that shine back only while a diver's lamp is on them. Motion cues: a flinch on
+// recoil, a lunge and thrash on the bite. bTubeBody = false falls back to the old instanced spheres.
+// A Pawn possessed by ADeepSerpentController, which decides where it goes (server), calls SwimToward and SetMood.
+// The body lays itself out every tick on every machine; nothing here changes how it hunts.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "Monster/DeepMonsterTypes.h"
 #include "DeepSerpent.generated.h"
 
 class UInstancedStaticMeshComponent;
+class UMaterialInstanceDynamic;
 class UPointLightComponent;
+class UProceduralMeshComponent;
 class UStaticMeshComponent;
 
 UCLASS()
@@ -28,13 +36,27 @@ public:
 	/** Places the head and lays the body out straight behind it. */
 	void PlaceHead(const FVector& HeadCm, const FVector& Facing);
 
+	/** Server: what the mind is doing, for the look (replicated). Does not affect behaviour. */
+	void SetMood(EDeepMonsterState InState, float InThreat01);
+
+	/** Shows the markings now, skipping the first-minute rule (cheats and shots). */
+	void RevealNow() { bForceReveal = true; Reveal01 = 1.f; }
+
 	FVector GetHeadLocation() const { return GetActorLocation(); }
 	FVector GetHeading() const { return Heading; }
 
-	/** World positions of the body segments as last laid out (head excluded). */
+	/** World positions of the body segments as last laid out (head excluded). Hit spheres for the harpoon. */
 	const TArray<FTransform>& GetSegmentTransforms() const { return SegmentTransforms; }
 
+	/** Look state, for tests and DEEPMONSTER debugging. */
+	bool IsTubeBody() const { return bTube; }
+	int32 GetTubeVertexCount() const { return TubeVerts.Num(); }
+	float GetEyeShine01() const { return FMath::Max(EyeShine[0], EyeShine[1]); }
+	float GetReveal01() const { return Reveal01; }
+	bool HasMeshHead() const { return bMeshHead; }
+
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -42,17 +64,51 @@ protected:
 	/** Adds the head position to the trail when it has moved far enough; trims the trail to the body length. */
 	void RecordTrail();
 
-	/** Positions every body segment along the trail, with taper and weave. */
+	/** Hit-sphere segments along the trail (and the sphere fallback's instances); the tube when it is on. */
 	void LayBody();
+
+	void SetupLook();
+	void BuildHeadShells();
+	void UpdateMotion(float Dt);
+	void BuildTube();
+	void UpdateEyes(float Dt);
+	void UpdateMarks(float Dt);
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<USceneComponent> Root;
+
+	/** The attach point at the front of the body: the code-built head, a mesh head and the eyes hang from it. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USceneComponent> HeadSocket;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UProceduralMeshComponent> HeadShell;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USceneComponent> JawHinge;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UProceduralMeshComponent> JawShell;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UStaticMeshComponent> HeadMeshComp;
+
+	/** The continuous body, in world space (the component sits at the origin with absolute transform). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UProceduralMeshComponent> Tube;
+
+	// ---- The sphere fallback (bTubeBody = false) ----
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Head;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Jaw;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UInstancedStaticMeshComponent> Body;
+
+	// ---- Eyes ----
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> EyeLeft;
@@ -66,12 +122,49 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> EyeLightRight;
 
-	/** Body segments, in world space (the component sits at the origin with absolute transform). */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UInstancedStaticMeshComponent> Body;
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SkinMID;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> MarksMID;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> EyeMIDs;
+
+	/** Mood from the server: EDeepMonsterState as a byte, and the brain's threat 0..1. */
+	UPROPERTY(Replicated)
+	uint8 MoodState = 0;
+
+	UPROPERTY(Replicated)
+	float MoodThreat = 0.f;
 
 	/** Head positions, newest first. */
 	TArray<FVector> Trail;
 	TArray<FTransform> SegmentTransforms;
 	FVector Heading = FVector::ForwardVector;
+
+	// ---- Local look state (every machine) ----
+	bool bTube = false;
+	bool bMeshHead = false;
+	bool bTubeCreated = false;
+	bool bForceReveal = false;
+	bool bHeardOnce = false;
+	uint8 SeenState = 0;
+	float StateAge = 0.f;
+	float LifeAge = 0.f;
+	float Reveal01 = 0.f;
+	float PulsePhase = 0.f;
+	float WeavePhase = 0.f;
+	float Flinch01 = 0.f;
+	float LungeCm = 0.f;
+	float GapeDeg = 0.f;
+	float YawRateDegPerS = 0.f;
+	FVector LastHeading = FVector::ForwardVector;
+	float EyeShine[2] = { 0.f, 0.f };
+
+	TArray<FVector> TubeVerts, TubeNormals, ShellVerts;
+	TArray<FVector2D> TubeUV0, TubeUV1;
+	TArray<FLinearColor> TubeColors;
+	TArray<FVector> TubeTangents;
+	TArray<int32> TubeTris;
 };
