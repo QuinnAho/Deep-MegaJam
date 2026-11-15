@@ -650,9 +650,11 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 		*ADeepPlayerController::KeyHint(TEXT("Up")), *ADeepPlayerController::KeyHint(TEXT("Down")), *ADeepPlayerController::KeyHint(TEXT("Sprint")),
 		*ADeepPlayerController::KeyHint(TEXT("Grab")), *ADeepPlayerController::KeyHint(TEXT("Drop")));
 	// Only what is possible now: no winch and no cut once the tether is gone.
-	const FString LampHint = Diver->HasFlashlight()
+	// The ping needs no flashlight: it is how the far cavern walls are seen.
+	const FString LampHint = (Diver->HasFlashlight()
 		? FString::Printf(TEXT("%s lamp"), *ADeepPlayerController::KeyHint(TEXT("Lamp")))
-		: FString(TEXT("no lamp yet (flashlight at the console)"));
+		: FString(TEXT("no lamp yet (flashlight at the console)")))
+		+ FString::Printf(TEXT("   %s sonar ping"), *ADeepPlayerController::KeyHint(TEXT("Ping")));
 	const FString ControlsB = bTethered
 		? FString::Printf(TEXT("hold %s winch home   %s   hold %s be cut loose   %s menu"),
 			*ADeepPlayerController::KeyHint(TEXT("Winch")), *LampHint, *ADeepPlayerController::KeyHint(TEXT("Cut")),

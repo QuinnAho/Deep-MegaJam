@@ -37,6 +37,14 @@ public:
 	void Drop();
 	void SetWinching(bool bInWinching);
 	void ToggleLamp();
+	/** The diver's own sonar ping (in the water, every DiverPingCooldownS; no flashlight needed): sonar_ping on every
+	 * machine's bus from this diver, which the camera draws as a pulse out to DiverPingRangeM. True if it went out (on a
+	 * client: if it was sent to the server, which decides). */
+	bool Ping();
+	/** In the water (tethered or cut loose), where the ping works. */
+	bool IsInWater() const;
+	/** Seconds until the next ping is allowed (server's count; 0 = ready). */
+	float GetPingWaitS() const;
 	/** Hold to ask the Captain to cut the tether (CutHoldSeconds). */
 	void SetCutHeld(bool bHeld) { bCutHeld = bHeld; }
 	/** The continue key on the settlement screen. */
@@ -126,6 +134,16 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetLamp(bool bOn);
+
+	UFUNCTION(Server, Reliable)
+	void ServerPing();
+
+	/** Every machine hears the ping (its sound and its pulse). */
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPing(float RangeM);
+
+	/** Server: when the last ping went out (world seconds; -1 = never). */
+	float LastPingS = -1.f;
 
 	UFUNCTION()
 	void OnRep_Lamp();

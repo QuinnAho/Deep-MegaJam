@@ -35,6 +35,10 @@ public:
 	bool StartPulse(const FVector& Origin, float RangeM);
 	int32 GetPulses() const { return Pulses; }
 	bool IsPulseLive() const { return PulseAgeS >= 0.f; }
+	/** The live pulse's origin and range, and whether a diver sent it (a diver's ping is not cut short by the helm's). */
+	FVector GetPulseOrigin() const { return PulseOrigin; }
+	float GetPulseRangeM() const { return PulseRangeM; }
+	bool IsPulseFromDiver() const { return bPulseFromDiver; }
 
 	/** Interference shown now (0..1), and a forced strength for shots (-1 = follow the serpent; Deep.Camera.Interference). */
 	float GetInterference() const { return Interference; }
@@ -103,6 +107,7 @@ private:
 	float PulseAgeS = -1.f;
 	float PulseRangeM = 0.f;
 	FVector PulseOrigin = FVector::ZeroVector;
+	bool bPulseFromDiver = false;
 	/** The sub the pulse left from and its parts' box (sub space, cm): the material skips everything inside it. */
 	TWeakObjectPtr<AActor> PulseSub;
 	FBox PulseSubParts = FBox(ForceInit);
