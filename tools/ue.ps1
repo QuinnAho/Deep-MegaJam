@@ -484,9 +484,13 @@ function Invoke-Shot {
     $stamp = New-Stamp
     $png = Join-Path $shotDir ('{0}-{1}.png' -f $safe, $stamp)
     $log = Join-Path $HarnessDir ('shot-{0}.log' -f $stamp)
+    # Scripted waits must not be cut off: the delay, every `wait N` in -Cmds, and a margin for start-up and first loads (asset builds stall the game thread).
+    $waitSum = 0.0
+    foreach ($c in ($Cmds -split ';')) { if ($c.Trim() -match '^wait\s+([0-9.]+)') { $waitSum += [double]$Matches[1] } }
+    $shotTimeout = [int][Math]::Max(120, $Delay + $waitSum + 300)
     $argLine = ('"{0}" -game -windowed -ResX=1280 -ResY=720 -nosplash -unattended -log -abslog="{1}" ' +
         '-ModelContextProtocolPort={2} -DeepShot="{3}" -DeepShotDelay={4} -DeepShotCmds="{5}"') -f $UProject, $log, $McpPortHeadless, $png, $Delay, $Cmds
-    Write-Host ('shot: {0} (delay {1}s, timeout 120s)' -f $safe, $Delay)
+    Write-Host ('shot: {0} (delay {1}s, timeout {2}s)' -f $safe, $Delay, $shotTimeout)
     try {
         $p = Start-Process -FilePath $EditorExe -ArgumentList $argLine -PassThru -ErrorAction Stop
     } catch {
@@ -495,7 +499,7 @@ function Invoke-Shot {
     }
     $null = $p.Handle
     $found = $false
-    while ($sw.Elapsed.TotalSeconds -lt 120) {
+    while ($sw.Elapsed.TotalSeconds -lt $shotTimeout) {
         if (Test-Path -LiteralPath $png) {
             Start-Sleep -Milliseconds 1500   # let the writer finish
             $found = $true

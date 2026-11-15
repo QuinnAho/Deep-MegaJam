@@ -384,6 +384,11 @@ float ADeepSubmarine::HelmStreakM(float SpeedMps, float ShutterSeconds)
 	return FMath::Abs(SpeedMps) * FMath::Max(0.f, ShutterSeconds);
 }
 
+UProceduralMeshComponent* ADeepSubmarine::GetTrench() const
+{
+	return Trench;
+}
+
 float ADeepSubmarine::TrenchReliefM(float AlongM, float DepthM, float LedgeEveryM, float LedgeOutM)
 {
 	const float A = AlongM;

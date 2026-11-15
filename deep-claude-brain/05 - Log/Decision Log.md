@@ -43,6 +43,8 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-032 | The style: dark, worn, realistic, led by light and reflection, built on Megascans | Quinn leaning (about 2:40 AM Nov 15); he confirms by approving frames |
 | D-033 | Go for the polish pass: water and the monster first; agents may create materials and particle systems; look it up before building | Decided (Quinn, about 2:47 AM Nov 15) |
 | D-034 | The monster is built on the dragon from Quinn's Dragon Cave pack; any Megascans asset may be used | Decided (Quinn, about 2:56 AM Nov 15) |
+| D-035 | The last ascent: the winch is slower with the relic, and the relic's shaft is straight under the hatch | In the integration branch (engineer, 6:45 AM Nov 15); Quinn can overrule |
+| D-036 | Packs stay where they are installed, agents link to them, and the cook takes only what is used | Decided (orchestrator, 6:55 AM Nov 15) |
 
 ## Open
 
@@ -56,6 +58,21 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-035 The last ascent: a slower winch with the relic, and a shaft under the hatch
+- **Status:** In the integration branch. Quinn has not seen it and can overrule any number.
+- **Date:** 2026-11-15, 6:45 AM EST (engineer's entry), merged 6:54 AM
+- **Who:** A systems engineer, under the orchestrator's brief "make the win reachable without changing the design". Nobody human has decided this yet.
+- **What was wrong:** Not what the 5:50 AM alarm said. With the old numbers a scripted player who held the winch won 5 of 5 with the lamp and 3 of 3 without it. The winch (7 m/s) was as fast as the serpent's stalk at stop 3, so the serpent never reached the line and the lamp was never needed. The earlier "cut in 3 of 3" came from the playtest script winching in 1.5 s bursts. There was also a real trap: the relic sat 8 m out from the hatch, so the winch line ran through the wall of its shaft, and a diver cut there ended up under the sea bed with no way out.
+- **Decision:** Three numbers, nothing else.
+  - `Tether.RelicWinchSpeedMps`: new, 4 m/s (any other load stays at 7). The ascent with the relic takes about 21 s, so the serpent reaches the line and the lamp decides the ending.
+  - `Arena.RelicOutM`: 8 to 0 m. The shaft is straight under the hatch, so the line runs up open water.
+  - `Look.SeabedPitRadiusM`: 2.5 to 4.5 m. A wider shaft. At 6 m the sea floor test failed, because the bed sank under a salvage spot.
+- **Evidence:** Scripted, on the shipped values: with the lamp 5 of 5 win; without it 0 of 3 win, each cut 35 m out, and all three drop the relic and reach the hatch alive. The full-run scenario now winches the relic home. New test `Deep.Sim.Monster.LastAscent`. Suite 66 of 66.
+- **Open for Quinn:**
+  1. The relic straight under the hatch is a layout change. The search for it is gone; the descent and the ascent are the set piece.
+  2. Should the serpent hunt the moment it cuts the line? Today it flees first, so a careless diver who drops the relic gets home. The GDD says a careless one dies. The orchestrator's recommendation is to leave it: losing the relic and paying for the tether is already the punishment, and a judge who fails once can try again in the same run.
+  3. A diver cut at the very bottom of the shaft could not swim out in the script (`S10-cutdrop` fails 2 of 2). It needs a try by hand before anyone calls it a bug.
 
 ### D-007 Solo-playable jam build; co-op, Steam and voice after the jam
 - **Status:** Proposed
@@ -147,6 +164,18 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-036 Packs stay where they are installed; agents link to them; the cook takes only what is used
+- **Status:** Decided.
+- **Date:** 2026-11-15, 6:55 AM EST
+- **Who:** The orchestrator, following D-033 and D-034, after finding that Quinn had installed Dragon Cave at 3:31 AM.
+- **What happened:** Fab has no build of the pack for the 5.9 preview, so Quinn made a separate Unreal 5.7 project (`C:\Repositories\DeepImport`), added the pack there and brought it across. It landed in `deep/Content/DragonCave/`, not in the `deep/Content/Packs/` folder that D-033 had named. He did not say so in the chat; the orchestrator noticed the folder three hours later.
+- **Decision:**
+  - A pack stays where Fab or a migrate puts it. Moving it would break its own references. Each pack gets one line in `.gitignore`.
+  - Each agent checkout gets a link to Quinn's copy. Packs are read-only: no agent saves, moves or renames anything inside one.
+  - The cook includes only the pack assets the game uses. `deep/Content/Data/PackAssets.csv` names the ones that code loads by path, and the placement data names the rest. The pack's demo maps are never cooked.
+- **Why:** The pack is 4.8 GB and the submission limit is 1 GB zipped. A pack in git would also break the push.
+- **What follows:** Two lanes started at 6:57 AM: the dragon's head on the serpent, and rock and ruin for the dive sites. A package must be cut from a checkout that has the link. Before a worktree is removed its link is removed first, and `git clean` is never run in a worktree, because either could delete Quinn's files through the link.
 
 ### D-034 The monster uses the Dragon Cave dragon
 - **Status:** Decided.
