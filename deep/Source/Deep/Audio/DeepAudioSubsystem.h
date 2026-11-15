@@ -51,6 +51,8 @@ public:
 
 	/** Plays the event's one-shot row. bForce skips the repeat guard. True if a row was found and not a loop. */
 	bool PlayEvent(FName Event, bool bForce = false);
+	/** PlayEvent with the row's volume and pitch scaled (the sonar's proximity tone rises and quickens). */
+	bool PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce = false);
 
 	void SetMuted(bool bInMuted);
 	bool IsMuted() const { return bMuted; }

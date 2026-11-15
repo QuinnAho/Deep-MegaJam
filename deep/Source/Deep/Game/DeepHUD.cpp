@@ -14,6 +14,7 @@
 #include "Harpoon/DeepHarpoonHUD.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Sonar/DeepSonarComponent.h"
 #include "Story/DeepCaptain.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
@@ -46,6 +47,16 @@ namespace
 	{
 		return FString::Printf(TEXT("%d cr"), Amount);
 	}
+}
+
+ADeepHUD::ADeepHUD()
+{
+	Sonar = CreateDefaultSubobject<UDeepSonarComponent>(TEXT("Sonar"));
+}
+
+UDeepSonarComponent* ADeepHUD::GetSonar() const
+{
+	return Sonar;
 }
 
 void ADeepHUD::DrawHUD()
@@ -1247,6 +1258,7 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 	In.bBiteAlarm = Run && Run->IsBiteAlarmOn();
 	In.bCarryingOrCut = Diver && (Diver->GetCargo().Num() > 0 || (Run && Run->GetState() == EDeepRunState::Cut));
 	In.MenuScreen = Player ? static_cast<uint8>(Player->GetMenuScreen()) : 0;
+	In.bSonar = Sonar && Sonar->IsSonarEnabled();
 	Frame.Mode = DeepHudModel::ChooseMode(In);
 	Frame.Panels = DeepHudModel::PanelsFor(Frame.Mode, In);
 	Frame.HintSeconds = Tuning.Run.ControlsCardSeconds;
@@ -1481,6 +1493,10 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 		}
 		Frame.ParkedStop = GameState->ParkedStop();
 		Frame.bAtLimit = Run->IsHelmAtLimit();
+		if ((Frame.Panels & EDeepHudPanel::Sonar) && Sonar)
+		{
+			Sonar->FillHud(Frame.Sonar);
+		}
 		if (Frame.ParkedStop > 0)
 		{
 			Frame.HelmStatus = FString::Printf(TEXT("Parked at %.0f m"), Tuning.GetStop(Frame.ParkedStop).SubDepthM);
