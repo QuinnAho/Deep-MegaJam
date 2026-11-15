@@ -541,6 +541,18 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - **Why it matters:** the last two hours before the freeze go to feel. The change is small and sits on its own branch. At merge the gate is verify plus the scripted playthroughs that fire the harpoon (S5, S10).
 - **Evidence:** row 91 in [[Agent Runs]]; D-047; `deep/Source/Deep/Harpoon/DeepHarpoonComponent.cpp` (the shot at about lines 268 to 318, the reel at about line 484); `deep/Source/Deep/Camera/DeepCameraRules.cpp` line 43 (the old shake).
 
+### 3:40 PM  Eighteen minutes from Quinn's ask to a tested build: the harpoon kicks (orchestrator)
+- **What happened:**
+  - **The build.** The Opus engineer (row 91) reported at about 3:33 PM, six minutes after it started, with `e287d29`: nine files, 243 lines added. A pure rule gives the shove: 3.5 m/s straight back from the aim, falling evenly to zero at half a second, 0.875 m in all. Each frame the harpoon moves the diver by the rule's distance for that frame, as a swept move, so rock stops the shove and the diver slides along it, and the tether still holds the diver to the line's length. The shove ends the moment the bolt latches on the sub or the rock, and on a release, a reload, inside the sub, at death or on the winch. A client predicts its own kick, so the change adds no network call. The shot's camera kick went from 1 cm and 0.6 degrees for 0.18 s to 3 cm and 1.5 degrees for 0.3 s, and a bolt into the serpent now lands with a thud (5 cm, 1.8 degrees, 0.6 s), between a hull hit and a critical one.
+  - **The tests.** `Deep.Sim.Harpoon.Recoil` checks the rule: full speed at once, half speed at half time, nothing after, 0.875 m in all, and the frames add up to the same. `Deep.World.Harpoon.Recoil` fires in a test world: the first frame moves the diver back more than 4 cm, the whole shove matches the rule within 8 cm and points straight back, the diver stops afterwards, an empty click gives no kick, a block of rock stops the shove, and a shot at the sub still reels the diver home.
+  - **The review, before any test ran (D-045).** The orchestrator read the diff. The shove cannot fight a reel, because it ends before the reel starts, so S5 and S10, which reel the diver home, should still pass. It cannot carry the diver through rock, because the move is swept. Two notes, left as they are: the shot's shake (1.5 degrees) is now a little stronger than a hull hit's (1.4 degrees), though shorter, and those numbers came from the orchestrator's own brief; and a bolt into the serpent still plays the clank from `Sounds.csv`. No test covers how the kick feels, or a networked client.
+  - **The gate.** Merged as `cee150a`. Verify passed with 128 of 128 tests in 58 s. S5-harpoon passed in 18 s, and S10-relic in 76 s. Pushed at 3:40 PM. The package took 1 min 31 s, the smoke run was clean, and the zip is 762.7 MB. Quinn's copy for hand-play is in `Builds\HandPlay-1540`, outside the integration checkout, so that a game left open cannot lock the files the freeze package overwrites.
+- **Why it matters:** an idea at 3:22 PM was in the tested build at 3:40 PM. It went fast because the change was small and sat behind a pure rule: the rule's arithmetic was tested first, one world test showed the diver obeys it, and the review checked that nothing else had to change.
+- **Evidence:**
+  - `polish/harpoon-kick` `e287d29`; integration `cee150a`: PASS build (21.7 s), PASS test (36.4 s), 128 tests, PASS verify (58.2 s); PASS S5-harpoon (18 s); PASS S10-relic (76 s); PASS package (1 min 31 s, 1047.6 MB); PASS smoke (25.8 s); PASS zip (21.9 s, 762.7 MB);
+  - `deep/Source/Deep/Harpoon/DeepHarpoonRules.cpp`, `deep/Source/Deep/Harpoon/DeepHarpoonComponent.cpp`, `deep/Source/Deep/Private/Tests/DeepHarpoonTests.cpp`;
+  - row 91 in [[Agent Runs]]; D-047.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
@@ -561,6 +573,7 @@ The theme is Director's Cut, so we keep the list of what did not make the cut an
 - 10.3k people had joined the jam and 155 entries were in at about 8:20 PM on Nov 14.
 - About 26 hours from the first note in the Google Doc (6:43 PM Nov 14) to the deadline (8:59 PM Nov 15). About 24 and a half hours from the start of the Claude session.
 - We started on the evening of day three of a four-day jam.
+- 18 minutes from Quinn's ask for a gun with knockback (about 3:22 PM Nov 15) to a tested integration build with the harpoon's kick in it (3:40 PM). The agent's part took six.
 
 ## Capture as we go
 

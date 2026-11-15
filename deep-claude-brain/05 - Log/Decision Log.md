@@ -55,7 +55,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
 | D-045 | Toward the end: review each diff, test only what it touches; the full run-through at the freeze | Quinn, about 2:12 PM Nov 15; in `.claude/loop.md` |
 | D-046 | The serpent is one model again, and its body moves by physics, dragged by the head | Quinn, about 2:36 PM Nov 15; being built on `polish/serpent-look` |
-| D-047 | The harpoon kicks the diver back when it fires | Quinn's ask, about 3:22 PM Nov 15; being built on `polish/harpoon-kick`; one word from him stops it |
+| D-047 | The harpoon kicks the diver back when it fires | Quinn's ask, about 3:22 PM Nov 15; in the integration build since 3:40 PM (`cee150a`); one word from him takes it out |
 
 ## Open
 
@@ -71,7 +71,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 ## Proposed
 
 ### D-047 The harpoon kicks the diver back when it fires
-- **Status:** Quinn's ask, about 3:22 PM Nov 15. Started at about 3:27 PM on `polish/harpoon-kick` (row 91 in [[Agent Runs]]), before his yes, because the freeze is at 5:30 PM. One word from him stops it, and nothing merges into `main` without his "merge".
+- **Status:** Quinn's ask, about 3:22 PM Nov 15. Started at about 3:27 PM on `polish/harpoon-kick` (row 91 in [[Agent Runs]]), before his yes, because the freeze is at 5:30 PM. Built by about 3:33 PM (`e287d29`), reviewed, and in the integration build since 3:40 PM (`cee150a`: verify 128 of 128, S5 and S10-relic passed). One word from him takes it out, and nothing merges into `main` without his "merge".
 - **Date:** 2026-11-15, about 3:22 PM EST
 - **Who:** Quinn asked. The shape is the orchestrator's.
 - **His words:** "so something that i was thinkif of adding is the gun, where it gives you knockback when you shoot at the serpent on the tether but not sure  feel like it adds to the fun factor"
