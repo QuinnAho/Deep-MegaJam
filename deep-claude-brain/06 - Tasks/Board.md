@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 00:12 EST
+updated: 2026-11-15 00:38 EST
 ---
 # Board
 
@@ -9,20 +9,20 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Two agents are running. Their reports go to the session that started them, so a new session checks their branches instead:
 
-1. **Playtests and package** (`tools/regress`, built in `.wt\pkg`, Sonnet at medium, started 12:11 AM). Finished when `origin/tools/regress` has a commit after `0acf06d`. It changes scripts, frames and the dev log only, so merge it into `main` and push. Read its dev log entry for game bugs it found and add them to "Known rough edges".
-2. **Sound layer** (`dev/audio`, in `.wt\monster`, D-026). Built by an Opus engineer, but the build went red after its commit: two files define `MaxHistory` at file scope and collide in the combined build. A Sonnet fix agent started at 12:33 AM. It fixes the clash and makes `tools\ue.ps1` build the way a committed tree builds. Finished when `origin/dev/audio` has a commit after `e9c0d92`. Then run `.wt\monster\tools\ue.ps1 verify` on the clean tree, merge into `main`, push, and tell Quinn to restart the editor and listen. The branch adds a cook setting and an engine module, so package and smoke it before trusting it in a build.
+1. **Playtests and package** (`tools/regress`, built in `.wt\pkg`, Sonnet at medium, started 12:11 AM). At 12:37 AM it was told to merge `main` (`64f7838`, with the sound layer) and package that tree. Finished when `origin/tools/regress` has commits after `0acf06d` that include that merge. It changes scripts, frames and the dev log only, so merge it into `main` and push. Read its dev log entry for game bugs it found and add them to "Known rough edges". If its package of the sound layer failed, that is the next engineer task, ahead of everything else.
+2. **Sound layer** (D-026): merged at 12:36 AM as `64f7838`. Not yet proven in a packaged build (see item 1). Nobody has heard it: Quinn has to listen and say which sounds are bad.
 3. **Next engineer run** (`.wt\dev`, Opus at high) is one feel-fix batch: Quinn's notes from playing by hand plus "Known rough edges" below. Wait for his notes so it is one run, not two.
 
 After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
 
 ## State of the game
 
-`main` is at `0acf06d`. 39 tests passing. Nobody has played it by hand yet.
+`main` is at `64f7838`. 44 tests passing. Nobody has played it by hand yet.
 
 - **The run, start to finish:** title, then standing in the submarine's one room. Drop through the hatch to dive: grab, weight, tether, winch, the Captain's Patience, the cut, bailout air, the harpoon. Back up through the hatch. Bank at the console and buy the gates there. Drive from the helm between stops at 100, 300 and 500 m. The relic at stop 3, then the win screen with a performance review. Pause and restart work.
 - **Layer gates (D-023):** the helm stops at 200 m without the flashlight (50 cr) and at 400 m without the hull upgrade (200 cr). The serpent appears in layer 2 and is aggressive in layer 3.
 - **Plain on purpose:** grey boxes, even light, no fog (D-020). No "Director" in the game's text (D-025).
-- **Silent** until the sound layer merges.
+- **Sound:** every sound is generated in code. 43 events play one, and seven loops fade in and out (sea, room, breathing, fast breathing, winch, serpent, helm). One row each in `deep/Content/Data/Sounds.csv`. Commands: `Deep.Audio.List`, `Deep.Audio.Play <event>`, `Deep.Audio.Mute 0|1`, `Deep.Audio.Reload`. Nobody has heard them.
 - **Last package:** 707 MB on disk, 426 MB zipped, at `d0eb723`, before the harpoon and the interior. A new one is being built.
 - **Parked, not in `main`:** the stopped look pass, on `look/pass1`.
 
@@ -38,8 +38,8 @@ After merging a branch that adds dev log entries, remove any repeated `## Sunday
 
 | Lane | Agent | Task | Started |
 |---|---|---|---|
-| Playtests and package | Sonnet, medium, `.wt\pkg` on `tools/regress` | Rewrite the scripted scenarios for the hatch, console, helm, gates and harpoon; run the set twice; package, smoke and zip. No game code. | 12:11 AM |
-| Sound | Sonnet, medium, `.wt\monster` on `dev/audio` | Fix run: the sound layer (D-026) is written and its 44 tests passed, but the committed tree does not build (a name clash hidden by how uncommitted files are compiled). Fix the clash and harden `tools\ue.ps1`. | 12:33 AM |
+| Playtests and package | Sonnet, medium, `.wt\pkg` on `tools/regress` | Rewrite the scripted scenarios for the hatch, console, helm, gates and harpoon; run the set twice; then merge `main` and package, smoke and zip the tree with the sound layer. No game code. | 12:11 AM |
+| Sound | Opus, high, then a Sonnet fix run, `.wt\monster` on `dev/audio` | **Done 12:36 AM**, merged as `64f7838`. 44 of 44 tests. | 12:11 AM |
 
 ## Next, in order
 
@@ -47,7 +47,7 @@ After merging a branch that adds dev log entries, remove any repeated `## Sunday
 |---|---|---|---|
 | 1 | Play the whole run by hand and say what feels wrong. | Quinn | todo |
 | 2 | Feel-fix batch: Quinn's notes plus the rough edges above, in one engineer run. | Opus engineer, `.wt\dev` | waiting on 1 |
-| 3 | Real sound files replace the generated ones, one CSV row each. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
+| 3 | Real sound files replace the generated ones: import under `/Game/Audio/`, put the path in that row of `Sounds.csv`, run `Deep.Audio.Reload`. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
 | 4 | The Captain's voice. | writer | blocked on Quinn's choice |
 | 5 | Look pass, when Quinn says the gameplay is right (D-020). His own assets that fit are in [[Asset Library Shortlist]]. | look engineer | deferred |
 | 6 | Water and rope feel (D-024): swim inertia, a tether and harpoon line that sag and snap, bubbles and silt. | engineer, Quinn tunes | later |
@@ -68,7 +68,7 @@ Models: submarine first, then salvage pieces, relic, serpent head. Sounds: breat
 
 ## Checkouts
 
-The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator verifies a branch in its own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\dev`, `.wt\text`.
+The main checkout is Quinn's and he may keep the editor open on it (port 8000: never call it without his say). Agents build only in `.wt\dev`, `.wt\monster`, `.wt\pkg` and `.wt\text` and push branches. The orchestrator verifies a branch in its own checkout, merges it into `main`, and tells Quinn to restart the editor. Free now: `.wt\dev`, `.wt\monster`, `.wt\text`.
 
 ## Done
 
@@ -90,3 +90,4 @@ The main checkout is Quinn's and he may keep the editor open on it (port 8000: n
 | The harpoon | 11:37 PM | `cb50c97` |
 | Shortlist of Quinn's Fab library | 11:56 PM | `f3f7f54` |
 | Inside the submarine: hatch, console, helm, layer gates | Nov 15, 12:07 AM | `0acf06d` |
+| The sound layer; the build script now builds like a committed tree | 12:36 AM | `64f7838` |
