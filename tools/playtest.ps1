@@ -951,27 +951,66 @@ function S11-pass {
         if ($sawPass -and $m.state -ne 'Pass') { $passEnded = $true; break }
         if ($m.first_sight_done -and $m.state -ne 'Pass') { $passEnded = $true; break }
         $s = Get-State
-        if ($s.tether_distance_m -gt 30) { Teleport @(($s.pos_cm[0] - 1500), $s.pos_cm[1], $s.pos_cm[2]) }
+        # back under the hatch before the line runs out (a diver pinned at the end of the line is still and silent)
+        if ($s.tether_distance_m -gt 30) { $anc = (Get-Arena).anchor_cm; Teleport @($anc[0], $anc[1], ($anc[2] - 800)) }
     }
     $script:Notes += ('S11 states seen after {0:N0} s: {1}; saw Pass {2}; first_sight_done {3}' -f $sw.Elapsed.TotalSeconds, ($states -join ' > '), $sawPass, $m.first_sight_done)
     Shot 'S11-pass'
     Need $sawPass 'no first pass within 100 s of noisy swimming at stop 2'
     Need $passEnded ('the pass did not end: state {0}' -f $m.state)
     Need $m.first_sight_done 'first_sight_done is false after the pass ended'
-    # normal hunting: with the first sight used, a loud diver is stalked or the tether is bitten as before
+    # Normal hunting: with the first sight used, a sprinting diver is heard and stalked as before.
+    # Sprint noise only counts above the sprint threshold (5.2 m/s at the default 4 m/s x 1.6) and gains 15/s
+    # against a 10/s decay, so it takes about 12 s of unbroken sprinting to reach 60. Short holds from rest never
+    # reach the threshold, and a diver pinned at the end of the 60 m line is still: both are silent. So the diver
+    # sprints 5 s legs round a 32 m square under the hatch in open water, re-aimed at the next corner between holds
+    # (each MCP round trip leaves the keys up for about a second, so the legs must be long).
+    # Patience is topped up and the lamp is off so that only hearing can bring the serpent in (a Captain's cut or
+    # a lamp recoil must not count, or hide a stalk).
     $s = Get-State
     Need ($s.run_state -eq 'tethered') ('the pass cut the run short: run_state {0}' -f $s.run_state)
-    $null = Run-Exec 'Deep.Monster.Noise 3'
-    $hunted = $false
-    for ($i = 0; $i -lt 40 -and -not $hunted; $i++) {
-        Hold @('W', 'LeftShift') 0.5
-        $m = Get-Monster
-        if ($m -and $m.state -in @('Stalk', 'Bite', 'Hunt')) { $hunted = $true }
-        if ((Get-State).run_state -ne 'tethered') { $hunted = $true }
-    }
+    $null = Run-Exec 'Deep.SetPatience 1'
+    $null = Run-Exec 'Deep.Lamp 0'
+    $m0 = Get-Monster
+    $anc = (Get-Arena).anchor_cm
+    $z = $anc[2] - 800
+    $corners = @(@(($anc[0] - 1600), ($anc[1] - 1600), $z), @(($anc[0] + 1600), ($anc[1] - 1600), $z),
+                 @(($anc[0] + 1600), ($anc[1] + 1600), $z), @(($anc[0] - 1600), ($anc[1] + 1600), $z))
+    Teleport $corners[0]
     $s = Get-State
-    $script:Notes += ('S11 after the pass: state {0} hunted {1} run_state {2}' -f $m.state, $hunted, $s.run_state)
-    Need $hunted ('after the pass the serpent never stalked: state {0}' -f $m.state)
+    $leg = 5.0
+    $c = 0; $hunted = $false; $why = ''; $seen = @(); $noiseMax = 0.0; $speeds = @()
+    $lap = [Diagnostics.Stopwatch]::StartNew(); $prev = $s.pos_cm
+    while ($lap.Elapsed.TotalSeconds -lt 75 -and -not $hunted) {
+        # aim at the next corner from wherever the diver is (Look-At also returns no state: one call per leg is the cost)
+        $c = ($c + 1) % 4
+        Look-At $s.pos_cm $corners[$c]
+        Hold @('W', 'LeftShift') $leg
+        # every Exec returns the state report; this one changes nothing (the lamp is already off)
+        $s = Run-Exec 'Deep.Lamp 0'
+        $ddx = $s.pos_cm[0] - $prev[0]; $ddy = $s.pos_cm[1] - $prev[1]; $ddz = $s.pos_cm[2] - $prev[2]
+        $speeds += ([Math]::Sqrt($ddx * $ddx + $ddy * $ddy + $ddz * $ddz) / 100) / $leg
+        $prev = $s.pos_cm
+        if ($null -ne $s.serpent) {
+            if ($seen.Count -eq 0 -or $seen[-1] -ne $s.serpent.state) { $seen += $s.serpent.state }
+            $noiseMax = [Math]::Max($noiseMax, [double]$s.serpent.noise)
+            if ($s.serpent.state -in @('Stalk', 'Bite')) { $hunted = $true; $why = $s.serpent.state }
+        }
+        if ($s.last_event -in @('bite_alarm', 'cut_bite')) { $hunted = $true; $why = $s.last_event }
+        if ($s.run_state -ne 'tethered') { break }
+    }
+    $m = Get-Monster
+    $null = Run-Exec 'Deep.Lamp 1'
+    # metres per held second, legs after the first (which starts from rest)
+    $cruise = @($speeds | Select-Object -Skip 1)
+    $mean = if ($cruise.Count -gt 0) { ($cruise | Measure-Object -Average).Average } else { 0 }
+    $heard = if ($m -and $m0) { [double]$m.heard - [double]$m0.heard } else { -1 }
+    $script:Notes += ('S11 after the pass: {0:N0} s of sprint legs, diver m per held s mean {1:N1} (min {2:N1}); serpent {3}; noise max {4:N1}; heard +{5:N1}; hunted {6} ({7}); run_state {8} last_event {9}' -f
+        $lap.Elapsed.TotalSeconds, $mean, ($cruise | Measure-Object -Minimum).Minimum, ($seen -join ' > '), $noiseMax, $heard, $hunted, $why, $s.run_state, $s.last_event)
+    Need ($s.run_state -eq 'tethered' -or $hunted) ('the run left the tether for another reason before the serpent hunted: run_state {0}, last_event {1}' -f $s.run_state, $s.last_event)
+    Need ($mean -ge 5.2) ('the scripted diver did not sprint (mean {0:N1} m/s, threshold 5.2): the script is at fault, not the serpent' -f $mean)
+    Need ($heard -gt 0) ('the serpent heard nothing from a diver sprinting at {0:N1} m/s' -f $mean)
+    Need $hunted ('after the pass the serpent never stalked a sprinting diver: state {0}, noise max {1:N1}, heard +{2:N1}' -f $m.state, $noiseMax, $heard)
     # and the run continues: the diver can still get home (winch)
     $null = Run-Exec 'Deep.Monster.State'
     $null = Run-Exec 'Deep.EnterSub'
