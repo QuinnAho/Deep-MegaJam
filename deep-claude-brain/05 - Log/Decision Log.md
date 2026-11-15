@@ -33,6 +33,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-022 | The player goes inside the submarine and drives it | Decided (Quinn, 11:10 and 11:20 PM): the sub is static and the world moves |
 | D-023 | Three layers, each with one gate: flashlight, then hull upgrade; serpent at layer 2, aggressive at layer 3 | Decided (Quinn, 11:25 PM Nov 14) |
 | D-024 | Water and rope feel matter for immersion, and come after the gameplay | Decided (Quinn, 11:25 PM Nov 14) |
+| D-025 | No "Director" or "Director's cut" in the game's text | Decided (Quinn, 11:30 PM Nov 14); supersedes the Director half of D-016 |
 
 ## Open
 
@@ -137,6 +138,14 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-025 No "Director's cut" in the game's text
+- **Status:** Decided. Supersedes the second half of D-016, where Claude kept the Director as the Captain's unseen boss.
+- **Date:** 2026-11-14, 11:30 PM EST
+- **Who:** Quinn: "remove directors cut refrences its too on the nose".
+- **Decision:** The word "Director" and the phrase "Director's cut" come out of everything a player sees: the title screen subtitle, the settlement and review screens, 15 of the Captain's lines and one fee label. The Captain takes the cut himself and blames "the company".
+- **What it costs:** Claude had argued for keeping the phrase because theme is one of seven judged scores. Quinn's call is that saying the theme aloud is worse than showing it. The theme is now carried by what happens: a cut of every haul, and a cut tether. The itch.io page should say how the game answers the theme in one sentence, since the game no longer does.
+- **What follows:** Code identifiers keep their names, to avoid colliding with the engineers working now. A low-effort agent is making the text change on `text/no-director`.
 
 ### D-024 Water and rope feel, later
 - **Status:** Decided
