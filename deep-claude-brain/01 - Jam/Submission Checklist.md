@@ -24,12 +24,12 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 - MISSING Game uploaded to our own itch.io account, then submitted to the jam.
 - WAITING Team name, and each member's name plus the email tied to their Epic Games account. Only Quinn and Colby have these.
 - DONE Game name: DEEP. Source: `CLAUDE.md`.
-- MISSING Link to a **30 to 60 second gameplay video**. No gameplay video has been recorded. Source: orchestrator report. Screenshots in `devlog/media/` are grey-box era.
+- MISSING Link to a **30 to 60 second gameplay video**. No gameplay video has been recorded. Source: orchestrator report. Stills from the polish pass are in `devlog/media/`; none of it is video. An agent can record a scripted run as a fallback (`SceneCaptureToolset.RecordViewport`), but a hand-played clip is better.
 - MISSING Dev log link. Required for Glass Box. Two drafts exist in `devlog/`; nothing is published. Decide where (itch.io devlog posts are what other entrants use).
 - WAITING "Tools you used" field. Current list: Unreal Engine 5.9 MegaJam Preview, Unreal MCP, Claude Code, plus Obsidian and Google Docs for notes. Quinn confirms the final list.
 - WAITING List of third-party assets and licences. `Credits.csv` lists the engine and in-code sound only. Dragon Cave (Fab) is being added; its seller and licence text are to-dos. Any Megascans used must be added. Source: `deep/Content/Data/Credits.csv`, D-034.
-- WAITING NVIDIA questions, if we qualify. The build uses hardware ray tracing, which is not by itself an NvRTX, DLSS or ACE feature. DLSS was cut. Likely not eligible; Quinn decides what to answer. Source: GDD Cut list, [[Track Strategy]].
-- DONE (n/a) OpenAI question. No OpenAI model is used in the game or, as far as the repo shows, in its making. Answer "none" unless Quinn used one. Source: `Credits.csv`, [[Track Strategy]].
+- WAITING NVIDIA questions, if we qualify. The build uses hardware ray tracing, which is not by itself an NvRTX, DLSS or ACE feature. DLSS has no build for 5.9; one try with the 5.8 plugin waits on Quinn's download (D-032). Without it, not eligible. Source: GDD Cut list, [[Track Strategy]].
+- DONE (n/a) OpenAI question. No OpenAI model is used in the game or, as far as the repo shows, in its making. Answer "none" unless Quinn used one. The Captain's voice, not started and waiting on Quinn's key, would change this answer. Source: `Credits.csv`, [[Track Strategy]].
 - WAITING Attribution text where a tool or asset requires it. Depends on the Dragon Cave and Megascans licence terms.
 
 ## Requirements the old list did not have

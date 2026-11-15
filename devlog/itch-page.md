@@ -8,7 +8,7 @@
 
 You are a salvage diver on a tether, lowered from a submarine into a trench that gets darker the further you go. Swim down, grab what is lying on the seabed, and get back up the line. Everything you carry is heavy. Past ten kilograms you sink, and an overloaded diver can only be winched home, which is loud.
 
-Something in the water hears loud. A sea serpent, a dragon-headed thing, comes in toward the tether when you make noise and backs off when you hold your lamp on it. You hear it long before you see it. A bite on the tether starts a five-second alarm.
+Something in the water hears loud. A sea serpent comes in toward the tether when you make noise and backs off when you hold your lamp on it. You hear it long before you see it. A bite on the tether starts a five-second alarm.
 
 The submarine's AI is the Captain, and it works for the company. It mocks you the whole way down, takes 40 percent of every haul, and cuts your tether when its patience runs out. Dying is billed as a fee. The next diver is already on the way.
 
@@ -38,19 +38,19 @@ Keyboard and mouse. There is no controller support.
 - A walkable submarine with a hatch to the sea, a console that banks salvage and shows the settlement screen, and a helm that drives the submarine down.
 - Three depth layers: Sunlight, Twilight and Midnight, to 600 m. The flashlight and a hull upgrade are bought at settlement.
 - The tether, winch, weight, harpoon, the Captain's patience and the cut, with a bailout run on the cut.
-- The sea serpent. Its head uses a dragon model from a third-party pack (see credits).
-- About 180 lines for the Captain, shown as subtitles, and a set of sounds made in code. TODO(Quinn): confirm no voice recordings or real sound files are in the final build.
+- The sea serpent. WIP: its head is being rebuilt from a dragon model in a third-party pack (see credits). Keep that clause only if the head ships.
+- 185 lines for the Captain, shown as subtitles, and a set of sounds made in code. TODO(Quinn): confirm no voice recordings or real sound files are in the final build.
 - A win screen with the choice to dive again.
 
 ## How it was made
 
-Two people, Quinn and Colby, and Claude agents, in about a day. The jam was three days old when we started. TODO(Quinn): confirm the start time you want quoted and whether Colby wants his role described.
+Two people, Quinn and Colby, and Claude agents, in the jam's last day. The first game code was written at about 9 PM on Saturday, with 24 hours left. TODO(Quinn): confirm the start time you want quoted and whether Colby wants his role described.
 
 The people chose the idea, the Captain's voice and every call on style and scope. They approved or rejected frames. The agents wrote the C++, the tests, the scripted playtests, the Captain's lines and the dev log entries, and ran the build and packaging. One orchestrating agent dispatched the others and did not write game code.
 
 - 157 commits on the integration branch at the time of writing. TODO(Quinn): refresh the number at submission.
-- 67 automated test cases in the source. TODO(Quinn): refresh.
-- About 185 lines of Captain dialogue, written as data.
+- 66 automated tests, all passing at 6:54 AM on Sunday. TODO(Quinn): refresh.
+- 185 lines of Captain dialogue, written as data.
 
 Dev log: TODO(Quinn): link. The drafts are `devlog/01-saturday-night.md` and `devlog/02-sunday-before-dawn.md`.
 
