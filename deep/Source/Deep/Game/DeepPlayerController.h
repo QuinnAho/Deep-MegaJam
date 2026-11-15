@@ -38,6 +38,12 @@ public:
 
 	virtual bool InputKey(const FInputKeyEventArgs& Params) override;
 
+	/**
+	 * Leaves the title if it is up; true when it did. Both routes a key takes end here: a real press
+	 * (viewport -> InputKey) and a key that reaches PlayerInput directly (Enhanced Input AnyKey -> TitleAction).
+	 */
+	bool TryStartFromTitle();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -58,6 +64,7 @@ protected:
 	void OnCutStart();
 	void OnCutStop();
 	void OnContinue();
+	void OnTitleKey();
 
 	/** A key press while a menu or the title is up. True when it was used (and must not reach the diver). */
 	bool HandleMenuKey(const FKey& Key);
@@ -105,4 +112,8 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> ContinueAction;
+
+	/** Mapped to EKeys::AnyKey: any key or mouse button leaves the title. */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> TitleAction;
 };
