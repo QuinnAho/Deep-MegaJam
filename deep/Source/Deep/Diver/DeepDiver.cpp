@@ -84,7 +84,7 @@ void ADeepDiver::BeginPlay()
 	Lamp->SetOuterConeAngle(LampTuning.OuterConeDeg);
 	Lamp->SetAttenuationRadius(LampTuning.RangeM * UDeepRules::CmPerM);
 	// Off the eye axis (right and up), so the beam's edge and the shadows it throws read in the murk.
-	Lamp->SetRelativeLocation(FVector(10.f, LampTuning.OffsetRightCm, LampTuning.OffsetUpCm));
+	Lamp->SetRelativeLocation(FVector(LampTuning.OffsetForwardCm, LampTuning.OffsetRightCm, LampTuning.OffsetUpCm));
 	Lamp->SetLightColor(LampTuning.Color);
 	// The visible beam: the lamp lights the volumetric fog, and its own shadows cut the lit fog.
 	Lamp->SetVolumetricScatteringIntensity(LampTuning.VolumetricScattering);
@@ -116,9 +116,9 @@ void ADeepDiver::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	// The lamp needs the flashlight (D-023): it shows only once it is bought.
-	if (Lamp->IsVisible() != IsLampOn())
+	if (Lamp->IsVisible() != ShowsLamp())
 	{
-		Lamp->SetVisibility(IsLampOn());
+		Lamp->SetVisibility(ShowsLamp());
 	}
 	if (Lamp->IsVisible())
 	{
@@ -506,7 +506,14 @@ void ADeepDiver::ServerSetLamp_Implementation(bool bOn)
 
 void ADeepDiver::OnRep_Lamp()
 {
-	Lamp->SetVisibility(IsLampOn());
+	Lamp->SetVisibility(ShowsLamp());
+}
+
+bool ADeepDiver::ShowsLamp() const
+{
+	// Aboard, the room light is enough and a torch at 40,000 blew a wall out to a white disc: the lamp is stowed in the
+	// dry room and comes back on at the hatch. Only the light is hidden; the switch (bLampOn) is kept.
+	return IsLampOn() && !(Run && Run->IsInside());
 }
 
 void ADeepDiver::AddCargo(const FDeepCargoItem& Item)

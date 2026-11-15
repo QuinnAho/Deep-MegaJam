@@ -60,6 +60,9 @@ public:
 	bool IsWinching() const { return bWinching; }
 	/** The lamp shines: switched on and the flashlight has been bought. */
 	bool IsLampOn() const;
+
+	/** The light is lit: the lamp is on and the diver is in the water (stowed aboard). */
+	bool ShowsLamp() const;
 	/** The flashlight has been bought (the lamp key works). */
 	bool HasFlashlight() const;
 	const TArray<FDeepCargoItem>& GetCargo() const { return Cargo; }

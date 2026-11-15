@@ -250,6 +250,31 @@ bool FDeepWorldLookBlendTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("500 m water is black"), Look.Presets[2].FogColor.Equals(FLinearColor(0.f, 0.f, 0.f, 1.f)));
 	TestTrue(TEXT("Light falls with depth"), Look.Presets[0].DownlightLux > Look.Presets[1].DownlightLux && Look.Presets[1].DownlightLux > Look.Presets[2].DownlightLux);
 	TestNotNull(TEXT("Deep.RayTracing is registered"), IConsoleManager::Get().FindConsoleObject(TEXT("Deep.RayTracing")));
+	// At 500 m the sub's lights stop lighting the water, so it stays black with the lamp off.
+	TestEqual(TEXT("500 m: sub lights do not light the fog"), ADeepEnvironment::BlendLook(Look, 500.f).SubLightFog, 0.f);
+	TestTrue(TEXT("Sub lights dim with depth"), Look.Presets[0].SubLightScale > Look.Presets[1].SubLightScale && Look.Presets[1].SubLightScale > Look.Presets[2].SubLightScale);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldSeabedTest, "Deep.World.Seabed",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDeepWorldSeabedTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
+	TestEqual(TEXT("A resting point per salvage spot plus the relic"), Rest.Num(), Tuning.Arena.SalvageSpots.Num() + 1);
+	// Salvage lies on the bed: at each resting point the bed is within 25 cm of it.
+	for (const FVector4& R : Rest)
+	{
+		const float Below = ADeepAbyssFloor::SeabedBelowM(FVector2D(R.X, R.Y), Rest, Tuning.Look);
+		TestTrue(*FString::Printf(TEXT("Bed meets the salvage at (%.0f, %.0f): %.2f vs %.2f m"), R.X, R.Y, Below, R.Z), FMath::Abs(Below - R.Z) < 0.25f);
+	}
+	// The hatch column is clear: under the anchor the bed is well below the hull, and it falls away into the dark.
+	TestTrue(TEXT("Bed is at least 6 m under the anchor"), ADeepAbyssFloor::SeabedBelowM(FVector2D::ZeroVector, Rest, Tuning.Look) > 6.f);
+	TestTrue(TEXT("Bed falls away far out"), ADeepAbyssFloor::SeabedBelowM(FVector2D(150.f, 0.f), Rest, Tuning.Look) > 40.f);
+	// A scanned material can be slotted in by path; the made one is the default.
+	TestEqual(TEXT("Seabed material by path"), Tuning.Look.SeabedMaterial.ToString(), FString(TEXT("/Game/Deep/Look/M_Silt.M_Silt")));
 	return true;
 }
 

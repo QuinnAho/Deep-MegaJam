@@ -62,14 +62,15 @@ The single accent is amber. Allowed only on: console and helm screens and practi
 | | 100 m | 300 m | 500 m |
 |---|---|---|---|
 | Downlight lux | 2.0 | 0.04 | 0 |
-| Fog density | 0.02 | 0.035 | 0.05 |
+| Fog density (engine units) | 0.75 | 1.0 | 1.2 |
 | Exposure bias (manual) | 0.0 | +1.5 | +2.0 |
 | Bloom / vignette / grain | 0.4 / 0.35 / 0.10 | 0.5 / 0.45 / 0.18 | 0.6 / 0.55 / 0.25 |
 | Saturation R,G,B,All | 0.75, 0.95, 1, 0.9 | 0.5, 0.9, 1, 0.8 | 0.4, 0.85, 1, 0.75 |
 | Contrast / fringe | 1.05 / 0 | 1.08 / 0.2 | 1.1 / 0.35 |
 | Volumetric distance | 80 m | 60 m | 40 m |
+| Sub outside lights / their fog | 100% / 0.6 | 40% / 0.15 | 8% / 0 |
 | Unlit visibility | 40 m silhouettes | 4 m near sub lights | 0 m |
-Exposure locked, local exposure contrast 1.0, volumetric start 1.5 m. Lamp 40,000, cone 12 to 24 degrees, range 35 m, offset 25 cm right and 15 cm up, wobble 2% at 0.3 Hz, no flicker. Belly flood 100,000, 35 degrees, 60 m. Salvage glint: 100% at 100 m, 30% at 300 m, 15% at 500 m.
+Fog density corrected Nov 15 (water pass): the engine divides by 1,000, so the first numbers (0.02 to 0.05) were about thirty times too thin; these meet the visibility row (5% left at 40 m at 100 m). Fog phase (scattering distribution) 0.5: sea water scatters forward, so the fog glows toward the light (shafts) and little back at the lamp holder. Exposure locked, local exposure contrast 1.0, volumetric start 0.5 m. Downlight fog 3.0 at 100 m with a moving surface light function (`M_SurfaceShafts`) for the shafts. Lamp 40,000, cone 7 to 21 degrees, range 35 m, held low: 35 cm right, 30 cm down, 20 cm forward, volumetric 1.2, wobble 2% at 0.3 Hz, no flicker; stowed while aboard. Sea bed of silt (`M_Silt`, albedo 0.09 to 0.16, roughness 0.9, ripples) about 8 to 13 m under the sub, salvage resting on it. At 500 m the sub shows only a faint warm mark at the hatch and lights no water. Belly flood 6,000, 35 degrees, 20 m, lighting objects only (100,000 over 60 m lit the water brighter than the lamp). Salvage glint: 100% at 100 m, 30% at 300 m, 15% at 500 m.
 
 ## 5b. Ray tracing
 The project has Lumen GI and reflections with hardware ray tracing on (DX12). Use that; the Path Tracer is offline only and is not for the game.

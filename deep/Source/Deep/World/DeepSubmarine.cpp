@@ -176,6 +176,23 @@ void ADeepSubmarine::LayOut()
 	HelmCamera->SetFieldOfView(T.HelmCameraFovDeg);
 }
 
+void ADeepSubmarine::SetOutsideLights(float Scale, float Fog)
+{
+	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
+	if (Arena.bGreyBox)
+	{
+		return;
+	}
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	const float S = FMath::Max(0.f, Scale);
+	AirlockLight->SetIntensity(Arena.SubLightIntensity * S);
+	// Dimmer is also smaller: at 500 m the airlock light marks the hatch rim and nothing else.
+	AirlockLight->SetAttenuationRadius(Arena.SubLightRadiusM * UDeepRules::CmPerM * FMath::Clamp(0.4f + 0.6f * S, 0.4f, 1.f));
+	AirlockLight->SetVolumetricScatteringIntensity(FMath::Max(0.f, Fog));
+	BellyFlood->SetIntensity(Look.BellyFloodIntensity * S);
+	BellyFlood->SetVisibility(S > 0.f);
+}
+
 void ADeepSubmarine::BeginPlay()
 {
 	Super::BeginPlay();
