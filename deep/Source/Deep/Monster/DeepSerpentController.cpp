@@ -3,6 +3,8 @@
 #include "Components/SpotLightComponent.h"
 #include "Diver/DeepDiver.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
 #include "EngineUtils.h"
 #include "Game/DeepGameState.h"
 #include "Monster/DeepMonsterBrain.h"
@@ -18,6 +20,13 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepSerpent, Log, All);
 namespace
 {
 	using DeepMonster::CmPerM;
+
+	TAutoConsoleVariable<int32> CVarWell(TEXT("Deep.Monster.Well"), -1,
+		TEXT("The serpent's steering in the relic's shaft: -1 as the settings say (bWellSteering), 0 the old open-water steering (before frames), 1 on."));
+	TAutoConsoleVariable<int32> CVarWellLog(TEXT("Deep.Monster.WellLog"), 0,
+		TEXT("1: every 0.5 s the serpent logs DEEPWELL {json}: state, head and body distance from the shaft's axis, depth below the diver."));
+	TAutoConsoleVariable<int32> CVarWatch(TEXT("Deep.Monster.Watch"), 0,
+		TEXT("Shots: 1 turns the player's view (and lamp) onto the serpent's head every step; 2 looks straight down; 3 looks down, and at the head while it stalks or bites (the scripted player); 0 off."));
 }
 
 ADeepSerpentController::ADeepSerpentController()
@@ -403,8 +412,10 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 		Brain->OnDiverCaught.Broadcast(Target);
 	}
 
+	UpdateWell(Target, Tuning, Dt);
 	Steer(Tuning, Dt);
-	Threat01 = Target ? UDeepMonsterRules::Threat01(State, DiverDistanceM, Tuning) : 0.f;
+	DebugWell(Target, Dt);
+	Threat01 =Target ? UDeepMonsterRules::Threat01(State, DiverDistanceM, Tuning) : 0.f;
 	Body->SetMood(State, Threat01);
 }
 
@@ -420,11 +431,16 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	const FVector Head = Body->GetHeadLocation();
 	const FVector Middle = TetherMiddle(Target);
 
+	// Each state picks where it steers for, how fast and how sharply it turns; in the well the place is moved into the
+	// shaft (UDeepMonsterRules::WellAimPoint) and the speed and turn rate stay the state's own.
+	FVector Aim = Head + Body->GetHeading() * (10.f * CmPerM);
+	float Speed = 0.f;
+	float Turn = Tuning.TurnRateDegPerS;
 	switch (State)
 	{
 	case EDeepMonsterState::Lurk:
-		Body->SwimToward(UDeepMonsterRules::OrbitAimPoint(Middle, Head, LurkRadiusCm(Target, Tuning) / CmPerM, Tuning.LurkLeadDeg),
-			Tuning.LurkSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
+		Aim = UDeepMonsterRules::OrbitAimPoint(Middle, Head, LurkRadiusCm(Target, Tuning) / CmPerM, Tuning.LurkLeadDeg);
+		Speed = Tuning.LurkSpeedMps;
 		break;
 
 	case EDeepMonsterState::Stalk:
@@ -432,7 +448,7 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 		// Spiral in on the bite point, a few metres up the line from the diver. Close in, swing out to one side of the
 		// line and strike across it, so the diver who turns sees it in profile clamping the line.
 		const FVector Point = BitePoint(Target, Tuning);
-		FVector Aim = UDeepMonsterRules::SpiralAimPoint(Point, Head, Tuning.StalkArcDeg, Tuning.StalkInwardFraction, Tuning.StalkDirectWithinM);
+		Aim = UDeepMonsterRules::SpiralAimPoint(Point, Head, Tuning.StalkArcDeg, Tuning.StalkInwardFraction, Tuning.StalkDirectWithinM);
 		FVector A, B;
 		if (FVector::Dist(Head, Point) <= Tuning.StalkDirectWithinM * CmPerM && Brain->TetherEnds(Target, A, B))
 		{
@@ -454,14 +470,12 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 				Aim = Point;
 			}
 		}
-		Body->SwimToward(Aim, Tuning.StalkSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
+		Speed = Tuning.StalkSpeedMps;
 		break;
 	}
 
 	case EDeepMonsterState::Pass:
-	{
 		// The first sight: slow, along the laid-out line, then out into the dark.
-		FVector Aim = Head + Body->GetHeading() * (10.f * CmPerM);
 		if (PassLeg < PassPoints.Num())
 		{
 			Aim = PassPoints[PassLeg];
@@ -470,9 +484,8 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 				++PassLeg;
 			}
 		}
-		Body->SwimToward(Aim, Tuning.PassSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
+		Speed = Tuning.PassSpeedMps;
 		break;
-	}
 
 	case EDeepMonsterState::Recoil:
 	{
@@ -482,30 +495,158 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 			FVector FromLamp = Head - Target->GetActorLocation();
 			FromLamp.Z *= 0.3f;
 			FromLamp = FromLamp.GetSafeNormal(UE_SMALL_NUMBER, -Body->GetHeading());
-			Body->SwimToward(Head + FromLamp * (Tuning.LurkRadiusM * CmPerM), Tuning.RecoilSpeedMps * Tuning.RecoilTurnSpeedFraction,
-				Tuning.TurnRateDegPerS * 2.f, DeltaSeconds);
-			break;
+			Aim = Head + FromLamp * (Tuning.LurkRadiusM * CmPerM);
+			Speed = Tuning.RecoilSpeedMps * Tuning.RecoilTurnSpeedFraction;
 		}
-		// Then straight away from the line, flinching round faster than it normally turns.
-		FVector Away = Head - Middle;
-		Away.Z *= 0.3f;
-		Away = Away.GetSafeNormal(UE_SMALL_NUMBER, -Body->GetHeading());
-		Body->SwimToward(Head + Away * (Tuning.LurkRadiusM * CmPerM), Tuning.RecoilSpeedMps, Tuning.TurnRateDegPerS * 2.f, DeltaSeconds);
+		else
+		{
+			// Then straight away from the line, flinching round faster than it normally turns.
+			FVector Away = Head - Middle;
+			Away.Z *= 0.3f;
+			Away = Away.GetSafeNormal(UE_SMALL_NUMBER, -Body->GetHeading());
+			Aim = Head + Away * (Tuning.LurkRadiusM * CmPerM);
+			Speed = Tuning.RecoilSpeedMps;
+		}
+		Turn = Tuning.TurnRateDegPerS * 2.f;
 		break;
 	}
 
 	case EDeepMonsterState::Bite:
 	{
 		FVector A, B;
-		if (Brain->TetherEnds(Target, A, B))
+		if (!Brain->TetherEnds(Target, A, B))
 		{
-			Body->SwimToward(FMath::Lerp(A, B, BiteAlpha), Tuning.StalkSpeedMps, Tuning.TurnRateDegPerS * 3.f, DeltaSeconds);
+			return;
 		}
+		Aim = FMath::Lerp(A, B, BiteAlpha);
+		Speed = Tuning.StalkSpeedMps;
+		Turn = Tuning.TurnRateDegPerS * 3.f;
 		break;
 	}
 
 	case EDeepMonsterState::Hunt:
-		Body->SwimToward(Target->GetActorLocation(), Tuning.HuntSpeedMps, Tuning.TurnRateDegPerS, DeltaSeconds);
+		Aim = Target->GetActorLocation();
+		Speed = Tuning.HuntSpeedMps;
 		break;
 	}
+
+	if (bInWell)
+	{
+		FVector DiverEnd = Target->GetActorLocation();
+		FVector A, B;
+		if (Brain->TetherEnds(Target, A, B))
+		{
+			DiverEnd = B;
+		}
+		Aim = UDeepMonsterRules::WellAimPoint(State, Well, Head, DiverEnd, Aim, WellSide, RiseMps, Tuning);
+	}
+	Body->SwimToward(Aim, Speed, Turn, DeltaSeconds);
+}
+
+void ADeepSerpentController::UpdateWell(const ADeepDiver* Target, const FDeepMonsterTuning& Tuning, float DeltaSeconds)
+{
+	const UDeepMonsterBrain* Brain = GetBrain();
+	ADeepSerpent* Body = GetSerpent();
+	const int32 Switch = CVarWell.GetValueOnGameThread();
+	const bool bOn = Switch < 0 ? Tuning.bWellSteering : Switch > 0;
+	Well = Brain ? Brain->GetWell() : FDeepWell();
+	if (!Target || !Body || !Well.bValid)
+	{
+		bInWell = false;
+		return;
+	}
+	const FVector Diver = Target->GetActorLocation();
+	const float Alpha = FMath::Clamp(DeltaSeconds * 2.f, 0.f, 1.f);
+	RiseMps = FMath::Lerp(RiseMps, static_cast<float>(Target->GetVelocity().Z / CmPerM), Alpha);
+
+	if (!bOn || !UDeepMonsterRules::IsInWell(Well, Diver))
+	{
+		bInWell = false;
+		return;
+	}
+	if (bInWell)
+	{
+		return;
+	}
+	// Entry: only once there is a below to come up from.
+	if (Diver.Z - Well.FloorZCm < Tuning.WellEnterAboveFloorM * CmPerM)
+	{
+		return;
+	}
+	bInWell = true;
+	WellSide = FVector2D(FMath::FRandRange(-1.f, 1.f), FMath::FRandRange(-1.f, 1.f)).GetSafeNormal();
+	if (WellSide.IsNearlyZero())
+	{
+		WellSide = FVector2D(1.0, 0.0);
+	}
+	const FVector Head = Body->GetHeadLocation();
+	if (!UDeepMonsterRules::IsInWell(Well, Head, Tuning.WellWallClearM * CmPerM * 0.5))
+	{
+		// It was out in the rock round the shaft, where nobody can see it: it is now down in the shaft below the diver,
+		// head up, body hanging down the shaft. Out of view, like the first sight's start.
+		const FVector Below(Well.AxisCm.X - WellSide.X * 100.0, Well.AxisCm.Y - WellSide.Y * 100.0,
+			Diver.Z - UDeepMonsterRules::WellHoldBelowM(RiseMps, Tuning) * CmPerM);
+		const FVector Hold = UDeepMonsterRules::KeepInWell(Well, Below, Tuning);
+		Body->PlaceHead(Hold, FVector::UpVector);
+		UE_LOG(LogDeepSerpent, Log, TEXT("Serpent enters the well %.1f m below the diver (%s)"), (Diver.Z - Hold.Z) / CmPerM, *UDeepMonsterRules::StateName(State));
+	}
+}
+
+void ADeepSerpentController::DebugWell(const ADeepDiver* Target, float DeltaSeconds)
+{
+	ADeepSerpent* Body = GetSerpent();
+	if (!Body || !Target)
+	{
+		return;
+	}
+	const FVector Head = Body->GetHeadLocation();
+	const int32 Watch = CVarWatch.GetValueOnGameThread();
+	if (Watch > 0)
+	{
+		if (APlayerController* Player = Cast<APlayerController>(Target->GetController()))
+		{
+			const FVector Eye = Target->GetPawnViewLocation();
+			const bool bAtHead = Watch == 1 || (Watch == 3 && (State == EDeepMonsterState::Stalk || State == EDeepMonsterState::Bite || State == EDeepMonsterState::Hunt));
+			const FRotator Current = Player->GetControlRotation();
+			const FRotator Look = bAtHead ? (Head - Eye).Rotation() : FRotator(-89.f, Current.Yaw, 0.f);
+			Player->SetControlRotation(Look);
+		}
+	}
+	WellClockS += DeltaSeconds;
+	if (CVarWellLog.GetValueOnGameThread() <= 0)
+	{
+		return;
+	}
+	WellLogAccumS += DeltaSeconds;
+	if (WellLogAccumS < 0.5f)
+	{
+		return;
+	}
+	WellLogAccumS = 0.f;
+	const FDeepWell Shaft = GetBrain() ? GetBrain()->GetWell() : FDeepWell();
+	if (!Shaft.bValid)
+	{
+		return;
+	}
+	// How far the drawn body reaches from the axis: past the radius (and below the rim), it is in the stone.
+	TArray<FSphere> Spheres;
+	Body->GetDrawnSpheres(Spheres);
+	float BodyOutM = 0.f;
+	int32 InStone = 0;
+	for (const FSphere& S : Spheres)
+	{
+		const float Out = UDeepMonsterRules::WellAxisDistanceM(Shaft, S.Center) + static_cast<float>(S.W) / CmPerM;
+		BodyOutM = FMath::Max(BodyOutM, Out);
+		InStone += (Out > Shaft.RadiusCm / CmPerM && S.Center.Z < Shaft.TopZCm) ? 1 : 0;
+	}
+	const FVector Diver = Target->GetActorLocation();
+	const FVector Eye = Target->GetPawnViewLocation();
+	const FVector ViewDir = Target->GetControlRotation().Vector();
+	const FVector ToHead = Head - Eye;
+	const float OffViewDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(static_cast<float>(FVector::DotProduct(ToHead.GetSafeNormal(), ViewDir)), -1.f, 1.f)));
+	UE_LOG(LogDeepSerpent, Display,
+		TEXT("DEEPWELL {\"t\":%.1f,\"well_mode\":%d,\"state\":\"%s\",\"head_axis_m\":%.1f,\"head_below_diver_m\":%.1f,\"head_dist_m\":%.1f,\"head_off_view_deg\":%.0f,\"body_out_m\":%.1f,\"spheres_in_stone\":%d,\"spheres\":%d,\"diver_above_floor_m\":%.1f,\"diver_axis_m\":%.1f,\"rise_mps\":%.1f,\"tether_m\":%.1f,\"lit_s\":%.2f,\"radius_m\":%.1f,\"top_above_floor_m\":%.1f}"),
+		WellClockS, bInWell ? 1 : 0, *UDeepMonsterRules::StateName(State), UDeepMonsterRules::WellAxisDistanceM(Shaft, Head), (Diver.Z - Head.Z) / CmPerM,
+		ToHead.Size() / CmPerM, OffViewDeg, BodyOutM, InStone, Spheres.Num(), (Diver.Z - Shaft.FloorZCm) / CmPerM,
+		UDeepMonsterRules::WellAxisDistanceM(Shaft, Diver), RiseMps, TetherDistanceM, LitSeconds, Shaft.RadiusCm / CmPerM, (Shaft.TopZCm - Shaft.FloorZCm) / CmPerM);
 }

@@ -312,3 +312,88 @@ void UDeepMonsterRules::ReportDiverNoise(UObject* WorldContextObject, FVector Lo
 		UAISense_Hearing::ReportNoiseEvent(WorldContextObject, LocationCm, Loudness, Instigator, 0.f, TEXT("DeepNoise"));
 	}
 }
+
+// ---------------------------------------------------------------- the well
+
+bool UDeepMonsterRules::IsInWell(const FDeepWell& Well, const FVector& PointCm, double MarginCm)
+{
+	if (!Well.bValid)
+	{
+		return false;
+	}
+	const double Off = FVector2D::Distance(FVector2D(PointCm.X, PointCm.Y), Well.AxisCm);
+	return Off <= Well.RadiusCm - MarginCm && PointCm.Z >= Well.FloorZCm && PointCm.Z <= Well.TopZCm;
+}
+
+float UDeepMonsterRules::WellAxisDistanceM(const FDeepWell& Well, const FVector& PointCm)
+{
+	return static_cast<float>(FVector2D::Distance(FVector2D(PointCm.X, PointCm.Y), Well.AxisCm) / CmPerM);
+}
+
+FVector UDeepMonsterRules::KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning)
+{
+	if (!Well.bValid)
+	{
+		return AimCm;
+	}
+	const double MaxOff = FMath::Max(0.0, Well.RadiusCm - Tuning.WellWallClearM * CmPerM);
+	FVector2D Off = FVector2D(AimCm.X, AimCm.Y) - Well.AxisCm;
+	if (Off.Size() > MaxOff)
+	{
+		Off = Off.GetSafeNormal() * MaxOff;
+	}
+	const double Z = FMath::Max(AimCm.Z, Well.FloorZCm + Tuning.WellFloorClearM * CmPerM);
+	return FVector(Well.AxisCm.X + Off.X, Well.AxisCm.Y + Off.Y, Z);
+}
+
+float UDeepMonsterRules::WellHoldBelowM(float RiseMps, const FDeepMonsterTuning& Tuning)
+{
+	const float Stalk = FMath::Max(0.1f, Tuning.StalkSpeedMps);
+	const float OpenWaterApproachS = FMath::Max(0.f, Tuning.LurkRadiusM - Tuning.BiteReachM) / Stalk;
+	const float Closing = FMath::Clamp(Stalk - FMath::Max(0.f, RiseMps), 0.f, Stalk);
+	return FMath::Clamp(Tuning.BiteReachM + OpenWaterApproachS * Closing, 2.f * Tuning.BiteReachM, FMath::Max(2.f * Tuning.BiteReachM, Tuning.LurkRadiusM));
+}
+
+FVector UDeepMonsterRules::WellAimPoint(EDeepMonsterState State, const FDeepWell& Well, const FVector& HeadCm, const FVector& DiverCm,
+	const FVector& OpenWaterAimCm, const FVector2D& SideDir, float RiseMps, const FDeepMonsterTuning& Tuning)
+{
+	if (!Well.bValid)
+	{
+		return OpenWaterAimCm;
+	}
+	FVector Aim = OpenWaterAimCm;
+	switch (State)
+	{
+	case EDeepMonsterState::Lurk:
+	{
+		// Below the diver at the hold depth, circling the axis slowly: the head keeps turning up into the edge of the beam.
+		const double HoldZ = DiverCm.Z - WellHoldBelowM(RiseMps, Tuning) * CmPerM;
+		FVector2D Rel = FVector2D(HeadCm.X, HeadCm.Y) - Well.AxisCm;
+		if (Rel.IsNearlyZero())
+		{
+			Rel = FVector2D(1.0, 0.0);
+		}
+		const double Angle = FMath::Atan2(Rel.Y, Rel.X) + FMath::DegreesToRadians(60.0);
+		const FVector2D On = Well.AxisCm + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * (Tuning.WellLurkCircleM * CmPerM);
+		Aim = FVector(On.X, On.Y, HoldZ);
+		break;
+	}
+	case EDeepMonsterState::Stalk:
+	{
+		// Up the shaft from below, head first, to the diver's end of the line, a little to one side of it.
+		const FVector2D Side = SideDir.GetSafeNormal() * (Tuning.WellStalkSideM * CmPerM);
+		Aim = FVector(DiverCm.X + Side.X, DiverCm.Y + Side.Y, DiverCm.Z - 0.5 * CmPerM);
+		break;
+	}
+	case EDeepMonsterState::Recoil:
+	{
+		// Back down the shaft, not through its wall: the head turns down and it dives for the floor.
+		const FVector2D Mid = Well.AxisCm + (FVector2D(HeadCm.X, HeadCm.Y) - Well.AxisCm) * 0.5;
+		Aim = FVector(Mid.X, Mid.Y, Well.FloorZCm);
+		break;
+	}
+	default:
+		break;
+	}
+	return KeepInWell(Well, Aim, Tuning);
+}

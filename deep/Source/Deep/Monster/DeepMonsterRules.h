@@ -87,4 +87,26 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FString StateName(EDeepMonsterState State);
+
+	// ---- The well (pure; world cm; not Blueprint: FDeepWell is a plain struct) ----
+
+	/** Inside the shaft: within its radius less MarginCm of the axis, and between its floor and top. */
+	static bool IsInWell(const FDeepWell& Well, const FVector& PointCm, double MarginCm = 0.0);
+	/** Horizontal distance from the shaft's axis (m). */
+	static float WellAxisDistanceM(const FDeepWell& Well, const FVector& PointCm);
+	/** The point moved inside the shaft: at most radius - WellWallClearM off the axis, at least WellFloorClearM above its floor. */
+	static FVector KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning);
+	/**
+	 * How far below a diver who rises at RiseMps it lurks in the shaft (m): far enough that a stalk from there takes as
+	 * long as one from the lurk radius in open water ((LurkRadiusM - BiteReachM) / StalkSpeedMps) at the closing speed it
+	 * has from below (StalkSpeedMps - RiseMps). Never more than LurkRadiusM, never less than twice the bite reach.
+	 */
+	static float WellHoldBelowM(float RiseMps, const FDeepMonsterTuning& Tuning);
+	/**
+	 * Where it steers for in the shaft, by state, kept inside it. Lurk: a small circle round the axis at the hold depth
+	 * below the diver. Stalk: up from below to the diver's end of the line, WellStalkSideM to SideDir's side. Recoil:
+	 * the head turns down, then straight down the shaft. Bite, hunt, pass: the open-water aim, kept inside.
+	 */
+	static FVector WellAimPoint(EDeepMonsterState State, const FDeepWell& Well, const FVector& HeadCm, const FVector& DiverCm,
+		const FVector& OpenWaterAimCm, const FVector2D& SideDir, float RiseMps, const FDeepMonsterTuning& Tuning);
 };

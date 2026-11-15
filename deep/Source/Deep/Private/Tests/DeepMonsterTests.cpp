@@ -694,4 +694,61 @@ bool FDeepMonsterLastAscentTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// The last ascent's well: whatever the state, it steers for a place inside the shaft; it comes up from below; it
+// flees down; and it lurks at a depth from which a stalk takes as long as one from the lurk radius in open water.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterWellTest, "Deep.Sim.Monster.Well", DEEP_MONSTER_TEST_FLAGS)
+bool FDeepMonsterWellTest::RunTest(const FString& Parameters)
+{
+	const FDeepMonsterTuning Tuning = UDeepMonsterSettings::Get().GetTuning(UDeepTuningSettings::Get().Arena.RelicStop);
+	FDeepWell Well;
+	Well.AxisCm = FVector2D(1000.0, -500.0);
+	Well.FloorZCm = -10000.0;
+	Well.TopZCm = -3500.0;
+	Well.RadiusCm = 450.0;
+	Well.bValid = true;
+	const double InnerCm = Well.RadiusCm - Tuning.WellWallClearM * 100.0;
+	TestTrue(TEXT("The path keeps clear of the wall by less than the radius"), InnerCm > 100.0);
+
+	// A diver rising up the axis, 30 m above the floor; the open-water aims point far out into the rock.
+	const FVector Diver(1000.0, -500.0, -7000.0);
+	const FVector OpenWater(1000.0 + 4500.0, -500.0, -6000.0);
+	const FVector2D Side(0.0, 1.0);
+	const EDeepMonsterState States[] = { EDeepMonsterState::Lurk, EDeepMonsterState::Stalk, EDeepMonsterState::Recoil,
+		EDeepMonsterState::Bite, EDeepMonsterState::Hunt, EDeepMonsterState::Pass };
+	const FVector Heads[] = { FVector(1100.0, -500.0, -9000.0), FVector(1000.0, -300.0, -7300.0), FVector(5000.0, 3000.0, -12000.0) };
+	for (const EDeepMonsterState State : States)
+	{
+		for (const FVector& Head : Heads)
+		{
+			const FVector Aim = UDeepMonsterRules::WellAimPoint(State, Well, Head, Diver, OpenWater, Side, 4.f, Tuning);
+			const double Off = FVector2D::Distance(FVector2D(Aim.X, Aim.Y), Well.AxisCm);
+			TestTrue(FString::Printf(TEXT("%s: the aim is inside the shaft (%.0f cm off the axis)"), *UDeepMonsterRules::StateName(State), Off), Off <= InnerCm + 1.0);
+			TestTrue(FString::Printf(TEXT("%s: the aim is above the floor"), *UDeepMonsterRules::StateName(State)), Aim.Z >= Well.FloorZCm + Tuning.WellFloorClearM * 100.0 - 1.0);
+		}
+	}
+	const FVector Below(1000.0, -500.0, -9000.0);
+	const FVector StalkAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Stalk, Well, Below, Diver, OpenWater, Side, 4.f, Tuning);
+	TestTrue(TEXT("The stalk comes up to the diver from below"), StalkAim.Z < Diver.Z && StalkAim.Z > Below.Z);
+	const FVector RecoilAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Recoil, Well, FVector(1000.0, -400.0, -7300.0), Diver, OpenWater, Side, 4.f, Tuning);
+	TestTrue(TEXT("The recoil goes down the shaft"), RecoilAim.Z < -7300.0 - 1000.0);
+	const FVector LurkAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Lurk, Well, Below, Diver, OpenWater, Side, 4.f, Tuning);
+	TestTrue(TEXT("It lurks below the diver"), LurkAim.Z < Diver.Z - 2.f * Tuning.BiteReachM * 100.0);
+	TestTrue(TEXT("A point outside is moved in"), UDeepMonsterRules::IsInWell(Well, UDeepMonsterRules::KeepInWell(Well, OpenWater, Tuning)));
+
+	// Timing kept: from the hold depth, closing at stalk speed less the rise, the stalk takes the open-water time.
+	const float OpenS = (Tuning.LurkRadiusM - Tuning.BiteReachM) / Tuning.StalkSpeedMps;
+	for (const float Rise : { 0.f, 2.f, 4.f })
+	{
+		const float HoldM = UDeepMonsterRules::WellHoldBelowM(Rise, Tuning);
+		const float Closing = Tuning.StalkSpeedMps - Rise;
+		AddInfo(FString::Printf(TEXT("Rise %.0f m/s: lurks %.1f m below, stalk %.1f s (open water %.1f s)"), Rise, HoldM, (HoldM - Tuning.BiteReachM) / Closing, OpenS));
+		TestTrue(TEXT("Never deeper than the lurk radius"), HoldM <= Tuning.LurkRadiusM + 0.01f);
+		if (HoldM > 2.f * Tuning.BiteReachM + 0.01f)
+		{
+			TestTrue(TEXT("The stalk from the hold takes the open-water time"), FMath::IsNearlyEqual((HoldM - Tuning.BiteReachM) / Closing, OpenS, 0.05f));
+		}
+	}
+	return true;
+}
+
 #endif

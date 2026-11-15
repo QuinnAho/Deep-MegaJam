@@ -225,6 +225,47 @@ struct FDeepMonsterTuning
 	/** The pass gives up after this long whatever happens. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "First sight")
 	float PassMaxS = 25.f;
+
+	// ---- The well (the last ascent): the relic's shaft is 4.5 m in radius and lined with stone that has no
+	// collision. While the diver it is after is inside it, every place it steers for is kept inside the shaft and it
+	// comes up from below, head first. Same rules and speeds: only where it goes changes. ----
+
+	/** Off = the old open-water steering in the well too (before-and-after frames: Deep.Monster.Well 0). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	bool bWellSteering = true;
+
+	/** Its path keeps this far in from the shaft's wall (the body is up to 0.7 m thick and weaves 0.6 m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellWallClearM = 1.6f;
+
+	/** And this far above the shaft's floor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellFloorClearM = 1.5f;
+
+	/** It enters the shaft (from the rock round it, out of sight) once the diver is this far above its floor, so there is a below to come up from. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellEnterAboveFloorM = 6.f;
+
+	/** While it lurks it circles this far off the shaft's axis, below the diver. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellLurkCircleM = 1.5f;
+
+	/** The stalk comes up this far to one side of the line, so the head is seen beside it, not hidden behind the diver's feet. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
+	float WellStalkSideM = 1.2f;
+};
+
+/**
+ * The relic's shaft as the serpent knows it (world cm): a vertical cylinder round AxisCm from FloorZCm up to TopZCm.
+ * Not a USTRUCT: the brain builds it from the arena's tuning.
+ */
+struct FDeepWell
+{
+	FVector2D AxisCm = FVector2D::ZeroVector;
+	double FloorZCm = 0.0;
+	double TopZCm = 0.0;
+	double RadiusCm = 0.0;
+	bool bValid = false;
 };
 
 /** Stop-specific overrides: the stop with the greatest Stop not above the current one applies. */

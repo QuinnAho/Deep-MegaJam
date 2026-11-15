@@ -11,6 +11,9 @@
 #include "Monster/DeepSerpent.h"
 #include "Monster/DeepSerpentController.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Sim/DeepRules.h"
+#include "World/DeepAbyssFloor.h"
+#include "World/DeepArena.h"
 #include "World/DeepSubmarine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepMonster, Log, All);
@@ -322,4 +325,33 @@ void UDeepMonsterBrain::ResetForRun()
 	Serpent.Reset();
 	CutDivers.Reset();
 	bForcedSpawn = false;
+}
+
+FDeepWell UDeepMonsterBrain::GetWell() const
+{
+	FDeepWell Well;
+	const UWorld* World = GetWorld();
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	if (!World || CurrentStop() != Tuning.Arena.RelicStop)
+	{
+		return Well;
+	}
+	// The shaft is cut round the relic's spot (ADeepAbyssFloor::RestPointsFromTuning, negative radius); its floor is that
+	// point's depth below the anchor, its rim the bed just outside it.
+	const FVector Anchor = DeepArena::ArenaAnchor(World);
+	const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
+	const FVector4* Pit = Rest.FindByPredicate([](const FVector4& R) { return R.W < 0.f; });
+	if (!Pit)
+	{
+		return Well;
+	}
+	const double RadiusM = -Pit->W;
+	const FVector2D RimM(Pit->X + RadiusM * 1.6, Pit->Y);
+	const double RimBelowM = ADeepAbyssFloor::SeabedBelowM(RimM, Rest, Tuning.Look);
+	Well.AxisCm = FVector2D(Anchor.X + Pit->X * CmPerM, Anchor.Y + Pit->Y * CmPerM);
+	Well.FloorZCm = Anchor.Z - Pit->Z * CmPerM;
+	Well.TopZCm = Anchor.Z - RimBelowM * CmPerM;
+	Well.RadiusCm = RadiusM * CmPerM;
+	Well.bValid = Well.TopZCm > Well.FloorZCm + 5.0 * CmPerM;
+	return Well;
 }

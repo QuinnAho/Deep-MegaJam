@@ -111,4 +111,22 @@ private:
 	// ---- The staged bite: the side it strikes from, fixed once it is close ----
 	FVector BiteSide = FVector::ZeroVector;
 	bool bBiteCommit = false;
+
+	// ---- The well (the last ascent): steering kept inside the relic's shaft while the focus diver is in it ----
+	/** Enters the well mode, or leaves it, for this step; places the head in the shaft below the diver on entry. */
+	void UpdateWell(const ADeepDiver* Target, const FDeepMonsterTuning& Tuning, float DeltaSeconds);
+	/** Shots and logs: Deep.Monster.WellLog and Deep.Monster.Watch. */
+	void DebugWell(const ADeepDiver* Target, float DeltaSeconds);
+	FDeepWell Well;
+	bool bInWell = false;
+	/** The focus diver's rise (m/s), eased over about half a second. */
+	float RiseMps = 0.f;
+	/** Which side of the line it comes up on (unit, horizontal). */
+	FVector2D WellSide = FVector2D(1.0, 0.0);
+	float WellLogAccumS = 0.f;
+	float WellClockS = 0.f;
+
+public:
+	/** True while it steers inside the relic's shaft (tests, logs). */
+	bool IsInWellMode() const { return bInWell; }
 };

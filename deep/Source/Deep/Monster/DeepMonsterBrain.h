@@ -53,6 +53,9 @@ public:
 	/** Divers in the water (their run lets them swim): dead, settling and descending divers are not prey. */
 	void GatherDivers(TArray<ADeepDiver*>& Out) const;
 
+	/** The relic's shaft at the relic's stop (from the arena's tuning and the bed's shape); bValid false at other stops. */
+	FDeepWell GetWell() const;
+
 	/** `{json}` with present, state, noise, heard, lit_s, cooldown_s, tether_distance_m, diver_distance_m, threat, stop. */
 	FString BuildStateJson() const;
 
