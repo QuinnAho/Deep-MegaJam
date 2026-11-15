@@ -5,14 +5,14 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 10:20 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 10:40 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` on origin at `9e62332`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). Full suite 77 of 77; packaged and smoke-tested at `0e83e06`, zip 762 MB (the two commits after it are notes and frames). It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
+- `polish/integration` on origin at `a942e1c`: everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit and rebuilt silt. Full suite 77 of 77; packaged and smoke-tested at `5a5f8ab`, zip 762 MB; all 14 scripted playthroughs pass (the commits after `5a5f8ab` change only the playtest script and notes). It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
@@ -21,7 +21,7 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 Their reports go to the session that started them, so a new session checks the branches.
 
 - `polish/fx` in `.wt\dev`, since 10:08 AM (a fresh engineer; time box 11:25 AM). Breath bubbles, bubbles at the hatch and the winch, and a silt puff, as Niagara particles with a lit translucent material. A first try without Niagara (mirror spheres) was rejected and reverted by its own engineer; the reason and the rejected frames are in the dev log (10:05 AM). Assets go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-fx-*.png`.
-- `polish/hull` in `.wt\text`, second task since 10:00 AM (the hull engineer, resumed; time box 10:45 AM). The hull is done and merged. Now only the smear on the trench rock while driving: proved to be the temporal upscaler; why the moving rock writes no velocity is not yet proved. It must stop and report if the cause is a project-wide rendering setting.
+- `polish/opening` in `.wt\pkg`, since 10:20 AM (a fresh engineer; time box 11:45 AM). The first five minutes as the player really sees them, by the method that fixed the ending: walk the real sequence, judge every frame, fix what fails. The serpent's bite with the lamp off is part of it. Frames `devlog/media/2026-11-15-opening-*.png`.
 - When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, take a frame from the packaged game, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
 - Scripts for this are in the session's scratch folder and are worth rewriting if lost: one runs `verify`, then `package` and `smoke` inside the Unreal slot and `zip` after it; one takes a frame from the packaged game with `-DeepShot`.
 - A resumed engineer with a long history costs more per minute than a fresh one (691k tokens for the 42-minute second pass on the well, 492k for the 66-minute first). Resume for a review of the same work; start fresh for new work.
@@ -33,10 +33,11 @@ Their reports go to the session that started them, so a new session checks the b
 - The playtest overwrites tracked screenshots in `devlog/media`. Put them back with `git checkout -- devlog/media` before the next merge.
 - **The playtest leaves its editor open** when a later call finds the port already answering. At 9:11 AM that editor held two material files and a merge in `.wt\monster` failed half-way; the gate then refused to build ("an editor is running on this project"), so nothing wrong was built. After a playtest, check for an `UnrealEditor.exe` on that checkout and port and stop it before merging.
 
-**The lamp and the ending as played (the `polish/ascent` lane, done 10:11 AM)**
+**The lamp and the ending as played (the `polish/ascent` lane, merged)**
 
-- Merged in `.wt\monster` as `c9a54b2` (gate 77 of 77) with the launch fix `5a5f8ab` on top. **Not pushed until its package is green and the playtest set has run**: the pit floor is now flat and the view tips down on the hatch drop, and both touch what the playtests do.
-- The lamp now samples its whole cone and no longer burns the serpent, the pit floor or the hoard. Left from that lane: the bite with the lamp off (nearly black; not started), the serpent in the shaft never caught in a frame, the hard edge of the beam up the shaft, a dim lamp pool at 100 m, the pit wall nearly black at 1 m.
+- Merged and pushed (`a942e1c`). Gate 77 of 77, package and smoke green, zip 762 MB, and **all 14 scripted playthroughs pass** (13 in the set at 10:34 AM, and `S3-serpent` alone at 10:37 AM after the script learned to wait for a busy editor).
+- `S10-cutdrop` now passes. It had failed 2 of 2: a diver cut at the very bottom of the shaft could not swim out. With the pit's flat floor the diver drops the relic and gets home on bailout air. That settles the third of Quinn's three calls on the ending, by script; a try by hand is still worth it.
+- The lamp samples its whole cone and no longer burns the serpent, the pit floor or the hoard. Left from that lane: the serpent in the shaft never caught in a frame, the hard edge of the beam up the shaft, a dim lamp pool at 100 m, the pit wall nearly black at 1 m. The bite with the lamp off went to the `polish/opening` lane.
 - For Quinn: the view now tips down at least 45 degrees as the diver drops through the hatch (`Arena.HatchDropPitchDeg`). It makes the bed and the well's glow the first thing seen. It is a change to the camera at every dive.
 
 **An open editor blocks every build (found 10:14 AM)**
@@ -45,10 +46,11 @@ Their reports go to the session that started them, so a new session checks the b
 - `tools/ue.ps1 editor` now passes `-LiveCoding=0` (integration, `5a5f8ab`). Lanes cut before that must add it by hand; the two engineers running at 10:15 AM were told.
 - **Quinn's own editor does the same.** When he opens the main checkout in Unreal 5.9, every agent build and the merge gate stop until he closes it or turns Live Coding off (Editor Preferences, Live Coding, untick Enable; or start the editor with `-LiveCoding=0`).
 - To see who holds it: list `UnrealEditor.exe` processes with their command lines. Never stop one you did not start.
+- Port 8012 is shared by the agents' editors, and at 10:13 AM one engineer's calls went to another's editor because it did not re-check the port. Give each lane that needs an editor its own port in the brief (8012, 8014, ...; 8013 is the playtests'), and say to check the port before every batch of calls.
 
 **Left over from the well pass (small)**
 
-- A fine smear across the trench rock while the submarine moves (now the hull lane's third item). The cause is not proved; the dragon lane found the same kind of fault on the serpent's body (no motion vectors on a mesh whose component never moves).
+- A fine smear across the trench rock while the submarine moves. **Accepted as it is.** The rock writes correct velocity; the smear is the upscaler resampling its history while fine rock slides past, and the settings that govern it are project-wide. If time is left at the end, the one local thing to try is a temporal-responsiveness output on `M_DressSilt`.
 - The beam up the relic's shaft has a hard edge and starts at a small bright square.
 - The gate at 500 m was not checked in a frame. The gate rows were added after that lane's last test run; the merge gate has run since.
 - `T_StoneDebris01_ORM` does not fit the skin's sampler and is left out, with a warning in the log.
@@ -56,7 +58,7 @@ Their reports go to the session that started them, so a new session checks the b
 
 **Not yet met for the submission, by risk**
 
-No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. No checkout is free.
+No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no ffmpeg, so a scripted recording has no encoder). No itch.io page (draft in `devlog/itch-page.md`). Nobody has played by hand. No run on a second machine. The Official Rules PDF is unread. Team name and Epic account emails. No public dev log link, which Glass Box needs. The full list is in `01 - Jam/Submission Checklist.md`. Free checkout: `.wt\text` (on `polish/hull`, clean).
 
 **The build's size (the limit is 1 GB zipped)**
 
