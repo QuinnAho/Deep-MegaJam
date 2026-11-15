@@ -3,6 +3,7 @@
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Game/DeepGameMode.h"
 #include "Game/DeepGameState.h"
 #include "InputKeyEventArgs.h"
@@ -81,6 +82,9 @@ void ADeepPlayerController::BuildInputObjects()
 	LampAction = MakeAction(this, TEXT("IA_Lamp"), EInputActionValueType::Boolean);
 	CutAction = MakeAction(this, TEXT("IA_Cut"), EInputActionValueType::Boolean);
 	ContinueAction = MakeAction(this, TEXT("IA_Continue"), EInputActionValueType::Boolean);
+	TitleAction = MakeAction(this, TEXT("IA_Title"), EInputActionValueType::Boolean);
+	// Listens to every key: it must never block another action's key.
+	TitleAction->bConsumeInput = false;
 
 	Mapping = NewObject<UInputMappingContext>(this, TEXT("IMC_Diver"));
 
@@ -109,6 +113,9 @@ void ADeepPlayerController::BuildInputObjects()
 	Mapping->MapKey(ContinueAction, EKeys::Enter);
 	Mapping->MapKey(ContinueAction, EKeys::E);
 	Mapping->MapKey(ContinueAction, EKeys::LeftMouseButton);
+	// The title: any non-analog key or mouse button. A real press is caught first in InputKey; this catches keys
+	// that reach PlayerInput directly (input injection, as the scripted playtests do).
+	Mapping->MapKey(TitleAction, EKeys::AnyKey);
 }
 
 void ADeepPlayerController::AddMappingToLocalPlayer()
@@ -147,6 +154,7 @@ void ADeepPlayerController::SetupInputComponent()
 	Input->BindAction(CutAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnCutStart);
 	Input->BindAction(CutAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnCutStop);
 	Input->BindAction(ContinueAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnContinue);
+	Input->BindAction(TitleAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnTitleKey);
 
 	AddMappingToLocalPlayer();
 }
@@ -302,7 +310,6 @@ void ADeepPlayerController::SetPauseMenu(bool bOpen)
 
 bool ADeepPlayerController::HandleMenuKey(const FKey& Key)
 {
-	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
 	const ADeepDiver* Diver = GetDiver();
 	const UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
 	const bool bUp = Key == EKeys::Up || Key == EKeys::W;
@@ -311,10 +318,8 @@ bool ADeepPlayerController::HandleMenuKey(const FKey& Key)
 	const bool bMenuKey = Key == EKeys::Escape || Key == EKeys::P;
 
 	// The title: any key starts the run.
-	if (State && State->bOnTitle)
+	if (TryStartFromTitle())
 	{
-		ClearDiverInput();
-		ServerStartRun();
 		return true;
 	}
 
@@ -393,6 +398,40 @@ void ADeepPlayerController::ServerRestartRun_Implementation()
 	{
 		GameMode->RestartRun();
 	}
+}
+
+bool ADeepPlayerController::TryStartFromTitle()
+{
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	if (!State || !State->bOnTitle)
+	{
+		return false;
+	}
+	ClearDiverInput();
+	// On the server (standalone, listen host) start directly; a remote client asks the server.
+	if (HasAuthority())
+	{
+		ADeepGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeepGameMode>();
+		// Test worlds spawn the game mode as a plain actor (as the Deep.* cheats allow for).
+		for (TActorIterator<ADeepGameMode> It(GetWorld()); It && !GameMode; ++It)
+		{
+			GameMode = *It;
+		}
+		if (GameMode)
+		{
+			GameMode->StartRun();
+		}
+	}
+	else
+	{
+		ServerStartRun();
+	}
+	return true;
+}
+
+void ADeepPlayerController::OnTitleKey()
+{
+	TryStartFromTitle();
 }
 
 void ADeepPlayerController::OnContinue()

@@ -6,6 +6,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Game/DeepHudPanels.h"
 #include "DeepHUD.generated.h"
 
 class ADeepDiver;
@@ -28,7 +29,7 @@ private:
 	void DrawStatus(const ADeepDiver* Diver, float Now);
 	void DrawPatience(const UDeepRunComponent& Run, float Now);
 	void DrawBailout(const ADeepDiver* Diver);
-	void DrawPrompts(const ADeepDiver* Diver);
+	void DrawPrompts(const ADeepDiver* Diver, float ControlsAlpha);
 	void DrawCaptain();
 	/** The serpent: a red edge pulse that quickens as it closes, plus a small proximity bar. */
 	void DrawThreat(const UDeepRunComponent& Run, float RealNow);
@@ -37,9 +38,11 @@ private:
 	void DrawDead(const UDeepRunComponent& Run);
 	void DrawSettlement(const UDeepRunComponent& Run);
 	/** Aboard and standing: labels on the hatch, console and helm, the one next step, the console's account panel. */
-	void DrawAboard(const ADeepDiver* Diver);
+	void DrawAboard(const ADeepDiver* Diver, const FDeepHudPanels& Panels);
 	/** Seated at the helm: depth, a gauge with the stops and the limit, why the limit is there, what to do. */
-	void DrawHelm(const ADeepDiver* Diver);
+	void DrawHelm(const ADeepDiver* Diver, float ControlsAlpha);
+	/** The bottom key strip, faded by Alpha. */
+	void DrawControlsStrip(const TArray<FString>& Lines, float Scale, float Alpha);
 	/** A label over a world point if it is on screen. */
 	bool DrawMarker(const FVector& World, const FString& Label, const FLinearColor& Color);
 	/** Where home is: a box on the airlock, or an edge hint when it is off screen. */
@@ -58,7 +61,10 @@ private:
 	TObjectPtr<UFont> BigFont;
 
 	float S = 1.f;
-	/** World time the current tethered dive began (the first dive's controls card). */
-	float DiveStartTime = -1.f;
-	bool bWasTethered = false;
+	/** The HUD mode last frame, and the world time it began: control hints show for a while after a change. */
+	EDeepHudMode LastMode = EDeepHudMode::Title;
+	float ModeStartTime = 0.f;
+	/** Helm speed readout (m/s, down positive), from the change in SubDepthM. */
+	float HelmSpeedMps = 0.f;
+	float HelmLastDepthM = -1.f;
 };

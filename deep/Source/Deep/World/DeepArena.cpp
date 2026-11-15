@@ -8,6 +8,7 @@
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArenaRoot.h"
 #include "World/DeepEnvironment.h"
+#include "World/DeepMotionCues.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
 
@@ -214,6 +215,13 @@ namespace DeepArena
 		if (!FindFirst<ADeepEnvironment>(World))
 		{
 			World->SpawnActor<ADeepEnvironment>(Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
+		}
+		if (!FindFirst<ADeepMotionCues>(World))
+		{
+			if (ADeepMotionCues* Cues = World->SpawnActor<ADeepMotionCues>(Sub->GetActorLocation(), Sub->GetActorRotation(), SpawnParams()))
+			{
+				Cues->AttachToActor(Sub, FAttachmentTransformRules::KeepWorldTransform);
+			}
 		}
 		ApplyStop(World, Stop);
 		return Sub;

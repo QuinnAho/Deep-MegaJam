@@ -274,9 +274,15 @@ struct FDeepRunTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
 	float ChatterCooldownSeconds = 12.f;
 
-	/** The first dive of a run shows a large controls card this long (or until the first grab). */
+	/**
+	 * Control hints (the first dive's controls card and the key strip at the bottom) show this long after the HUD
+	 * mode changes (aboard, helm, water), then fade over ControlsFadeSeconds.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
-	float ControlsCardSeconds = 15.f;
+	float ControlsCardSeconds = 6.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
+	float ControlsFadeSeconds = 1.5f;
 
 	/** The win screen ignores keys this long, so a held winch or grab key cannot skip the review. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Run")
@@ -817,6 +823,63 @@ struct FDeepSubTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
 	float HelmCameraFovDeg = 95.f;
+
+	/** Motion cues (ADeepMotionCues): pale specks in a box around the sub that stream past opposite to travel. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	int32 SpeckCount = 260;
+
+	/** Centre of the speck box, metres from the sub's centre (ahead of and below the helm camera). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	FVector SpeckBoxCentreM = FVector(12.f, 0.f, -8.f);
+
+	/** Half extents of the speck box (m). A speck leaving it wraps to the other side. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	FVector SpeckBoxHalfM = FVector(16.f, 16.f, 14.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float SpeckSizeM = 0.09f;
+
+	/** Each m/s of sub speed stretches a speck this much along the travel axis (a streak). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float SpeckStretchPerMps = 0.6f;
+
+	/** Parked, the specks sink this slowly (m/s), so the water never looks frozen. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float SpeckDriftMps = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	FLinearColor SpeckColor = FLinearColor(1.6f, 1.7f, 1.6f);
+
+	/** Shaft walls on both sides of the descent path, shown only between stops (they would cut through the arena). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float ShaftWallOffsetM = 11.f;
+
+	/** Wall length along the sub (m), centred ShaftWallCentreXM ahead of the sub's centre. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float ShaftWallLengthM = 60.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float ShaftWallCentreXM = 18.f;
+
+	/** Wall height (m), centred on the sub. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float ShaftWallHeightM = 90.f;
+
+	/** A pale ledge sticks out of each wall every this many metres of depth: these slide past the window. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float LedgeSpacingM = 12.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float LedgeOutM = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	float LedgeThickM = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	FLinearColor ShaftWallColor = FLinearColor(0.12f, 0.13f, 0.14f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Motion")
+	FLinearColor LedgeColor = FLinearColor(0.6f, 0.6f, 0.55f);
 };
 
 /** One helm step: the new depth, and whether the control pushed against the limit or the top. */

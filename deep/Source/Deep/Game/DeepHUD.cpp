@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "Misc/ScopeExit.h"
 #include "Game/DeepGameState.h"
+#include "Game/DeepHudPanels.h"
 #include "Game/DeepPlayerController.h"
 #include "Harpoon/DeepHarpoonHUD.h"
 #include "Sim/DeepRules.h"
@@ -53,6 +54,7 @@ void ADeepHUD::DrawHUD()
 	const ADeepGameState* GameState = GetWorld()->GetGameState<ADeepGameState>();
 	if (GameState && GameState->bOnTitle)
 	{
+		LastMode = EDeepHudMode::Title;
 		DrawTitle(GetWorld()->GetRealTimeSeconds());
 		return;
 	}
@@ -62,70 +64,81 @@ void ADeepHUD::DrawHUD()
 		return;
 	}
 	const float Now = GetWorld()->GetTimeSeconds();
+	const float RealNow = GetWorld()->GetRealTimeSeconds();
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const EDeepRunState State = Run ? Run->GetState() : EDeepRunState::Tethered;
 
-	const bool bTethered = State == EDeepRunState::Tethered;
-	if (bTethered && !bWasTethered)
+	// One mode, one set of panels: everything below is chosen by DeepHud::Choose.
+	EDeepHudMode Mode = EDeepHudMode::Water;
+	switch (State)
 	{
-		DiveStartTime = Now;
+	case EDeepRunState::Dead: Mode = EDeepHudMode::Dead; break;
+	case EDeepRunState::Settling: Mode = EDeepHudMode::Settling; break;
+	case EDeepRunState::Won: Mode = EDeepHudMode::Won; break;
+	case EDeepRunState::Aboard: Mode = Run && Run->IsSeated() ? EDeepHudMode::Helm : EDeepHudMode::Aboard; break;
+	default: Mode = EDeepHudMode::Water; break;
 	}
-	bWasTethered = bTethered;
+	if (Mode != LastMode)
+	{
+		LastMode = Mode;
+		ModeStartTime = Now;
+	}
+	const FDeepRunTuning& RunTuning = UDeepTuningSettings::Get().Run;
+	FDeepHudInput In;
+	In.Mode = Mode;
+	In.bCut = State == EDeepRunState::Cut;
+	In.bConsoleActive = Run && (Run->IsNearConsole() || Now - Run->GetLastConsoleTime() < 4.f);
+	In.bFirstDive = GameState && GameState->DiverNumber == 1 && GameState->Stop == 1 && GameState->TotalGross == 0 && Diver->GetCargo().IsEmpty();
+	In.ModeAgeSeconds = Now - ModeStartTime;
+	In.HintSeconds = RunTuning.ControlsCardSeconds;
+	In.FadeSeconds = RunTuning.ControlsFadeSeconds;
+	const FDeepHudPanels Panels = DeepHud::Choose(In);
 
-	if (Run && Run->IsSeated())
+	if (Panels.bHelm)
 	{
-		DrawHelm(Diver);
+		DrawHelm(Diver, Panels.ControlsAlpha);
 	}
-	else
+	if (Panels.bStatus)
 	{
 		DrawStatus(Diver, Now);
 	}
-	if (State == EDeepRunState::Aboard && Run && !Run->IsSeated())
+	if (Panels.bAboard)
 	{
-		DrawAboard(Diver);
+		DrawAboard(Diver, Panels);
 	}
-	if (State == EDeepRunState::Cut)
+	if (Panels.bBailout)
 	{
 		DrawBailout(Diver);
 	}
-	else if (Run && Run->CanSwim())
+	if (Panels.bPatience && Run)
 	{
 		DrawPatience(*Run, Now);
 	}
-	if (Run && Run->CanSwim())
+	if (Panels.bSwim && Run)
 	{
-		DrawThreat(*Run, GetWorld()->GetRealTimeSeconds());
-		DrawPrompts(Diver);
+		DrawThreat(*Run, RealNow);
+		DrawPrompts(Diver, Panels.ControlsAlpha);
 		DeepHarpoonHUD::Draw(this, Canvas, Diver, S, Font, BigFont);
 		if (Run->IsBiteAlarmOn())
 		{
-			DrawBiteAlarm(*Run, GetWorld()->GetRealTimeSeconds());
+			DrawBiteAlarm(*Run, RealNow);
 		}
 	}
-
-	if (State == EDeepRunState::Dead)
+	if (Panels.bDead && Run)
 	{
 		DrawDead(*Run);
 	}
-	else if (State == EDeepRunState::Settling)
+	if (Panels.bSettlement && Run)
 	{
 		DrawSettlement(*Run);
 	}
-	else if (State == EDeepRunState::Won)
+	if (Panels.bReview && Run)
 	{
 		DrawReview(*Run);
 	}
-
-	// The first dive of a run: a big controls card until the first grab (or for ControlsCardSeconds).
-	const float CardSeconds = UDeepTuningSettings::Get().Run.ControlsCardSeconds;
-	const float DiveSeconds = Now - DiveStartTime;
-	if (GameState && State == EDeepRunState::Tethered && GameState->DiverNumber == 1 && GameState->Stop == 1 && GameState->TotalGross == 0
-		&& Diver->GetCargo().IsEmpty() && DiveSeconds < CardSeconds)
-	{
-		DrawControlsCard(FMath::Clamp((CardSeconds - DiveSeconds) / 1.5f, 0.f, 1.f));
-	}
+	DrawControlsCard(Panels.ControlsCardAlpha);
 	// Last, so the Captain is never hidden behind a panel. The review shows the Captain's win line itself.
-	if (State != EDeepRunState::Won)
+	if (Panels.bCaptain)
 	{
 		DrawCaptain();
 	}
@@ -170,7 +183,7 @@ void ADeepHUD::DrawTitle(float RealNow)
 
 	FLinearColor Prompt = TextColor;
 	Prompt.A = 0.8f + 0.2f * FMath::Sin(RealNow * 3.f);
-	TextCentered(TEXT("PRESS ANY KEY"), Prompt, Canvas->ClipY * 0.76f, BigFont, 1.2f);
+	TextCentered(TEXT("PRESS ANY KEY OR CLICK TO START"), Prompt, Canvas->ClipY * 0.76f, BigFont, 1.2f);
 	TextCentered(TEXT("A jam game. Salvage, a tether, and a Captain who hates you."), DimColor, Canvas->ClipY * 0.90f, nullptr, 0.7f);
 }
 
@@ -492,7 +505,7 @@ void ADeepHUD::DrawAirlockMarker(const ADeepDiver* Diver, float HintY)
 	}
 }
 
-void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
+void ADeepHUD::DrawPrompts(const ADeepDiver* Diver, float ControlsAlpha)
 {
 	TArray<TPair<FString, FLinearColor>> Prompts;
 	const UDeepRunComponent* Run = Diver->GetRun();
@@ -578,16 +591,32 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 			*ADeepPlayerController::KeyHint(TEXT("Menu")))
 		: FString::Printf(TEXT("no tether: swim up into the hatch   %s   %s menu"),
 			*LampHint, *ADeepPlayerController::KeyHint(TEXT("Menu")));
-	constexpr float ControlsScale = 0.62f;
-	float WA = 0.f, WB = 0.f, HA = 0.f;
-	GetTextSize(ControlsA, WA, HA, Font, S * ControlsScale);
-	GetTextSize(ControlsB, WB, HA, Font, S * ControlsScale);
+	DrawControlsStrip({ ControlsA, ControlsB }, 0.62f, ControlsAlpha);
+}
+
+void ADeepHUD::DrawControlsStrip(const TArray<FString>& Lines, float Scale, float Alpha)
+{
+	if (Alpha <= 0.f || Lines.IsEmpty())
+	{
+		return;
+	}
+	float Widest = 0.f, LineH = 0.f;
+	for (const FString& Line : Lines)
+	{
+		float W = 0.f;
+		GetTextSize(Line, W, LineH, Font, S * Scale);
+		Widest = FMath::Max(Widest, W);
+	}
 	const float CX = 10.f * S;
-	const float CY = Canvas->ClipY - HA * 2.f - 12.f * S;
-	DrawRect(PanelColor, CX - 6.f * S, CY - 4.f * S, FMath::Max(WA, WB) + 12.f * S, HA * 2.f + 8.f * S);
-	const FLinearColor ControlsColor(0.85f, 0.92f, 0.95f);
-	TextAt(ControlsA, ControlsColor, CX, CY, nullptr, ControlsScale);
-	TextAt(ControlsB, ControlsColor, CX, CY + HA, nullptr, ControlsScale);
+	const float CY = Canvas->ClipY - LineH * Lines.Num() - 12.f * S;
+	FLinearColor Back = PanelColor;
+	Back.A *= Alpha;
+	DrawRect(Back, CX - 6.f * S, CY - 4.f * S, Widest + 12.f * S, LineH * Lines.Num() + 8.f * S);
+	const FLinearColor Color(0.85f, 0.92f, 0.95f, Alpha);
+	for (int32 Index = 0; Index < Lines.Num(); ++Index)
+	{
+		TextAt(Lines[Index], Color, CX, CY + LineH * Index, nullptr, Scale);
+	}
 }
 
 void ADeepHUD::DrawThreat(const UDeepRunComponent& Run, float RealNow)
@@ -846,7 +875,7 @@ bool ADeepHUD::DrawMarker(const FVector& World, const FString& Label, const FLin
 	return true;
 }
 
-void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
+void ADeepHUD::DrawAboard(const ADeepDiver* Diver, const FDeepHudPanels& Panels)
 {
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
@@ -914,7 +943,7 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 
 	// The console's account panel, while near it or just after using it.
 	const float Now = GetWorld()->GetTimeSeconds();
-	if (Run->IsNearConsole() || Now - Run->GetLastConsoleTime() < 4.f)
+	if (Panels.bConsole)
 	{
 		FString Gate;
 		int32 Price = 0;
@@ -940,16 +969,13 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 
 	const FString Controls = FString::Printf(TEXT("WASD walk   Mouse look   %s use (console, helm)   walk into the hatch to dive   %s menu"),
 		*UseKey, *ADeepPlayerController::KeyHint(TEXT("Menu")));
-	float CW = 0.f, CH = 0.f;
-	GetTextSize(Controls, CW, CH, Font, S * 0.62f);
-	DrawRect(PanelColor, 4.f * S, Canvas->ClipY - CH - 16.f * S, CW + 12.f * S, CH + 8.f * S);
-	TextAt(Controls, FLinearColor(0.85f, 0.92f, 0.95f), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.62f);
+	DrawControlsStrip({ Controls }, 0.62f, Panels.ControlsAlpha);
 
 	const float Dot = 3.f * S;
 	DrawRect(FLinearColor(1.f, 1.f, 1.f, 0.6f), Canvas->ClipX * 0.5f - Dot * 0.5f, Canvas->ClipY * 0.5f - Dot * 0.5f, Dot, Dot);
 }
 
-void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
+void ADeepHUD::DrawHelm(const ADeepDiver* Diver, float ControlsAlpha)
 {
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
@@ -961,9 +987,20 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 	const float Depth = State->SubDepthM;
 	const float Limit = State->DepthLimitM();
 
-	// Depth, big, top centre.
+	// Speed from the change in depth (any machine), smoothed; a jump (GotoStop) is not speed.
+	const float Dt = GetWorld()->GetDeltaSeconds();
+	if (HelmLastDepthM >= 0.f && Dt > KINDA_SMALL_NUMBER)
+	{
+		const float Raw = (Depth - HelmLastDepthM) / Dt;
+		HelmSpeedMps = FMath::FInterpTo(HelmSpeedMps, FMath::Abs(Raw) > Tuning.Sub.DriveSpeedMps * 4.f ? 0.f : Raw, Dt, 6.f);
+	}
+	HelmLastDepthM = Depth;
+	const float Speed = FMath::Abs(HelmSpeedMps) < 0.05f ? 0.f : HelmSpeedMps;
+	const FString SpeedText = Speed == 0.f ? FString(TEXT("STILL  0 m/s")) : FString::Printf(TEXT("%s  %.1f m/s"), Speed > 0.f ? TEXT("DOWN") : TEXT("UP"), FMath::Abs(Speed));
+
+	// Depth and speed, big, top centre.
 	TextCentered(TEXT("HELM"), DimColor, 10.f * S, nullptr, 0.8f);
-	TextCentered(FString::Printf(TEXT("%.0f m   %s"), Depth, *UDeepRules::ZoneName(Depth, Tuning.Zones).ToUpper()), TextColor, 30.f * S, BigFont, 1.6f);
+	TextCentered(FString::Printf(TEXT("%.0f m   %s      %s"), Depth, *UDeepRules::ZoneName(Depth, Tuning.Zones).ToUpper(), *SpeedText), TextColor, 30.f * S, BigFont, 1.6f);
 
 	// The gauge: 0 m at the top, the deepest limit at the bottom; stops, the limit and the sub.
 	float Deepest = 0.f;
@@ -987,10 +1024,12 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 		DrawRect(bHere ? GoodColor : TextColor, GX - 14.f * S, YAt(SD) - 1.f * S, 34.f * S, 3.f * S);
 		TextAt(FString::Printf(TEXT("%.0f"), SD), bHere ? GoodColor : TextColor, GX - 62.f * S, YAt(SD) - 10.f * S, nullptr, 0.7f);
 	}
-	DrawRect(DangerColor, GX - 20.f * S, YAt(Limit) - 1.5f * S, 50.f * S, 3.f * S);
-	TextAt(FString::Printf(TEXT("LIMIT %.0f"), Limit), DangerColor, GX + 26.f * S, YAt(Limit) - 10.f * S, nullptr, 0.65f);
+	// The limit tick ends at GX + 20; its label starts clear of it, and drops below the tick when the sub is close.
+	DrawRect(DangerColor, GX - 20.f * S, YAt(Limit) - 1.5f * S, 40.f * S, 3.f * S);
+	const bool bSubNearLimit = FMath::Abs(YAt(Depth) - YAt(Limit)) < 16.f * S;
+	TextAt(FString::Printf(TEXT("LIMIT %.0f"), Limit), DangerColor, GX + 26.f * S, YAt(Limit) + (bSubNearLimit ? 4.f : -16.f) * S, nullptr, 0.6f);
 	DrawRect(CaptainColor, GX - 8.f * S, YAt(Depth) - 5.f * S, 22.f * S, 10.f * S);
-	TextAt(TEXT("SUB"), CaptainColor, GX + 18.f * S, YAt(Depth) - 10.f * S, nullptr, 0.65f);
+	TextAt(TEXT("SUB"), CaptainColor, GX + 20.f * S, YAt(Depth) - (bSubNearLimit ? 16.f : 8.f) * S, nullptr, 0.6f);
 
 	// The limit and why, always visible; a banner while the control pushes against it.
 	TextCentered(LimitReason(State), State->IsHullUpgraded() ? DimColor : WarnColor, 78.f * S, nullptr, 0.8f);
@@ -1025,8 +1064,5 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 
 	const FString Controls = FString::Printf(TEXT("hold %s or S  dive      hold %s or W  rise      %s  stand up      %s menu"),
 		*Down, *Up, *ADeepPlayerController::KeyHint(TEXT("Use")), *ADeepPlayerController::KeyHint(TEXT("Menu")));
-	float CW = 0.f, CH = 0.f;
-	GetTextSize(Controls, CW, CH, Font, S * 0.7f);
-	DrawRect(PanelColor, 4.f * S, Canvas->ClipY - CH - 16.f * S, CW + 12.f * S, CH + 8.f * S);
-	TextAt(Controls, FLinearColor(0.85f, 0.92f, 0.95f), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.7f);
+	DrawControlsStrip({ Controls }, 0.7f, ControlsAlpha);
 }
