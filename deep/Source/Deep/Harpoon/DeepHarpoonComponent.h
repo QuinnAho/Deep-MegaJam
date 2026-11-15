@@ -1,5 +1,5 @@
 // The diver's harpoon: one shot per dive along the view, a visible bolt on a line. On the submarine it latches and
-// reels the diver to the airlock (the run's re-tether rule takes over there) and dents the hull (a repair fee on the
+// reels the diver up into the hatch (the run brings it aboard there; a cut diver pays the re-tether) and dents the hull (a repair fee on the
 // next settlement). On anything else solid it pulls the diver to that point; on the serpent it drives it off.
 // Server-authoritative; the owning client sends fire/release and moves its own diver while reeling (like the winch).
 // Builds its own input (left mouse button) on the owning machine, so the controller needs no changes.
@@ -114,7 +114,7 @@ protected:
 	UPROPERTY(Replicated)
 	FVector LatchPointCm = FVector::ZeroVector;
 
-	/** Where the reel takes the diver: under the airlock, or just off the surface hit. */
+	/** Where the reel takes the diver: up into the hatch, or just off the surface hit. */
 	UPROPERTY(Replicated)
 	FVector ReelTargetCm = FVector::ZeroVector;
 

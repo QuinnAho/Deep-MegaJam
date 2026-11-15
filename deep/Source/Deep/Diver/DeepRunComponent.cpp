@@ -17,6 +17,7 @@
 #include "Story/DeepCaptainLines.h"
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepSubmarine.h"
 
 UDeepRunComponent::UDeepRunComponent()
 {
@@ -33,7 +34,7 @@ FString UDeepRunComponent::StateName(EDeepRunState InState)
 	case EDeepRunState::Cut: return TEXT("cut");
 	case EDeepRunState::Dead: return TEXT("dead");
 	case EDeepRunState::Settling: return TEXT("settling");
-	case EDeepRunState::Descending: return TEXT("descending");
+	case EDeepRunState::Aboard: return TEXT("aboard");
 	case EDeepRunState::Won: return TEXT("won");
 	}
 	return TEXT("unknown");
@@ -87,9 +88,20 @@ bool UDeepRunComponent::IsDiverHome() const
 void UDeepRunComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if (GetOwner()->HasAuthority() && !bStarted && !IsOnTitle())
+	if (GetOwner()->HasAuthority())
 	{
-		StartDive(EDiveStart::First);
+		// A diver placed in the room is aboard from the start (also behind the title screen).
+		ADeepDiver* Diver = GetDiver();
+		const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+		if (Diver && Sub && Sub->IsInRoom(Diver->GetActorLocation(), 100.0))
+		{
+			SetState(EDeepRunState::Aboard);
+			Diver->SetAboard(true);
+		}
+		if (!bStarted && !IsOnTitle())
+		{
+			BeginRun();
+		}
 	}
 	if (GetOwner()->HasAuthority())
 	{
@@ -316,12 +328,12 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 	}
 	if (IsOnTitle())
 	{
-		// The title screen is up: the first dive waits for a key.
+		// The title screen is up: the run waits for a key.
 		return;
 	}
 	if (!bStarted)
 	{
-		StartDive(EDiveStart::First);
+		BeginRun();
 	}
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
@@ -358,13 +370,14 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 		}
 		bWasWinching = bWinching;
 
-		const bool bArrived = bHome && !bWasHome;
-		bWasHome = bHome;
-		if (bArrived && Diver->GetCargo().Num() > 0)
+		// Up through the hatch, or arriving at the anchor under it (the winch ends there): aboard.
+		if (ReachedHatch(true))
 		{
-			Bank();
+			bWasHome = bHome;
+			EnterSub();
 			return;
 		}
+		bWasHome = bHome;
 
 		// The Captain gets twice as impatient while the serpent closes on (or chews) this diver's line.
 		const UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>();
@@ -392,13 +405,10 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 		{
 			Fire(DeepEvent::Bailout10s);
 		}
-		if (IsDiverHome())
+		if (ReachedHatch(false))
 		{
-			Retether();
-			if (Diver->GetCargo().Num() > 0)
-			{
-				Bank();
-			}
+			// Home on bailout air: re-tether fee, aboard.
+			EnterSub();
 			return;
 		}
 		if (BailoutAirSeconds <= 0.f)
@@ -418,22 +428,178 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 	case EDeepRunState::Won:
 		StateTimeLeft = FMath::Max(0.f, StateTimeLeft - Dt);
 		break;
-	case EDeepRunState::Descending:
-		StateTimeLeft -= Dt;
-		if (!bSwapped && StateTimeLeft <= Tuning.Run.DescendSeconds * 0.5f)
-		{
-			SwapToNextDive();
-		}
-		if (StateTimeLeft <= 0.f)
-		{
-			StateTimeLeft = 0.f;
-			SetState(EDeepRunState::Tethered);
-		}
+	case EDeepRunState::Aboard:
+		StepAboard(Dt);
 		break;
 	}
 }
 
+void UDeepRunComponent::StepAboard(float DeltaSeconds)
+{
+	ADeepDiver* Diver = GetDiver();
+	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	if (bSeated)
+	{
+		IdleSeconds = 0.f;
+		StepHelm(DeltaSeconds);
+		return;
+	}
+	// Fell through the open hatch: into the water, and the dive starts.
+	const FDeepSubTuning& SubTuning = UDeepTuningSettings::Get().Sub;
+	if (Sub && Sub->IsHatchOpen() && Diver->GetActorLocation().Z < Sub->GetDeckTopZ() - SubTuning.DropBelowDeckM * UDeepRules::CmPerM)
+	{
+		LeaveSub();
+		return;
+	}
+	IdleSeconds += DeltaSeconds;
+	if (SubTuning.IdleInsideSeconds > 0.f && IdleSeconds >= SubTuning.IdleInsideSeconds)
+	{
+		IdleSeconds = 0.f;
+		FireChatter(DeepEvent::IdleInside);
+	}
+}
+
+void UDeepRunComponent::StepHelm(float DeltaSeconds)
+{
+	ADeepGameState* GameState = GetGameState();
+	if (!GameState)
+	{
+		return;
+	}
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepSubTuning& Sub = Tuning.Sub;
+	const TArray<float> Stops = Tuning.StopDepthsM();
+	const float Top = Stops.IsEmpty() ? 0.f : Stops[0];
+	const float Limit = GameState->DepthLimitM();
+
+	float Input = FMath::Clamp(HelmInput, -1.f, 1.f);
+	bool bJustBlocked = false;
+	if (AutopilotDepthM >= 0.f)
+	{
+		const float Target = FMath::Clamp(AutopilotDepthM, Top, FMath::Max(Top, Limit));
+		const float Step = FMath::Max(0.f, Sub.DriveSpeedMps) * DeltaSeconds;
+		const float Gap = Target - GameState->SubDepthM;
+		if (FMath::Abs(Gap) <= Step || Step <= 0.f)
+		{
+			// Arrived (or the limit stopped it short): the last bit, then release the control.
+			GameState->SubDepthM = Target;
+			GameState->bParked = false;
+			DeepArena::ApplySubDepth(GetWorld());
+			const bool bBlocked = AutopilotDepthM > Limit + 0.01f;
+			AutopilotDepthM = -1.f;
+			Input = 0.f;
+			if (bBlocked)
+			{
+				bJustBlocked = true;
+				FireChatter(DeepEvent::HelmDepthLimit);
+			}
+			bWasDriving = true;
+		}
+		else
+		{
+			Input = Gap > 0.f ? 1.f : -1.f;
+		}
+	}
+
+	if (!FMath::IsNearlyZero(Input))
+	{
+		if (Input > 0.f && !bWasDriving)
+		{
+			FireChatter(DeepEvent::HelmDescend);
+		}
+		const FDeepHelmStep Step = UDeepRules::HelmStep(GameState->SubDepthM, Input, DeltaSeconds, Top, Limit, Sub);
+		if (Step.bAtLimit && !bHelmAtLimit)
+		{
+			FireChatter(DeepEvent::HelmDepthLimit);
+		}
+		bHelmAtLimit = Step.bAtLimit;
+		bWasDriving = true;
+		if (!FMath::IsNearlyEqual(Step.DepthM, GameState->SubDepthM) || GameState->bParked)
+		{
+			GameState->SubDepthM = Step.DepthM;
+			GameState->bParked = false;
+			DeepArena::ApplySubDepth(GetWorld());
+		}
+		return;
+	}
+	bHelmAtLimit = bJustBlocked;
+	// Released: park if a stop is close enough.
+	if (!GameState->bParked)
+	{
+		if (const int32 Stop = UDeepRules::HelmParkStop(GameState->SubDepthM, Stops, Sub.ParkSnapM))
+		{
+			Park(Stop);
+		}
+	}
+	bWasDriving = false;
+}
+
+void UDeepRunComponent::Park(int32 Stop)
+{
+	ADeepGameState* GameState = GetGameState();
+	if (!GameState)
+	{
+		return;
+	}
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	GameState->SubDepthM = Tuning.GetStop(Stop).SubDepthM;
+	GameState->bParked = true;
+	DeepArena::ApplySubDepth(GetWorld());
+	FDeepEventPayload Payload;
+	Payload.DepthM = GameState->SubDepthM;
+	if (Stop > GameState->DeepestStopReached && Stop >= 2)
+	{
+		Fire(Stop >= 3 ? DeepEvent::DescendStop3 : DeepEvent::DescendStop2, Payload);
+	}
+	else
+	{
+		Fire(DeepEvent::HelmArrive, Payload);
+	}
+	GameState->DeepestStopReached = FMath::Max(GameState->DeepestStopReached, Stop);
+}
+
 // ---------------------------------------------------------------- transitions
+
+void UDeepRunComponent::BeginRun()
+{
+	bStarted = true;
+	ADeepDiver* Diver = GetDiver();
+	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	if (Diver && Sub && Sub->IsInRoom(Diver->GetActorLocation(), 100.0))
+	{
+		PatienceSeconds = UDeepTuningSettings::Get().Patience.MaxSeconds;
+		bFirstSalvageThisRun = true;
+		bMonsterHeardThisRun = false;
+		bRelicSeenThisRun = false;
+		bSeated = false;
+		IdleSeconds = 0.f;
+		SetState(EDeepRunState::Aboard);
+		// The first view of a run: the hatch ahead, the helm beyond it, the console to the right.
+		Diver->ResetToRoom();
+		Diver->SetAboard(true);
+		return;
+	}
+	StartDive(EDiveStart::First);
+}
+
+bool UDeepRunComponent::ReachedHatch(bool bArrivalOnly) const
+{
+	const ADeepDiver* Diver = GetDiver();
+	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	if (!Sub)
+	{
+		return false;
+	}
+	const FVector At = Diver->GetActorLocation();
+	const FDeepSubTuning& Tuning = UDeepTuningSettings::Get().Sub;
+	const double Deck = Sub->GetDeckTopZ();
+	if (Sub->IsInHatchColumn(At) && At.Z >= Deck - Tuning.EnterBelowDeckM * UDeepRules::CmPerM && At.Z <= Deck + Tuning.RoomHeightM * UDeepRules::CmPerM)
+	{
+		return true;
+	}
+	const bool bHome = IsDiverHome();
+	return bArrivalOnly ? bHome && !bWasHome : bHome;
+}
 
 void UDeepRunComponent::StartDive(EDiveStart Reason)
 {
@@ -442,7 +608,7 @@ void UDeepRunComponent::StartDive(EDiveStart Reason)
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	PatienceSeconds = Tuning.Patience.MaxSeconds;
 	BailoutAirSeconds = 0.f;
-	if (Reason == EDiveStart::First || Reason == EDiveStart::Reset)
+	if (Reason == EDiveStart::First)
 	{
 		bFirstSalvageThisRun = true;
 		bMonsterHeardThisRun = false;
@@ -450,39 +616,218 @@ void UDeepRunComponent::StartDive(EDiveStart Reason)
 	}
 	NoiseOwed = 0.f;
 	bSaidNearThisApproach = false;
+	bSeated = false;
 	if (Diver)
 	{
 		Diver->SetWinching(false);
-		if (Reason != EDiveStart::First)
+		Diver->SetAboard(false);
+		if (Reason == EDiveStart::Hatch)
 		{
-			// Salvage respawns every dive; the diver starts under the airlock again.
+			// Salvage respawns every dive.
 			DeepArena::RespawnSalvage(GetWorld());
-			Diver->ResetToStart();
 		}
 	}
 	bWasHome = IsDiverHome();
 	bWasOverloaded = Diver && Diver->GetWeight().bOverloaded;
 	bWasTaut = false;
 	bWasWinching = false;
+	SetState(EDeepRunState::Tethered);
+	Fire(DeepEvent::DiveStart);
+}
 
+void UDeepRunComponent::EnterSub()
+{
+	ADeepDiver* Diver = GetDiver();
+	if (!Diver || !Diver->HasAuthority() || !CanSwim())
+	{
+		return;
+	}
+	const bool bWasCut = State == EDeepRunState::Cut;
+	Diver->SetWinching(false);
+	if (bWasCut)
+	{
+		ChargeFee(UDeepTuningSettings::Get().Economy.RetetherFee);
+	}
+	BailoutAirSeconds = 0.f;
+	bSeated = false;
+	IdleSeconds = 0.f;
+	SetState(EDeepRunState::Aboard);
+	if (const ADeepSubmarine* Sub = Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr)
+	{
+		Diver->TeleportDiver(Sub->GetEnterStandLocation());
+	}
+	Diver->SetAboard(true);
+	Fire(bWasCut ? DeepEvent::Retether : DeepEvent::EnterSub);
+}
+
+bool UDeepRunComponent::LeaveSub()
+{
+	ADeepDiver* Diver = GetDiver();
 	const ADeepGameState* GameState = GetGameState();
-	const int32 Stop = GameState ? GameState->Stop : 1;
-	switch (Reason)
+	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	if (!Diver || !Diver->HasAuthority() || State != EDeepRunState::Aboard || bSeated || IsOnTitle() || !Sub || (GameState && !GameState->bParked))
 	{
-	case EDiveStart::Respawn:
-		Fire(DeepEvent::Respawn);
-		break;
-	case EDiveStart::NewStop:
+		return false;
+	}
+	// Just under the hatch, clear of the deck and of the way back in.
+	const FVector Below = Sub->GetAnchorLocation() - FVector(0.f, 0.f, 60.f);
+	if (Diver->GetActorLocation().Z > Below.Z || !Sub->IsInHatchColumn(Diver->GetActorLocation()))
 	{
-		FDeepEventPayload Payload;
-		Payload.DepthM = Tuning.GetStop(Stop).SubDepthM;
-		Fire(Stop >= 3 ? DeepEvent::DescendStop3 : (Stop == 2 ? DeepEvent::DescendStop2 : DeepEvent::DiveStart), Payload);
-		break;
+		Diver->TeleportDiver(Below);
 	}
-	default:
-		Fire(DeepEvent::DiveStart);
-		break;
+	StartDive(EDiveStart::Hatch);
+	return true;
+}
+
+void UDeepRunComponent::Use()
+{
+	if (!GetOwner()->HasAuthority() || State != EDeepRunState::Aboard || IsOnTitle())
+	{
+		return;
 	}
+	IdleSeconds = 0.f;
+	if (bSeated)
+	{
+		LeaveHelm();
+	}
+	else if (IsNearHelm())
+	{
+		TakeHelm();
+	}
+	else if (IsNearConsole())
+	{
+		UseConsole();
+	}
+}
+
+bool UDeepRunComponent::IsNearConsole() const
+{
+	const ADeepDiver* Diver = GetDiver();
+	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	return Sub && State == EDeepRunState::Aboard && !bSeated && Sub->IsWithinUseRange(Diver->GetActorLocation(), Sub->GetConsoleLocation());
+}
+
+bool UDeepRunComponent::IsNearHelm() const
+{
+	const ADeepDiver* Diver = GetDiver();
+	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	return Sub && State == EDeepRunState::Aboard && !bSeated && Sub->IsWithinUseRange(Diver->GetActorLocation(), Sub->GetHelmLocation());
+}
+
+void UDeepRunComponent::UseConsole()
+{
+	ADeepDiver* Diver = GetDiver();
+	if (!Diver || !Diver->HasAuthority() || State != EDeepRunState::Aboard)
+	{
+		return;
+	}
+	bSeated = false;
+	IdleSeconds = 0.f;
+	LastConsoleTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+	if (Diver->GetCargo().Num() > 0)
+	{
+		Bank();
+		return;
+	}
+	BuyNextGate(false);
+}
+
+bool UDeepRunComponent::BuyNextGate(bool bFree)
+{
+	ADeepGameState* GameState = GetGameState();
+	if (!GameState)
+	{
+		return false;
+	}
+	const FDeepEconomyTuning& Economy = UDeepTuningSettings::Get().Economy;
+	if (UDeepRules::NextHullPrice(GameState->HullRating, Economy) < 0)
+	{
+		return false;
+	}
+	bool bBought = false;
+	if (bFree)
+	{
+		GameState->HullRating += 1;
+		bBought = true;
+	}
+	else
+	{
+		const FDeepHullPurchase Hull = UDeepRules::TryBuyHull(GameState->Credits, GameState->HullRating, Economy);
+		GameState->Credits = Hull.Credits;
+		GameState->HullRating = Hull.HullRating;
+		bBought = Hull.bBought;
+	}
+	if (bBought)
+	{
+		LastGateTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+		Fire(DeepEvent::HullBought);
+	}
+	return bBought;
+}
+
+void UDeepRunComponent::TakeHelm()
+{
+	ADeepDiver* Diver = GetDiver();
+	if (!Diver || State != EDeepRunState::Aboard || bSeated)
+	{
+		return;
+	}
+	bSeated = true;
+	HelmInput = 0.f;
+	AutopilotDepthM = -1.f;
+	bWasDriving = false;
+	bHelmAtLimit = false;
+	Diver->SetMoveInput(FVector2D::ZeroVector);
+	FireChatter(DeepEvent::HelmTake);
+}
+
+void UDeepRunComponent::LeaveHelm()
+{
+	if (!bSeated)
+	{
+		return;
+	}
+	// Standing up releases the control: park if close enough to a stop.
+	HelmInput = 0.f;
+	AutopilotDepthM = -1.f;
+	StepHelm(0.f);
+	bSeated = false;
+	bHelmAtLimit = false;
+}
+
+void UDeepRunComponent::SetAutopilot(float TargetDepthM)
+{
+	AutopilotDepthM = TargetDepthM;
+	if (TargetDepthM >= 0.f && !bSeated)
+	{
+		TakeHelm();
+		AutopilotDepthM = TargetDepthM;
+	}
+}
+
+void UDeepRunComponent::SetHelmInput(float Input)
+{
+	if (GetOwner()->HasAuthority())
+	{
+		HelmInput = FMath::Clamp(Input, -1.f, 1.f);
+		if (!FMath::IsNearlyZero(HelmInput))
+		{
+			AutopilotDepthM = -1.f;
+		}
+		else
+		{
+			bHelmAtLimit = false;
+		}
+	}
+	else
+	{
+		ServerSetHelmInput(Input);
+	}
+}
+
+void UDeepRunComponent::ServerSetHelmInput_Implementation(float Input)
+{
+	SetHelmInput(Input);
 }
 
 void UDeepRunComponent::CutTether(bool bRequested)
@@ -501,16 +846,6 @@ void UDeepRunComponent::CutTetherFor(const TCHAR* Event)
 	BailoutAirSeconds = UDeepTuningSettings::Get().Bailout.AirSeconds;
 	SetState(EDeepRunState::Cut);
 	Fire(Event);
-}
-
-void UDeepRunComponent::Retether()
-{
-	ChargeFee(UDeepTuningSettings::Get().Economy.RetetherFee);
-	PatienceSeconds = UDeepTuningSettings::Get().Patience.MaxSeconds;
-	BailoutAirSeconds = 0.f;
-	bWasHome = true;
-	SetState(EDeepRunState::Tethered);
-	Fire(DeepEvent::Retether);
 }
 
 void UDeepRunComponent::Die(bool bByMonster)
@@ -538,8 +873,18 @@ void UDeepRunComponent::Respawn()
 		GameState->DiverNumber += 1;
 	}
 	StateTimeLeft = 0.f;
-	SetState(EDeepRunState::Tethered);
-	StartDive(EDiveStart::Respawn);
+	PatienceSeconds = UDeepTuningSettings::Get().Patience.MaxSeconds;
+	BailoutAirSeconds = 0.f;
+	bSeated = false;
+	IdleSeconds = 0.f;
+	// The replacement diver starts aboard, on the deck.
+	SetState(EDeepRunState::Aboard);
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->ResetToRoom();
+		Diver->SetAboard(true);
+	}
+	Fire(DeepEvent::Respawn);
 }
 
 void UDeepRunComponent::ChargeFee(int32 Fee)
@@ -556,10 +901,20 @@ void UDeepRunComponent::ChargeFee(int32 Fee)
 void UDeepRunComponent::Bank()
 {
 	ADeepDiver* Diver = GetDiver();
-	if (!Diver || !Diver->HasAuthority() || !CanSwim())
+	if (!Diver || !Diver->HasAuthority() || IsOnTitle())
 	{
 		return;
 	}
+	if (CanSwim())
+	{
+		// Cheats and tests bank from the water: come aboard first (a cut diver pays the re-tether fee).
+		EnterSub();
+	}
+	if (State != EDeepRunState::Aboard)
+	{
+		return;
+	}
+	bSeated = false;
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const FDeepEconomyTuning& Economy = Tuning.Economy;
 	ADeepGameState* GameState = GetGameState();
@@ -603,6 +958,7 @@ void UDeepRunComponent::Bank()
 		GameState->TotalFees += Settled.Fees;
 		GameState->Credits = static_cast<int32>(FMath::Min<int64>(MAX_int32, static_cast<int64>(FMath::Max(0, GameState->Credits)) + Settled.Net));
 		GameState->Credits = UDeepRules::ApplyFee(GameState->Credits, UDeepHarpoonRules::RepairFromCredits(Settled.Gross, Settled.DirectorCut, Settled.Fees, Repair));
+		// The next layer gate (flashlight, then hull upgrade) is bought automatically when affordable.
 		const FDeepHullPurchase Hull = UDeepRules::TryBuyHull(GameState->Credits, GameState->HullRating, Economy);
 		GameState->Credits = Hull.Credits;
 		GameState->HullRating = Hull.HullRating;
@@ -611,8 +967,11 @@ void UDeepRunComponent::Bank()
 		Report.HullRating = Hull.HullRating;
 		Report.NextHullPrice = UDeepRules::NextHullPrice(Hull.HullRating, Economy);
 		Report.CreditsAfter = GameState->Credits;
-		const int32 Reachable = FMath::Clamp(Hull.HullRating, 1, FMath::Max(1, Tuning.NumStops()));
-		Report.NextStop = Reachable > GameState->Stop ? GameState->Stop + 1 : GameState->Stop;
+		Report.NextStop = GameState->Stop;
+		if (Hull.bBought)
+		{
+			LastGateTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+		}
 	}
 	Settlement = Report;
 	Diver->ClearCargo();
@@ -677,26 +1036,9 @@ void UDeepRunComponent::ContinueAfterSettlement()
 	{
 		return;
 	}
-	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	const ADeepGameState* GameState = GetGameState();
-	DescendFromDepthM = Tuning.GetStop(GameState ? GameState->Stop : 1).SubDepthM;
-	DescendToDepthM = Tuning.GetStop(Settlement.NextStop).SubDepthM;
-	bSwapped = false;
-	SetState(EDeepRunState::Descending);
-	StateTimeLeft = FMath::Max(0.01f, Tuning.Run.DescendSeconds);
-}
-
-void UDeepRunComponent::SwapToNextDive()
-{
-	bSwapped = true;
-	ADeepGameState* GameState = GetGameState();
-	const int32 Old = GameState ? GameState->Stop : 1;
-	if (GameState)
-	{
-		GameState->Stop = FMath::Clamp(Settlement.NextStop, 1, FMath::Max(1, UDeepTuningSettings::Get().NumStops()));
-		DeepArena::ApplyStop(GetWorld(), GameState->Stop);
-	}
-	StartDive(GameState && GameState->Stop != Old ? EDiveStart::NewStop : EDiveStart::SameStop);
+	// Back on the deck: the helm, the hatch and the console are all there.
+	IdleSeconds = 0.f;
+	SetState(EDeepRunState::Aboard);
 }
 
 void UDeepRunComponent::SetPatienceFraction(float Fraction)
@@ -715,7 +1057,7 @@ void UDeepRunComponent::ResetRun(bool bToTitle)
 	{
 		GameState->ResetRun();
 		GameState->bOnTitle = bToTitle;
-		DeepArena::ApplyStop(GetWorld(), 1);
+		DeepArena::ApplySubDepth(GetWorld());
 	}
 	// The serpent goes with the old run (it returns at stop 2).
 	if (UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>())
@@ -732,20 +1074,25 @@ void UDeepRunComponent::ResetRun(bool bToTitle)
 	LastFeeTime = -100.f;
 	LastRefillFraction = 0.f;
 	LastRefillTime = -100.f;
+	LastConsoleTime = -100.f;
+	LastGateTime = -100.f;
 	MonsterThreat01 = 0.f;
 	bLastDeathMonster = false;
 	bRelicSeenThisRun = false;
+	bFirstSalvageThisRun = true;
+	bMonsterHeardThisRun = false;
+	bSeated = false;
+	bHelmAtLimit = false;
+	HelmInput = 0.f;
+	AutopilotDepthM = -1.f;
+	IdleSeconds = 0.f;
 	ChatterLastTime.Reset();
-	SetState(EDeepRunState::Tethered);
-	if (bToTitle)
-	{
-		// The first dive starts when the title is left (StepRun sees bStarted false).
-		bStarted = false;
-		DeepArena::RespawnSalvage(GetWorld());
-		Diver->ResetToStart();
-		return;
-	}
-	StartDive(EDiveStart::Reset);
+	// Every run starts aboard, on the deck; on the title it waits there for a key.
+	DeepArena::RespawnSalvage(GetWorld());
+	SetState(EDeepRunState::Aboard);
+	Diver->ResetToRoom();
+	Diver->SetAboard(true);
+	bStarted = !bToTitle;
 }
 
 void UDeepRunComponent::NotifyPickup(const FDeepCargoItem& Item)
@@ -884,8 +1231,10 @@ void UDeepRunComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(UDeepRunComponent, BailoutAirSeconds);
 	DOREPLIFETIME(UDeepRunComponent, StateTimeLeft);
 	DOREPLIFETIME(UDeepRunComponent, Settlement);
-	DOREPLIFETIME(UDeepRunComponent, DescendFromDepthM);
-	DOREPLIFETIME(UDeepRunComponent, DescendToDepthM);
+	DOREPLIFETIME(UDeepRunComponent, bSeated);
+	DOREPLIFETIME(UDeepRunComponent, bHelmAtLimit);
+	DOREPLIFETIME(UDeepRunComponent, LastConsoleTime);
+	DOREPLIFETIME(UDeepRunComponent, LastGateTime);
 	DOREPLIFETIME(UDeepRunComponent, LastRefillFraction);
 	DOREPLIFETIME(UDeepRunComponent, LastRefillTime);
 	DOREPLIFETIME(UDeepRunComponent, LastFee);

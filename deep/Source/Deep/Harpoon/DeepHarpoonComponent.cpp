@@ -438,10 +438,9 @@ void UDeepHarpoonComponent::HandleHit(const FDeepHarpoonTrace& Hit)
 		}
 		Phase = EDeepHarpoonPhase::Latched;
 		LatchTarget = EDeepHarpoonTarget::Submarine;
-		// Just under the airlock, inside the home radius (the winch's approach point), so the run re-tethers.
-		const FDeepTetherTuning& Tether = UDeepTuningSettings::Get().Tether;
-		const float BelowM = FMath::Clamp(Tether.WinchApproachBelowM, 0.f, FMath::Max(0.f, Tether.WinchArriveM - 0.5f));
-		ReelTargetCm = Sub ? Sub->GetAnchorLocation() - FVector(0.f, 0.f, BelowM * HarpoonComponentCmPerM) : Hit.PointCm;
+		// Up into the hatch (D-022): the run's hatch rule brings the diver aboard there (a cut diver pays the re-tether).
+		const float IntoHatchM = UDeepTuningSettings::Get().Sub.EnterBelowDeckM * 0.5f;
+		ReelTargetCm = Sub ? Sub->GetHatchLocation() - FVector(0.f, 0.f, IntoHatchM * HarpoonComponentCmPerM) : Hit.PointCm;
 		SetResult(EDeepHarpoonResult::LatchedSub);
 		Fire(DeepHarpoonEvent::HitSub);
 		break;

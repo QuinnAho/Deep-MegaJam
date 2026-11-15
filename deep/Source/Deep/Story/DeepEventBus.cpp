@@ -18,6 +18,7 @@ TArray<FName> DeepEvent::AllFired()
 		BankGood, BankPoor, BankEmpty, HullBought, DescendStop2, DescendStop3,
 		MonsterFirstHeard, MonsterNear, MonsterRepelled, BiteAlarm, CutBite, DeathMonster,
 		Title, RelicSeen, RelicGrabbed, RelicWinch, Win,
+		EnterSub, HelmTake, HelmDescend, HelmDepthLimit, HelmArrive, IdleInside,
 	};
 }
 

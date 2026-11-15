@@ -34,6 +34,7 @@ void ADeepGameMode::InitGameState()
 	if (ADeepGameState* State = GetGameState<ADeepGameState>())
 	{
 		State->Credits = FMath::Max(0, UDeepTuningSettings::Get().Economy.StartingCredits);
+		State->SubDepthM = UDeepTuningSettings::Get().GetStop(1).SubDepthM;
 	}
 }
 
@@ -67,7 +68,8 @@ void ADeepGameMode::RestartPlayer(AController* NewPlayer)
 	// Players can log in before StartPlay, so the arena is built on demand here too.
 	if (ADeepSubmarine* Sub = EnsureArena())
 	{
-		RestartPlayerAtTransform(NewPlayer, Sub->GetDiverStartTransform());
+		// Every run starts aboard: on the deck, facing the hatch and the helm.
+		RestartPlayerAtTransform(NewPlayer, Sub->GetRoomStartTransform());
 		return;
 	}
 	Super::RestartPlayer(NewPlayer);
@@ -76,11 +78,11 @@ void ADeepGameMode::RestartPlayer(AController* NewPlayer)
 void ADeepGameMode::SetPlayerDefaults(APawn* PlayerPawn)
 {
 	Super::SetPlayerDefaults(PlayerPawn);
-	// Start looking slightly down so the first frame shows salvage glinting below.
+	// Start looking a little down so the first frame shows the hatch in the deck.
 	if (AController* Controller = PlayerPawn ? PlayerPawn->GetController() : nullptr)
 	{
 		FRotator View = Controller->GetControlRotation();
-		View.Pitch = UDeepTuningSettings::Get().Arena.DiverStartPitchDeg;
+		View.Pitch = UDeepTuningSettings::Get().Sub.RoomStartPitchDeg;
 		Controller->SetControlRotation(View);
 	}
 }
@@ -92,7 +94,11 @@ void ADeepGameMode::GotoStop(int32 Stop)
 	{
 		return;
 	}
+	// A jump, not a drive: the sub is parked at the stop at once.
 	State->Stop = FMath::Clamp(Stop, 1, FMath::Max(1, UDeepTuningSettings::Get().NumStops()));
+	State->SubDepthM = UDeepTuningSettings::Get().GetStop(State->Stop).SubDepthM;
+	State->bParked = true;
+	State->DeepestStopReached = FMath::Max(State->DeepestStopReached, State->Stop);
 	DeepArena::ApplyStop(GetWorld(), State->Stop);
 }
 

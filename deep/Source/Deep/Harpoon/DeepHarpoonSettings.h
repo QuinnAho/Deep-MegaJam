@@ -30,7 +30,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Shot", meta = (ClampMin = "1"))
 	float BoltSpeedMps = 60.f;
 
-	/** Latched to the submarine: reel speed to the airlock. */
+	/** Latched to the submarine: reel speed up into the hatch. */
 	UPROPERTY(Config, EditAnywhere, Category = "Reel", meta = (ClampMin = "0.1"))
 	float SubReelSpeedMps = 10.f;
 

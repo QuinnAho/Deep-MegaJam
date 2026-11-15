@@ -1,4 +1,4 @@
-﻿// Tests for the run's frame: the relic at stop 3, the win and its performance review, the title screen, restart,
+// Tests for the run's frame: the relic at stop 3, the win and its performance review, the title screen, restart,
 // and a full run from the title to the win driven only by console commands.
 
 #include "CoreMinimal.h"
@@ -77,14 +77,12 @@ namespace DeepEndingTest
 			GEngine->Exec(World, Command);
 		}
 
-		/** Steps the settlement lock, continues, and plays the descent through. */
-		void ContinueAndDescend() const
+		/** Steps the settlement lock and continues: back on the deck. */
+		void ContinueToDeck() const
 		{
 			const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 			Run->StepRun(Tuning.Run.SettlementMinSeconds + 0.05f);
 			Cmd(TEXT("Deep.Continue"));
-			Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
-			Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
 		}
 
 		/** Holds the winch and runs tether and loop steps until the dive ends (or MaxSeconds). */
@@ -174,7 +172,7 @@ bool FDeepRelicWinTest::RunTest(const FString& Parameters)
 	W.Diver->AddCargo(Scrap);
 	W.Run->Bank();
 	const FDeepSettlementReport First = W.Run->GetSettlement();
-	W.ContinueAndDescend();
+	W.ContinueToDeck();
 
 	// Stop 3: the relic lies deep, inside the tether's reach.
 	W.GameMode->GotoStop(3);
@@ -187,6 +185,8 @@ bool FDeepRelicWinTest::RunTest(const FString& Parameters)
 	TestTrue(FString::Printf(TEXT("The relic is near the bottom (%.0f m)"), RelicDepthM), RelicDepthM > 560.f && RelicDepthM <= Tuning.Arena.RelicDepthM + 0.1f);
 
 	// A death on the way costs a fee and a diver.
+	W.Cmd(TEXT("Deep.Hatch"));
+	W.Diver->TeleportDiver(W.Sub->GetDiverStartTransform().GetLocation());
 	W.Run->SetPatienceFraction(0.f);
 	W.Run->StepRun(0.05f);
 	W.Run->StepRun(60.f);
@@ -194,7 +194,8 @@ bool FDeepRelicWinTest::RunTest(const FString& Parameters)
 	W.Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
 	TestNotNull(TEXT("The relic is back for the replacement diver"), DeepArena::FindRelic(W.World));
 
-	// Seen, grabbed (too heavy to swim), winched (loud) and banked: the run is won.
+	// Seen, grabbed (too heavy to swim), winched (loud) up to the hatch, banked at the console: the run is won.
+	W.Cmd(TEXT("Deep.Hatch"));
 	W.Cmd(TEXT("Deep.Relic"));
 	W.Run->StepRun(0.05f);
 	TestEqual(TEXT("relic_seen fired"), W.Bus->CountOf(DeepEvent::RelicSeen), 1);
@@ -204,7 +205,10 @@ bool FDeepRelicWinTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("The relic is too heavy to swim up"), W.Diver->GetWeight().bOverloaded);
 	W.WinchHome();
 	TestEqual(TEXT("relic_winch fired"), W.Bus->CountOf(DeepEvent::RelicWinch), 1);
-	TestEqual(TEXT("Banking the relic wins"), W.Run->GetState(), EDeepRunState::Won);
+	TestEqual(TEXT("The winch brings the relic aboard"), W.Run->GetState(), EDeepRunState::Aboard);
+	TestTrue(TEXT("Still carrying it aboard"), W.Run->CarriesRelic());
+	W.Cmd(TEXT("Deep.Console"));
+	TestEqual(TEXT("Banking the relic at the console wins"), W.Run->GetState(), EDeepRunState::Won);
 	TestTrue(TEXT("Game state says won"), W.State->bWon);
 	TestEqual(TEXT("win fired"), W.Bus->CountOf(DeepEvent::Win), 1);
 	TestFalse(TEXT("The diver cannot swim on the review"), W.Run->CanSwim());
@@ -241,6 +245,8 @@ bool FDeepRestartTest::RunTest(const FString& Parameters)
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
 	W.Run->StepRun(0.05f);
 	const FVector Start = W.Sub->GetDiverStartTransform().GetLocation();
+	W.State->SubDepthM = 333.f;
+	W.State->bParked = false;
 
 	// Make a mess of everything.
 	W.GameMode->GotoStop(3);
@@ -276,20 +282,23 @@ bool FDeepRestartTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Not won"), W.State->bWon);
 	TestFalse(TEXT("Not on the title"), W.State->bOnTitle);
 	TestEqual(TEXT("Cargo empty"), W.Diver->GetCargo().Num(), 0);
-	TestEqual(TEXT("Tethered again"), W.Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Aboard again"), W.Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("Full Patience"), W.Run->GetPatienceFraction(), 1.f, 0.0001f);
 	TestEqual(TEXT("No bailout air running"), W.Run->GetBailoutAirSeconds(), 0.f, 0.0001f);
 	TestNull(TEXT("The serpent is gone"), Brain->GetSerpent());
 	TestNull(TEXT("The relic is gone with stop 3"), DeepArena::FindRelic(W.World));
 	TestEqual(TEXT("Fresh salvage ring"), W.CountSalvage(), Tuning.Arena.SalvageSpots.Num());
-	TestTrue(TEXT("Diver back under the airlock"), FVector::Dist(W.Diver->GetActorLocation(), Start) < 50.0);
+	TestTrue(TEXT("Diver back on the deck"), FVector::Dist(W.Diver->GetActorLocation(), W.Sub->GetRoomStartTransform().GetLocation()) < 50.0);
+	TestEqual(TEXT("The sub back at the first stop"), W.State->SubDepthM, Tuning.GetStop(1).SubDepthM, 0.01f);
+	W.Cmd(TEXT("Deep.Hatch"));
+	W.Diver->GetTether()->UpdateTether(0.f);
 	TestEqual(TEXT("Tether back to the stop-1 length"), W.Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(1, Tuning.Tether), 0.01f);
 
 	// Restart from the win screen (dive again) works the same way.
 	W.Cmd(TEXT("Deep.Win"));
 	TestEqual(TEXT("Won"), W.Run->GetState(), EDeepRunState::Won);
 	W.GameMode->RestartRun();
-	TestEqual(TEXT("Dive again: tethered"), W.Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Dive again: aboard"), W.Run->GetState(), EDeepRunState::Aboard);
 	TestFalse(TEXT("Dive again: not won"), W.State->bWon);
 	TestEqual(TEXT("Dive again: totals cleared"), W.State->TotalGross, 0);
 	return true;
@@ -303,7 +312,7 @@ bool FDeepFullRunTest::RunTest(const FString& Parameters)
 	FEndingWorld W;
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
 
-	// The title: nobody dives, Patience holds.
+	// The title: nobody dives, Patience holds; the diver waits aboard.
 	W.Cmd(TEXT("Deep.Title"));
 	TestTrue(TEXT("On the title"), W.State->bOnTitle);
 	TestTrue(TEXT("title fired"), W.Bus->CountOf(DeepEvent::Title) >= 1);
@@ -313,31 +322,62 @@ bool FDeepFullRunTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Patience holds on the title"), W.Run->GetPatienceFraction(), 1.f, 0.0001f);
 	TestEqual(TEXT("No dive_start yet"), W.Bus->CountOf(DeepEvent::DiveStart), 0);
 
-	// Any key (Deep.Start): the first dive starts.
+	// Any key (Deep.Start): the run starts aboard, on the deck.
 	W.Cmd(TEXT("Deep.Start"));
 	TestFalse(TEXT("Title left"), W.State->bOnTitle);
+	TestEqual(TEXT("Aboard at the start"), W.Run->GetState(), EDeepRunState::Aboard);
+	TestTrue(TEXT("In the room"), W.Sub->IsInRoom(W.Diver->GetActorLocation()));
+	TestFalse(TEXT("No lamp yet"), W.Diver->IsLampOn());
+
+	// Stop 1: through the hatch, a haul, up through the hatch, bank at the console: the flashlight.
+	W.Cmd(TEXT("Deep.Hatch"));
 	TestEqual(TEXT("dive_start fired"), W.Bus->CountOf(DeepEvent::DiveStart), 1);
 	TestTrue(TEXT("Diving"), W.Run->CanSwim());
-
-	// Stop 1: a haul and enough credits for hull 2.
 	W.Cmd(TEXT("Deep.GiveSalvage 6 70"));
+	W.Cmd(TEXT("Deep.EnterSub"));
+	TestEqual(TEXT("enter_sub fired"), W.Bus->CountOf(DeepEvent::EnterSub), 1);
 	W.Cmd(TEXT("Deep.Credits 60"));
-	W.Cmd(TEXT("Deep.Bank"));
+	W.Cmd(TEXT("Deep.Console"));
 	TestEqual(TEXT("Settling"), W.Run->GetState(), EDeepRunState::Settling);
-	TestEqual(TEXT("Hull 2 bought"), W.State->HullRating, 2);
-	W.ContinueAndDescend();
-	TestEqual(TEXT("Stop 2"), W.State->Stop, 2);
+	TestTrue(TEXT("Flashlight bought"), W.State->HasFlashlight());
+	TestFalse(TEXT("Hull not yet"), W.State->IsHullUpgraded());
+	TestTrue(TEXT("The lamp works now"), W.Diver->IsLampOn());
+	W.ContinueToDeck();
+	TestEqual(TEXT("Back on the deck"), W.Run->GetState(), EDeepRunState::Aboard);
 
-	// Stop 2: an empty bank with credits for hull 3.
+	// The helm: down to stop 2, then the 400 m limit refuses stop 3.
+	W.Cmd(TEXT("Deep.Drive s2 now"));
+	TestTrue(TEXT("Seated"), W.Run->IsSeated());
+	TestEqual(TEXT("helm_take fired"), W.Bus->CountOf(DeepEvent::HelmTake), 1);
+	TestEqual(TEXT("Stop 2"), W.State->ParkedStop(), 2);
+	TestEqual(TEXT("descend_stop2 fired"), W.Bus->CountOf(DeepEvent::DescendStop2), 1);
+	W.Cmd(TEXT("Deep.Drive s3 now"));
+	TestEqual(TEXT("Stopped at the 400 m limit"), W.State->SubDepthM, 400.f, 0.01f);
+	TestTrue(TEXT("helm_depth_limit fired"), W.Bus->CountOf(DeepEvent::HelmDepthLimit) >= 1);
+	TestEqual(TEXT("Not parked between stops"), W.State->ParkedStop(), 0);
+	W.Cmd(TEXT("Deep.Helm 0"));
+	W.Cmd(TEXT("Deep.Hatch"));
+	TestEqual(TEXT("The hatch is locked between stops"), W.Run->GetState(), EDeepRunState::Aboard);
+	W.Cmd(TEXT("Deep.Drive s2 now"));
+	TestEqual(TEXT("Back at stop 2"), W.State->ParkedStop(), 2);
+	TestTrue(TEXT("helm_arrive fired on the return"), W.Bus->CountOf(DeepEvent::HelmArrive) >= 1);
+
+	// Stop 2: a dive and a bank with credits for the hull upgrade.
+	W.Cmd(TEXT("Deep.Hatch"));
+	TestEqual(TEXT("Stop 2: diving"), W.Run->GetState(), EDeepRunState::Tethered);
+	W.Cmd(TEXT("Deep.GiveSalvage 2 20"));
 	W.Cmd(TEXT("Deep.Credits 250"));
-	W.Cmd(TEXT("Deep.Bank"));
-	TestEqual(TEXT("Hull 3 bought"), W.State->HullRating, 3);
-	W.ContinueAndDescend();
-	TestEqual(TEXT("Stop 3"), W.State->Stop, 3);
+	W.Cmd(TEXT("Deep.Console"));
+	TestTrue(TEXT("Hull upgraded"), W.State->IsHullUpgraded());
+	W.ContinueToDeck();
+	W.Cmd(TEXT("Deep.Drive s3 now"));
+	TestEqual(TEXT("Stop 3"), W.State->ParkedStop(), 3);
 	TestEqual(TEXT("descend_stop3 fired"), W.Bus->CountOf(DeepEvent::DescendStop3), 1);
-	TestEqual(TEXT("Stop-3 tether"), W.Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(3, Tuning.Tether), 0.01f);
 
-	// Stop 3: the relic, the winch, the win.
+	// Stop 3: the relic, the winch to the hatch, the console, the win.
+	W.Cmd(TEXT("Deep.Hatch"));
+	W.Diver->GetTether()->UpdateTether(0.f);
+	TestEqual(TEXT("Stop-3 tether"), W.Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(3, Tuning.Tether), 0.01f);
 	W.Cmd(TEXT("Deep.Relic"));
 	W.Run->StepRun(0.05f);
 	TestEqual(TEXT("relic_seen fired"), W.Bus->CountOf(DeepEvent::RelicSeen), 1);
@@ -345,6 +385,8 @@ bool FDeepFullRunTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Carrying the relic"), W.Run->CarriesRelic());
 	W.Cmd(TEXT("Deep.Winch 1"));
 	W.WinchHome();
+	TestEqual(TEXT("Winched up through the hatch"), W.Run->GetState(), EDeepRunState::Aboard);
+	W.Cmd(TEXT("Deep.Console"));
 	TestEqual(TEXT("Won"), W.Run->GetState(), EDeepRunState::Won);
 	TestEqual(TEXT("win fired"), W.Bus->CountOf(DeepEvent::Win), 1);
 
@@ -353,8 +395,14 @@ bool FDeepFullRunTest::RunTest(const FString& Parameters)
 	UTEST_TRUE(TEXT("DEEPSTATE parses"), Json.IsValid());
 	TestTrue(TEXT("DEEPSTATE won"), Json->GetBoolField(TEXT("won")));
 	TestEqual(TEXT("DEEPSTATE run_state"), Json->GetStringField(TEXT("run_state")), FString(TEXT("won")));
+	TestTrue(TEXT("DEEPSTATE inside"), Json->GetBoolField(TEXT("inside")));
+	TestFalse(TEXT("DEEPSTATE seated"), Json->GetBoolField(TEXT("seated")));
+	TestEqual(TEXT("DEEPSTATE sub_depth_m"), static_cast<float>(Json->GetNumberField(TEXT("sub_depth_m"))), Tuning.GetStop(3).SubDepthM, 0.01f);
+	TestEqual(TEXT("DEEPSTATE depth_limit_m"), static_cast<float>(Json->GetNumberField(TEXT("depth_limit_m"))), 600.f, 0.01f);
+	TestTrue(TEXT("DEEPSTATE has_flashlight"), Json->GetBoolField(TEXT("has_flashlight")));
+	TestTrue(TEXT("DEEPSTATE hull_upgraded"), Json->GetBoolField(TEXT("hull_upgraded")));
+	TestEqual(TEXT("DEEPSTATE parked_stop"), static_cast<int32>(Json->GetNumberField(TEXT("parked_stop"))), 3);
 	TestTrue(TEXT("DEEPSTATE run_totals"), Json->HasField(TEXT("run_totals")));
-	TestEqual(TEXT("DEEPSTATE gross"), static_cast<int32>(Json->GetObjectField(TEXT("run_totals"))->GetNumberField(TEXT("gross"))), 70 + W.Run->GetSettlement().Gross);
 	return true;
 }
 

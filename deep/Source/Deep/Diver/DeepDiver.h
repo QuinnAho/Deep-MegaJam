@@ -1,5 +1,6 @@
-// First-person diver. ACharacter in MOVE_Flying with our own sink and drag (UDeepRules::SwimVelocityMps).
-// Holds cargo, the lamp and the tether. Input arrives from ADeepPlayerController as plain calls.
+// First-person diver. In the water: ACharacter in MOVE_Flying with our own sink and drag (UDeepRules::SwimVelocityMps).
+// Aboard the sub: MOVE_Walking with gravity; seated at the helm the view is the sub's helm camera.
+// Holds cargo, the lamp (needs the flashlight) and the tether. Input arrives from ADeepPlayerController as plain calls.
 
 #pragma once
 
@@ -28,7 +29,10 @@ public:
 	void SetMoveInput(const FVector2D& Move) { MoveInput = Move; }
 	void SetVerticalInput(float Up) { VerticalInput = Up; }
 	void SetSprinting(bool bInSprint) { bSprinting = bInSprint; }
+	/** Grab in the water; aboard it is the use key (console, helm). */
 	void Grab();
+	/** Aboard: stand up from the helm, or use the helm or the console in range. */
+	void Use();
 	void Drop();
 	void SetWinching(bool bInWinching);
 	void ToggleLamp();
@@ -54,7 +58,10 @@ public:
 	FString GetZoneName() const;
 
 	bool IsWinching() const { return bWinching; }
-	bool IsLampOn() const { return bLampOn; }
+	/** The lamp shines: switched on and the flashlight has been bought. */
+	bool IsLampOn() const;
+	/** The flashlight has been bought (the lamp key works). */
+	bool HasFlashlight() const;
 	const TArray<FDeepCargoItem>& GetCargo() const { return Cargo; }
 	UDeepTetherComponent* GetTether() const { return Tether; }
 	UDeepRunComponent* GetRun() const { return Run; }
@@ -65,8 +72,14 @@ public:
 	/** Server: empties the cargo (bank, death). */
 	void ClearCargo();
 
-	/** Back under the airlock, stopped, looking down at the salvage. */
+	/** Back under the airlock (in the water), stopped, looking down at the salvage. */
 	void ResetToStart();
+
+	/** On the deck at the room start, stopped, facing the hatch and the helm. */
+	void ResetToRoom();
+
+	/** Server (and owner): walking with gravity aboard, or swimming without it. Stops the diver. */
+	void SetAboard(bool bInside);
 
 	/** The salvage piece Grab would take right now, or null. */
 	ADeepSalvage* FindGrabTarget() const;
@@ -95,6 +108,13 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerDrop();
+
+	UFUNCTION(Server, Reliable)
+	void ServerUse();
+
+	/** Keeps the movement mode and the view target in step with the run (aboard, seated) on the owning machine. */
+	void SyncAboardMode();
+	float LastHelmInputSent = 0.f;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWinching(bool bInWinching);

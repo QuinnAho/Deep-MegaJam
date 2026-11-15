@@ -15,6 +15,9 @@ void ADeepGameState::ResetRun()
 	Credits = FMath::Max(0, UDeepTuningSettings::Get().Economy.StartingCredits);
 	HullRating = 1;
 	Stop = 1;
+	SubDepthM = UDeepTuningSettings::Get().GetStop(1).SubDepthM;
+	bParked = true;
+	DeepestStopReached = 1;
 	DiverNumber = 1;
 	bWon = false;
 	RunSeconds = 0.f;
@@ -23,6 +26,11 @@ void ADeepGameState::ResetRun()
 	TotalFees = 0;
 	HullDamage = 0;
 	HullRepairsOwed = 0;
+}
+
+float ADeepGameState::DepthLimitM() const
+{
+	return UDeepRules::HelmDepthLimitM(GatesBought(), UDeepTuningSettings::Get().Sub);
 }
 
 FDeepRunReview ADeepGameState::BuildReview() const
@@ -43,6 +51,9 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADeepGameState, Stop);
+	DOREPLIFETIME(ADeepGameState, SubDepthM);
+	DOREPLIFETIME(ADeepGameState, bParked);
+	DOREPLIFETIME(ADeepGameState, DeepestStopReached);
 	DOREPLIFETIME(ADeepGameState, Credits);
 	DOREPLIFETIME(ADeepGameState, HullRating);
 	DOREPLIFETIME(ADeepGameState, DiverNumber);

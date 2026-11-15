@@ -200,12 +200,14 @@ bool FDeepHarpoonSubTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The hull is damaged"), W.State->HullDamage, 1);
 	TestEqual(TEXT("One repair owed"), W.State->HullRepairsOwed, 1);
 
-	// Reeled home fast: re-tether (and bank the cargo) at the airlock.
+	// Reeled home fast: up into the hatch, re-tether fee, aboard; the cargo is banked at the console.
 	const float Took = W.StepUntilIdle(8.f);
 	TestTrue(FString::Printf(TEXT("Reeled in within the latch limit (%.2f s)"), Took), Took < Settings.MaxLatchSeconds);
 	W.Run->StepRun(0.05f);
 	TestEqual(TEXT("retether fired"), W.Bus->CountOf(DeepEvent::Retether), 1);
-	UTEST_EQUAL(TEXT("Banked at the airlock"), W.Run->GetState(), EDeepRunState::Settling);
+	UTEST_EQUAL(TEXT("Reeled up into the hatch: aboard"), W.Run->GetState(), EDeepRunState::Aboard);
+	W.Run->UseConsole();
+	UTEST_EQUAL(TEXT("Banked at the console"), W.Run->GetState(), EDeepRunState::Settling);
 
 	// The fee is itemised on that settlement, and the damage stays.
 	const FDeepSettlementReport& Report = W.Run->GetSettlement();
@@ -255,13 +257,13 @@ bool FDeepHarpoonOneShotTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Still only the first shot fired"), W.Bus->CountOf(DeepHarpoonEvent::Fired), Settings.ShotsPerDive);
 	TestEqual(TEXT("The HUD hears about it"), W.Harpoon->GetLastResult(), EDeepHarpoonResult::Empty);
 
-	// Re-tethering is the same dive; a new dive reloads.
+	// Re-tethering (home at the hatch, aboard) is the same dive; the next drop through the hatch reloads.
 	W.Run->CutTether(true);
 	W.Diver->TeleportDiver(W.Sub->GetAnchorLocation() - FVector(0.f, 0.f, 150.f));
 	W.Run->StepRun(0.05f);
-	TestEqual(TEXT("Re-tethered"), W.Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Re-tethered: aboard"), W.Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("A re-tether does not reload"), W.Harpoon->GetShotsLeft(), 0);
-	W.Run->ResetRun();
+	W.Run->LeaveSub();
 	TestEqual(TEXT("A new dive reloads"), W.Harpoon->GetShotsLeft(), Settings.ShotsPerDive);
 	return true;
 }

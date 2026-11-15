@@ -7,12 +7,25 @@
 
 class UWorld;
 class ADeepSubmarine;
+class ADeepArenaRoot;
 class ADeepSalvage;
 struct FDeepSalvageKind;
 
 namespace DeepArena
 {
 	DEEP_API ADeepSubmarine* FindSubmarine(const UWorld* World);
+
+	/** The one actor everything outside the sub hangs from. */
+	DEEP_API ADeepArenaRoot* FindArenaRoot(const UWorld* World);
+
+	/** The tether anchor as the arena sees it: the sub's anchor shifted by the arena root's offset (equal when parked). */
+	DEEP_API FVector ArenaAnchor(const UWorld* World);
+
+	/**
+	 * After the game state's SubDepthM or bParked changed: the arena root moves by (SubDepthM - stop depth), the nearest
+	 * stop's arena is loaded when it changes (light, relic, salvage), and the hatch opens only while parked. Server only.
+	 */
+	DEEP_API void ApplySubDepth(UWorld* World);
 
 	/** Ensures sub, salvage ring, abyss floor and environment exist. Returns the sub (null on clients). */
 	DEEP_API ADeepSubmarine* EnsureArena(UWorld* World, int32 Stop);
