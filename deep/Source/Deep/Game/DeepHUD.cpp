@@ -16,6 +16,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptain.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
@@ -1601,11 +1602,17 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 	}
 	else if (Frame.Mode == EDeepHudMode::Helm)
 	{
+		// In the cave shaft W/S/A/D steer, so only C and Space change depth.
+		const bool bShaft = DeepShaft::IsOn();
 		Frame.Hint = {
-			MakePrompt(TEXT("h1"), FString::Printf(TEXT("%s / S"), *Key(TEXT("Down"))), TEXT("DIVE"), TEXT("hold")),
-			MakePrompt(TEXT("h2"), FString::Printf(TEXT("%s / W"), *Key(TEXT("Up"))), TEXT("RISE"), TEXT("hold")),
-			MakePrompt(TEXT("h3"), Key(TEXT("Use")), TEXT("STAND UP")),
+			MakePrompt(TEXT("h1"), bShaft ? Key(TEXT("Down")) : FString::Printf(TEXT("%s / S"), *Key(TEXT("Down"))), TEXT("DIVE"), TEXT("hold")),
+			MakePrompt(TEXT("h2"), bShaft ? Key(TEXT("Up")) : FString::Printf(TEXT("%s / W"), *Key(TEXT("Up"))), TEXT("RISE"), TEXT("hold")),
 		};
+		if (bShaft)
+		{
+			Frame.Hint.Add(MakePrompt(TEXT("h4"), TEXT("WASD"), TEXT("STEER"), TEXT("off the rock")));
+		}
+		Frame.Hint.Add(MakePrompt(TEXT("h3"), Key(TEXT("Use")), TEXT("STAND UP")));
 	}
 
 	// ---- feedback cues, on the frame the state changes (well inside 100 ms)
