@@ -630,6 +630,17 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - **Why it matters:** a failure found at 6:30 PM can still be fixed before the video. One found at 7:15 PM costs the video or the page.
 - **Evidence:** integration `9ac970e` (pushed); `devlog/itch-page.md`; [[Video Shot List]]; row 100 in [[Agent Runs]]; the frames page, version 21.
 
+### 6:20 PM  The freeze run-through passes: every test, all 14 playthroughs, a package, a clean smoke run and a 763 MB zip (orchestrator)
+- **What happened:**
+  - On integration `9ac970e`, from 6:05 to 6:20 PM, in one Unreal slot:
+    - verify: 164 of 164 tests (57 s);
+    - all 14 playthroughs, in 12.5 minutes: S0-title 13 s, S1-hatch 15 s, S2-gate 36 s, S3-serpent 9 s, S4-cut 55 s, S5-harpoon 13 s, S6-bank 15 s, S7-run 46 s, S8-keys 96 s, S9-floor 147 s, S10-relic 78 s, S10-cutdrop 35 s, S11-pass 102 s, S12-sidehome 59 s;
+    - the package (63 s, 1,048 MB), a clean 25 s smoke run, and the zip (31 s, 762.9 MB, under the 1 GB limit).
+  - The eight playthroughs that had not yet run on the merged build all passed, so the re-scope broke none of the older paths: the title, the hatch, the cut, the harpoon, the bank, the keys, the cut-and-drop at the relic and the side trip home.
+  - The build and its zip are copied to `Builds\Freeze-1820` (outside git), so a later package cannot overwrite them. The zip's SHA-256 starts `47B688DC739AC215`. It is still named `TeamName_DEEP.zip`, because the team name is not in `tools/jam.json` yet; re-zipping takes 31 s.
+- **Why it matters:** the team has a tested, packaged entry 2 hours 39 minutes before the deadline, 25 minutes ahead of the plan. What is left is optional or quick: Quinn's calls, the video, the page and the form.
+- **Evidence:** `verify=0 passline=True plays=[all 14 exit 0] package=0 smoke=0 zip=0 end 18:20:32` (the run's own summary); integration `9ac970e`.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
