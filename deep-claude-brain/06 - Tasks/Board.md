@@ -1,18 +1,18 @@
 ---
-updated: 2026-11-15 02:37 EST
+updated: 2026-11-15 02:31 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (written 2:37 AM Nov 15)
+## Handoff for a fresh orchestrator session (written 2:31 AM Nov 15)
 
-A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polish research is finished and merged, and the pass is waiting on Quinn's choices (item 1). No agent should be running: the last one was told to stop at 2:36 AM (item 4).
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The polish research is finished and merged, and the pass is waiting on Quinn's choices (item 1). No agent should be running: the last one was told to stop at 2:30 AM (item 4).
 
 1. **Polish research is in (D-029). Start with `03 - Research/Polish - Start Here.md`:** it lists the rules for the pass, what Quinn still has to choose, the six research notes, and the amendments the later research made to the plan. Quinn has a private visual board of the 61 asset picks (its URL is in Claude's memory, not in the repo). **Nothing visual is dispatched until Quinn has chosen the style and said go.** Once he picks the style, write `02 - Design/Style Guide.md` first: palette, materials, lighting, type sizes, animation timings and volume levels as numbers.
 2. **When he says go:** dispatch from section 9 of the plan. WP1 (water look), WP2 (dressing loader) and WP6 (HUD) are code only and need no packs. Opus at high for those. The plan and the asset scout disagree on Corals and Atlantis Ruins: the style choice settles it.
 3. **Still unconfirmed in the research:** the Official Rules PDF, seven sound needs with no candidate, most Freesound licences, the download size of every pack, and how long the first cook with pack materials takes.
-4. **Scripted playtests are deferred until a checkpoint (D-031, Quinn at about 2:35 AM).** The fast-playtests agent (`.wt\pkg`) was told to stop, keep its work on `tools/regress` if it runs or on `parked/fast-playtests` if it is half-done, and close its editor. Check that no Unreal editor is left running and that `.wt\pkg` is clean. Do not dispatch playtest work until a package is about to be cut. Deferred with it: proof in real play that the diver gets home from the side (`0874fe5`), which Quinn can check by hand.
+4. **Scripted playtests are deferred until a checkpoint (D-031, Quinn at about 2:30 AM).** The fast-playtests agent (`.wt\pkg`) was told to stop, keep its work on `tools/regress` if it runs or on `parked/fast-playtests` if it is half-done, and close its editor. Check that no Unreal editor is left running and that `.wt\pkg` is clean. Do not dispatch playtest work until a package is about to be cut. Deferred with it: proof in real play that the diver gets home from the side (`0874fe5`), which Quinn can check by hand.
 5. One Unreal editor at a time: the machine has 32 GB of RAM and about 6 GB free with no editor open.
 6. **Polish is one planned pass (D-028), and a priority equal to gameplay (D-029).** Research and planning now. No HUD, look, effect or sound-finish work is dispatched until Quinn has chosen from the research and given the pass a start time.
 7. The three later research notes (engine skills, outside tools, polish craft) are merged and folded into `Polish - Start Here.md`.
@@ -65,7 +65,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | The polish plan | Opus, high, `.wt\dev` on `research/polish-plan` | **Done 1:40 AM**, merged as `6ff4a2a`. Ten work packages in three lanes. | 1:32 AM |
 | Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | **Done 2:10 AM**, merged as `b8b4037`. `S8-keys` passes; two game problems found. | 1:39 AM |
 | Fix batch two | Opus, high, `.wt\dev` on `dev/fix2` | **Done 2:27 AM**, merged as `0874fe5`. 52 of 52 tests. | 2:12 AM |
-| Fast playtests | Sonnet, medium, `.wt\pkg` on `tools/regress` | **Stopped 2:36 AM** on Quinn's call (D-031). Its work is kept on a branch for the next checkpoint. | 2:12 AM |
+| Fast playtests | Sonnet, medium, `.wt\pkg` on `tools/regress` | **Stopped 2:30 AM** on Quinn's call (D-031). Its work is kept on a branch for the next checkpoint. | 2:12 AM |
 | Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | **Done 2:07 AM**, merged as `7256f6c`. | 2:01 AM |
 | Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | **Done 2:04 AM**, merged as `7c15b45`. | 2:01 AM |
 | Polish craft | Sonnet, medium, `.wt\monster` on `research/polish-craft` | **Done 2:03 AM**, merged as `e58a6e1`. | 2:01 AM |

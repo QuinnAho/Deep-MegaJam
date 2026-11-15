@@ -39,7 +39,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-028 | No half-done polish: the gameplay loop first, then polish in one pass to a professional standard | Decided (Quinn, about 1:10 AM Nov 15) |
 | D-029 | Looks are as important as gameplay: research and plan the polish pass now | Decided (Quinn, about 1:25 AM Nov 15) |
 | D-030 | One style for everything the player sees and hears | Decided (Quinn, about 1:45 AM Nov 15); the direction itself is still open |
-| D-031 | Scripted playtests wait until a checkpoint; none run in between | Decided (Quinn, about 2:35 AM Nov 15) |
+| D-031 | Scripted playtests wait until a checkpoint; none run in between | Decided (Quinn, about 2:30 AM Nov 15) |
 
 ## Open
 
@@ -147,7 +147,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 
 ### D-031 Scripted playtests wait until a checkpoint
 - **Status:** Decided.
-- **Date:** 2026-11-15, about 2:35 AM EST
+- **Date:** 2026-11-15, about 2:30 AM EST
 - **Who:** Quinn: "we are taking to long to run the play test i feel ask if w e can ignore and do laTer".
 - **Decision:** No scripted playtest work runs between checkpoints. The agent that was speeding the playtests up and adding a side-return scenario was told to stop, keep its work on a branch and close its editor. The playtests run again before a package is cut.
 - **What still guards every merge:** the build and the full automated test suite, about 30 seconds, run by the orchestrator on the committed branch (D-027). Playtests never blocked a merge.
