@@ -34,6 +34,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-023 | Three layers, each with one gate: flashlight, then hull upgrade; serpent at layer 2, aggressive at layer 3 | Decided (Quinn, 11:25 PM Nov 14) |
 | D-024 | Water and rope feel matter for immersion, and come after the gameplay | Decided (Quinn, 11:25 PM Nov 14) |
 | D-025 | No "Director" or "Director's cut" in the game's text | Decided (Quinn, 11:30 PM Nov 14); supersedes the Director half of D-016 |
+| D-026 | First sounds are generated in code; real files replace them one CSV row at a time | Decided by Claude (12:11 AM Nov 15); Quinn can overrule |
 
 ## Open
 
@@ -138,6 +139,14 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-026 First sounds are generated in code
+- **Status:** Decided by Claude as orchestrator. Quinn has not been asked and can overrule it.
+- **Date:** 2026-11-15, 12:11 AM EST
+- **Decision:** The sound layer ships with about ten sounds synthesised in code (ping, snap, alarm, thud, bubbles, click, harpoon, a paid chime, and loops for ambience, breathing, winch, serpent and driving). Each is one row in `deep/Content/Data/Sounds.csv`. A real file replaces a generated sound by importing it and filling in that row's asset path.
+- **Why:** Audio is one of seven judged scores and the game is silent. Quinn owns no audio on Fab, Colby has not delivered files, and agents may not create binary assets. Generated sounds mean the game is never silent, whatever happens to the files.
+- **What it costs:** Nobody on the agent side can hear. The sounds are kept low, soft and short, with tests on their shape, and `Deep.Audio.Mute 1` turns them off. Quinn has to listen and say which are bad.
+- **What follows:** Sound was item 4 on the board, after the ending, the harpoon and the interior, which are all merged. Real files are still wanted for the final build.
 
 ### D-025 No "Director's cut" in the game's text
 - **Status:** Decided. Supersedes the second half of D-016, where Claude kept the Director as the Captain's unseen boss.

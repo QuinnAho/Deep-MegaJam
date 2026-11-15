@@ -1,0 +1,123 @@
+// The sound layer. Loads Content/Data/Sounds.csv, plays a one-shot when the event bus fires an event that has a
+// row, and runs the state loops (ambience, breathing, winch, serpent, helm) with fades from DeepAudioRules.
+// Each row plays its asset if it loads, else its DeepSynth built-in. Every start logs `DEEPAUDIO {json}`, also
+// with no audio device (-NoSound), so tests and playtests can assert which sound fired.
+// Runs on every machine for its own local diver: events about another player's diver are skipped.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Audio/DeepAudioRules.h"
+#include "Subsystems/WorldSubsystem.h"
+#include "DeepAudioSubsystem.generated.h"
+
+class FJsonObject;
+class UAudioComponent;
+class USoundBase;
+struct FDeepEventPayload;
+
+enum class EDeepSoundSource : uint8
+{
+	None,
+	Asset,
+	Generated,
+};
+
+/** One sound start, for tests. */
+struct FDeepAudioPlay
+{
+	FName Event;
+	EDeepSoundSource Source = EDeepSoundSource::None;
+	float Volume = 0.f;
+};
+
+UCLASS()
+class DEEP_API UDeepAudioSubsystem : public UTickableWorldSubsystem
+{
+	GENERATED_BODY()
+
+public:
+	static UDeepAudioSubsystem* Get(const UObject* WorldContext);
+	static const TCHAR* SourceName(EDeepSoundSource Source);
+
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
+	virtual void Tick(float DeltaTime) override;
+	virtual TStatId GetStatId() const override;
+	virtual bool IsTickable() const override;
+
+	/** One mix step: gathers the local diver's state, fades loops, stops finished one-shots. Tests call it directly. */
+	void StepAudio(float DeltaSeconds);
+
+	/** Plays the event's one-shot row. bForce skips the repeat guard. True if a row was found and not a loop. */
+	bool PlayEvent(FName Event, bool bForce = false);
+
+	void SetMuted(bool bInMuted);
+	bool IsMuted() const { return bMuted; }
+
+	/** Reloads Sounds.csv and its assets. Loops restart on the next step. */
+	void Reload();
+
+	EDeepSoundSource Resolve(const FDeepSoundRow& Row) const;
+	const FDeepSoundTable& GetTable() const { return Table; }
+
+	/** One-shot starts, oldest first (bounded). */
+	const TArray<FDeepAudioPlay>& GetHistory() const { return History; }
+	int32 CountOf(FName Event) const;
+	void ClearHistory() { History.Reset(); }
+
+	/** Loops audible now (faded above silence), in DeepAudioLoop::All() order. */
+	TArray<FName> GetPlayingLoops() const;
+	float GetLoopVolume(FName Loop) const;
+
+	/** `{loops:[...], muted, last}` for DEEPSTATE. */
+	TSharedRef<FJsonObject> BuildStateJson() const;
+
+	/** Logs one `DEEPAUDIO_ROW` line per row: event, source (asset/generated/none), builtin, asset. */
+	void LogRows() const;
+
+protected:
+	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
+private:
+	void HandleEvent(FName Event, const FDeepEventPayload& Payload);
+	FDeepAudioMixInputs GatherInputs(float DeltaSeconds);
+	void StepLoop(FName Loop, const FDeepLoopTarget& Target, float DeltaSeconds);
+	/** Final volume of a row: row x group x master, 0 when muted, clamped to 0..1. */
+	float RowVolume(const FDeepSoundRow& Row) const;
+	bool CanPlayAudio() const;
+	UAudioComponent* StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch);
+	TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> GetPcm(FName Builtin);
+	void LogSound(FName Event, const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, const TCHAR* Action) const;
+
+	FDeepSoundTable Table;
+
+	/** Loaded assets by event. */
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<USoundBase>> Assets;
+
+	TMap<FName, TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe>> PcmCache;
+
+	struct FLoopVoice
+	{
+		float Volume = 0.f;
+		bool bOn = false;
+	};
+	TMap<FName, FLoopVoice> Loops;
+
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<UAudioComponent>> LoopComponents;
+
+	/** Generated one-shots still playing, and when to stop them (Clock); asset one-shots end on their own. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UAudioComponent>> OneShotComponents;
+	TArray<double> OneShotStopAt;
+
+	TMap<FName, double> LastPlayed;
+	TArray<FDeepAudioPlay> History;
+	double Clock = 0.0;
+	bool bMuted = false;
+	float LastSubDepthM = -1.f;
+	float HelmHoldS = 0.f;
+	FDelegateHandle EventHandle;
+};
