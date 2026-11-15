@@ -11,7 +11,7 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 ## The build
 
 - MISSING Packaged for Windows 10/11. A package exists but predates the latest branch; repackage the final build. Source: orchestrator report.
-- DONE (rehearsal, rechecked 8:39 AM Nov 15) With Dragon Cave rock in the build the zip is 679 MB against the 1 GB limit, and about 760 MB is expected with the dragon's head. Without the texture limit in `deep/Config/DefaultDeviceProfiles.ini` it was 1,318 MB, over the limit. Source: package logs. Recheck at every package, and again if more packs go in.
+- DONE (rehearsal, rechecked 8:39 AM Nov 15) With Dragon Cave rock and the dragon's head in the build the zip is 762 MB against the 1 GB limit (8:47 AM, `6746147`). Without the texture limit in `deep/Config/DefaultDeviceProfiles.ini` it was 1,318 MB, over the limit. Source: package logs. Recheck at every package, and again if more packs go in.
 - WAITING Zip named `TeamName_GameName.zip`. Team name is not chosen. Source: this list, Nov 14.
 - MISSING Runs on a second machine that has never had the project on it (Colby's PC). Source: no record in the Devlog.
 - MISSING Played start to finish by a human with real keys. Nobody has played the build by hand. Scripted playtests exist; they are not a hand play. Source: orchestrator report.
@@ -56,4 +56,4 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 
 ## Rehearsal
 
-Package and zip a build long before the deadline, and repeat. A build that has never been packaged is the most common way to miss a jam. The last rehearsal build was 679 MB (8:39 AM Nov 15).
+Package and zip a build long before the deadline, and repeat. A build that has never been packaged is the most common way to miss a jam. The last rehearsal build was 762 MB (8:47 AM Nov 15).
