@@ -996,7 +996,7 @@ function S11-pass {
             $noiseMax = [Math]::Max($noiseMax, [double]$s.serpent.noise)
             if ($s.serpent.state -in @('Stalk', 'Bite')) { $hunted = $true; $why = $s.serpent.state }
         }
-        if ($s.last_event -in @('bite_alarm', 'cut_bite')) { $hunted = $true; $why = $s.last_event }
+        if ($s.last_event -in @('bite_alarm', 'cut_bite', 'tether_bitten')) { $hunted = $true; $why = $s.last_event }
         if ($s.run_state -ne 'tethered') { break }
     }
     $m = Get-Monster
