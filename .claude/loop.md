@@ -30,6 +30,15 @@ Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on 
 | Text data in `deep/Content/Data`, or any C++ in `deep/Source` | `verify`: build plus all tests, about a minute. |
 | Cooking: `deep/Config`, `Deep.uproject`, `*.Build.cs`, `*.Target.cs`, plugins, a new content folder | `verify` at merge. Package and smoke before the next checkpoint. |
 
+**How to run the gate when other agents may be running Unreal.** Take the machine-wide slot, keep the exit code, and also require the `PASS verify` line. On Nov 15 a wrapper without `exit $code` swallowed a failed build and a red merge was pushed to the integration branch.
+
+```
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$m = New-Object System.Threading.Mutex($false, 'Global\DeepUnrealSlot'); try { [void]$m.WaitOne() } catch [System.Threading.AbandonedMutexException] { }; $code = 1; try { & '.\tools\ue.ps1' verify; $code = $LASTEXITCODE } finally { $m.ReleaseMutex() }; exit $code" > verify.txt 2>&1
+# merge and push only if the exit code is 0 AND verify.txt has a line starting "PASS verify"
+```
+
+After merging two code branches, always build before pushing, even when git reports no conflict: two files can each define a helper with the same name and only collide once compiled together.
+
 **Long checks, at checkpoints, not per merge**
 
 - Scripted playtests (`tools\playtest.ps1`): none between checkpoints (Quinn, Nov 15, D-031: they take too long). Run the set once before a package is cut, and at Sunday's freeze and final. Do not dispatch playtest work in between unless Quinn asks.
