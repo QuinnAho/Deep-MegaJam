@@ -112,3 +112,11 @@ IMPLEMENT_MODULE(FDeepToolsetModule, DeepToolset);
 ```
 
 When gameplay code exists, add tools to `UDeepToolset` that read the Deep module's state (Captain trust, oxygen, depth) and a `SetState` Write tool to teleport the diver or force an event. The DeepToolset module may depend on `Deep`.
+
+**Tools in `DeepToolset.DeepToolset`** (module now depends on `Deep`; every tool returns `PIE is not running...` as an error when no PIE session exists):
+
+- `GetState` (Read): the `DeepStateReport::BuildJson` JSON (depth_m, zone, cargo_kg, overloaded, tether_*, winching, home, stop, salvage_in_world, pos_cm and more).
+- `Exec(Command)` (Execute): runs one console command in the PIE world (`Deep.GotoStop 2`, `Deep.GiveSalvage 6 70`, `Deep.Teleport x y z`, any cvar) and returns the state JSON afterwards. Argument key is `Command`.
+- `GetArena` (Read): `{submarine, anchor_cm, salvage:[{pos_cm,name}]}`, because the state JSON has no positions of world objects.
+
+Verified through `tools\mcp.ps1 -Port 8012`: all three, plus `tools\playtest.ps1`. Passing JSON arguments from PowerShell 5.1 to a child `powershell` needs the whole command wrapped in `-Command "..."` with inner quotes as `\"`; plain argument arrays lose the quotes.

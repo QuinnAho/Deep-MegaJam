@@ -10,7 +10,13 @@ The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each it
 | Lane | Agent | Task | Started |
 |---|---|---|---|
 | Pipeline | build-sheriff | **Done 9:32 PM.** `tools\ue.ps1` exists; `build` (45 s cold, 5 s warm), `test` (17 s) and `verify` pass, and a failing test, an empty filter and a compile error each report FAIL. All Toolsets and Unreal MCP are in the `.uproject`. Not yet run: `package`, `zip`, `smoke`, `editor`. | 9:21 PM |
-| Gameplay | systems-engineer (Opus, high) | Items 1 and 2 below: rules with tests, then the playable grey box. | 9:34 PM |
+| Gameplay | systems-engineer (Opus, high) | **Done 10:05 PM**, commit `a445002`. Items 1 and 2: rules with 14 tests, then the playable grey box (38 files, 3,785 lines, 15 of 15 tests). Nobody had pressed Play when it was committed. | 9:34 PM |
+| Gameplay | systems-engineer (Opus, high), in `.wt\dev` on `dev/loop` | Item 3 and item 5: Patience, the cut, bailout, re-tether, respawn, bank, settlement screen, hull, descent, event bus, the Captain's subtitles, `-DeepShot`. | 10:08 PM |
+| MCP tooling | tools agent (Sonnet, medium), in `.wt\pkg` on `tools/playtest` | Items 5a and 5b: `DeepToolset` with real game state, scripted playtests S0 to S4, screenshots into `devlog\media`. | 10:08 PM |
+
+| Monster | systems-engineer (Opus, high), in `.wt\monster` on `dev/monster` | Item 7, pulled forward: the sea serpent (D-019). Procedural body, five-state brain, tests, console commands. New files only. Wiring to the cut and death happens after it and `dev/loop` are both merged. | 10:17 PM |
+
+**Checkouts.** The main checkout is Quinn's: he may keep the editor open on it. Agents build only in `.wt\dev` and `.wt\pkg` and push branches; the orchestrator merges into `main` after `verify` passes. After a merge Quinn restarts the editor to pick up new code.
 | Writing | director-writer | **Done 9:30 PM.** 138 lines across 41 events in `deep\Content\Data\DirectorLines.csv`, 24 fee labels in `SettlementFees.csv`. Checked: ASCII, no duplicate ids, longest line 15 words. | 9:21 PM |
 
 | Packaging | build-sheriff (Sonnet, medium) | **Done 9:53 PM**, merged from `sheriff/package`. On the still-empty game: `package` passes in 5 min 12 s (729 MB on disk), `smoke` passes, `zip` is 449 MB. `shot` verb added; it needs game-side `-DeepShot` support before it can pass. The checkout `.wt\pkg` stays as the packaging lane: merge `main` into it and package there, so packaging never blocks the builder in the main checkout. | 9:43 PM |

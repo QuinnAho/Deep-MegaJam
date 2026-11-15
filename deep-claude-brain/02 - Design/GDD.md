@@ -54,7 +54,7 @@ Every number is tuning and lives in config.
 | Salvage | Respawns every dive. Scrap: 2 kg / 20 cr, 6 kg / 70 cr, 15 kg / 200 cr. Pearl: 1 kg / 120 cr, only beyond tether range. |
 | Settlement | Gross minus the Director's cut of 40% (rounded up) minus fees. Never below zero. Fee lines are itemised and vary, as jokes. |
 | Hull rating | Bought automatically at settlement when affordable: 50 cr to reach stop 2, 200 cr to reach stop 3. |
-| Monster | Stops 2 and 3. A pressure cycle, not a patrol: noise (sprint, winch, grabs) brings it in from the dark toward the tether; the lamp beam held on it drives it back for a while. A bite on the tether starts a 5 s alarm, then the cut. It kills an untethered diver on contact. Heard long before it is seen. |
+| Monster | A sea serpent (Quinn, Nov 14: a snake, because it needs no animation assets). Its body is a chain of segments that follow the head's path. Two points of light for eyes. Stops 2 and 3. A pressure cycle, not a patrol: noise (sprint, winch, grabs) brings it in from the dark toward the tether; the lamp beam held on it drives it back for a while. A bite on the tether starts a 5 s alarm, then the cut. It kills an untethered diver on contact. Heard long before it is seen. |
 | Relic | Stop 3. About 60 kg: it cannot be swum up, only winched, which is loud. Banking it wins. |
 
 ## How it is built

@@ -20,7 +20,11 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 
 | 18 | 9:47 PM | writer | Sonnet 5.5, medium | Rewrite all 138 lines for the Captain after the rename (D-016); file becomes `CaptainLines.csv`. | 61k | 13 | 70 s | Done, commit `5021c7f`. Checked by the orchestrator: same ids and counts, ASCII, 10 lines say "Director's cut", no strong language. |
 
-| 19 | 9:56 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: command-line MCP client, live catalog of 5.9 toolsets, PIE round trip with a screenshot, how to write our own toolset. | | | | Running. |
+| 19 | 9:56 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: command-line MCP client, live catalog of 5.9 toolsets, PIE round trip with a screenshot, how to write our own toolset. | 124k | 54 | 9.5 min | Green, commit `d19c1d4`, merged as `3dea698`. 106 toolsets and about 840 tools reported live. Round trip passed with a real captured frame. A custom toolset built, registered and called. |
+| 20 | 10:08 PM | systems-engineer | Opus 5.5, high | In `.wt\dev`: Patience, the cut, bailout, re-tether, respawn, bank, settlement screen, hull, descent, event bus, the Captain's subtitles, screenshot support. | | | | Running. |
+| 21 | 10:08 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: `DeepToolset` with real game state, scripted playtests S0 to S4 with screenshots, first look at the game. | | | | Running. |
+
+| 22 | 10:17 PM | systems-engineer | Opus 5.5, high | In `.wt\monster`: the sea serpent. Procedural body, five-state brain, tests, console commands, new files only. | | | | Running. |
 
 ## What the numbers say so far
 

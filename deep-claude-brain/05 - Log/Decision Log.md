@@ -26,6 +26,8 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-015 | Agents: Claude orchestrates; models and effort tiered by task; commit and push allowed | Decided |
 | D-016 | The submarine AI is the Captain, a sarcastic asshole; the Director is its unseen boss | Decided (name and voice by Quinn; the Director as boss is Claude's proposal) |
 | D-017 | Build our own MCP tooling: a command-line client, a `DeepToolset`, and scripted playtests | Decided (Quinn asked; the shape is Claude's) |
+| D-018 | A live AI brain for the Captain: later, as an add-on over the scripted lines | Deferred to about 1 PM Sunday (Quinn agrees it comes later) |
+| D-019 | The monster is a sea serpent with a procedural body and a five-state brain | Decided (snake by Quinn; the behaviour is Claude's first version, all tunable) |
 
 ## Open
 
@@ -121,7 +123,25 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **Why:** Jam judges score seven criteria after a few minutes of play. A small game that is readable, funny and finished scores above a large rough one. Darkness and fog hide cheap art. Audio and progression are judged and often skipped by other entries.
 - **What follows:** [[GDD]] v3 and [[Board]]. Colby's work moves from blocking out a level to models, sound and tuning light settings. D-002 is lifted: code is allowed.
 
+### D-018 A live AI brain for the Captain
+- **Status:** Deferred. Quinn is deciding whether to make the Captain a live AI brain for an award track, and agrees it should come after the core game.
+- **Date:** 2026-11-14, about 10:15 PM EST
+- **Who:** Quinn decides. Claude recommends.
+- **Facts:** The OpenAI awards do not require it. The jam page says "uses OpenAI models or products, during development, gameplay, or both", so voice generated ahead of time with OpenAI qualifies. NVIDIA ACE, the other live-AI route, is impractical here (see [[NVIDIA RTX, DLSS and ACE]]). The prize for the OpenAI awards is API credits.
+- **Claude recommends:** Ship the scripted Captain as the default. Revisit at about 1 PM Sunday if the loop, the monster and sound are in. If yes, add it over the event bus with a fall-back to the written lines, and never put a key in the build.
+- **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
+
 ## Decided
+
+### D-019 The monster is a sea serpent
+- **Status:** Decided for the creature. The behaviour is a first version for Quinn to shape.
+- **Date:** 2026-11-14, 10:16 PM EST
+- **Who:** Quinn: "im thinking snake since animation is easiest but we will need to work on the game ai for that".
+- **Decision:** A sea serpent. Its body is a chain of segments that follow the path the head travelled, so it needs no rig and no animation assets. Two lights for eyes.
+- **Behaviour, version 1:** five states. Lurk: circles in the dark beyond lamp range. Stalk: noise passed a threshold, so it closes on the middle of the tether in an arc. Recoil: the beam was held on its head, so it flees and waits out a cooldown. Bite: it reached the tether and holds on for a 5 second alarm; the beam releases it, otherwise the tether is severed. Hunt: the diver has no tether, so it chases the diver, and contact kills.
+- **Why a snake fits:** the tether is a line and so is the serpent, so "it comes for your tether" reads at a glance. Open water needs no path-finding. The eyes show before the body does, which is where the fear comes from.
+- **Rule for the behaviour:** readable and fair. It never severs the tether without the alarm, the lamp always works if aimed, and silence always calms it.
+- **What follows:** A third builder is making it in `.wt\monster` on `dev/monster`, as new files only, so it merges cleanly with the core loop. Four wires are connected after both merge: noise sources, bite to the cut, caught to death, threat to sound and HUD. Every number is in `UDeepMonsterSettings` for Quinn to tune.
 
 ### D-017 Build our own MCP tooling
 - **Status:** Decided. Quinn: "we should be building out our mcp tools as well make sure your updated with 5.9 feature". The three parts below are Claude's proposal.
