@@ -128,6 +128,10 @@ protected:
 	void SyncAboardMode();
 	float LastHelmInputSent = 0.f;
 	FVector2D LastHelmSteerSent = FVector2D::ZeroVector;
+	/** The pilot's levers as last sent: the throttle key held (-1 S, 0, 1 W; a press is an edge), the ballast and rudder holds, X held. */
+	int32 LastThrottleAxis = 0;
+	FVector2D LastPilotHoldSent = FVector2D::ZeroVector;
+	bool bAllStopHeld = false;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWinching(bool bInWinching);

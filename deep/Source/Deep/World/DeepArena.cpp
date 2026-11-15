@@ -1,5 +1,7 @@
 #include "World/DeepArena.h"
 
+#include "Sim/DeepPilotRules.h"
+
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
 #include "EngineUtils.h"
@@ -248,8 +250,10 @@ namespace DeepArena
 		// Deeper than the loaded stop: the world is above us, so the root goes up. Steered to starboard in the cave
 		// shaft: the world slides to port (SubOffsetM, in the sub's frame).
 		const float OffsetM = State->SubDepthM - UDeepTuningSettings::Get().GetStop(State->Stop).SubDepthM;
-		const FVector Side = Sub->GetActorRotation().RotateVector(FVector(State->SubOffsetM.X, State->SubOffsetM.Y, 0.f));
-		Root->SetActorLocation(Sub->GetActorLocation() + (FVector(0.f, 0.f, OffsetM) - Side) * UDeepRules::CmPerM);
+		// Turned by the helm's rudder: the world turns the other way about the vertical through the sub (identity at yaw 0).
+		FQuat Turn;
+		const FVector At = UDeepPilotRules::HangLocationCm(Sub->GetActorLocation(), Sub->GetActorQuat(), State->SubOffsetM, OffsetM, State->SubYawDeg, Turn);
+		Root->SetActorLocationAndRotation(At, Turn);
 		if (ADeepShaft* Shaft = FindFirst<ADeepShaft>(World))
 		{
 			Shaft->Follow();
@@ -281,7 +285,7 @@ namespace DeepArena
 		{
 			const ADeepGameState* State = World->GetGameState<ADeepGameState>();
 			// Parked off the stop's centre (the cave shaft), the sub glides home first; the hatch opens once it is there.
-			Sub->SetHatchOpen(!State || (State->bParked && State->SubOffsetM.IsNearlyZero(0.01f)));
+			Sub->SetHatchOpen(!State || State->IsSettledAtStop());
 		}
 	}
 

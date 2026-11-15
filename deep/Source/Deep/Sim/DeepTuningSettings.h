@@ -79,6 +79,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Cave")
 	FDeepCaveTuning Cave;
 
+	/** Real sub controls at the helm: throttle notches, rudder, ballast lever, parking (Sim/DeepPilotRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Pilot")
+	FDeepPilotTuning Pilot;
+
 	/** Displayed depth of each stop (Stops[i].SubDepthM), shallowest first. */
 	TArray<float> StopDepthsM() const;
 

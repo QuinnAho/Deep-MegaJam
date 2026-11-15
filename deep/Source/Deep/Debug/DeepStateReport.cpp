@@ -118,6 +118,11 @@ namespace DeepStateReport
 		// The cave shaft: the sideways offset from the stops' axis (sub frame, m) and the hull left before a breach.
 		Json->SetNumberField(TEXT("sub_offset_x_m"), State ? State->SubOffsetM.X : 0.f);
 		Json->SetNumberField(TEXT("sub_offset_y_m"), State ? State->SubOffsetM.Y : 0.f);
+		// The helm's levers and the sub's heading (Sim/DeepPilotRules): notch -2..3, ballast -1 blown .. 1 flooded.
+		Json->SetNumberField(TEXT("sub_yaw_deg"), State ? State->SubYawDeg : 0.f);
+		Json->SetNumberField(TEXT("throttle_notch"), State ? State->HelmThrottleNotch : 0);
+		Json->SetNumberField(TEXT("ballast"), State ? State->HelmBallast : 0.f);
+		Json->SetNumberField(TEXT("helm_speed_mps"), State ? State->HelmSpeedMps : 0.f);
 		Json->SetNumberField(TEXT("hull_integrity"), State ? State->GetHullIntegrity01() : 1.f);
 		Json->SetBoolField(TEXT("has_flashlight"), State && State->HasFlashlight());
 		Json->SetBoolField(TEXT("hull_upgraded"), State && State->IsHullUpgraded());
