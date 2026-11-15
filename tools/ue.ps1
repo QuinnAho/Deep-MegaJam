@@ -17,7 +17,8 @@ param(
     [int]$SmokeSeconds = 25,
     [string]$Name = 'shot',
     [int]$Delay = 6,
-    [string]$Cmds = ''
+    [string]$Cmds = '',
+    [int]$Port = 8000
 )
 
 $ErrorActionPreference = 'Continue'
@@ -39,7 +40,7 @@ $TimeoutBuildMin   = 20
 $TimeoutTestMin    = 15
 $TimeoutPackageMin = 60
 $TimeoutZipMin     = 15
-$McpPortEditor     = 8000
+$McpPortEditor     = $Port
 $McpPortHeadless   = 8011   # every editor process auto-starts MCP; keep headless runs off 8000
 $SizeLimitMB       = 1024
 
@@ -598,7 +599,7 @@ function Show-Help {
     Write-Host '  zip      Builds\<team>_<game>.zip from tools\jam.json'
     Write-Host '  smoke    run the packaged exe for N seconds, scan the log'
     Write-Host '  shot     -Name n [-Delay 6] [-Cmds "a;b"] launch game, wait for -DeepShot png'
-    Write-Host '  editor   start the interactive editor with MCP on port 8000'
+    Write-Host '  editor   start the interactive editor with MCP on -Port (default 8000)'
     Write-Host '  clean    delete deep\Binaries and deep\Intermediate'
     return 0
 }

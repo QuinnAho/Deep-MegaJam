@@ -10,6 +10,6 @@ public class DeepEditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V8;
 
-		ExtraModuleNames.AddRange( new string[] { "Deep" } );
+		ExtraModuleNames.AddRange( new string[] { "Deep", "DeepToolset" } );
 	}
 }
