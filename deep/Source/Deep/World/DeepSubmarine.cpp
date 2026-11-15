@@ -247,7 +247,11 @@ ADeepSubmarine::ADeepSubmarine()
 	{
 		UStaticMeshComponent* Shape = Make(*Part.Name.ToString(), Part.Mesh, false);
 		Shape->SetCastShadow(Part.bShadow);
+		// Small parts (rods, straps, plates) stay out of ray tracing and Lumen's scene: they cost per instance and
+		// nobody sees them in a reflection. The big ones (foam, tanks, ducts, collar) stay in.
 		Shape->bAffectDistanceFieldLighting = Part.bShadow;
+		Shape->bVisibleInRayTracing = Part.bShadow;
+		Shape->bAffectDynamicIndirectLighting = Part.bShadow;
 		HullDress.Add(Shape);
 	}
 	for (int32 Index = 0; Index < BowLights.Num(); ++Index)

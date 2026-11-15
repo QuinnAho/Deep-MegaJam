@@ -120,6 +120,19 @@ namespace DeepHull
 			Rod(FString::Printf(TEXT("DuctMouth%s"), Side[S]), FVector(-OL - 46.0, DuctY, 10.0), FVector(-OL - 49.0, DuctY, 10.0), 54.0, EDeepHullPaint::Dark, false);
 			Rod(FString::Printf(TEXT("DuctHub%s"), Side[S]), FVector(-OL - 30.0, DuctY, 10.0), FVector(-OL - 58.0, DuctY, 10.0), 18.0, EDeepHullPaint::Frame, false, DeepShapes::Cone);
 
+			// The side is a big flat panel: break it with what a work sub carries there. Two hydraulic and cable runs
+			// clamped to the posts, a lateral thruster's duct through the hull aft, two junction boxes, zinc anodes low.
+			Rod(FString::Printf(TEXT("RunHigh%s"), Side[S]), FVector(-440.0, Y * (OW + 4.0), 112.0), FVector(440.0, Y * (OW + 4.0), 112.0), 4.0, EDeepHullPaint::Frame, false);
+			Rod(FString::Printf(TEXT("RunLow%s"), Side[S]), FVector(-440.0, Y * (OW + 4.0), -72.0), FVector(440.0, Y * (OW + 4.0), -72.0), 5.0, EDeepHullPaint::Frame, false);
+			Rod(FString::Printf(TEXT("SideDuct%s"), Side[S]), FVector(-290.0, Y * (OW - 2.0), 0.0), FVector(-290.0, Y * (OW + 12.0), 0.0), 56.0, EDeepHullPaint::Frame);
+			Rod(FString::Printf(TEXT("SideDuctMouth%s"), Side[S]), FVector(-290.0, Y * (OW + 11.0), 0.0), FVector(-290.0, Y * (OW + 13.0), 0.0), 46.0, EDeepHullPaint::Dark, false);
+			Box(FString::Printf(TEXT("JunctionA%s"), Side[S]), FVector(270.0, Y * (OW + 7.0), 78.0), FVector(36.0, 14.0, 44.0), EDeepHullPaint::Tank, false);
+			Box(FString::Printf(TEXT("JunctionB%s"), Side[S]), FVector(-95.0, Y * (OW + 6.0), -100.0), FVector(30.0, 12.0, 26.0), EDeepHullPaint::Tank, false);
+			for (int32 I = 0; I < 3; ++I)
+			{
+				Box(FString::Printf(TEXT("Anode%s%d"), Side[S], I), FVector(-330.0 + 300.0 * I, Y * (OW + 3.0), -116.0), FVector(26.0, 6.0, 10.0), EDeepHullPaint::Patch, false);
+			}
+
 			// Hull markers: a short housing out of the side, the light at its tip.
 			Rod(FString::Printf(TEXT("Marker%s"), Side[S]), FVector(400.0, Y * OW, 130.0), FVector(400.0, Y * (OW + 10.0), 130.0), 14.0, EDeepHullPaint::Frame, false);
 		}
