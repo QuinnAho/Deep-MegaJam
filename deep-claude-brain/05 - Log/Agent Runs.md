@@ -34,9 +34,11 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 26 | 10:52 PM | build-sheriff | Sonnet 5.5, medium | In `.wt\pkg`: scripted playtests for the loop (S4 to S8), then package, smoke and zip. | 158k | 104 | 40 min | Green, merged as `d0eb723`. Nine scenarios pass (about 5 minutes for all). Found packaging red since the toolsets were enabled and fixed it with one config line. Package 707 MB, zip 426 MB, smoke clean. Not re-run: a second clean full pass after the last script fix. |
 | 31 | 11:31 PM | text agent | Sonnet 5.5, low | In `.wt\text`: remove "Director" and "Director's cut" from everything a player sees (D-025). Displayed text only, no identifiers. | 51k | 8 | 3.4 min | Green, merged as `99b6d90`. 31 of 31 tests on the branch. Checked by the orchestrator: no "Director" left in the data files or in any displayed string. |
 
-| 28 | 11:13 PM | systems-engineer | Opus 5.5, high | In `.wt\monster` on `dev/harpoon`: the harpoon (D-021), with hull damage and a repair fee. | | | | Running. |
+| 28 | 11:13 PM | systems-engineer | Opus 5.5, high | In `.wt\monster` on `dev/harpoon`: the harpoon (D-021), with hull damage and a repair fee. | 265k | 117 | 23 min | Green, merged as `cb50c97`. 35 of 35 tests on the merged tree, verified again by the orchestrator. It pushed one broken merge to its own branch and fixed it in the next commit; nothing red reached `main`. Not verified: aiming by hand. |
 
 | 29 | 11:16 PM | writer | Sonnet 5.5, medium | 47 new Captain lines for the harpoon and for the inside of the submarine (14 new events). | 52k | 8 | 36 s | Done, commit `bac783f` on `main`. Checked by the orchestrator: 185 lines, 55 events, no duplicate ids, ASCII, no strong language. |
+
+| 32 | 11:50 PM | research agent | Sonnet 5.5, medium | Read Quinn's Fab library through the editor's Fab toolset on port 8000 (read-only, no installs) and write a shortlist of what DEEP could use. | | | | Running. |
 
 ## What the numbers say so far
 

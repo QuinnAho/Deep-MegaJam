@@ -5,9 +5,20 @@ updated: 2026-11-14 23:07 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
+## Handoff for a fresh orchestrator session (written 11:55 PM Nov 14)
+
+A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. Two agents were running when this was written, and their reports go to the old session, so check their output directly:
+
+1. **Submarine interior** (`dev/sub`, built in `.wt\dev`). When `git log origin/dev/sub` shows its final commit (it merges `origin/main` last): run `.wt\dev\tools\ue.ps1 verify`, merge `origin/dev/sub` into `main`, push, and tell Quinn to restart the editor. If the branch has stalled part-way, start a new Opus engineer in `.wt\dev` with the brief in item 3c below and the GDD sections it names.
+2. **Fab library research.** Its result is the note `03 - Research/Asset Library Shortlist.md` (raw dump in `deep\Saved\Harness\fab-library.json`, not in git). If the note is missing, re-run it: read-only, through `tools\mcp.ps1 -Port 8000`, never `InstallFabListing`.
+3. **After the interior merges:** the scripted playtests S6, S7 and S8 assume banking at the airlock and descent by fade, so rewrite them for the console and the helm (Sonnet, medium, in `.wt\pkg`), then package and smoke again.
+4. **Then, in order:** Quinn's feedback from playing by hand (nobody has yet); sound hooks; the Captain's voice; the look pass (D-020); water and rope feel (D-024); whatever Quinn picks from [[Fun Ideas]].
+
+Keep the orchestrator cheap: a fresh session at medium effort, few tool calls per tick, agents on the tiers in `.claude/loop.md`.
+
 ## State of the game
 
-`main` is at `f9feeec`. 31 tests passing. The game runs from a title screen to a win screen.
+`main` is at `cb50c97`. 35 tests passing. The game runs from a title screen to a win screen, with a serpent and a harpoon. Nine scripted playtests and a packaged build (707 MB, 426 MB zipped) passed at `d0eb723`. No "Director" in the game's text (D-025).
 
 - **Playable loop:** dive, grab, weight, tether, winch, the Captain's Patience, the cut, bailout air, re-tether, death and respawn, bank, settlement screen, hull rating, descent to stop 2, the Captain's subtitles. A test plays stops 1 and 2 start to finish.
 - **Plain on purpose:** the grey box is evenly lit with no fog, at Quinn's request (D-020). No atmosphere work until the gameplay is right.
@@ -21,7 +32,7 @@ The agents' work queue. Design rules are in [[GDD]], dispatch rules in `.claude/
 | Lane | Agent | Task | Started |
 |---|---|---|---|
 | Ending | systems-engineer (Opus, high), `.wt\dev` on `dev/ending` | **Done 11:27 PM**, merged as `f9feeec`. Item 3: title screen, stop 3 and the relic, the win with a performance review, pause, restart, quit. 31 of 31 tests. | 11:07 PM |
-| Harpoon | systems-engineer (Opus, high), `.wt\monster` on `dev/harpoon` | Item 3a (D-021): one shot per dive, reels home off the sub, latches to anything solid, drives the serpent back, hull damage and a repair fee. | 11:13 PM |
+| Harpoon | systems-engineer (Opus, high), `.wt\monster` on `dev/harpoon` | **Done 11:37 PM**, merged as `cb50c97`. Item 3a (D-021): one shot per dive on the left mouse button, reels home off the sub, latches to anything solid, drives the serpent back, hull dents and a 40 credit repair fee. 35 of 35 tests. | 11:13 PM |
 | Submarine | systems-engineer (Opus, high), `.wt\dev` on `dev/sub` | Item 3c (D-022, D-023): the room, the hatch, the console, the helm, driving with the sub static and the world moving, and the flashlight and hull upgrade gates. Started before the harpoon landed to save time; it merges `main` at the end. | 11:28 PM |
 | Regression | build-sheriff (Sonnet, medium), `.wt\pkg` on `tools/regress` | Bring the scripted playtests up to the new loop (S4 from the side, S5 cut, S6 bank, S7 descend, S8 full run), then package, smoke and zip the loop build. | 10:52 PM |
 
