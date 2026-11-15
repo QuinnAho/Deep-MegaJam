@@ -10,6 +10,9 @@
 #include "HAL/PlatformTime.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "ProceduralMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Misc/Crc.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -75,6 +78,16 @@ void ADeepShaft::BeginPlay()
 void ADeepShaft::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	// Live tuning: a changed number in Project Settings > DEEP Tuning > Cave rebuilds the rock (Deep.Cave.AutoRebuild).
+	FingerprintCheckS -= DeltaSeconds;
+	if (FingerprintCheckS <= 0.f)
+	{
+		FingerprintCheckS = 0.5f;
+		if (DeepShaft::AutoRebuild() && TuningFingerprint() != BuiltFingerprint)
+		{
+			DeepShaft::RebuildAll(GetWorld());
+		}
+	}
 	Follow();
 }
 
@@ -107,10 +120,12 @@ void ADeepShaft::Build()
 	const float RowM = FMath::Max(0.25f, Cave.WallRowM);
 	const float Tile = FMath::Max(0.25f, Look.SeabedUvTileM);
 	const float AroundM = UE_TWO_PI * Cave.StopRadiusM;
-	const float Every = Look.TrenchLedgeEveryM;
-	const float LedgeOut = Look.TrenchLedgeOutM;
-
-	UMaterialInterface* Material = Cast<UMaterialInterface>(Cave.WallMaterial.TryLoad());
+	// The generated cave's rock (Content/Deep/Cave/M_CaveRock), else the old wall material.
+	UMaterialInterface* Material = Cave.RockMaterial.IsNull() ? nullptr : Cast<UMaterialInterface>(Cave.RockMaterial.TryLoad());
+	if (!Material)
+	{
+		Material = Cast<UMaterialInterface>(Cave.WallMaterial.TryLoad());
+	}
 	UMaterialInstanceDynamic* Fallback = nullptr;
 	if (!Material)
 	{
@@ -143,16 +158,15 @@ void ADeepShaft::Build()
 		{
 			const float D = FMath::Min(Bottom, Top + J * RowM);
 			const FVector2D C = UDeepCaveRules::CentreM(D, Stops, Cave);
-			const float R = UDeepCaveRules::RadiusM(D, Stops, MinR, Cave);
 			Centres.Add(C);
 			for (int32 I = 0; I < Cols; ++I)
 			{
 				const float W = float(I) / float(Sides);
-				const float Theta = UE_TWO_PI * W;
+				// The last column repeats the first exactly, so the seam meets.
+				const float Theta = I == Sides ? 0.f : UE_TWO_PI * W;
 				const float Along = W * AroundM;
-				// The relief wraps round: blended with itself one turn back, so the seam meets.
-				const float Relief = FMath::Lerp(ADeepSubmarine::TrenchReliefM(Along, D, Every, LedgeOut), ADeepSubmarine::TrenchReliefM(Along - AroundM, D, Every, LedgeOut), W);
-				const float Rd = DrawRadiusM(R, Relief, Cave.WallReliefOutM, Cave.WallReliefScale);
+				// The one shape (Sim/DeepCaveRules::WallRadiusM): what is drawn is what Contact hits and the sonar traces.
+				const float Rd = UDeepCaveRules::WallRadiusM(D, Theta, Stops, MinR, Cave);
 				const FVector2D P = C + FVector2D(FMath::Cos(Theta), FMath::Sin(Theta)) * Rd;
 				Vertices.Add(FVector(P.X, P.Y, -D) * UDeepRules::CmPerM);
 				UV0.Add(FVector2D(Along, D) / Tile);
@@ -221,7 +235,7 @@ void ADeepShaft::Build()
 				}
 			}
 
-			UProceduralMeshComponent* Tube = NewObject<UProceduralMeshComponent>(this, FName(*FString::Printf(TEXT("Tube%d_%d"), K, J0 / PieceRows)));
+			UProceduralMeshComponent* Tube = NewObject<UProceduralMeshComponent>(this, MakeUniqueObjectName(this, UProceduralMeshComponent::StaticClass(), FName(*FString::Printf(TEXT("Tube%d_%d"), K, J0 / PieceRows))));
 			Tube->SetMobility(EComponentMobility::Movable);
 			Tube->SetupAttachment(Root);
 			Tube->bUseComplexAsSimpleCollision = true;
@@ -247,8 +261,176 @@ void ADeepShaft::Build()
 			Triangles += Tris.Num() / 3;
 		}
 	}
+	const double MeshSeconds = FPlatformTime::Seconds() - Start;
+	BuildScatter(Stops, MinR, Material ? Material : static_cast<UMaterialInterface*>(Fallback));
 	BuildSeconds = FPlatformTime::Seconds() - Start;
-	UE_LOG(LogDeepShaft, Log, TEXT("DEEPSHAFT built %d rock pieces, %d triangles, in %.0f ms (min radius %.1f m)"), Tubes.Num(), Triangles, BuildSeconds * 1000.0, MinR);
+	BuiltFingerprint = TuningFingerprint();
+	UE_LOG(LogDeepShaft, Display, TEXT("DEEPSHAFT built %d rock pieces, %d triangles (%d sides, rows %.2f m), %d scattered rocks, in %.0f ms (mesh %.0f ms; min radius %.1f m, rock floor %.1f m, seed %d)"),
+		Tubes.Num(), Triangles, Sides, RowM, GetScatterCount(), BuildSeconds * 1000.0, MeshSeconds * 1000.0, MinR, UDeepCaveRules::WallFloorM(MinR, Cave), Cave.RockSeed);
+}
+
+int32 ADeepShaft::GetScatterCount() const
+{
+	int32 Count = 0;
+	for (const UInstancedStaticMeshComponent* Mesh : Scatter)
+	{
+		Count += Mesh ? Mesh->GetInstanceCount() : 0;
+	}
+	return Count;
+}
+
+void ADeepShaft::BuildScatter(const TArray<float>& Stops, float MinRadiusM, UMaterialInterface* Rock)
+{
+	for (UInstancedStaticMeshComponent* Mesh : Scatter)
+	{
+		if (Mesh)
+		{
+			Mesh->DestroyComponent();
+		}
+	}
+	Scatter.Reset();
+	ScatterStretches.Reset();
+	const FDeepCaveTuning& Cave = UDeepTuningSettings::Get().Cave;
+	if (Cave.ScatterPer100M <= 0.f || Stops.IsEmpty())
+	{
+		return;
+	}
+	// The Dragon Cave pack's rocks (read-only pack, referenced by path); missing meshes are skipped.
+	static const TCHAR* Paths[] = {
+		TEXT("/Game/DragonCave/Meshes/SM_CaveRock01.SM_CaveRock01"), TEXT("/Game/DragonCave/Meshes/SM_CaveRock02.SM_CaveRock02"),
+		TEXT("/Game/DragonCave/Meshes/SM_CaveRock03.SM_CaveRock03"), TEXT("/Game/DragonCave/Meshes/SM_CaveRock04.SM_CaveRock04"),
+		TEXT("/Game/DragonCave/Meshes/SM_LargeRock01.SM_LargeRock01"), TEXT("/Game/DragonCave/Meshes/SM_LargeRock02.SM_LargeRock02"),
+		TEXT("/Game/DragonCave/Meshes/SM_LargeRock03.SM_LargeRock03"), TEXT("/Game/DragonCave/Meshes/SM_LargeRock04.SM_LargeRock04"),
+		TEXT("/Game/DragonCave/Meshes/SM_LargeRock05.SM_LargeRock05"), TEXT("/Game/DragonCave/Meshes/SM_LargeRock06.SM_LargeRock06"),
+		TEXT("/Game/DragonCave/Meshes/SM_LargeRock07.SM_LargeRock07"),
+	};
+	TArray<UStaticMesh*> Meshes;
+	for (const TCHAR* Path : Paths)
+	{
+		if (UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			Meshes.Add(Mesh);
+		}
+	}
+	if (Meshes.IsEmpty())
+	{
+		UE_LOG(LogDeepShaft, Display, TEXT("DEEPSHAFT scatter: no Dragon Cave rock meshes, none placed"));
+		return;
+	}
+	const float Floor = UDeepCaveRules::WallFloorM(MinRadiusM, Cave);
+
+	for (int32 K = 0; K < Stops.Num(); ++K)
+	{
+		const float Top = Stops[K] + Cave.TubeStartBelowStopM + 3.f;
+		const float Bottom = K + 1 < Stops.Num() ? Stops[K + 1] - Cave.TubeEndAboveStopM - 3.f : Stops[K] + Cave.BelowLastStopM - 3.f;
+		if (Bottom <= Top)
+		{
+			continue;
+		}
+		TArray<UInstancedStaticMeshComponent*> ByMesh;
+		ByMesh.SetNumZeroed(Meshes.Num());
+		const int32 Count = FMath::RoundToInt((Bottom - Top) * Cave.ScatterPer100M / 100.f);
+		for (int32 N = 0; N < Count; ++N)
+		{
+			// Seeded per stretch and rock by the cave's own hash (UDeepCaveRules::Noise3 lattice hash via cheap draws).
+			auto Draw = [&](int32 Channel) { return 0.5f + 0.5f * UDeepCaveRules::Noise3(FVector(N * 0.618034 + 0.31, K * 7.123 + Channel * 3.71 + 0.17, Channel * 0.913 + 0.53), Cave.RockSeed + 4242); };
+			const float D = FMath::Lerp(Top, Bottom, (N + Draw(0)) / float(Count));
+			const float Theta = UE_TWO_PI * FMath::Frac(Draw(1) * 3.17f + N * 0.381966f);
+			const float Size = FMath::Lerp(Cave.ScatterSizeM.X, Cave.ScatterSizeM.Y, FMath::Square(Draw(2)));
+			const int32 Pick = FMath::Clamp(int32(FMath::Frac(Draw(3) * 5.3f + N * 0.7548f) * Meshes.Num()), 0, Meshes.Num() - 1);
+			UStaticMesh* Mesh = Meshes[Pick];
+			const FBoxSphereBounds Bounds = Mesh->GetBounds();
+			const float MeshSizeCm = FMath::Max(1.f, float(Bounds.BoxExtent.GetMax()) * 2.f);
+			const float ScaleUniform = Size * UDeepRules::CmPerM / MeshSizeCm;
+			const FVector Scale3 = FVector(ScaleUniform) * FVector(FMath::Lerp(0.8f, 1.25f, Draw(7)), FMath::Lerp(0.8f, 1.25f, Draw(8)), FMath::Lerp(0.7f, 1.1f, Draw(9)));
+			// The rock's reach from its pivot (m), at its largest axis scale, whatever the rotation.
+			const float ReachM = float(Bounds.SphereRadius + Bounds.Origin.Size()) * ScaleUniform * 1.25f / UDeepRules::CmPerM;
+			// The wall's deepest point over the rock's span (angle and depth): the rock stands at most ScatterProtrudeM in
+			// from there, so wherever it shows, the wall's own line (where Contact stops the padded box) is within that.
+			const FVector2D C = UDeepCaveRules::CentreM(D, Stops, Cave);
+			const float Wall0 = UDeepCaveRules::WallRadiusM(D, Theta, Stops, MinRadiusM, Cave);
+			const float SpanRad = ReachM / FMath::Max(1.f, Wall0);
+			float WallMax = Wall0;
+			for (int32 A = -2; A <= 2; ++A)
+			{
+				for (int32 B = -1; B <= 1; ++B)
+				{
+					WallMax = FMath::Max(WallMax, UDeepCaveRules::WallRadiusM(D + B * ReachM, Theta + A * 0.5f * SpanRad, Stops, MinRadiusM, Cave));
+				}
+			}
+			// How far the rock's box reaches toward the passage's centre from its pivot (m), as rotated and scaled.
+			const FRotator Rot(Draw(4) * 360.f - 180.f, Draw(5) * 360.f, Draw(6) * 360.f - 180.f);
+			const FVector Inward(-FMath::Cos(Theta), -FMath::Sin(Theta), 0.f);
+			const FBox LocalBox = Mesh->GetBoundingBox();
+			float InM = 0.f;
+			for (int32 Corner = 0; Corner < 8; ++Corner)
+			{
+				const FVector Pt((Corner & 1) ? LocalBox.Max.X : LocalBox.Min.X, (Corner & 2) ? LocalBox.Max.Y : LocalBox.Min.Y, (Corner & 4) ? LocalBox.Max.Z : LocalBox.Min.Z);
+				InM = FMath::Max(InM, float(FVector::DotProduct(Rot.RotateVector(Pt * Scale3), Inward)) / UDeepRules::CmPerM);
+			}
+			const float Centre = FMath::Max(WallMax - FMath::Clamp(Cave.ScatterProtrudeM, 0.f, Cave.HullPadM) + InM, Floor + InM);
+			// One that would barely show (its inner face behind the wall here) is left out.
+			if (Centre - InM > Wall0 - 0.1f)
+			{
+				continue;
+			}
+			const FVector2D P = C + FVector2D(FMath::Cos(Theta), FMath::Sin(Theta)) * Centre;
+			const FTransform Xf(Rot, FVector(P.X, P.Y, -D) * UDeepRules::CmPerM, Scale3);
+			if (!ByMesh[Pick])
+			{
+				UInstancedStaticMeshComponent* H = NewObject<UInstancedStaticMeshComponent>(this, MakeUniqueObjectName(this, UInstancedStaticMeshComponent::StaticClass(), FName(*FString::Printf(TEXT("Scatter%d_%d"), K, Pick))));
+				H->SetMobility(EComponentMobility::Movable);
+				H->SetupAttachment(Root);
+				H->SetStaticMesh(Mesh);
+				H->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				H->SetCanEverAffectNavigation(false);
+				H->SetCastShadow(false);
+				H->RegisterComponent();
+				if (Rock)
+				{
+					for (int32 Slot = 0; Slot < Mesh->GetStaticMaterials().Num(); ++Slot)
+					{
+						H->SetMaterial(Slot, Rock);
+					}
+				}
+				ByMesh[Pick] = H;
+				Scatter.Add(H);
+				ScatterStretches.Add(K);
+			}
+			ByMesh[Pick]->AddInstance(Xf, /*bWorldSpace*/ false);
+		}
+	}
+}
+
+void ADeepShaft::Rebuild()
+{
+	Build();
+	// Force the show/hide pass to set every new piece.
+	for (UProceduralMeshComponent* Tube : Tubes)
+	{
+		if (Tube)
+		{
+			Tube->SetVisibility(false);
+			Tube->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+	}
+	Follow();
+}
+
+uint32 ADeepShaft::TuningFingerprint()
+{
+	const FDeepCaveTuning& C = UDeepTuningSettings::Get().Cave;
+	const float Numbers[] = {
+		C.StopRadiusM, C.StraightBelowStopM, C.StraightAboveStopM, float(C.BendAmplitudeM.X), float(C.BendAmplitudeM.Y),
+		float(C.BendWavelengthM.X), float(C.BendWavelengthM.Y), C.CavernRadiusM, C.SqueezeMarginM, C.RadiusWavelengthM, float(C.Seed),
+		C.BelowLastStopM, C.TubeStartBelowStopM, C.TubeEndAboveStopM, C.HullPadM, C.WallRowM, float(C.WallSides),
+		C.bRock ? 1.f : 0.f, float(C.RockSeed), float(C.RockOctaves), C.RockAmplitudeM, C.RockScaleM, C.RockLacunarity, C.RockGain,
+		C.RockRidge, C.RockStretchZ, C.StrataSpacingM, C.StrataDepthM, C.StrataBreakup, C.MouthCalm01, C.RockFloorMarginM,
+		C.ScatterPer100M, float(C.ScatterSizeM.X), float(C.ScatterSizeM.Y), C.ScatterProtrudeM, C.ContactStepM,
+	};
+	uint32 Hash = FCrc::MemCrc32(Numbers, sizeof(Numbers));
+	Hash = HashCombine(Hash, GetTypeHash(C.RockMaterial.ToString()));
+	return Hash;
 }
 
 void ADeepShaft::Follow()
@@ -282,6 +464,22 @@ void ADeepShaft::Follow()
 		{
 			Tube->SetVisibility(bShow);
 			Tube->SetCollisionEnabled(bShow ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
+		}
+	}
+	// The scattered rocks go with their stretch's rock.
+	for (int32 Index = 0; Index < Scatter.Num(); ++Index)
+	{
+		UInstancedStaticMeshComponent* Mesh = Scatter[Index];
+		const int32 K = ScatterStretches.IsValidIndex(Index) ? ScatterStretches[Index] : 0;
+		if (!Mesh)
+		{
+			continue;
+		}
+		const bool bAtItsStop = State && State->Stop == K + 1 && Stops.IsValidIndex(K) && State->SubDepthM <= Stops[K] + 0.5f;
+		const bool bShow = bOn && !bAtItsStop;
+		if (Mesh->IsVisible() != bShow)
+		{
+			Mesh->SetVisibility(bShow);
 		}
 	}
 }

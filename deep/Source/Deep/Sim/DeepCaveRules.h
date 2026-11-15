@@ -46,17 +46,45 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
 	static FVector2D CentreM(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave);
 
+	/** How far (m) the passage centre moves sideways per metre of depth here: never above Cave.BendMaxDriftPerM. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
+	static float DriftPerM(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave);
+
 	/** The passage's radius at a depth: StopRadiusM at the stops, caverns and squeezes between, never below MinRadiusM. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
 	static float RadiusM(float DepthM, const TArray<float>& StopsM, float MinRadiusM, const FDeepCaveTuning& Cave);
+
+	/** Seeded 3D gradient noise, about [-1, 1], from its own integer hash (no engine random): the same on every machine. */
+	static float Noise3(const FVector& P, int32 Seed);
+
+	/** Multi-octave (RockOctaves) noise, ridged by RockRidge, about [-1, 1]. P in units of RockScaleM. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
+	static float RockFbm(const FVector& P, const FDeepCaveTuning& Cave);
+
+	/** 0 outside the shaft, MouthCalm01 at the stops' straight ends, 1 mid-shaft: how much of the rock's relief shows. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
+	static float RockWeight(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave);
+
+	/** The nearest the rock comes to the passage's centre (m): MinRadiusM + RockFloorMarginM. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
+	static float WallFloorM(float MinRadiusM, const FDeepCaveTuning& Cave);
+
+	/**
+	 * The rock's distance (m) from the passage's centre at a depth and an angle (rad, from the shaft's +X toward +Y): the
+	 * smooth RadiusM plus seeded ridged noise (lumps, ribs, bulges, narrowings) and strata (ledges every StrataSpacingM),
+	 * scaled by RockWeight, never under WallFloorM. The one shape: ADeepShaft draws it, Contact hits it, the sonar traces it.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
+	static float WallRadiusM(float DepthM, float AngleRad, const TArray<float>& StopsM, float MinRadiusM, const FDeepCaveTuning& Cave);
 
 	/** The tightest squeeze for a sub of this box (sub-local metres): its widest corner, padded, plus SqueezeMarginM. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
 	static float MinRadiusM(const FVector& BoxMinM, const FVector& BoxMaxM, const FDeepCaveTuning& Cave);
 
 	/**
-	 * The sub's box (sub-local metres, padded by HullPadM) at this offset and depth against the wall: its four corners at
-	 * the box's top, middle and bottom, each against the passage at that corner's depth.
+	 * The sub's box (sub-local metres, padded by HullPadM) at this offset and depth against the wall (WallRadiusM): points
+	 * round the box's outline at least every ContactStepM, at levels at least that close from bottom to top, each against
+	 * the rock at that point's depth and angle. Normal = outward from the passage's centre at the worst point.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
 	static FDeepCaveContact Contact(const FVector2D& OffsetM, float SubDepthM, const FVector& BoxMinM, const FVector& BoxMaxM, const TArray<float>& StopsM, float MinRadiusM, const FDeepCaveTuning& Cave);
