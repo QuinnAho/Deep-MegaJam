@@ -35,6 +35,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-024 | Water and rope feel matter for immersion, and come after the gameplay | Decided (Quinn, 11:25 PM Nov 14) |
 | D-025 | No "Director" or "Director's cut" in the game's text | Decided (Quinn, 11:30 PM Nov 14); supersedes the Director half of D-016 |
 | D-026 | First sounds are generated in code; real files replace them one CSV row at a time | Decided by Claude (12:11 AM Nov 15); Quinn can overrule |
+| D-027 | Test adaptively: an agent runs its own area's tests, and the full suite runs once, at merge | Decided (Quinn, about 12:50 AM Nov 15) |
 
 ## Open
 
@@ -139,6 +140,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-027 Test adaptively; all tests at merge
+- **Status:** Decided.
+- **Date:** 2026-11-15, about 12:50 AM EST
+- **Who:** Quinn: "we are running too many tests on changes that dont need them be adaptive we can run all tests on merge".
+- **Decision:** Run what a change can break, once. Agents build and run only their own area's tests. The orchestrator runs the full suite once per branch, at merge, on the committed branch head. A change to notes needs no tests. Scripted playtests run for the changed area; the whole set and a package run only at checkpoints.
+- **Why Claude agrees:** The check that caught a red build at 12:31 AM was the one at merge, and that stays. What goes is the repetition before it. One engineer ran the full suite at least three times in one task, and the orchestrator's own last brief asked for the five-minute scripted set three times over.
+- **What it costs:** A failure outside an agent's own area now shows up at merge and not in the agent's report, so fixing it costs one more round trip.
+- **What follows:** The rule and its table are in `.claude/loop.md` under "What to run", and in the agent role files, `CLAUDE.md` and [[Validation Loop]].
 
 ### D-026 First sounds are generated in code
 - **Status:** Decided by Claude as orchestrator. Quinn has not been asked and can overrule it.

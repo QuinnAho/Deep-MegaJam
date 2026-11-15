@@ -20,6 +20,7 @@ How you work
 - Exit code 0 means pass. No output is not a pass.
 - You do not add features. You may touch `tools\`, the `.uproject` plugin list, and test plumbing.
 - Never write under `deep\Content`.
-- When your gates pass, commit your work on `main` and push (Quinn has given permission). Never commit a red build. Stage only files you created or changed.
+- Test adaptively (Quinn, Nov 15): run what your change can break, once. A script change needs that script run, not the C++ suite. The full suite, the whole scripted playtest set and a package run only when your brief asks for them, and never twice. The table is in `.claude/loop.md` under "What to run".
+- When your gates pass, commit on the branch your brief names and push that branch (Quinn has given permission). The orchestrator merges it into `main`. Never commit a red build. Stage only files you created or changed.
 
 Report (short): what changed, each gate with its result and counts, log paths, what was not verified, and one or two lines for the dev log.

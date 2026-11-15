@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-14 21:30 EST
+updated: 2026-11-15 00:53 EST
 verified: 2026-11-14 21:29 EST, build-sheriff ran tools\ue.ps1 build, test and verify on this machine (all PASS, plus a deliberate failing test and a deliberate compile error that both reported FAIL). package, zip and smoke were run for real at 21:50 EST on branch sheriff/package (all PASS: package 5m12s, 729.2 MB; zip 448.7 MB; smoke 25 s clean). shot is proven only on its failure path (no PNG, FAIL after 120 s) because the game-side -DeepShot support does not exist yet. editor is still unrun. Tiers T2 to T5 and the MCP tool behaviour are still unverified design.
 ---
 # Validation Loop
@@ -69,10 +69,13 @@ A second kind of T3. The playtester plays with no script and scores the build fr
 
 ## Cadence
 
-- T0 and T1 on every code task.
-- T3 regression before merging gameplay changes.
-- T4 every three hours or so, and at feature freeze.
-- T5 at each milestone.
+Adaptive since Nov 15 (D-027): run what the change can break, once. The table of what to run is in `.claude/loop.md` under "What to run".
+
+- **While an agent works:** T0 build as needed, and T1 only for its own area, by name prefix (`tools\ue.ps1 test -Filter Deep.Sim.Audio`).
+- **At merge:** T0 and all of T1, once, by the orchestrator, on the committed branch head. A branch that changes only notes needs nothing.
+- **T3 scripted playtests:** only the scenarios that cover a merged gameplay change. The whole set once per checkpoint.
+- **T4 package and smoke:** when a cooking change has merged, when a human needs a build, and at Sunday's freeze and final.
+- **T5:** whenever Quinn plays.
 
 ## How to build and test
 

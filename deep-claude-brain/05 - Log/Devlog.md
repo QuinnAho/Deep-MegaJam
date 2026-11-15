@@ -217,6 +217,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: "green" meant nothing until the tree was committed, so agents were reporting results the next build could not reproduce. `tools/ue.ps1 build` now passes `-DisableAdaptiveUnity` (confirmed in the engine's `TargetRules.cs`), so every build groups files the way a committed tree does and this class of error shows up before the commit. The audio constant is now `MaxAudioHistory`; the story file was not touched.
 - Evidence: failing log `deep/Saved/Harness/build-20261115-003244.log`; `verify` 44/44 on the clean committed tree.
 
+### About 12:50 AM  Fewer tests, in the right place
+- What happened: Quinn said we run too many tests on changes that do not need them, and that all tests can run at merge. He is right. One engineer ran the full suite at least three times in a single task, and the orchestrator's last brief asked for the five-minute scripted playtest set three times over.
+- Why it matters: the check that caught a red build at 12:31 AM was the one at merge, so that one stays and the repeats go. Agents now build and run only their own area's tests. The full suite runs once per branch, at merge. Notes need nothing. The full suite takes about 30 seconds, so the saving is mostly in how often it runs and in the long checks: the scripted set takes five minutes and a package five to eight.
+- Evidence: D-027 in the decision log, `.claude/loop.md` ("What to run").
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
