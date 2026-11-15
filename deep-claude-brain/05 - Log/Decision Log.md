@@ -46,7 +46,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-035 | The last ascent: the winch is slower with the relic, and the relic's shaft is straight under the hatch | In the integration branch (engineer, 6:45 AM Nov 15); Quinn can overrule |
 | D-036 | Packs stay where they are installed, agents link to them, and the cook takes only what is used | Decided (orchestrator, 6:55 AM Nov 15) |
 | D-037 | The relic becomes a real object, and the well holds its light | In the integration branch (8:56 AM Nov 15); Quinn can overrule |
-| D-038 | Feature freeze moves from 3 PM to 5:30 PM | Quinn, 11:58 AM Nov 15 |
+| D-038 | Feature freeze moves from 3 PM to 5:30 PM | Quinn, 11:58 AM Nov 15; the 5:30 PM freeze is replaced by D-048 (6:45 PM) |
 | D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; the shaft and caverns gated and pushed at 1:41 PM |
 | D-040 | The Captain becomes a voice on the radio who says less; real sound replaces the synth | Quinn, about 12:15 PM Nov 15; built, waiting on sound files |
 | D-041 | Camera feel: shakes, a found-footage look, and the sonar made visible | Shakes decided; the rest behind switches until Quinn approves frames |
@@ -56,6 +56,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-045 | Toward the end: review each diff, test only what it touches; the full run-through at the freeze | Quinn, about 2:12 PM Nov 15; in `.claude/loop.md` |
 | D-046 | The serpent is one model again, and its body moves by physics, dragged by the head | Quinn, about 2:36 PM Nov 15; being built on `polish/serpent-look` |
 | D-047 | The harpoon kicks the diver back when it fires | Quinn's ask, about 3:22 PM Nov 15; in the integration build since 3:40 PM (`cee150a`); one word from him takes it out |
+| D-048 | The re-scope: the sub is piloted on every axis, the cave is generated, the screen goes quiet, the line is the air, the room is dressed; the freeze moves to 6:45 PM | Quinn's ask, about 3:50 PM Nov 15; five lanes building since about 4:15 PM; replaces D-038's 5:30 PM freeze |
 
 ## Open
 
@@ -69,6 +70,24 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** See [[Engine Choice - 5.9 vs 5.8]]. The project is empty today, so switching now costs nothing.
 
 ## Proposed
+
+### D-048 The re-scope: the sub is piloted, the cave is generated, the screen goes quiet, the line is the air
+- **Status:** Quinn's ask, about 3:50 PM Nov 15. Five lanes started at about 4:15 PM, each an Opus engineer on its own branch from integration `cee150a` (rows 92 to 96 in [[Agent Runs]]). Each lane merges into integration only after a diff review, verify and its own playthroughs (D-045); nothing reaches `main` without his "merge". It replaces the 5:30 PM freeze of D-038.
+- **Date:** 2026-11-15, about 3:50 PM EST
+- **Who:** Quinn asked. The five lanes, their defaults and the schedule are the orchestrator's; one word from him changes any of them.
+- **His words:** "so as it stands this game is not great the controls on teh sub you need to be able to move around all accesses in teh submarine, and at this point i think its not even worth submitting, the UI is still too cluttered and really takes away from the immersion, we need to actually be able to piot the sub around all access, on idea to make it more fun is to actualy have real dub controls with a ballast lever, also the interior is still not great but what really is lacking is the evnrioment i feel liek we need to generate it wether thats with pcg or just som cave gen alogrithm that you can tweak it needs to be better than this, also the whole tether mechanic seems a little pointless as it stands and it needs some tweaiing the captian is still useless too and everythign fees very adhoc and hacky lacking real poish and immersino, so think about how best to use editor tools to get real reseulsts continue"
+- **What it changes:**
+  - **Helm:** real sub controls. A throttle lever with notches (W/S), a rudder with inertia (A/D), a ballast lever with a neutral detent (Space blows, C floods), all stop (X). The sub moves along its heading, turns and changes depth. It is still the fixed point: the world turns about it, and a parked sub glides back to the stop's frame, so the code that runs at a stop sees what it sees today.
+  - **Cave:** generated in C++. One seeded noise function sets the wall for both the mesh and the collision. The numbers are live in Project Settings > DEEP Tuning > Cave, and `Deep.Cave.Rebuild` rebuilds while playing. A wet-rock material, and rocks sunk into the walls.
+  - **HUD:** most of it goes. What stays shows only when it is needed.
+  - **Tether:** the line is the diver's air. The serpent can bite it through; the diver can unclip on purpose; the Captain's patience no longer cuts it.
+  - **Captain:** off by default; `Deep.Captain.Radio 1` brings him back.
+  - **Interior:** about 100 pieces of dressing and worn materials, light only from real fittings.
+  - **Schedule:** lanes merge 5:15 to 6:30 PM; Quinn hand-plays at about 6:15 PM; the freeze run-through and package at 6:45 PM; video, itch page and form after; submit at about 8:30 PM.
+- **Why:** Quinn played the build and found it ad hoc: the sub could not be flown, the screen pulled him out of the dive, the cave read as a pipe, and the line and the Captain did nothing for the game. Each lane answers one complaint, and each can fail alone without touching the floor build.
+- **Challenged:** "not even worth submitting". `cee150a` is packaged and tested, so the team always has a build to submit; not submitting scores zero for certain, and the dev log is judged on its own for the Glass Box prize.
+- **Not done, on purpose:** the PCG plugin (binary graph assets, a change to the project file, and on the Cut list); restyling the HUD (this pass only removes); new meshes (the dressing is engine shapes and pack rocks with new materials).
+- **Fallback:** integration `cee150a`, packaged at 3:40 PM. A lane that misses its gate is left out.
 
 ### D-047 The harpoon kicks the diver back when it fires
 - **Status:** Quinn's ask, about 3:22 PM Nov 15. Started at about 3:27 PM on `polish/harpoon-kick` (row 91 in [[Agent Runs]]), before his yes, because the freeze is at 5:30 PM. Built by about 3:33 PM (`e287d29`), reviewed, and in the integration build since 3:40 PM (`cee150a`: verify 128 of 128, S5 and S10-relic passed). One word from him takes it out, and nothing merges into `main` without his "merge".
@@ -189,6 +208,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **Cost:** the fourth bubbles try (FX lane, half-built at the 11:19 crash) is parked on `polish/fx-wip4`, unfinished.
 
 ### D-038 Feature freeze moves from 3 PM to 5:30 PM
+- **Replaced:** at about 4:15 PM Nov 15 by D-048, which moves the freeze to 6:45 PM.
 - **Status:** Decided by Quinn (11:58 AM Nov 15).
 - **Why:** the 3 PM freeze was the team's own buffer, set on the Board; the jam only requires the entry by 8:59 PM EST. The new plan is: features until 5:30 PM, the final scripted playthroughs and package at 6 PM, the video, itch page and form from 6 to 7:30 PM, and submission by 8 PM. That still leaves an hour for a crash or a bad merge (the machine went down at 11:19 AM).
 

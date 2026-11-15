@@ -1,11 +1,11 @@
 ---
-updated: 2026-11-15 15:45 EST
+updated: 2026-11-15 16:20 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 3:45 PM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 4:20 PM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
@@ -14,13 +14,27 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
 - `polish/integration` on origin at `cee150a` (3:40 PM: the harpoon's kick, D-047, verify 128 of 128, S5 and S10-relic passed, package and smoke green, zip 762.7 MB; under it `1bc6cd0` at 3:19 PM: `main` merged in, notes and text only. `main` has had vault commits since, so at the freeze merge `main` into integration again, text only, before the fast-forward; under it `964c66e` at 3:17 PM: the serpent's physics body, verify 126 of 126, S3 and S11 passed; under it `f0b7fd0` at 2:55 PM: HUD A, verify 121 of 121; under it `1bd4031` at 2:53 PM, the honest S11, and `bbeeb7e`, the diver's ping; then `59af289` at 1:41 PM: the cave shaft and the caverns; verify 107 of 107, a package with 0 usage-flag lines, smoke, a 762.6 MB zip, and S2, S7, S8, S9, S10, S11 and S12 passed; before it `6aeafc8` at 12:56 PM: the Captain lane, 94 tests; before it `ea29122` at 12:33 PM, the sonar; and `a2e696d` at 12:06 PM: the first-five-minutes pass and the level view aboard merged; verify 79 of 79, package and smoke green, zip 762 MB, 0 usage-flag lines; all 14 scripted playthroughs passed on `ad644df` in 745 s, and S1, S4, S5, S6, S7 again on `a2e696d`): everything built since. Water, the room, hull and salvage, the driving view, the serpent with the dragon's head (two passes: the join, the bite staged on the line, the shoulder thinned), the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, two passes of rock and ruin (the placement loader, the cook hook, floor rock at every stop, the 500 m well with the relic as a carved stone sphere, real rock on the trench wall, a carved gate at each stop), the tether and the harpoon line as ropes that sag, go taut and visibly part when cut, a hull for the submarine built from basic shapes, a texture limit for the build, and dev log posts two and three (`devlog/02-sunday-before-dawn.md`, `devlog/03-sunday-morning.md`). It also has the lamp that samples its whole cone, a flat floor in the relic's pit, rebuilt silt, and the serpent kept inside the well on the last ascent. Full suite 78 of 78; packaged and smoke-tested at `b7755a1` (11:18 AM), zip 762 MB, no usage-flag lines. All 14 scripted playthroughs passed at `a942e1c`; the ending set has not run on `b7755a1`, because the machine went down as it started. It is checked out in `.wt\monster`, the orchestrator's merge checkout, and the package is in `.wt\monster\Builds`.
 - **Pushed at 2:53 PM:** `1bd4031` merges the S11 fix (`7eb79d8`, script only). S11 now passes only when the serpent hears a diver who really sprints, not when the Captain's patience cuts the line: on integration the serpent went from Lurk to Stalk in 55 s, noise 60.2, heard +588, PASS in 104 s. Under it are `bbeeb7e` (the diver's ping) and `340332f` (the serpent clamp `ef84d37` and the camera fix `c19f142`): the 1:54 PM gate on `340332f` passed S2, S3, S7, S9, S10 and S12, and the 2:33 PM gate on `bbeeb7e` passed the build, 117 tests, a 1047.5 MB package, smoke, a 762.7 MB zip, S8 and S9. **Pushed at 2:55 PM:** `f0b7fd0` merges HUD A (`e11eca0`); verify passed, 121 of 121. It loads the same engine fonts as before, so the next package is the 5:30 PM freeze run-through.
-- **Toward the end (D-045, Quinn, 2:12 PM):** review each diff yourself, then `verify`, then only that area's playthroughs. The full run-through (every playthrough, package, smoke, zip, a hand play) waits for the 5:30 PM freeze. The lower roof (`0e14e21`) is **not** merged: it made no visible difference (D-043).
+- **Toward the end (D-045, Quinn, 2:12 PM):** review each diff yourself, then `verify`, then only that area's playthroughs. The full run-through (every playthrough, package, smoke, zip, a hand play) waits for the 6:45 PM freeze (D-048). The lower roof (`0e14e21`) is **not** merged: it made no visible difference (D-043).
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Now (1:50 PM): the scope changed (D-038 to D-042)**
+**Now (4:20 PM): the re-scope (D-048)**
 
-- **Freeze is 5:30 PM** (D-038). The final playthroughs and package are at 6 PM, the video and itch page run 6 to 7:30 PM, and submission is by 8 PM.
+- **Quinn's verdict at about 3:50 PM:** the game is not good enough, and maybe not worth submitting. The orchestrator disagreed about submitting: integration `cee150a` is packaged and tested, so it is the floor, and the team submits at least that.
+- **Five lanes since about 4:15 PM**, each an Opus engineer on its own branch from `cee150a`, each reporting by 5:30 PM and stopping at 5:45 PM with what is green (rows 92 to 96 in [[Agent Runs]]):
+  - `rescope/helm` in `.wt\dev` (port 8021): throttle notches, rudder, ballast lever, all stop; the world turns about the sub (`SubYawDeg`); levers by the seat. At merge: verify, S2, S7, S8.
+  - `rescope/cave` in `.wt\swim` (port 8022): the generated cave (noise and strata shared by the mesh and `Contact`), `M_CaveRock`, noisy caverns, rocks in the walls, `Deep.Cave.Rebuild`. At merge: verify, S2, S3, S7.
+  - `rescope/hud` in `.wt\text` (port 8023): the HUD stripped back; the Captain off by default. At merge: verify, S0, S1, S11.
+  - `rescope/tether` in `.wt\voice` (port 8024): the line is the air line; a bite cuts it; unclip by choice; patience no longer cuts. At merge: verify, S4, S10-cutdrop.
+  - `rescope/interior` in `.wt\camera` (port 8025): about 100 pieces of dressing and worn materials in `Content/Deep/Room/`. At merge: verify, S1, S11.
+- **The shared seams.** The helm lane owns the helm functions in `DeepRunComponent` and the placement block in `ADeepShaft::Follow`; the tether lane owns the patience and cut code; the cave lane owns the rest of `DeepShaft.cpp` and the insides of `UDeepCaveRules::Contact`, whose signature stays. The contract: the shaft follows the arena root, whose rotation is a pure yaw of minus `SubYawDeg`, identity at yaw 0. A branch that conflicts at merge goes back to its agent; the orchestrator writes no game code.
+- **As each lands**, in integration in `.wt\monster`: review the diff, build, verify through the slot, the lane's playthroughs, package if C++ or materials changed, push. Frames to Quinn on the frames page.
+- **Schedule (replaces D-038):** lanes merge 5:15 to 6:30 PM; Quinn hand-plays about 6:15 to 6:40 PM; freeze at 6:45 PM: verify, every playthrough, package, smoke, and a zip under 1 GB; video 7:10 to 7:40 PM; itch page and form 7:40 to 8:15 PM; submit about 8:30 PM.
+- After the re-scope, the itch page (`devlog/itch-page.md`) and [[Video Shot List]] need the new helm keys.
+
+**Earlier (1:50 PM): the scope changed (D-038 to D-042)**
+
+- The 5:30 PM freeze (D-038) is replaced by D-048's 6:45 PM freeze; see Now (4:20 PM) above.
 - **Quinn's new scope (D-039):** drive the sub down a winding cave shaft, with a sonar, into a cavern at every stop. Three opus engineers started at 12:02 PM, each in its own checkout. They share one contract: the passage is centred on the parked sub with 14 m radius at every stop, every cave surface blocks `ECC_Visibility` and Pawn, and each part has a switch that gives back today's game.
   - `polish/shaft` in `.wt\pkg`: **done** (`59af289`).
     - It covers steering, the tube, hull hits and breach, `GetHullIntegrity01()`, the Captain hearing the hull, and a plain hull bar above the sonar.
@@ -145,7 +159,7 @@ No 30 to 60 s gameplay video (OBS is installed on Quinn's PC; the machine has no
 - Polish rules: `03 - Research/Polish - Start Here.md` and `02 - Design/Style Guide.md`. Every polish brief links to both. No half-done polish (D-028), one style (D-030).
 - Every Unreal launch goes through the machine-wide slot. The snippet is in `.claude/loop.md`, and every brief must carry it, because the role files do not.
 - Scripted playtests and packages run only at checkpoints (D-031).
-- Sunday: feature freeze 5:30 PM (D-038), final playthroughs and package 6 PM, video and itch page 6 to 7:30 PM, submitted by 8 PM. The deadline is 8:59 PM.
+- Sunday (D-048, replacing D-038's 5:30 PM freeze): lanes merge 5:15 to 6:30 PM, Quinn hand-plays about 6:15 PM, freeze run-through and package 6:45 PM, video 7:10 to 7:40 PM, itch page and form 7:40 to 8:15 PM, submitted about 8:30 PM. The deadline is 8:59 PM.
 - Still unconfirmed from the research: the Official Rules PDF, seven sound needs with no candidate, and most Freesound licences.
 - After merging a branch that adds dev log entries, remove any repeated `## Sunday Nov 15 2026` heading in [[Devlog]].
 - In a packaged build the start command is ignored for about the first four seconds after launch.
@@ -206,6 +220,11 @@ The overnight runs are in [[Agent Runs]].
 | Serpent physics | Opus, high, `.wt\swim` on `polish/serpent-look` | **Done** at about 3:10 PM (`f4ef2b0`, `35ddef2`): the body is a chain the head drags through the water (D-046), no stroke. Reviewed, merged as `964c66e`, verify 126 of 126, S3 and S11 passed, pushed at 3:17 PM. Frames page version 20: works in the game's dark; in plain light it reads as a hose. | 2:39 PM |
 | Harpoon recoil | Opus, high, `.wt\dev` on `polish/harpoon-kick` | **Done** at about 3:33 PM (`e287d29`), six minutes after it started: a shot shoves the diver back 0.875 m (3.5 m/s fading to zero in half a second), rock stops the shove, and a reel ends it; a firmer shake on the shot and a new thud for a bolt into the serpent. Reviewed, merged as `cee150a`, verify 128 of 128, S5 (18 s) and S10-relic (76 s) passed, pushed at 3:40 PM, packaged (D-047). | 3:27 PM |
 | Submission text | Sonnet, medium, main checkout, text only | **Done** at 3:05 PM (row 90): `devlog/itch-page.md` rewritten for today's game, [[Video Shot List]], the checklist's status. Reviewed against the code, three faults fixed, committed. | 3:03 PM |
+| Helm piloting | Opus, high, `.wt\dev` on `rescope/helm` | Running (D-048): W/S throttle notches, A/D rudder with inertia, a Space/C ballast lever with a neutral detent, X all stop; the world turns about the sub (`SubYawDeg`); levers by the seat; a parked sub glides to the stop's frame. Report by 5:30 PM; at merge, verify plus S2, S7 and S8. | 4:15 PM |
+| Cave generation | Opus, high, `.wt\swim` on `rescope/cave` | Running (D-048): seeded ridged noise with strata in `UDeepCaveRules`, shared by the mesh and `Contact`; live tuning and `Deep.Cave.Rebuild`; `M_CaveRock`, triplanar Dragon Cave rock; noisy caverns; rocks in the walls. Report by 5:30 PM; at merge, verify plus S2, S3 and S7. | 4:15 PM |
+| HUD declutter | Opus, high, `.wt\text` on `rescope/hud` | Running (D-048): no subtitles, hints gone after first use, one prompt at a time, critical cues only, the hull only on a change or below 30%, no patience panel, the helm down to the sonar and a depth readout; the Captain off by default (`Deep.Captain.Radio 1` brings him back). Report by 5:30 PM; at merge, verify plus S0, S1 and S11. | 4:15 PM |
+| Tether air line | Opus, high, `.wt\voice` on `rescope/tether` | Running (D-048): clipped means unlimited air; patience no longer drains or cuts; the serpent's head on the rope cuts it (`tether_bitten`); a voluntary unclip on bailout air; re-clip aboard. Report by 5:30 PM; at merge, verify plus S4 and S10-cutdrop. | 4:15 PM |
+| Interior | Opus, high, `.wt\camera` on `rescope/interior` | Running (D-048): about 100 pieces of dressing in `World/DeepRoomDress`; worn painted steel, brass, rubber and glass in `Content/Deep/Room/`; light only from practicals, strips and emergency lights; 1 m kept clear round the helm seat. Report by 5:30 PM; at merge, verify plus S1 and S11. | 4:15 PM |
 
 ## Next, in order
 
@@ -220,12 +239,14 @@ The overnight runs are in [[Agent Runs]].
 | 5 | **The polish pass (D-028, D-029):** look, HUD, effects, sound and voice, in one planned pass to a professional standard. A priority equal to gameplay. The research and the plan are done ([[Polish - Plan and Techniques]]). | Quinn chooses, agents build | waiting on Quinn's choices |
 | 6 | Water and rope feel (D-024): swim inertia, a tether and harpoon line that sag and snap, bubbles and silt. Part of the polish pass. | engineer, Quinn tunes | later |
 | 7 | Ideas Quinn picks from [[Fun Ideas]]. Live Captain brain decision about 1 PM Sunday (D-018). | per idea | waiting on review |
-| 8 | Sunday: feature freeze 5:30 PM (D-038), final package 6 PM, video and itch page by 7:30 PM, submitted 8 PM. **Run the scripted playtests before each package** (D-031); they are not run in between. The itch.io page says in one sentence how the game answers the theme (D-025). | all | todo |
+| 8 | Sunday (D-048, replacing D-038): lanes merge 5:15 to 6:30 PM, freeze run-through and package 6:45 PM, video and itch page 7:10 to 8:15 PM, submitted about 8:30 PM. **Run the scripted playtests before each package** (D-031); they are not run in between. The itch.io page says in one sentence how the game answers the theme (D-025). | all | todo |
 
 ## Waiting on Quinn
 
-**Now (3:45 PM):**
+**Now (4:20 PM):**
 
+- **The re-scope's defaults (D-048); one word from him changes any of them:** the Captain is off by default (`Deep.Captain.Radio 1` brings him back); no PCG plugin, but a C++ generator tuned live in Project Settings > DEEP Tuning > Cave, with `Deep.Cave.Rebuild`; the tether is the air line, the serpent can bite it, and patience no longer cuts it.
+- **Submit regardless.** At 3:50 PM he said the game might not be worth submitting. The orchestrator disagreed: `cee150a` is packaged and tested, so it is the floor, and not submitting scores zero for certain.
 - The Fab sound pack: add it, and tell the orchestrator its folder name. What to look for is in [[Sound Brief]].
 - His brother's music and serpent sounds go into `audio-drop\`: the first files by 2 PM, the rest by 3:30 PM ([[Sound Brief]]).
 - Two questions for Quinn:
@@ -238,9 +259,9 @@ The overnight runs are in [[Agent Runs]].
   - the harpoon's kick (his ask at about 3:22 PM, D-047): in the integration build since 3:40 PM (verify 128 of 128, S5 and S10-relic passed). Feel it in `Builds\HandPlay-1540\Deep.exe`; one word from him takes it out;
   - the serpent's hearing (asked at 3:00 PM): sprinting alone never brings it. Sprint noise adds 15 a second against a decay of 10, so reaching Stalk takes about 12 s of unbroken sprinting, and a straight sprint reaches the end of a 60 m line in about 9.4 s. Winching and grabs do bring it. (a) keep it (recommended, and the default), (b) raise sprint noise to about 25 a second or lower Stalk to about 40, (c) count noise at any speed above a swim.
   Asked at about 2 PM: does his "not in the hud" also mean no recording dot or timecode on the HUD?
-- **The video** (required, 30 to 60 s, a link on the form): Quinn records it by hand with OBS on the 6 PM package, at about 6:15 PM. The shot list is in [[Video Shot List]]: it opens at the helm, and the lamp shots need the flashlight bought first (one dive, or the console cheat `Deep.BuyGate free`). The itch page draft has his TODOs in it (`devlog/itch-page.md`).
+- **The video** (required, 30 to 60 s, a link on the form): Quinn records it by hand with OBS on the 6:45 PM freeze package, at about 7:10 PM (D-048); the shot list and the itch page get the new helm keys once the helm lane lands. The shot list is in [[Video Shot List]]: it opens at the helm, and the lamp shots need the flashlight bought first (one dive, or the console cheat `Deep.BuyGate free`). The itch page draft has his TODOs in it (`devlog/itch-page.md`).
 - **The Official Rules PDF has never been read.** It is on Box and needs a browser. Five minutes before the freeze, or tell the orchestrator it may read it in Chrome.
-- **"Merge" into `main`.** Nothing visual reaches `main` until he has seen frames and says "merge". Ask before the 5:30 PM freeze, so the freeze run-through and the 6 PM package are built from `main`.
+- **"Merge" into `main`.** Nothing visual reaches `main` until he has seen frames and says "merge". Ask before the 6:45 PM freeze (D-048), so the freeze run-through and its package are built from `main`.
 - Tell Colby that the brother is making the serpent and the music, so the two of them don't both make those sounds.
 
 **Older, still open:**
