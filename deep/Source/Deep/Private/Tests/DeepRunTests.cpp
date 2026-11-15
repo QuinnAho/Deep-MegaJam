@@ -345,7 +345,7 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	const int32 FeeTotal = UDeepRules::SettlementFeeTotal(70, Tuning.Economy);
 	const FDeepSettlement Expected = UDeepRules::Settle(70, { FeeTotal }, Tuning.Economy);
 	TestEqual(TEXT("Gross is the cargo value"), Report.Gross, 70);
-	TestEqual(TEXT("The Director's cut is the rule's"), Report.DirectorCut, Expected.DirectorCut);
+	TestEqual(TEXT("The Captain's cut is the rule's"), Report.DirectorCut, Expected.DirectorCut);
 	TestEqual(TEXT("Fees total the rule's"), Report.Fees, FeeTotal);
 	int32 FeeSum = 0;
 	for (const int32 Amount : Report.FeeAmounts)

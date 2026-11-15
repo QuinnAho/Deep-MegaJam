@@ -141,7 +141,6 @@ void ADeepHUD::DrawTitle(float RealNow)
 	const float TitleScale = 4.2f;
 	GetTextSize(TEXT("DEEP"), W, H, BigFont, S * TitleScale);
 	DrawText(TEXT("DEEP"), TextColor, (Canvas->ClipX - W) * 0.5f, Canvas->ClipY * 0.17f, BigFont, S * TitleScale);
-	TextCentered(TEXT("The Director's Cut"), CaptainColor, Canvas->ClipY * 0.17f + H + 4.f * S, BigFont, 1.1f);
 
 	const UDeepCaptain* Captain = UDeepCaptain::Get(this);
 	FString Line = Captain ? Captain->GetLastText() : FString();
@@ -260,7 +259,7 @@ void ADeepHUD::DrawReview(const UDeepRunComponent& Run)
 	const int32 Seconds = FMath::FloorToInt(Review.Seconds) % 60;
 	Row(TEXT("Divers expended"), FString::Printf(TEXT("%d"), Review.DiversExpended), Review.DiversExpended > 0 ? WarnColor : TextColor);
 	Row(TEXT("Total gross"), Credits(Review.Gross), TextColor);
-	Row(TEXT("The Director's cut, in total"), FString::Printf(TEXT("-%d cr"), Review.DirectorCut), WarnColor);
+	Row(TEXT("The Captain's cut, in total"), FString::Printf(TEXT("-%d cr"), Review.DirectorCut), WarnColor);
 	Row(TEXT("Fees, in total"), FString::Printf(TEXT("-%d cr"), Review.Fees), DimColor);
 	DrawRect(DimColor, X + Pad, Y + 2.f * S, W - Pad * 2.f, 1.f * S);
 	Y += 8.f * S;
@@ -691,7 +690,7 @@ void ADeepHUD::DrawSettlement(const UDeepRunComponent& Run)
 	TextCentered(TEXT("SETTLEMENT"), CaptainColor, Y, BigFont, 1.2f);
 	Y += Line * 1.6f;
 	Row(TEXT("Gross haul"), Credits(Report.Gross), TextColor);
-	Row(FString::Printf(TEXT("The Director's cut (%d%%)"), Economy.DirectorCutPercent), FString::Printf(TEXT("-%d cr"), Report.DirectorCut), WarnColor);
+	Row(FString::Printf(TEXT("The Captain's cut (%d%%)"), Economy.DirectorCutPercent), FString::Printf(TEXT("-%d cr"), Report.DirectorCut), WarnColor);
 	for (int32 Index = 0; Index < Report.FeeLabels.Num(); ++Index)
 	{
 		const int32 Amount = Report.FeeAmounts.IsValidIndex(Index) ? Report.FeeAmounts[Index] : 0;
