@@ -43,6 +43,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Diver")
 	FDeepLampTuning Lamp;
 
+	/** The sea at each depth, the marine snow, the sub's flood and the hatch water (style guide 5). */
+	UPROPERTY(Config, EditAnywhere, Category = "Look")
+	FDeepLookTuning Look;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepPatienceTuning Patience;
 

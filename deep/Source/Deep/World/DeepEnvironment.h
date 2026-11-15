@@ -1,6 +1,9 @@
 // Light for a stop. One per world, spawned by DeepArena::EnsureArena. SetStop switches between the stops and replicates.
-// Grey box (Arena.bGreyBox, the default): even key + fill light, fixed exposure, no fog shafts, a mild tint per stop.
-// Otherwise the water look: downwelling light, height fog with volumetric shafts and an exposure clamp.
+// Water look (the default, style guide 5): every machine blends the look presets (FDeepLookTuning) by the replicated
+// SubDepthM each tick, so driving fades continuously: downlight with volumetric shafts, height fog with volumetric fog,
+// locked exposure, grade, bloom, vignette, grain; and marine snow (instanced specks) wrapped round the view.
+// Grey box (Arena.bGreyBox): even key + fill light, fixed exposure, no fog shafts, a mild tint per stop.
+// Deep.RayTracing 0|1 switches hardware ray tracing for Lumen reflections and shadows (the look holds either way).
 
 #pragma once
 
@@ -12,6 +15,7 @@
 class UDirectionalLightComponent;
 class UExponentialHeightFogComponent;
 class UPostProcessComponent;
+class UInstancedStaticMeshComponent;
 
 UCLASS()
 class DEEP_API ADeepEnvironment : public AActor
@@ -29,6 +33,16 @@ public:
 	/** The light colour for a stop in grey-box mode: white leaning a little toward the stop's water colour. */
 	static FLinearColor GreyBoxTint(const FDeepStopTuning& StopTuning, const FDeepArenaTuning& Arena);
 
+	/** The look at a depth: the presets blended linearly between their depths, clamped at both ends. */
+	static FDeepLookPreset BlendLook(const FDeepLookTuning& Look, float DepthM);
+
+	/** The look last applied (for tests and the state report). */
+	const FDeepLookPreset& GetAppliedLook() const { return Applied; }
+
+	/** Hardware ray tracing for Lumen reflections (hit lighting) and ray-traced shadows. Console: Deep.RayTracing. */
+	static void SetRayTracing(bool bOn);
+
+	virtual void Tick(float DeltaSeconds) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
@@ -38,6 +52,9 @@ protected:
 	void OnRep_Stop();
 
 	void ApplyStop(const FDeepStopTuning& StopTuning, const FDeepArenaTuning& Arena);
+	void ApplyLook(const FDeepLookPreset& Preset, const FDeepLookTuning& Look);
+	void BuildSnow(const FDeepLookTuning& Look);
+	void UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Look);
 
 	UPROPERTY(ReplicatedUsing = OnRep_Stop, VisibleAnywhere, Category = "Deep")
 	int32 Stop = 1;
@@ -54,4 +71,18 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPostProcessComponent> Exposure;
+
+	/** Marine snow: tiny lit specks, revealed only by local lights (the lamp, the sub's flood). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UInstancedStaticMeshComponent> Snow;
+
+	FDeepLookPreset Applied;
+	float AppliedDepthM = -1.f;
+
+	/** Per speck: home offset in the box (cm), drift velocity (cm/s), scale. */
+	TArray<FVector> SnowHome;
+	TArray<FVector> SnowDrift;
+	TArray<float> SnowScale;
+	TArray<FTransform> SnowXforms;
+	float SnowTime = 0.f;
 };

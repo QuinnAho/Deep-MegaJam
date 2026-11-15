@@ -490,7 +490,7 @@ struct FDeepArenaTuning
 	float SubLightIntensity = 20000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
-	float SubLightRadiusM = 25.f;
+	float SubLightRadiusM = 6.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena")
 	float ExposureMinEV = -3.f;
@@ -503,7 +503,7 @@ struct FDeepArenaTuning
 	 * The stop's fog and sun settings are ignored; the stop's fog colour only tints the light a little.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
-	bool bGreyBox = true;
+	bool bGreyBox = false;
 
 	/** Key light from above (lux). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Arena|Grey Box")
@@ -548,6 +548,181 @@ struct FDeepLampTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
 	bool bStartsOn = true;
+
+	/** Style guide 3: cool neutral white #F2F4EE, never yellow. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	FLinearColor Color = FLinearColor(FColor(0xF2, 0xF4, 0xEE));
+
+	/** How strongly the beam lights the volumetric fog (the visible cone in the murk). 0 = no beam. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float VolumetricScattering = 2.f;
+
+	/** The lamp's shadows cut the fog too (the beam is blocked by what it hits). About 3x a plain light's fog cost. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	bool bVolumetricShadow = true;
+
+	/** Offset from the eye: off-axis, so shadows and the beam's edge show. Style guide 5: 25 cm right, 15 cm up. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float OffsetRightCm = 25.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float OffsetUpCm = 15.f;
+
+	/** A slow, small intensity wobble (fraction) and its rate. No flicker. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float WobbleFraction = 0.02f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lamp")
+	float WobbleHz = 0.3f;
+};
+
+/** The sea at one depth (style guide 5). ADeepEnvironment blends between presets by the sub's depth. */
+USTRUCT(BlueprintType)
+struct FDeepLookPreset
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float DepthM = 100.f;
+
+	/** Light from above (lux). 0 hides it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float DownlightLux = 2.f;
+
+	/** How much the downlight lights the fog: the shafts. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float DownlightVolumetric = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float FogDensity = 0.02f;
+
+	/** Far fog colour (style guide 3, the water at this depth). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	FLinearColor FogColor = FLinearColor(FColor(0x19, 0x3C, 0x45));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float ExtinctionScale = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float VolumetricDistanceM = 80.f;
+
+	/** Manual exposure compensation (EV). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float ExposureBias = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float Bloom = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float Vignette = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float Grain = 0.1f;
+
+	/** Saturation R, G, B, All: red goes first. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	FVector4 Saturation = FVector4(0.75, 0.95, 1.0, 0.9);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float Contrast = 1.05f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float Fringe = 0.f;
+
+	/** Salvage glint as a fraction of its full intensity: where something is, not what it is. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float GlintScale = 1.f;
+};
+
+/** The underwater look (style guide 5): presets by depth plus what every depth shares. */
+USTRUCT(BlueprintType)
+struct FDeepLookTuning
+{
+	GENERATED_BODY()
+
+	/** Shallowest first. Blended continuously by the sub's depth as it drives. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	TArray<FDeepLookPreset> Presets;
+
+	/** Downwelling light colour (#A1D1ED) and direction: nearly straight down, a little slanted. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	FLinearColor DownlightColor = FLinearColor(FColor(0xA1, 0xD1, 0xED));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	FRotator DownlightRotation = FRotator(-70.f, 35.f, 0.f);
+
+	/** Volumetric fog albedo, all depths (#40A6BF). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	FColor FogAlbedo = FColor(0x40, 0xA6, 0xBF);
+
+	/** Volumetric fog starts this far from the eye, or the helmet lamp lights a blob on the visor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float VolumetricStartM = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float FogHeightFalloff = 0.001f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float MotionBlur = 0.2f;
+
+	/** Local exposure off: both contrast scales 1.0 so the dark stays dark. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look")
+	float LocalExposureContrast = 1.f;
+
+	/** Marine snow: specks hung around the view that only local lights reveal. 0 turns it off. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	int32 SnowCount = 3000;
+
+	/** Edge of the box of specks kept around the view (wrapped). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	float SnowBoxM = 14.f;
+
+	/** Speck size range (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	float SnowMinSizeM = 0.01f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	float SnowMaxSizeM = 0.015f;
+
+	/** Slow drift (m/s): a slight sink plus a random wander per speck. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	float SnowSinkMps = 0.03f;
+
+	/** No specks closer than this to the eye: up close a speck reads as the cube it is. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	float SnowClearM = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	float SnowWanderMps = 0.04f;
+
+	/** Pale, dull grey: lit only where a light reaches. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Snow")
+	FLinearColor SnowColor = FLinearColor(0.18f, 0.2f, 0.2f);
+
+	/**
+	 * The sub's belly flood: what shows near the sub at 300 and 500 m when the lamp looks away. The guide's 100,000 lit a
+	 * 60 m column brighter than the lamp and broke the lamp gate (300 m unreadable without it), so it is a low pool here,
+	 * lighting objects only: its fog glow turned 500 m green under the +2 EV exposure.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BellyFloodIntensity = 6000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BellyFloodConeDeg = 35.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BellyFloodRangeM = 20.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float BellyFloodVolumetric = 0.f;
+
+	/** The one water surface: the near-mirror pool in the hatch (style guide 4). Falls back to a black tint. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	FSoftObjectPath HatchWaterMaterial = FSoftObjectPath(TEXT("/Game/Deep/Look/M_HatchWater.M_HatchWater"));
+
+	/** How far below the deck's top the pool lies (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HatchWaterBelowDeckCm = 6.f;
 };
 
 // ---- Rule inputs and results ----

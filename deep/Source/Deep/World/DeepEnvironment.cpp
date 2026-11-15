@@ -1,10 +1,22 @@
 #include "World/DeepEnvironment.h"
 
+#include "Camera/PlayerCameraManager.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PostProcessComponent.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
 #include "Net/UnrealNetwork.h"
+#include "Game/DeepGameState.h"
+#include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "World/DeepArenaRoot.h"
+#include "World/DeepSalvage.h"
+#include "World/DeepShapes.h"
+#include "World/DeepSubmarine.h"
 
 namespace
 {
@@ -19,11 +31,46 @@ namespace
 		Light->SetLightingChannels(true, true, false);
 		return Light;
 	}
+
+	void SetCVarInt(const TCHAR* Name, int32 Value)
+	{
+		if (IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Name))
+		{
+			Var->Set(Value, ECVF_SetByConsole);
+		}
+	}
+
+	FAutoConsoleCommand RayTracingCommand(
+		TEXT("Deep.RayTracing"),
+		TEXT("Deep.RayTracing <0|1>: hardware ray tracing for Lumen (reflections with hit lighting) and ray-traced shadows."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			ADeepEnvironment::SetRayTracing(Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0);
+		}));
+
+	/** Wraps a coordinate into [-Size/2, Size/2). */
+	double Wrap(double Value, double Size)
+	{
+		return FMath::Fmod(FMath::Fmod(Value + Size * 0.5, Size) + Size, Size) - Size * 0.5;
+	}
+}
+
+void ADeepEnvironment::SetRayTracing(bool bOn)
+{
+	// Hardware ray tracing for Lumen GI and reflections; off falls back to software ray tracing plus screen traces.
+	SetCVarInt(TEXT("r.Lumen.HardwareRayTracing"), bOn ? 1 : 0);
+	// 2 = full material and lighting at the reflection hit: the hatch water reflects the lit room, not the surface cache.
+	SetCVarInt(TEXT("r.Lumen.HardwareRayTracing.LightingMode"), bOn ? 2 : 0);
+	// Ray-traced shadows (the lamp's hard shadows); off = virtual shadow maps, same light and shape.
+	SetCVarInt(TEXT("r.RayTracing.Shadows"), bOn ? 1 : 0);
+	UE_LOG(LogTemp, Display, TEXT("DEEPLOOK raytracing=%d"), bOn ? 1 : 0);
 }
 
 ADeepEnvironment::ADeepEnvironment()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	// After the camera has moved this frame, so the snow box is centred on this frame's view.
+	PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 	bReplicates = true;
 	bAlwaysRelevant = true;
 
@@ -35,6 +82,8 @@ ADeepEnvironment::ADeepEnvironment()
 	Downlight = MakeDirectional(this, Root, TEXT("Downlight"), FRotator(-65.f, 30.f, 0.f));
 	// The key light is the one forward shading and fog use (the engine warns when two directionals tie).
 	Downlight->SetForwardShadingPriority(1);
+	// The hull and anything above cut shafts out of the lit fog.
+	Downlight->SetCastVolumetricShadow(true);
 	// From below and the opposite side, no shadows: undersides are dimmer but never black.
 	Fill = MakeDirectional(this, Root, TEXT("Fill"), FRotator(50.f, 210.f, 0.f));
 	Fill->SetCastShadows(false);
@@ -48,12 +97,28 @@ ADeepEnvironment::ADeepEnvironment()
 	Exposure = CreateDefaultSubobject<UPostProcessComponent>(TEXT("Exposure"));
 	Exposure->SetupAttachment(Root);
 	Exposure->bUnbound = true;
+
+	Snow = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Snow"));
+	Snow->SetupAttachment(Root);
+	Snow->SetUsingAbsoluteLocation(true);
+	Snow->SetUsingAbsoluteRotation(true);
+	Snow->SetUsingAbsoluteScale(true);
+	Snow->SetMobility(EComponentMobility::Movable);
+	Snow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Snow->SetCastShadow(false);
+	Snow->SetStaticMesh(DeepShapes::LoadMesh(DeepShapes::Cube));
+	Snow->bNeverDistanceCull = true;
 }
 
 void ADeepEnvironment::BeginPlay()
 {
 	Super::BeginPlay();
 	OnRep_Stop();
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	if (!Tuning.Arena.bGreyBox && GetNetMode() != NM_DedicatedServer)
+	{
+		BuildSnow(Tuning.Look);
+	}
 }
 
 void ADeepEnvironment::SetStop(int32 InStop)
@@ -77,6 +142,71 @@ FLinearColor ADeepEnvironment::GreyBoxTint(const FDeepStopTuning& StopTuning, co
 	FLinearColor Tint = FMath::Lerp(FLinearColor::White, Hue, FMath::Clamp(Arena.GreyBoxTintStrength, 0.f, 1.f));
 	Tint.A = 1.f;
 	return Tint;
+}
+
+FDeepLookPreset ADeepEnvironment::BlendLook(const FDeepLookTuning& Look, float DepthM)
+{
+	const TArray<FDeepLookPreset>& P = Look.Presets;
+	if (P.IsEmpty())
+	{
+		return FDeepLookPreset();
+	}
+	if (DepthM <= P[0].DepthM)
+	{
+		return P[0];
+	}
+	for (int32 i = 1; i < P.Num(); ++i)
+	{
+		if (DepthM > P[i].DepthM)
+		{
+			continue;
+		}
+		const FDeepLookPreset& A = P[i - 1];
+		const FDeepLookPreset& B = P[i];
+		const float T = FMath::Clamp((DepthM - A.DepthM) / FMath::Max(B.DepthM - A.DepthM, UE_KINDA_SMALL_NUMBER), 0.f, 1.f);
+		FDeepLookPreset O;
+		O.DepthM = DepthM;
+		O.DownlightLux = FMath::Lerp(A.DownlightLux, B.DownlightLux, T);
+		O.DownlightVolumetric = FMath::Lerp(A.DownlightVolumetric, B.DownlightVolumetric, T);
+		O.FogDensity = FMath::Lerp(A.FogDensity, B.FogDensity, T);
+		O.FogColor = FMath::Lerp(A.FogColor, B.FogColor, T);
+		O.ExtinctionScale = FMath::Lerp(A.ExtinctionScale, B.ExtinctionScale, T);
+		O.VolumetricDistanceM = FMath::Lerp(A.VolumetricDistanceM, B.VolumetricDistanceM, T);
+		O.ExposureBias = FMath::Lerp(A.ExposureBias, B.ExposureBias, T);
+		O.Bloom = FMath::Lerp(A.Bloom, B.Bloom, T);
+		O.Vignette = FMath::Lerp(A.Vignette, B.Vignette, T);
+		O.Grain = FMath::Lerp(A.Grain, B.Grain, T);
+		O.Saturation = FMath::Lerp(A.Saturation, B.Saturation, (double)T);
+		O.Contrast = FMath::Lerp(A.Contrast, B.Contrast, T);
+		O.Fringe = FMath::Lerp(A.Fringe, B.Fringe, T);
+		O.GlintScale = FMath::Lerp(A.GlintScale, B.GlintScale, T);
+		return O;
+	}
+	return P.Last();
+}
+
+void ADeepEnvironment::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	if (Tuning.Arena.bGreyBox)
+	{
+		return;
+	}
+	// Every machine blends by the replicated depth, so driving fades continuously and clients match the server.
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	const float DepthM = State ? State->SubDepthM : Tuning.GetStop(Stop).SubDepthM;
+	if (!FMath::IsNearlyEqual(DepthM, AppliedDepthM, 0.01f))
+	{
+		AppliedDepthM = DepthM;
+		ApplyLook(BlendLook(Tuning.Look, DepthM), Tuning.Look);
+	}
+	// Salvage respawns each dive: keep every glint at this depth's scale (a no-op when unchanged).
+	for (TActorIterator<ADeepSalvage> It(GetWorld()); It; ++It)
+	{
+		It->SetGlintScale(Applied.GlintScale);
+	}
+	UpdateSnow(DeltaSeconds, Tuning.Look);
 }
 
 void ADeepEnvironment::ApplyStop(const FDeepStopTuning& StopTuning, const FDeepArenaTuning& Arena)
@@ -114,22 +244,137 @@ void ADeepEnvironment::ApplyStop(const FDeepStopTuning& StopTuning, const FDeepA
 		return;
 	}
 
-	Downlight->SetIntensity(StopTuning.SunIntensity);
-	Downlight->SetLightColor(FLinearColor(0.45f, 0.75f, 0.9f));
-	Downlight->SetVolumetricScatteringIntensity(1.f);
-	Fill->SetVisibility(false);
-	Fog->SetVolumetricFog(true);
-	Fog->SetFogDensity(StopTuning.FogDensity);
-	Fog->SetFogInscatteringColor(StopTuning.FogColor);
+	// The water look is blended by depth every tick (Tick -> ApplyLook). Apply it now too, so the first frame is right.
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	AppliedDepthM = State ? State->SubDepthM : StopTuning.SubDepthM;
+	ApplyLook(BlendLook(Tuning.Look, AppliedDepthM), Tuning.Look);
+}
 
-	Settings.bOverride_MotionBlurAmount = false;
-	Settings.bOverride_AutoExposureMethod = false;
-	Settings.bOverride_AutoExposureApplyPhysicalCameraExposure = false;
-	Settings.bOverride_AutoExposureBias = false;
-	Settings.bOverride_AutoExposureMinBrightness = true;
-	Settings.AutoExposureMinBrightness = Arena.ExposureMinEV;
-	Settings.bOverride_AutoExposureMaxBrightness = true;
-	Settings.AutoExposureMaxBrightness = Arena.ExposureMaxEV;
+void ADeepEnvironment::ApplyLook(const FDeepLookPreset& L, const FDeepLookTuning& Look)
+{
+	Applied = L;
+	Downlight->SetVisibility(L.DownlightLux > 0.0005f);
+	Downlight->SetIntensity(L.DownlightLux);
+	Downlight->SetLightColor(Look.DownlightColor);
+	Downlight->SetVolumetricScatteringIntensity(L.DownlightVolumetric);
+	Downlight->SetRelativeRotation(Look.DownlightRotation);
+	Fill->SetVisibility(false);
+
+	Fog->SetFogDensity(L.FogDensity);
+	Fog->SetFogHeightFalloff(Look.FogHeightFalloff);
+	Fog->SetFogMaxOpacity(1.f);
+	Fog->SetFogInscatteringColor(L.FogColor);
+	// The far fog's directional inscattering lifted the view to milk (look/pass1): keep it black.
+	Fog->SetDirectionalInscatteringColor(FLinearColor::Black);
+	Fog->SetVolumetricFog(true);
+	Fog->SetVolumetricFogAlbedo(Look.FogAlbedo);
+	Fog->SetVolumetricFogExtinctionScale(L.ExtinctionScale);
+	Fog->SetVolumetricFogDistance(L.VolumetricDistanceM * UDeepRules::CmPerM);
+	Fog->SetVolumetricFogStartDistance(Look.VolumetricStartM * UDeepRules::CmPerM);
+
+	FPostProcessSettings& S = Exposure->Settings;
+	// Locked exposure: auto exposure undoes darkness.
+	S.bOverride_AutoExposureMethod = true;
+	S.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+	S.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
+	S.AutoExposureApplyPhysicalCameraExposure = false;
+	S.bOverride_AutoExposureBias = true;
+	S.AutoExposureBias = L.ExposureBias;
+	S.bOverride_AutoExposureMinBrightness = false;
+	S.bOverride_AutoExposureMaxBrightness = false;
+	// Local exposure lifts shadows: both scales 1.0.
+	S.bOverride_LocalExposureHighlightContrastScale = true;
+	S.LocalExposureHighlightContrastScale = Look.LocalExposureContrast;
+	S.bOverride_LocalExposureShadowContrastScale = true;
+	S.LocalExposureShadowContrastScale = Look.LocalExposureContrast;
+	S.bOverride_BloomIntensity = true;
+	S.BloomIntensity = L.Bloom;
+	S.bOverride_VignetteIntensity = true;
+	S.VignetteIntensity = L.Vignette;
+	S.bOverride_FilmGrainIntensity = true;
+	S.FilmGrainIntensity = L.Grain;
+	S.bOverride_ColorSaturation = true;
+	S.ColorSaturation = L.Saturation;
+	S.bOverride_ColorContrast = true;
+	S.ColorContrast = FVector4(1.0, 1.0, 1.0, L.Contrast);
+	S.bOverride_SceneFringeIntensity = true;
+	S.SceneFringeIntensity = L.Fringe;
+	S.bOverride_MotionBlurAmount = true;
+	S.MotionBlurAmount = Look.MotionBlur;
+}
+
+void ADeepEnvironment::BuildSnow(const FDeepLookTuning& Look)
+{
+	Snow->ClearInstances();
+	SnowHome.Reset();
+	SnowDrift.Reset();
+	SnowScale.Reset();
+	SnowXforms.Reset();
+	const int32 Count = FMath::Max(0, Look.SnowCount);
+	if (Count == 0)
+	{
+		return;
+	}
+	DeepShapes::Tint(Snow, Look.SnowColor);
+	const double Box = Look.SnowBoxM * UDeepRules::CmPerM;
+	FRandomStream Rand(0xDEE9);
+	for (int32 i = 0; i < Count; ++i)
+	{
+		SnowHome.Add(FVector(Rand.FRandRange(-0.5f, 0.5f), Rand.FRandRange(-0.5f, 0.5f), Rand.FRandRange(-0.5f, 0.5f)) * Box);
+		SnowDrift.Add(FVector(Rand.VRand()) * (Look.SnowWanderMps * Rand.FRandRange(0.3f, 1.f) * UDeepRules::CmPerM)
+			- FVector(0.0, 0.0, Look.SnowSinkMps * UDeepRules::CmPerM));
+		// Basic shapes are 100 cm across: scale to the speck size.
+		SnowScale.Add(Rand.FRandRange(Look.SnowMinSizeM, Look.SnowMaxSizeM) * UDeepRules::CmPerM / DeepShapes::ShapeSizeCm);
+		const FRotator Spin(Rand.FRandRange(0.f, 360.f), Rand.FRandRange(0.f, 360.f), 0.f);
+		SnowXforms.Add(FTransform(Spin.Quaternion(), GetActorLocation(), FVector(SnowScale.Last())));
+	}
+	Snow->AddInstances(SnowXforms, false, true, false);
+}
+
+void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Look)
+{
+	if (SnowHome.IsEmpty() || !GetWorld())
+	{
+		return;
+	}
+	const APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC || !PC->PlayerCameraManager)
+	{
+		return;
+	}
+	SnowTime += DeltaSeconds;
+	const FVector View = PC->PlayerCameraManager->GetCameraLocation();
+	const double Box = Look.SnowBoxM * UDeepRules::CmPerM;
+	const double ClearSq = FMath::Square(Look.SnowClearM * UDeepRules::CmPerM);
+
+	// The specks hang in the arena: when the sub drives, the root moves and the snow streams past the still sub.
+	FVector Origin = GetActorLocation();
+	for (TActorIterator<ADeepArenaRoot> It(GetWorld()); It; ++It)
+	{
+		Origin = It->GetActorLocation();
+		break;
+	}
+	// No specks inside the hull: the room is dry.
+	FBox Hull(ForceInit);
+	FTransform HullXf = FTransform::Identity;
+	for (TActorIterator<ADeepSubmarine> It(GetWorld()); It; ++It)
+	{
+		Hull = It->GetSolidBoundsLocal(false);
+		HullXf = It->GetActorTransform();
+		break;
+	}
+
+	for (int32 i = 0; i < SnowHome.Num(); ++i)
+	{
+		const FVector P = Origin + SnowHome[i] + SnowDrift[i] * SnowTime;
+		const FVector At = View + FVector(Wrap(P.X - View.X, Box), Wrap(P.Y - View.Y, Box), Wrap(P.Z - View.Z, Box));
+		const bool bInHull = (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
+			|| FVector::DistSquared(At, View) < ClearSq;
+		SnowXforms[i].SetLocation(At);
+		SnowXforms[i].SetScale3D(FVector(bInHull ? 0.0 : SnowScale[i]));
+	}
+	Snow->BatchUpdateInstancesTransforms(0, SnowXforms, true, true, true);
 }
 
 void ADeepEnvironment::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

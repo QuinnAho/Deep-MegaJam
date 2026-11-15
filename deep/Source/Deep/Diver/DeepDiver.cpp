@@ -50,12 +50,12 @@ ADeepDiver::ADeepDiver()
 
 	Lamp = CreateDefaultSubobject<USpotLightComponent>(TEXT("Lamp"));
 	Lamp->SetupAttachment(Camera);
-	// A little right of and below the eye, like a helmet lamp, so the beam reads in the fog.
-	Lamp->SetRelativeLocation(FVector(10.f, 18.f, -12.f));
 	Lamp->SetMobility(EComponentMobility::Movable);
-	Lamp->SetLightColor(FLinearColor(1.f, 0.95f, 0.85f));
-	// A plain spotlight: no light shafts.
-	Lamp->SetVolumetricScatteringIntensity(0.f);
+	// Hard shadows: a point source (style guide 1: the lamp is the main subject, hard shadows where it lands).
+	Lamp->SetCastShadows(true);
+	Lamp->SetSourceRadius(0.f);
+	Lamp->SetSoftSourceRadius(0.f);
+	// Offset, colour, beam strength and fog shadows come from FDeepLampTuning in BeginPlay.
 
 	Tether = CreateDefaultSubobject<UDeepTetherComponent>(TEXT("Tether"));
 	Run = CreateDefaultSubobject<UDeepRunComponent>(TEXT("Run"));
@@ -83,6 +83,12 @@ void ADeepDiver::BeginPlay()
 	Lamp->SetInnerConeAngle(LampTuning.InnerConeDeg);
 	Lamp->SetOuterConeAngle(LampTuning.OuterConeDeg);
 	Lamp->SetAttenuationRadius(LampTuning.RangeM * UDeepRules::CmPerM);
+	// Off the eye axis (right and up), so the beam's edge and the shadows it throws read in the murk.
+	Lamp->SetRelativeLocation(FVector(10.f, LampTuning.OffsetRightCm, LampTuning.OffsetUpCm));
+	Lamp->SetLightColor(LampTuning.Color);
+	// The visible beam: the lamp lights the volumetric fog, and its own shadows cut the lit fog.
+	Lamp->SetVolumetricScatteringIntensity(LampTuning.VolumetricScattering);
+	Lamp->SetCastVolumetricShadow(LampTuning.bVolumetricShadow);
 	if (HasAuthority())
 	{
 		bLampOn = LampTuning.bStartsOn;
@@ -113,6 +119,13 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	if (Lamp->IsVisible() != IsLampOn())
 	{
 		Lamp->SetVisibility(IsLampOn());
+	}
+	if (Lamp->IsVisible())
+	{
+		// One slow, small breath in the light (style guide 5: 2% at 0.3 Hz). No flicker.
+		const FDeepLampTuning& LampTuning = UDeepTuningSettings::Get().Lamp;
+		const double T = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		Lamp->SetIntensity(LampTuning.Intensity * (1.f + LampTuning.WobbleFraction * FMath::Sin(UE_TWO_PI * LampTuning.WobbleHz * T)));
 	}
 
 	// Movement input only comes from the controlling machine; character movement replicates the result.

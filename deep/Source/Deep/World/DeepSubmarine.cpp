@@ -2,6 +2,8 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "Components/StaticMeshComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
@@ -63,6 +65,9 @@ ADeepSubmarine::ADeepSubmarine()
 		HatchRim.Add(Make(Name, DeepShapes::Cube, false));
 	}
 	HatchCover = Make(TEXT("HatchCover"), DeepShapes::Cube, false);
+	// The one water surface: a black, near-mirror pool in the open hatch that reflects the lit room. No collision.
+	HatchWater = Make(TEXT("HatchWater"), DeepShapes::Cube, false);
+	HatchWater->SetCastShadow(false);
 	Console = Make(TEXT("Console"), DeepShapes::Cube, true);
 	ConsoleScreen = Make(TEXT("ConsoleScreen"), DeepShapes::Cube, false);
 	HelmSeat = Make(TEXT("HelmSeat"), DeepShapes::Cube, false);
@@ -84,6 +89,13 @@ ADeepSubmarine::ADeepSubmarine()
 	AirlockLight->SetMobility(EComponentMobility::Movable);
 	AirlockLight->SetLightColor(FLinearColor(1.f, 0.75f, 0.45f));
 	AirlockLight->SetCastShadows(false);
+
+	// The belly flood: straight down from the hull, what shows at 300 and 500 m when the lamp looks away.
+	BellyFlood = CreateDefaultSubobject<USpotLightComponent>(TEXT("BellyFlood"));
+	BellyFlood->SetupAttachment(Root);
+	BellyFlood->SetMobility(EComponentMobility::Movable);
+	BellyFlood->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
+	BellyFlood->SetCastShadows(true);
 
 	HelmCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("HelmCamera"));
 	HelmCamera->SetupAttachment(Root);
@@ -140,6 +152,10 @@ void ADeepSubmarine::LayOut()
 		Place(HatchRim[3], FVector(-Hh - RimW * 0.5, 0.0, RimZ), FVector(RimW, Hh * 2.0, RimT));
 	}
 	Place(HatchCover, FVector(0.0, 0.0, DeckZ + 2.0), FVector(Hh * 2.0, Hh * 2.0, Th));
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	Place(HatchWater, FVector(0.0, 0.0, DeckTop - Look.HatchWaterBelowDeckCm - 0.5), FVector(Hh * 2.0, Hh * 2.0, 1.0));
+	// Under the hull, ahead of the hatch so the diver's own column is not a white-out.
+	BellyFlood->SetRelativeLocation(FVector(150.0, 0.0, DeckZ - Th));
 
 	const FVector2D C = T.ConsoleM * M;
 	Place(Console, FVector(C.X, C.Y + 20.0, DeckTop + 55.0), FVector(120.0, 50.0, 110.0));
@@ -172,6 +188,17 @@ void ADeepSubmarine::BeginPlay()
 	RoomLight->SetIntensity(Sub.RoomLightIntensity);
 	RoomLight->SetAttenuationRadius(Sub.RoomLightRadiusM * UDeepRules::CmPerM);
 
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	const FDeepLampTuning& Lamp = UDeepTuningSettings::Get().Lamp;
+	BellyFlood->SetVisibility(!Arena.bGreyBox);
+	BellyFlood->SetIntensity(Look.BellyFloodIntensity);
+	BellyFlood->SetOuterConeAngle(Look.BellyFloodConeDeg);
+	BellyFlood->SetInnerConeAngle(Look.BellyFloodConeDeg * 0.5f);
+	BellyFlood->SetAttenuationRadius(Look.BellyFloodRangeM * UDeepRules::CmPerM);
+	BellyFlood->SetVolumetricScatteringIntensity(Look.BellyFloodVolumetric);
+	// Same lamp make as the diver's: cool neutral white.
+	BellyFlood->SetLightColor(Lamp.Color);
+
 	for (UStaticMeshComponent* Shape : Deck)
 	{
 		DeepShapes::Tint(Shape, DeckColor);
@@ -186,6 +213,15 @@ void ADeepSubmarine::BeginPlay()
 		DeepShapes::Tint(Shape, RimColor);
 	}
 	DeepShapes::Tint(HatchCover, CoverColor);
+	if (UMaterialInterface* Water = Cast<UMaterialInterface>(Look.HatchWaterMaterial.TryLoad()))
+	{
+		HatchWater->SetMaterial(0, Water);
+	}
+	else
+	{
+		// No asset (or not cooked): the same near-black, without the mirror.
+		DeepShapes::Tint(HatchWater, FLinearColor(0.002f, 0.006f, 0.008f));
+	}
 	DeepShapes::Tint(Console, FLinearColor(0.12f, 0.13f, 0.15f));
 	DeepShapes::Tint(ConsoleScreen, FLinearColor(0.1f, 1.f, 0.4f));
 	DeepShapes::Tint(HelmSeat, FLinearColor(0.15f, 0.1f, 0.08f));
@@ -300,6 +336,7 @@ void ADeepSubmarine::SetHatchOpen(bool bOpen)
 void ADeepSubmarine::OnRep_Hatch()
 {
 	HatchCover->SetVisibility(!bHatchOpen);
+	HatchWater->SetVisibility(bHatchOpen);
 	if (bHatchOpen)
 	{
 		HatchCover->SetCollisionEnabled(ECollisionEnabled::NoCollision);
