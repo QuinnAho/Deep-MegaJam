@@ -1497,6 +1497,127 @@ struct FDeepHelmStep
 	bool bAtTop = false;
 };
 
+/**
+ * The cavern (ADeepCavern): rock walls and a roof round each stop's arena, the sea bed as its floor. Quinn, 11:55 AM
+ * Nov 15: "if you're swimming in an open ocean it really lessens it". Sized from the rules, not by eye: the walls stand
+ * past both the tether's reach and the farthest salvage spot, plus a margin, at every height a diver uses (up to
+ * ClearAboveAnchorM over the hatch); every bump of relief only pushes rock outward, so the clearance holds by
+ * construction. The roof has an opening of HoleRadiusM centred over the sub, where the descent shaft comes down.
+ */
+USTRUCT(BlueprintType)
+struct FDeepCaveTuning
+{
+	GENERATED_BODY()
+
+	/** Off: today's open arena (the cheat Deep.Cave.Cavern 0 does the same at run time). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	bool bEnabled = true;
+
+	/** Rock stands at least this far past the tether's full length (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float TetherMarginM = 3.f;
+
+	/** ... and this far past the farthest salvage spot (m from the anchor). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float SpotMarginM = 3.f;
+
+	/** The clear space reaches this high over the anchor everywhere (m). The sub's roof and dress top out near 5 m. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float ClearAboveAnchorM = 6.f;
+
+	/** The roof's height over the anchor before relief (m): low, so the lamp finds it from the hatch. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float RoofAboveAnchorM = 10.f;
+
+	/** How square the vault is where the roof meets the wall (superellipse power; 2 = an ellipse, higher = flatter roof, sharper corner). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float RoofPower = 4.f;
+
+	/** The roof's opening over the sub (m): the descent shaft's radius (the Shaft lane's contract). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HoleRadiusM = 14.f;
+
+	/** A short collar of rock up from the opening's rim, so the shaft's tube never shows a gap at the roof (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float NeckHeightM = 8.f;
+
+	/** The collar widens by this much at its top (m), so it sits just behind the shaft's tube, never in front. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float NeckFlareM = 0.6f;
+
+	/** The walls run this far down into the silt, so no gap shows where they meet the bed (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float SkirtBelowBedM = 4.f;
+
+	/** Rock relief, outward only (m): a large lumpy noise on every face. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float ReliefM = 5.f;
+
+	/** The relief's wavelength (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float ReliefScaleM = 11.f;
+
+	/** Alcoves: this many bays round the wall, each up to AlcoveDepthM deep. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 AlcoveCount = 7;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float AlcoveDepthM = 7.f;
+
+	/** Horizontal strata on the walls: ledges StrataM deep, one every StrataEveryM of height. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float StrataM = 0.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float StrataEveryM = 3.f;
+
+	/** An uneven roof: extra relief, upward only (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float RoofReliefM = 3.f;
+
+	/** Crags: sharp ridged relief at lamp scale, CragM deep and CragScaleM across, so a wall 10 m off in the lamp shows facets, not a flat grey. Outward only. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float CragM = 1.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float CragScaleM = 3.5f;
+
+	/** Mesh resolution: columns round the cave, rows from the collar's top to the wall's foot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Columns = 384;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Rows = 180;
+
+	/** Overhangs: rock spurs hanging from the roof. Their tips stay at least TipClearM above the clear space. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 HangCount = 22;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangRadiusMinM = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangRadiusMaxM = 3.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangTipClearM = 1.f;
+
+	/** Spurs hang no nearer the shaft's axis than this (m), clear of the shaft and the sub. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float HangMinOutM = 19.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	int32 Seed = 1931;
+
+	/** The rock's surface. Empty = the sea bed's (FDeepLookTuning::SeabedMaterial), worked out from world position. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	FSoftObjectPath Material;
+
+	/** UV tile (m), for a material that reads UV0. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float UvTileM = 4.f;
+};
+
 /** The helm's sonar (Sonar lane, Nov 15): a sweeping plan view round the sub, two slices, contacts and a proximity tone. */
 USTRUCT(BlueprintType)
 struct FDeepSonarTuning

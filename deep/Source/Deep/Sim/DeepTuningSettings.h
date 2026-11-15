@@ -50,6 +50,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Look")
 	FDeepLookTuning Look;
 
+	/** Rock walls and a roof round each stop's arena (ADeepCavern). */
+	UPROPERTY(Config, EditAnywhere, Category = "Look")
+	FDeepCaveTuning Cave;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepPatienceTuning Patience;
 

@@ -166,6 +166,8 @@ protected:
 		TObjectPtr<UHierarchicalInstancedStaticMeshComponent> Component;
 		int32 Stop = 0;
 		bool bHideBelow = false;
+		/** A cave_ row: rock along the cavern's walls, hidden with the cave (Deep.Cave.Cavern 0). */
+		bool bCave = false;
 		EDeepDressParent Parent = EDeepDressParent::Root;
 		TArray<int32> RowIndices;
 	};
