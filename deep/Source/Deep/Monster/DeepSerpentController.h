@@ -123,6 +123,11 @@ private:
 	float RiseMps = 0.f;
 	/** Which side of the line it comes up on (unit, horizontal). */
 	FVector2D WellSide = FVector2D(1.0, 0.0);
+
+	// ---- The cavern: every path stays in its clear space (ADeepCavern::KeepClearCm), except in the well ----
+	TWeakObjectPtr<class ADeepCavern> Cavern;
+	/** The stop whose rock the whole trail was last kept clear of; 0 forces it again (a placed body, the well left). */
+	int32 CaveStopKept = 0;
 	float WellLogAccumS = 0.f;
 	float WellClockS = 0.f;
 	double LastDiverZ = 0.0;

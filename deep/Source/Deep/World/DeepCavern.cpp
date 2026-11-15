@@ -190,6 +190,94 @@ float ADeepCavern::SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeep
 	return float(Base + Lump + Alcove + Strata + Roof + Crag);
 }
 
+float ADeepCavern::RoomM(const FVector& Dir, float ClearM, float BaseM, const FDeepCaveTuning& Cave)
+{
+	const FVector D = Dir.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const double M = FMath::Max(0.0, double(ClearM));
+	const double Phi = FMath::Asin(FMath::Clamp(D.Z, -1.0, 1.0));
+	// A ball of radius M, R out along D, covers directions within asin(M / R) of D and reaches no farther than R + M. The
+	// rock is never inside the base shape (relief is outward only), and the base depends on elevation alone, so the ball
+	// is clear when R + M stays under the base over that band of elevations. A smaller R widens the band: three passes.
+	double R = BaseDistanceM(Phi, BaseM, Cave) - M;
+	for (int32 Pass = 0; Pass < 3; ++Pass)
+	{
+		const double Half = R > M ? FMath::Asin(M / R) : HALF_PI;
+		double Least = TNumericLimits<double>::Max();
+		constexpr int32 Samples = 8;
+		for (int32 i = 0; i <= Samples; ++i)
+		{
+			const double P = FMath::Clamp(Phi - Half + 2.0 * Half * i / Samples, -HALF_PI, HALF_PI);
+			Least = FMath::Min(Least, BaseDistanceM(P, BaseM, Cave));
+		}
+		R = FMath::Min(R, Least - M);
+	}
+	// The spurs hang from the roof with their tips no lower than this.
+	if (D.Z > UE_SMALL_NUMBER)
+	{
+		R = FMath::Min(R, (double(Cave.ClearAboveAnchorM) + Cave.HangTipClearM - M) / D.Z);
+	}
+	return float(FMath::Max(0.0, R));
+}
+
+FVector ADeepCavern::KeepClearM(const FVector& PointM, float ClearM, float BaseM, const FDeepCaveTuning& Cave)
+{
+	const double R = PointM.Size();
+	if (R < UE_KINDA_SMALL_NUMBER)
+	{
+		return PointM;
+	}
+	const FVector Dir = PointM / R;
+	const double Room = RoomM(Dir, ClearM, BaseM, Cave);
+	return R <= Room ? PointM : Dir * Room;
+}
+
+float ADeepCavern::StopBaseRadiusM(int32 Stop, const UDeepTuningSettings& Tuning)
+{
+	return BaseRadiusM(NeedRadiusM(Stop, Tuning), Tuning.Cave);
+}
+
+ADeepCavern* ADeepCavern::FindIn(const UWorld* World)
+{
+	if (World)
+	{
+		for (TActorIterator<ADeepCavern> It(const_cast<UWorld*>(World)); It; ++It)
+		{
+			return *It;
+		}
+	}
+	return nullptr;
+}
+
+int32 ADeepCavern::ShownStop() const
+{
+	if (!IsOn())
+	{
+		return 0;
+	}
+	for (int32 Index = 0; Index < Shells.Num(); ++Index)
+	{
+		if (Shells[Index] && Shells[Index]->IsVisible())
+		{
+			return Index + 1;
+		}
+	}
+	return 0;
+}
+
+FVector ADeepCavern::KeepClearCm(const FVector& PointCm, float ClearM) const
+{
+	const int32 Stop = ShownStop();
+	if (Stop <= 0)
+	{
+		return PointCm;
+	}
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FVector Anchor = GetActorLocation();
+	const double CmPerM = UDeepRules::CmPerM;
+	const FVector KeptM = KeepClearM((PointCm - Anchor) / CmPerM, ClearM, StopBaseRadiusM(Stop, Tuning), Tuning.Cave);
+	return Anchor + KeptM * CmPerM;
+}
+
 FDeepCaveMesh ADeepCavern::MakeMesh(int32 Stop, const TArray<FVector4>& RestM, const UDeepTuningSettings& Tuning)
 {
 	const FDeepCaveTuning& Cave = Tuning.Cave;

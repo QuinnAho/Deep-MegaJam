@@ -66,6 +66,28 @@ public:
 	/** Distance from the anchor to the rock along a unit direction (m): the base shape plus outward-only relief. Pure. */
 	static float SurfaceDistanceM(const FVector& Dir, float BaseM, const FDeepCaveTuning& Cave);
 
+	/**
+	 * How far from the anchor along Dir a ball of ClearM stays clear of the rock (m). Pure. Relief only moves rock outward,
+	 * so the smooth base shape (the sphere and the vault) bounds the rock from inside; the roof spurs end above
+	 * ClearAboveAnchorM + HangTipClearM. The serpent keeps to this, so the Monster code never reads the cave tuning.
+	 */
+	static float RoomM(const FVector& Dir, float ClearM, float BaseM, const FDeepCaveTuning& Cave);
+
+	/** PointM (anchor frame, m) pulled straight toward the anchor until a ball of ClearM round it is clear of the rock; unchanged if it is. Pure. */
+	static FVector KeepClearM(const FVector& PointM, float ClearM, float BaseM, const FDeepCaveTuning& Cave);
+
+	/** A stop's base radius (m), as Build makes it. */
+	static float StopBaseRadiusM(int32 Stop, const UDeepTuningSettings& Tuning);
+
+	/** The first cavern in a world, or null. */
+	static ADeepCavern* FindIn(const UWorld* World);
+
+	/** The stop (1-based) whose rock shows and collides now; 0 when none does (Deep.Cave.Cavern 0, or the bed hidden between stops). */
+	int32 ShownStop() const;
+
+	/** World point (cm) kept a ball of ClearM clear of the shown stop's rock (KeepClearM round this actor); unchanged when no rock shows. */
+	FVector KeepClearCm(const FVector& PointCm, float ClearM) const;
+
 	/** The whole mesh of a stop's cave. RestM: the bed's resting points (ADeepAbyssFloor), to find where the wall meets the silt. Pure. */
 	static FDeepCaveMesh MakeMesh(int32 Stop, const TArray<FVector4>& RestM, const UDeepTuningSettings& Tuning);
 

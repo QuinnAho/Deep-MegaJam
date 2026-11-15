@@ -809,6 +809,25 @@ void ADeepSerpent::PlaceHead(const FVector& HeadCm, const FVector& Facing)
 	LayBody();
 }
 
+void ADeepSerpent::KeepPath(TFunctionRef<FVector(const FVector&)> Keep, bool bWholeTrail)
+{
+	const FVector Here = GetActorLocation();
+	const FVector Kept = Keep(Here);
+	if (!Kept.Equals(Here, 1.0))
+	{
+		SetActorLocation(Kept);
+	}
+	const int32 Count = bWholeTrail ? Trail.Num() : FMath::Min(1, Trail.Num());
+	for (int32 i = 0; i < Count; ++i)
+	{
+		Trail[i] = Keep(Trail[i]);
+	}
+	if (bWholeTrail)
+	{
+		LayBody();
+	}
+}
+
 void ADeepSerpent::SwimToward(const FVector& AimCm, float SpeedMps, float TurnRateDegPerS, float DeltaSeconds)
 {
 	const float Dt = FMath::Max(0.f, DeltaSeconds);

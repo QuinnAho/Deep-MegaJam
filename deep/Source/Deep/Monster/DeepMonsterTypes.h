@@ -261,6 +261,18 @@ struct FDeepMonsterTuning
 	/** The stalk comes up this far to one side of the line, so the head is seen beside it, not hidden behind the diver's feet. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
 	float WellStalkSideM = 1.2f;
+
+	/**
+	 * In the cavern (ADeepCavern) its drawn body keeps this far off the rock in every state: lurk, stalk, pass, recoil,
+	 * bite and hunt (not in the relic's well, which is below the bed and has its own walls). Lurk circles that reach past
+	 * the wall follow it round instead. Nothing changes with `Deep.Cave.Cavern 0`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float CaveWallClearM = 3.f;
+
+	/** Added for the path the body follows: how far the drawn body reaches off it (0.7 m thick, a 0.6 m weave, the head's lunge). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
+	float CaveBodyReachM = 1.5f;
 };
 
 /**

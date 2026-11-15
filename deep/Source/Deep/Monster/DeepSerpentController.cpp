@@ -11,6 +11,7 @@
 #include "Monster/DeepMonsterRules.h"
 #include "Monster/DeepMonsterSettings.h"
 #include "Monster/DeepSerpent.h"
+#include "World/DeepCavern.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Hearing.h"
 #include "Perception/AISense_Hearing.h"
@@ -203,6 +204,7 @@ bool ADeepSerpentController::BeginPass(const ADeepDiver* Diver, const FDeepMonst
 	PassClosestM = 1000.f;
 	// Out of view and far outside the beam, so the move is never seen; the body lies straight behind it.
 	Body->PlaceHead(Start, R * Side);
+	CaveStopKept = 0;
 	bFirstSightDone = true;
 	UE_LOG(LogDeepSerpent, Log, TEXT("Serpent first sight: pass at %.0f m, from the %s"), Tuning.PassDistanceM, Side > 0.f ? TEXT("left") : TEXT("right"));
 	return true;
@@ -540,7 +542,27 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 		}
 		Aim = UDeepMonsterRules::WellAimPoint(State, Well, Head, DiverEnd, Aim, WellSide, RiseMps, Tuning);
 	}
+
+	// The cavern: whatever the state, the aim and the path stay in the cave's clear space, the drawn body CaveWallClearM
+	// off the rock (a lurk circle wider than the cave follows the wall round). Not in the well: it is below the bed and
+	// holds the path itself. The shape is the cavern's (ADeepCavern::KeepClearCm); no rock shows, nothing changes.
+	if (!Cavern.IsValid())
+	{
+		Cavern = ADeepCavern::FindIn(GetWorld());
+	}
+	const ADeepCavern* Cave = bInWell ? nullptr : Cavern.Get();
+	const int32 CaveStop = Cave ? Cave->ShownStop() : 0;
+	const float CaveClearM = Tuning.CaveWallClearM + Tuning.CaveBodyReachM;
+	if (CaveStop > 0)
+	{
+		Aim = Cave->KeepClearCm(Aim, CaveClearM);
+	}
 	Body->SwimToward(Aim, Speed, Turn, DeltaSeconds);
+	if (CaveStop > 0)
+	{
+		Body->KeepPath([Cave, CaveClearM](const FVector& Point) { return Cave->KeepClearCm(Point, CaveClearM); }, CaveStop != CaveStopKept);
+	}
+	CaveStopKept = CaveStop;
 	if (bInWell)
 	{
 		// The path itself stays in the shaft: a fast turn (10 m/s recoil, a hunt) swings wider than any aim, and the

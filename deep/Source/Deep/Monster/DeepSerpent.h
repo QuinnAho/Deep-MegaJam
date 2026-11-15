@@ -36,6 +36,12 @@ public:
 	/** Places the head and lays the body out straight behind it. */
 	void PlaceHead(const FVector& HeadCm, const FVector& Facing);
 
+	/**
+	 * Server: moves the path into Keep's room (the cavern): the head and the newest trail point, or the whole trail when a
+	 * body was just placed (it lies straight and may cross rock). Keep maps a world point (cm) to where it may be.
+	 */
+	void KeepPath(TFunctionRef<FVector(const FVector&)> Keep, bool bWholeTrail);
+
 	/** Server: what the mind is doing, for the look (replicated). Does not affect behaviour. */
 	void SetMood(EDeepMonsterState InState, float InThreat01);
 
