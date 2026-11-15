@@ -42,3 +42,17 @@ Sources:
 ## Not touched
 
 The serpent (Lane G reads the lamp's outer cone for its seen-in-beam check and is moving it to its own angle; until then the wider cone makes the serpent count as lit at a wider angle), the HUD, the room lights, the cave mesh shape.
+
+## Gates and evidence (5:33 PM)
+
+- Build: PASS (36 s, every Unreal run inside `Global\DeepUnrealSlot`).
+- Deep.World: 61/62 on this branch alone. The one failure is Deep.World.Monster.FirstSight: the serpent read the lamp's `OuterConeAngle` to decide when it was seen, so the 38 degree cone counted its head as lit and the pass ended in Recoil. `origin/rescope/monster` (Lane G, b01cbf8) moves that onto `BeamHalfAngleDeg` 21. Trial merge (not committed) + build: Deep.World.Monster 3/3. **Merge rescope/monster before or with rescope/light.**
+- Deep.Diver: no tests match that prefix (the lamp's tests live in Deep.World.LookBlend, which passes).
+- Frame time at stop 1, water, lamp on, 1280x720, `stat unit`: before Frame 14.8 / GPU 12.2 ms; after Frame 16.0 / GPU 12.6 ms. With the 8 px / 128 slice grid it was GPU 58 ms (`after-stat-grid8.png`), so the grid stays at scalability.
+- Frames (`devlog/media/2026-11-15-rescope-light-`): `before-` and `after-` `water` (stop 1, lamp on), `helm` (on the way down, 156 m), `deep` (stop 3, 501 m), `stat`. The water, helm and deep after frames were taken with the 8/128 grid; the grid changes cost and grain, not the look.
+- What the frames show: the deep frame goes from a narrow solid rod to a wide soft pool that fades to black; the helm view is less milky; at stop 1 the water is darker than before because the shaft rock now blocks the downlight.
+
+## Left for later
+
+- The helm view is still grey from the floods at 0.15; a lower value or a narrower flood cone is a one-number change.
+- The fog grid fields (`FogGridPixelSize`, `FogGridSizeZ`) are in tuning at 0 for a quality pass on a faster GPU.

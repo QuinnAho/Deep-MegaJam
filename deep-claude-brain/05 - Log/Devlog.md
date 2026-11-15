@@ -1042,3 +1042,8 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
   - `devlog/media/2026-11-15-serpent-physics-side-0.0s.png`, `-side-0.4s.png` and `-side-0.8s.png`: straight, then the head turns and the neck bends after it while the rest stays put;
   - `-cavern.png`: game light at stop 2, the body in the lamp beam;
   - `-face.png`: the code head with the jaw open.
+
+### 5:35 PM  The dive lamp gets a real pool of light (Lane F, rescope/light)
+- What happened: Quinn said the flashlight cone was too small to see anything and the light in the fog looked odd. The lamp went from a 7/21 degree pencil to an 18/38 degree pool, the fog scatters forward (phase 0.5 to 0.7) and starts 1 m from the eye, and the fog's temporal filter was loosened (history weight 0.9 to 0.7), because Epic's Volumetric Fog page names flashlight "lighting trails" as its known flaw. The shaft rock and the helm floods now cast shadows, so light stops at the rock, and the helm floods' grey milk went from 0.35 to 0.15.
+- Why it matters: The first fog-grid try (8 px, 128 slices) measured GPU 58 ms against 12 ms before, so it went straight back to scalability; measuring before committing caught it. The wider cone broke the serpent's first-sight test, because the serpent read the lamp's cone to decide when it was seen. Lane G had already moved that onto its own angle, and a trial merge proved the two lanes pass together.
+- Evidence: commit c4e9f89 on rescope/light; Deep.World 61/62 alone (FirstSight needs rescope/monster), trial merge with rescope/monster: Deep.World.Monster 3/3; GPU 12.2 ms before, 12.6 ms after; frames `devlog/media/2026-11-15-rescope-light-{before,after}-{water,helm,deep,stat}.png`; lane note `05 - Log/Lane Notes/rescope-light.md`.
