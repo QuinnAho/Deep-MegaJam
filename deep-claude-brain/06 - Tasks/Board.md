@@ -5,25 +5,32 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 8:15 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 8:40 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
 **Where things are**
 
 - `main`: code as of `0874fe5` (52 tests), plus notes. Quinn has not merged the polish pass yet.
-- `polish/integration` at `71eaaa8`: everything built since. Water, the room, hull and salvage, the driving view, the serpent's three passes, the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, and the first pass of rock and ruin (the placement loader, the cook hook, floor rock at every stop). Full suite 71 of 71 (gate run at `71eaaa8`, 8:08 AM). It is checked out in `.wt\monster`, the orchestrator's merge checkout.
+- `polish/integration` on origin at `b3a184c`: everything built since. Water, the room, hull and salvage, the driving view, the serpent's three passes, the HUD, settings, credits and a title menu, the fast playtest script (S0 to S12), the ending fix, the first pass of rock and ruin (the placement loader, the cook hook, floor rock at every stop), and a texture limit for the build. Full suite 71 of 71; packaged and smoke-tested at `b3a184c`, zip 679 MB.
+- **The dragon's head is merged only in the local checkout** (`.wt\monster`, `3f79626`, three commits ahead of origin). Its gate was green and then the package failed: the game target does not compile (`DeepMonsterCheats.cpp`, an editor-only call). Do not push that merge until a package of it is green. The engineer has the fix as its first job and will name the commit; merge it, run the gate and the package together, then push.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Running now (both Opus at high)**
+**Running now (both Opus at high, both resumed with a written review)**
 
 Their reports go to the session that started them, so a new session checks the branches.
 
-- `polish/dragon` in `.wt\pkg`, since 6:57 AM: the serpent's head from the Dragon Cave dragon (D-034). The join between head and body is the test. Frames `devlog/media/2026-11-15-dragon-*.png`.
-- `polish/dressing` in `.wt\dev`, second pass since 8:09 AM (the same engineer, resumed with a written review; time box 9:45 AM): the 500 m well as one composition (D-037). The relic as a real object from the pack, its light held by the shaft so that it glows out of the mouth, upright stone that takes the lamp, a lined shaft, a bottom that does not burn out. Then the trench wall: rock sunk into the face, or cut. Frames `devlog/media/2026-11-15-well-*.png`.
-- The first pass is merged. What works: the loader, the cook hook, floor rock at 100 m and 300 m. What does not: every frame of the 500 m site, and the rock on the trench wall.
-- When one reports: look at its frames yourself, write the verdicts, run the gate, merge into `polish/integration`, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
-- Free checkout: `.wt\text`. The writer's draft of the itch.io page is in `devlog/itch-page.md` and the status of every submission requirement is in `01 - Jam/Submission Checklist.md` (both in `main`). **Not yet met, by risk:** no 30 to 60 s gameplay video; no itch.io page; nobody has played by hand; no run on a second machine; the Official Rules PDF is unread; team name and Epic account emails; no public dev log link (Glass Box needs one). After the checkpoint package, have an agent record a scripted run as a fallback video.
+- `polish/dragon` in `.wt\pkg`, second pass since 8:30 AM (time box 9:50 AM). First: make the game target compile and prove the head in a packaged build. Then the bite, readable in the game's own light; the skin at arm's length; the shoulder. It may not edit the lamp's code. Frames `devlog/media/2026-11-15-dragon2-*.png`.
+- `polish/dressing` in `.wt\dev`, second pass since 8:09 AM (time box 9:45 AM). First: the Nanite usage flag on its two skin materials. Then the 500 m well as one composition (D-037): the relic as a real object from the pack, its light held by the shaft so that it glows out of the mouth, upright stone that takes the lamp, a lined shaft, a bottom that does not burn out. Then the trench wall: rock sunk into the face, or cut. The lamp's code is its lane this pass. Frames `devlog/media/2026-11-15-well-*.png`.
+- When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
+- Scripts for this are in the session's scratch folder and are worth rewriting if lost: one runs `verify`, then `package` and `smoke` inside the Unreal slot and `zip` after it; one takes a frame from the packaged game with `-DeepShot`.
+- Free checkout: `.wt\text`. The writer's draft of the itch.io page is in `devlog/itch-page.md` and the status of every submission requirement is in `01 - Jam/Submission Checklist.md` (both in `main`). **Not yet met, by risk:** no 30 to 60 s gameplay video; no itch.io page; nobody has played by hand; no run on a second machine; the Official Rules PDF is unread; team name and Epic account emails; no public dev log link (Glass Box needs one). After both second passes are in, have an agent record a scripted run as a fallback video.
+
+**The build's size (the limit is 1 GB zipped)**
+
+- `deep/Config/DefaultDeviceProfiles.ini` limits plain world and character textures to 2048 and drops the top mip of every virtual texture (`LODBias_VT=1`). Without it the zip was 1,318 MB. With it: 679 MB, and about 760 MB expected with the dragon's head.
+- If more packs arrive and the zip nears the limit, `LODBias_VT=2` is the next step. Never use a flat `MaxLODSize_VT`: the pack's big textures are grids of 4096 tiles and it shrinks each tile to 256 pixels.
+- `tools/jam.json` still has the placeholder team name, so the zip is called `TeamName_DEEP.zip`.
 
 **The Dragon Cave pack (D-036)**
 
@@ -39,19 +46,20 @@ Their reports go to the session that started them, so a new session checks the b
 - Scripted results: with the lamp, 5 of 5 win after a 21 s ascent. Without it, 0 of 3 win, and all three drop the relic and get home alive. The full-run scenario now winches the relic home and passes.
 - **Quinn decides:** (1) the relic straight under the hatch is a layout change; (2) whether the serpent should hunt the moment it cuts the line, so a careless diver dies and does not only lose the relic; (3) a diver cut at the very bottom of the shaft could not swim out in the script (`S10-cutdrop` fails 2 of 2), which needs a try by hand.
 
-**Next checkpoint: when both lanes are in**
+**Next checkpoint: when both second passes are in**
 
-1. Package from `.wt\monster`, smoke, zip, and check the size against 1 GB.
-2. Three frames from the packaged game against the editor's.
-3. The scripted playtest set, once (D-031 allows it at a checkpoint).
-4. Update the frames page and tell Quinn.
+1. Merge each with the gate and a package, as above. Read the packaged log for `missing usage flag`, and take one frame of the rock and one of the dragon's head from the packaged game.
+2. The scripted playtest set, once (D-031 allows it at a checkpoint).
+3. Update the frames page and tell Quinn.
+4. A scripted run recorded as a fallback 30 to 60 s gameplay video.
 
 **Waiting on Quinn**
 
-- His look at the frames page and the word "merge". The three ending decisions above.
+- His look at the frames page and the word "merge". The three ending decisions above. D-037: the relic becomes a real object and the well holds its light.
+- The Fab listing for Dragon Cave says "personal" licence. He should check that it covers a public jam entry. The pack is credited in `Credits.csv` and is not in git.
 - More packs, if he wants them: Megascans rocks and a silt or sand surface, Modular Ship Interior, Industrial Infrastructure. The room and the hull are still boxes.
 - The DLSS plugin download for the NVIDIA award (D-032). An OpenAI key for the Captain's voice.
-- By hand: a key press on the title of a packaged build, listening to the sound, volume and mouse feel, and whether settings survive a restart. The last packaged build (`.wt\pkg\Builds\Windows\Deep.exe`, from `cc139e6`) is older than the settings menu and the ending fix.
+- By hand: a key press on the title of a packaged build, listening to the sound, volume and mouse feel, and whether settings survive a restart. The newest packaged build is `.wt\monster\Builds\Windows\Deep.exe` (from `b3a184c`: everything up to the first rock pass, without the dragon's head; in it the rock still wears the default grey material).
 - Team name, student status, Fun Ideas picks, and where the public dev log is hosted.
 
 **Standing reminders**

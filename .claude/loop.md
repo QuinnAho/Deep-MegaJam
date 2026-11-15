@@ -29,6 +29,9 @@ Adaptive, on Quinn's instruction (Nov 15: "be adaptive, we can run all tests on 
 | Only scripts in `tools/` | The agent's own run of the changed script is enough. `verify` only if build or test logic in `ue.ps1` changed. |
 | Text data in `deep/Content/Data`, or any C++ in `deep/Source` | `verify`: build plus all tests, about a minute. |
 | Cooking: `deep/Config`, `Deep.uproject`, `*.Build.cs`, `*.Target.cs`, plugins, a new content folder | `verify` at merge. Package and smoke before the next checkpoint. |
+| Anything a cooked game cannot fix up by itself: new C++, a new material, pack meshes or textures, a cook hook | `verify`, then **package at once**, not at the next checkpoint. Read the packaged log for `missing usage flag`, and check the zip against 1 GB. |
+
+**What the gate cannot see.** `verify` builds the editor target and runs the tests in the editor. On Nov 15 a branch passed it with 71 of 71 and three faults: the game target did not compile (a debug line called a function that exists only in editor builds), the rock's surface was missing the Nanite usage flag (the editor sets it on the fly, a cooked game falls back to the default material), and the zip was 1,318 MB against the 1 GB limit (the editor loads only what a frame needs). Every editor frame looked right. So a branch with C++, materials or pack content is packaged when it merges, and one frame is taken from the packaged game.
 
 **How to run the gate when other agents may be running Unreal.** Take the machine-wide slot, keep the exit code, and also require the `PASS verify` line. On Nov 15 a wrapper without `exit $code` swallowed a failed build and a red merge was pushed to the integration branch.
 
