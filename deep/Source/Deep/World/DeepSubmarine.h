@@ -87,6 +87,9 @@ public:
 	/** The trench wall's distance out from its base plane (m) at a point (along the wall, absolute depth): rock relief plus a ledge every LedgeEveryM. */
 	static float TrenchReliefM(float AlongM, float DepthM, float LedgeEveryM, float LedgeOutM);
 
+	/** The trench wall (its frame: -X out of the face toward the sub, Y along the wall, Z = -absolute depth). Dressing rows with parent "trench" hang from it. */
+	class UProceduralMeshComponent* GetTrench() const;
+
 protected:
 	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
 	void TickHelmLook(float DeltaSeconds);

@@ -938,6 +938,17 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmStreakSeconds = 0.025f;
 
+	/**
+	 * Dressing (ADeepDressing): rock and ruin from owned packs, placed by rows of Content/Data/<DressingFile>. It has no
+	 * collision, so it is kept out of every path a diver uses: no piece comes within DressingClearM of the straight line
+	 * from the hatch to a salvage spot, or within the sinkhole's radius of the shaft under the hatch.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Dressing")
+	FString DressingFile = TEXT("Dressing.csv");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Dressing")
+	float DressingClearM = 2.f;
+
 	/** The trench wall ahead of the helm: a cliff of rock from the surface to past the last stop, seen only at the helm. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float TrenchAheadM = 8.f;
