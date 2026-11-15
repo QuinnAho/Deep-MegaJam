@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 6:30 PM (freeze package done and saved; itch draft, shot list and credits checked against the build; dev log post 2 being drafted)
+updated: 2026-11-15 6:40 PM (dev log post 2 written and committed; at 6:30 PM: freeze package done and saved; itch draft, shot list and credits checked against the build)
 verified: Requirements from the itch.io jam page (Nov 14), status from the repo and from what the orchestrator reported on Nov 15. The Official Rules PDF has still not been read.
 ---
 # Submission Checklist
@@ -25,7 +25,7 @@ Status key: DONE, MISSING (nobody has done it), WAITING (only Quinn or Colby can
 - WAITING Team name, and each member's name plus the email tied to their Epic Games account. Only Quinn and Colby have these.
 - DONE Game name: DEEP. Source: `CLAUDE.md`.
 - MISSING Link to a **30 to 60 second gameplay video**. Not recorded yet. The shot list was rewritten for the re-scoped game at 6:05 PM ([[Video Shot List]]). Record it by hand in OBS on `Builds\Freeze-1820\Windows\Deep.exe`, and start the upload by 7:45 PM. Stills are in `devlog/media/`; none of it is video. The machine has no ffmpeg, so a scripted recording has no encoder. Source: Devlog 6:20 PM.
-- MISSING Dev log link. Required for Glass Box. Post 1 (`devlog/01-saturday-night.md`, Saturday night) is written. Post 2 (`devlog/02-sunday.md`, Sunday up to the freeze) is being drafted at 6:30 PM. Nothing is published. Quinn decides where; itch.io devlog posts on the game page are what other entrants use.
+- MISSING Dev log link. Required for Glass Box. Post 1 (`devlog/01-saturday-night.md`, Saturday night) and post 2 (`devlog/02-sunday.md`, Sunday up to the freeze) are written and in the repo; post 2 has one TODO, Colby's part. Nothing is published. Quinn decides where; itch.io devlog posts on the game page are what other entrants use.
 - WAITING "Tools you used" field. Current list: Unreal Engine 5.9 MegaJam Preview, Unreal MCP, Claude Code, plus Obsidian and Google Docs for notes. Quinn confirms the final list.
 - WAITING List of third-party assets and licences. One pack is in the build: Dragon Cave (Fab) by Denys Rutkovskyi, listed in `Credits.csv` as "Fab, personal licence". Since 2:20 PM it supplies the cave rocks, the stones and the relic, and the serpent's head is built in code. The in-game row is corrected on `rescope/notag` (`dc19f58`) and goes in with the next package. No Megascans and no recorded sound are in the build; all sound is made in code. Quinn confirms which Fab licence was bought. Source: `deep/Content/Data/Credits.csv`, the freeze package's file index, D-034.
 - WAITING NVIDIA questions, if we qualify. The build uses hardware ray tracing, which is not by itself an NvRTX, DLSS or ACE feature. DLSS has no build for 5.9; one try with the 5.8 plugin waits on Quinn's download (D-032). Without it, not eligible. Source: GDD Cut list, [[Track Strategy]].

@@ -656,6 +656,21 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
   - a search of `Builds\Freeze-1820\Windows\Deep\Content\Paks\Deep-Windows.utoc` for `SM_CaveRock01`, `SM_StoneworksStone01`, `SM_StoneworksSphere01`, `T_CaveRocks01_BC` and `.wav`;
   - `DeepSerpent.cpp`, around line 504.
 
+### 6:40 PM  Post 2 of the public dev log is written and checked against the log (orchestrator)
+- **What happened:**
+  - A Sonnet writer drafted `devlog/02-sunday.md` from this log in 2.6 minutes: Sunday from 1 AM to the freeze, 2,573 words.
+  - The orchestrator read it against the log. The events, times, SHAs and quotes held. It fixed six things:
+    - the intro still had a sarcastic Captain who talks; the Captain has been silent by default since D-040;
+    - the post said the log did not record how the look was chosen; the night's rules do (D-028, D-030, D-033, and the style guide at 2:40 AM);
+    - the run counts: 101 runs, not 100, and 28 at Sonnet medium, not 27. One table row covers the eight fetches of Saturday evening;
+    - a 2:09 AM greybox frame was captioned as the room Quinn judged at 3:50 PM. It moved to the night shift, and the interior lane's before and after frames took its place;
+    - the video and submission times, which predated the freeze;
+    - every frame was greybox, from 12:58 to 2:09 AM. Four frames from the 6 PM frames page were added: the room before and after, the new helm and the serpent's taunt. Each was viewed first. The cave frames were left out, because they show the helm HUD from before the helm lane and a Captain's subtitle.
+  - It also added the 2:23 PM change that took the pack's dragon head off the serpent (`8b5b100`), so the 9 AM merge does not read as the serpent that ships.
+- **Why it matters:** the dev log is judged on its own for Glass Box. A post that contradicts the build or the log costs more than a short one.
+- **Evidence:** `devlog/02-sunday.md` and `devlog/media/2026-11-15-rescope-*.jpg`; Agent Runs row 102.
+- **Left for Quinn:** Colby's part (a TODO in the post) and where both posts are published.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
