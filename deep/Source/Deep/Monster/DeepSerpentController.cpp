@@ -560,7 +560,17 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	Body->SwimToward(Aim, Speed, Turn, DeltaSeconds);
 	if (CaveStop > 0)
 	{
-		Body->KeepPath([Cave, CaveClearM](const FVector& Point) { return Cave->KeepClearCm(Point, CaveClearM); }, CaveStop != CaveStopKept);
+		// The body keeps this rule too (its chain particles, every substep), so it is held weakly: the body stores it.
+		const TWeakObjectPtr<const ADeepCavern> WeakCave(Cave);
+		Body->KeepPath([WeakCave, CaveClearM](const FVector& Point)
+		{
+			const ADeepCavern* Kept = WeakCave.Get();
+			return Kept ? Kept->KeepClearCm(Point, CaveClearM) : Point;
+		}, CaveStop != CaveStopKept);
+	}
+	else
+	{
+		Body->ClearBodyKeep();
 	}
 	CaveStopKept = CaveStop;
 	if (bInWell)

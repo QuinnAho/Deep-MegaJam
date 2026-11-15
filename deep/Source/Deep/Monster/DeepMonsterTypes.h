@@ -234,7 +234,7 @@ struct FDeepMonsterTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
 	bool bWellSteering = true;
 
-	/** Its path keeps this far in from the shaft's wall (the body is up to 0.7 m thick and weaves 0.6 m; at 1.6 m the recoil's turns at the floor still put a third of the body in the stone). */
+	/** Its path keeps this far in from the shaft's wall (the body is up to 0.7 m thick and swings up to about 0.6 m with the stroke and the flinch; at 1.6 m the recoil's turns at the floor still put a third of the body in the stone). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Well")
 	float WellWallClearM = 2.2f;
 
@@ -270,7 +270,7 @@ struct FDeepMonsterTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float CaveWallClearM = 3.f;
 
-	/** Added for the path the body follows: how far the drawn body reaches off it (0.7 m thick, the 1.1 m tail weave, the head's lunge). */
+	/** Added for the path the body follows: how far the drawn body reaches off it (0.7 m thick, the chain swinging off the trail by the stroke and the flinch, under the old 1.1 m weave, the head's lunge). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave")
 	float CaveBodyReachM = 2.f;
 };
@@ -451,6 +451,84 @@ struct FDeepSerpentMeshHead
 	float BodySwell = 1.f;
 };
 
+/**
+ * The serpent's body as a physics chain (Quinn, Nov 15, 2:40 PM: "each spline [should] have physics ... the controller
+ * is the head"). Particle 0 is pinned at the neck; the others move by Verlet with water drag and no gravity (neutrally
+ * buoyant), held by fixed spacing, a bend limit per joint, the cave's clearance and a light pull onto the head's path.
+ * Fixed substeps. Recipe: Epic's CableComponent (Verlet integrate, distance constraint, substeps) and Jakobsen 2001.
+ */
+USTRUCT(BlueprintType)
+struct FDeepSerpentChainTuning
+{
+	GENERATED_BODY()
+
+	/** Fixed substep (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float SubstepS = 1.f / 120.f;
+
+	/** A longer frame than this is clamped (s), so a hitch never explodes the body. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float MaxFrameS = 0.1f;
+
+	/** Constraint relaxation passes per substep. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain", meta = (ClampMin = "1", ClampMax = "16"))
+	int32 Iterations = 4;
+
+	/** Water drag: velocity falls by exp(-DragPerS * t). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float DragPerS = 1.2f;
+
+	/** The most any joint bends (deg), so the body never folds or kinks. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float BendLimitDeg = 28.f;
+
+	/** Pull onto the head's path at the particle's distance back (per second): the body goes where the head went. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float TrailPullPerS = 1.5f;
+
+	/** The head's swim stroke: side to side at the neck (m) at full speed, 0 at rest. Look only; 0 = no stroke. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float StrokeM = 0.35f;
+
+	/** The head's yaw with the stroke (deg) at full speed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float StrokeDeg = 14.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float StrokeHz = 0.9f;
+
+	/** Speed at which the stroke is full (m/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float StrokeFullSpeedMps = 3.f;
+
+	/** Rings bank into the body's own curve: degrees of roll per 1/m of curvature, capped at MaxRollDeg. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float CurveRollDegPerInvM = 40.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float MaxRollDeg = 22.f;
+
+	/** The flinch: a sideways kick into the body (m/s at the tail), an S along it of this wavelength (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float RecoilKickMps = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chain")
+	float RecoilKickWaveM = 7.f;
+};
+
+/**
+ * The body chain's state (world cm). Pos[0] is pinned at the neck, the last particle is the tail tip. RestCm[i] is the
+ * length of link i (Pos[i] to Pos[i + 1]). Old = last substep's positions (Verlet: velocity is Pos - Old).
+ * CarryS = time not yet stepped (fixed substeps). Not a USTRUCT: the solver is UDeepMonsterRules::StepChain.
+ */
+struct FDeepSerpentChain
+{
+	TArray<FVector> Pos;
+	TArray<FVector> Old;
+	TArray<float> RestCm;
+	float CarryS = 0.f;
+};
+
 /** The serpent's look and motion. Values follow the Style Guide, section 6 ("chosen here" marks a value it did not give). */
 USTRUCT(BlueprintType)
 struct FDeepSerpentBodyTuning
@@ -485,20 +563,9 @@ struct FDeepSerpentBodyTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
 	float BellySwell = 1.25f;
 
-	/** Sideways swing at the widest point of the weave. */
+	/** The body as a physics chain dragged by the head, and the head's swim stroke (replaced the sideways sine weave). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveAmplitudeM = 1.1f;
-
-	/** Share of WeaveAmplitudeM the neck swings (the rest grows toward the tail), so the front half swims too. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveNeckShare = 0.35f;
-
-	/** Length of one full S of the weave along the body. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveWavelengthM = 6.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveHz = 0.7f;
+	FDeepSerpentChainTuning Chain;
 
 	// ---- The tube: one continuous body, rebuilt each frame along the head's path ----
 
@@ -517,10 +584,6 @@ struct FDeepSerpentBodyTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
 	float RidgeHeight = 0.3f;
 
-	/** Bank into each curve of the weave (plan: 10 degrees). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
-	float WeaveRollDeg = 10.f;
-
 	/** Bank of the head and neck per 90 deg/s of turning (chosen here). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
 	float TurnRollDeg = 14.f;
@@ -536,10 +599,6 @@ struct FDeepSerpentBodyTuning
 	/** Skull height above the head centre at its highest (the jaw hangs below). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
 	float HeadHeightM = 0.22f;
-
-	/** Head yaw sway with the weave, so the head never rides rigid (chosen here). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	float HeadSwayDeg = 9.f;
 
 	/**
 	 * Mesh head: the Dragon Cave dragon (a whole winged animal, pose 4: mouth open, teeth showing), clipped to its head
@@ -701,9 +760,6 @@ struct FDeepSerpentBodyTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
 	float RecoilPullM = 0.5f;
 
-	/** Weave amplitude and rate multiplier at the flinch's peak (the body convulses). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
-	float RecoilWeaveBoost = 2.5f;
 
 	/** The bite: the head strikes forward this far in LungeS, then thrashes while it holds the line. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")

@@ -85,9 +85,30 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FVector PointAlongTrail(const TArray<FVector>& TrailCm, float DistanceCm);
 
-	/** Share of the weave's amplitude at T along the body (0 = neck, 1 = tail): NeckShare at the neck, all of it at the tail. */
-	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
-	static float WeaveShare(float T, float NeckShare);
+	// ---- The body chain (pure; world cm; not Blueprint: FDeepSerpentChain is a plain struct) ----
+
+	/** Lays the chain along PathCm (PathCm[0] = the head) from StartCm back, at its rest lengths, at rest. */
+	static void LayChain(FDeepSerpentChain& Chain, const TArray<FVector>& PathCm, float StartCm);
+	/**
+	 * One frame of the chain: fixed substeps of Tuning.SubstepS (the frame clamped to MaxFrameS; 0 = no step). Each
+	 * substep pins Pos[0] (moving from where it was to PinCm across the frame), integrates the rest by Verlet with water
+	 * drag and no gravity, pulls each particle toward PathCm at StartCm + its rest distance back (TrailPullPerS), relaxes
+	 * the links Iterations times, then walks head to tail holding every link at its rest length and every joint within
+	 * BendLimitDeg (joint 0 against -PinForward), and moves each particle through Keep (the cave's clear space).
+	 * Returns the substeps taken. Never leaves a NaN: a broken chain is laid straight behind the pin.
+	 */
+	static int32 StepChain(FDeepSerpentChain& Chain, const FVector& PinCm, const FVector& PinForward, const TArray<FVector>& PathCm,
+		float StartCm, const FDeepSerpentChainTuning& Tuning, float DeltaSeconds, TFunctionRef<FVector(const FVector&)> Keep);
+	/** Same, with no rock. */
+	static int32 StepChain(FDeepSerpentChain& Chain, const FVector& PinCm, const FVector& PinForward, const TArray<FVector>& PathCm,
+		float StartCm, const FDeepSerpentChainTuning& Tuning, float DeltaSeconds);
+	/**
+	 * The flinch: a sideways kick into every free particle, KickCmPerS at the tail growing from 0 at the neck, as an S of
+	 * WaveCm along the body ("sideways" = across the body, level with Up). As velocity: Old moves back by the kick * SubstepS.
+	 */
+	static void KickChain(FDeepSerpentChain& Chain, const FVector& Up, float KickCmPerS, float WaveCm, float SubstepS);
+	/** Bend at joint i in degrees: between the link into it (joint 0: -PinForward) and the link out of it. */
+	static float ChainBendDeg(const FDeepSerpentChain& Chain, int32 Joint, const FVector& PinForward);
 
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FString StateName(EDeepMonsterState State);

@@ -1,5 +1,5 @@
 // The sea serpent's body. A head steers (speed + max turn rate); the body follows the path the head actually
-// travelled (follow-the-leader), with a travelling sideways weave that banks into each curve.
+// travelled, as a physics chain (UDeepMonsterRules::StepChain): the head drags it, its stroke runs down the body, it banks into its own curves.
 // Look (Style Guide, section 6): one continuous tapering tube with a dorsal ridge, rebuilt each frame as a
 // procedural mesh along the trail (parallel-transport ring frames, so it never twists); a code-built wedge head
 // with a hinged jaw on a head socket, which a static mesh head can replace from the settings; near-black wet
@@ -40,7 +40,11 @@ public:
 	 * Server: moves the path into Keep's room (the cavern): the head and the newest trail point, or the whole trail when a
 	 * body was just placed (it lies straight and may cross rock). Keep maps a world point (cm) to where it may be.
 	 */
-	void KeepPath(TFunctionRef<FVector(const FVector&)> Keep, bool bWholeTrail);
+	void KeepPath(const TFunction<FVector(const FVector&)>& Keep, bool bWholeTrail);
+	/** The body chain's particles stay where Keep allows (set by KeepPath each tick; cleared out of the cavern). */
+	void ClearBodyKeep() { BodyKeep = nullptr; }
+	/** The body chain (world cm): neck, segment centres, tail tip. */
+	const FDeepSerpentChain& GetChain() const { return Chain; }
 
 	/** Server: what the mind is doing, for the look (replicated). Does not affect behaviour. */
 	void SetMood(EDeepMonsterState InState, float InThreat01);
@@ -95,6 +99,10 @@ protected:
 
 	/** Hit-sphere segments along the trail (and the sphere fallback's instances); the tube when it is on. */
 	void LayBody();
+	/** Lays the chain straight along the trail (spawn, teleport, a snapped path): it never whips across the cave. */
+	void ResetChain();
+	/** One frame of the body chain, pinned at the neck of the head as it is drawn now. */
+	void StepBody(float Dt);
 
 	void SetupLook();
 	/** Places a mesh head from its landmarks; false (and nothing changed) when its mesh does not load. */
@@ -211,7 +219,12 @@ protected:
 	float LifeAge = 0.f;
 	float Reveal01 = 0.f;
 	float PulsePhase = 0.f;
-	float WeavePhase = 0.f;
+	float StrokePhase = 0.f;
+	float Speed01 = 0.f;
+	FVector LastHeadCm = FVector::ZeroVector;
+	bool bKickPending = false;
+	FDeepSerpentChain Chain;
+	TFunction<FVector(const FVector&)> BodyKeep;
 	float Flinch01 = 0.f;
 	float LungeCm = 0.f;
 	float GapeDeg = 0.f;

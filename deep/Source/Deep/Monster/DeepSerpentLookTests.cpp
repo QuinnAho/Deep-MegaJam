@@ -61,22 +61,53 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Mesh head exactly when the pack mesh loads"), Serpent->HasMeshHead(), bPackHead);
 	TestFalse(TEXT("The code-built head with its moving jaw by default (Quinn, Nov 15: the pack head read as two models)"), Serpent->HasMeshHead());
 
-	// It swims: the neck itself swings side to side with the weave, visibly, even while the head holds its line.
+	// The body follows the head (a physics chain, no sideways sine): at rest it lies still; after the head swims 3 m and
+	// turns, the tail has moved and the spacing holds. The head's stroke swings the neck while it swims.
 	{
-		Serpent->PlaceHead(FVector(0.f, 0.f, -100000.f), FVector::ForwardVector);
-		float MinCm = TNumericLimits<float>::Max();
-		float MaxCm = -MinCm;
-		for (int32 i = 0; i < 40; ++i)
+		const FVector Start(0.f, 0.f, -100000.f);
+		Serpent->PlaceHead(Start, FVector::ForwardVector);
+		const int32 N = Serpent->GetSegmentTransforms().Num();
+		UTEST_TRUE(TEXT("Body has segments"), N > 2);
+		const FVector TailAtRest = Serpent->GetSegmentTransforms().Last().GetLocation();
+		for (int32 i = 0; i < 20; ++i)
 		{
 			Serpent->Tick(0.05f);
-			const TArray<FTransform>& Segs = Serpent->GetSegmentTransforms();
-			UTEST_TRUE(TEXT("Body has segments"), Segs.Num() > 2);
-			const float Side = static_cast<float>(FVector::DotProduct(Segs[1].GetLocation() - Serpent->GetActorLocation(), Serpent->GetActorRightVector()));
-			MinCm = FMath::Min(MinCm, Side);
-			MaxCm = FMath::Max(MaxCm, Side);
 		}
-		AddInfo(FString::Printf(TEXT("Neck swing over 2 s: %.0f cm peak to peak"), MaxCm - MinCm));
-		TestTrue(TEXT("The neck swings at least 40 cm in 2 s (the serpent visibly swims)"), MaxCm - MinCm >= 40.f);
+		const float RestDrift = static_cast<float>(FVector::Dist(Serpent->GetSegmentTransforms().Last().GetLocation(), TailAtRest));
+		AddInfo(FString::Printf(TEXT("At rest for 1 s the tail drifted %.1f cm"), RestDrift));
+		TestTrue(TEXT("At rest the body lies still (no slither)"), RestDrift < 5.f);
+
+		const FVector Tail0 = Serpent->GetSegmentTransforms().Last().GetLocation();
+		float MinSide = TNumericLimits<float>::Max();
+		float MaxSide = -MinSide;
+		// 3 m straight at 3 m/s, then a turn to the right for 2 s.
+		for (int32 i = 0; i < 60; ++i)
+		{
+			const FVector Aim = i < 20 ? Start + FVector(10000.f, 0.f, 0.f) : Serpent->GetActorLocation() + FVector(0.f, 10000.f, 0.f);
+			Serpent->SwimToward(Aim, 3.f, 60.f, 0.05f);
+			Serpent->Tick(0.05f);
+			if (i < 20)
+			{
+				const float Side = static_cast<float>(Serpent->GetSegmentTransforms()[0].GetLocation().Y);
+				MinSide = FMath::Min(MinSide, Side);
+				MaxSide = FMath::Max(MaxSide, Side);
+			}
+		}
+		const TArray<FTransform>& Segs = Serpent->GetSegmentTransforms();
+		const float SpacingCm = static_cast<float>(FVector::Dist(Segs[1].GetLocation(), Segs[2].GetLocation()));
+		float WorstSpacing01 = 0.f;
+		const float Expected = static_cast<float>(FVector::Dist(Segs[N / 2].GetLocation(), Segs[N / 2 + 1].GetLocation()));
+		for (int32 i = 0; i + 1 < N; ++i)
+		{
+			const float Len = static_cast<float>(FVector::Dist(Segs[i].GetLocation(), Segs[i + 1].GetLocation()));
+			WorstSpacing01 = FMath::Max(WorstSpacing01, FMath::Abs(Len - Expected) / Expected);
+		}
+		const float TailMoved = static_cast<float>(FVector::Dist(Segs.Last().GetLocation(), Tail0));
+		AddInfo(FString::Printf(TEXT("Swim 3 m and turn: tail moved %.0f cm, spacing %.0f cm off by at most %.1f%%, neck swung %.0f cm with the stroke"),
+			TailMoved, SpacingCm, WorstSpacing01 * 100.f, MaxSide - MinSide));
+		TestTrue(TEXT("The tail has followed the head (moved at least 2 m)"), TailMoved >= 200.f);
+		TestTrue(TEXT("The spacing holds within 2%"), WorstSpacing01 < 0.02f);
+		TestTrue(TEXT("The head's stroke swings the neck while it swims (at least 10 cm)"), MaxSide - MinSide >= 10.f);
 	}
 	{
 		IConsoleVariable* Switch = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Monster.MeshHead"));
