@@ -63,6 +63,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Bailout")
 	FDeepBailoutTuning Bailout;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Air line")
+	FDeepAirLineTuning AirLine;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Salvage")
 	TArray<FDeepSalvageKind> SalvageKinds;
 

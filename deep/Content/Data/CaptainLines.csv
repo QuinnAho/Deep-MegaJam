@@ -73,3 +73,7 @@
 "hull_critical_01","hull_critical",1,"Hull is cracking. Any more and we die.","tight, afraid","scared"
 "hull_breach_01","hull_breach",1,"Breach. Hull gone. You are a write-off, diver.","shaken, then cold","scared"
 "sonar_contact_01","sonar_contact",1,"Sonar contact. Something big. Moving.","low, clipped","tense"
+"tether_bitten_01","tether_bitten",1,"It has your line! You are on your tank. Swim for the hatch.","shouted, urgent","scared"
+"tether_bitten_02","tether_bitten",2,"Line's gone. Your tank won't last. Move.","sharp, breathless","scared"
+"tether_unclip_01","tether_unclip",1,"Off the line? That's your own air now. Don't make me write another letter.","dry, tight","tense"
+"tether_unclip_02","tether_unclip",2,"Unclipped. The hatch is where you left it. So is the clock.","flat, warning","tense"

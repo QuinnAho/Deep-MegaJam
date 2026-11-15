@@ -2108,3 +2108,27 @@ struct FDeepSonarTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float ToneVolumeHigh = 1.f;
 };
+
+/** The tether as the diver's air line (rescope, Nov 15): clipped = unlimited air, off it = bailout air. */
+USTRUCT(BlueprintType)
+struct FDeepAirLineTuning
+{
+	GENERATED_BODY()
+
+	/** The old rule: the Captain's Patience drains in the water and cuts the line at zero. Off: it holds (a cheat can
+	 * still set it to zero, which still cuts). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Air line")
+	bool bPatienceDrains = false;
+
+	/** The serpent's head within this of the rope's simulated segments bites it through (head radius + rope + margin). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Air line")
+	float BiteTouchM = 0.6f;
+
+	/** Only an attacking serpent bites the line (Stalk, Bite); a pass, a lurk or a recoil brushing it does not. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Air line")
+	bool bOnlyAttackingBites = true;
+
+	/** Credits charged to clip back on at the hatch after a voluntary unclip (the re-tether fee is for cuts). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Air line")
+	int32 UnclipReclipFee = 0;
+};

@@ -3,6 +3,13 @@
 #include "Components/CapsuleComponent.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "Engine/LocalPlayer.h"
+#include "GameFramework/PlayerController.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
+#include "Sim/DeepAirLineRules.h"
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -57,6 +64,10 @@ float UDeepTetherComponent::GetAnchorDepthM() const
 void UDeepTetherComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (const ADeepDiver* Diver = Cast<ADeepDiver>(GetOwner()); Diver && Diver->IsLocallyControlled())
+	{
+		BindInput();
+	}
 	UpdateTether(DeltaTime);
 }
 
@@ -134,6 +145,8 @@ void UDeepTetherComponent::UpdateTether(float DeltaSeconds)
 	}
 	bHome = UDeepRules::IsHome(Diver->GetActorLocation(), Anchor, Tuning);
 	UpdateLine(DeltaSeconds);
+	// The air line's one enemy: the serpent's head on the rope cuts it (server only, once: the state leaves Tethered).
+	CheckSerpentBite();
 }
 
 void UDeepTetherComponent::UpdateLine(float DeltaSeconds)
@@ -171,6 +184,13 @@ void UDeepTetherComponent::UpdateCutLine(float DeltaSeconds, EDeepRunState RunSt
 	const FDeepRopeTuning& Rope = UDeepTuningSettings::Get().Rope;
 	const bool bWasWhole = bLineWasTethered;
 	bLineWasTethered = false;
+	if (const UDeepRunComponent* Run = Diver->GetRun(); RunState == EDeepRunState::Cut && Run && Run->IsUnclipped())
+	{
+		// Unclipped by choice: the line stays whole and hangs from the hatch, its end loose, waiting to be clipped on.
+		const FVector Hatch = GetAnchorLocation();
+		Line->Drive(DeltaSeconds, &Hatch, nullptr, ShownLengthCm, Rope.LooseSinkCmS2);
+		return;
+	}
 	if (bWasWhole && RunState == EDeepRunState::Cut && Line->IsShown())
 	{
 		// Bitten through: the line parts at the serpent's jaws. Otherwise the Captain cut it at the hatch.
@@ -206,4 +226,108 @@ void UDeepTetherComponent::UpdateCutLine(float DeltaSeconds, EDeepRunState RunSt
 	const FVector Start = GetAnchorLocation();
 	const FVector End = Diver->GetTetherAttachLocation();
 	Line->Drive(DeltaSeconds, &Start, RunState == EDeepRunState::Cut ? &End : nullptr, ShownLengthCm, Rope.LooseSinkCmS2);
+}
+
+// ---------------------------------------------------------------- the air line: the serpent's bite, the unclip key
+
+bool UDeepTetherComponent::CheckSerpentBite()
+{
+	ADeepDiver* Diver = Cast<ADeepDiver>(GetOwner());
+	UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
+	if (!Diver || !Diver->HasAuthority() || !Run || !Run->HasTether() || !HasAnchor())
+	{
+		return false;
+	}
+	const UWorld* World = GetWorld();
+	const UDeepMonsterBrain* Brain = World ? World->GetSubsystem<UDeepMonsterBrain>() : nullptr;
+	const ADeepSerpent* Serpent = Brain ? Brain->GetSerpent() : nullptr;
+	const FDeepAirLineTuning& AirLine = UDeepTuningSettings::Get().AirLine;
+	if (!Serpent || !DeepAirLine::StateBitesLine(Brain->GetState(), AirLine))
+	{
+		return false;
+	}
+	// The rope as simulated (what the player sees); the straight line until it has been laid.
+	TArray<FVector> Straight;
+	TConstArrayView<FVector> Points;
+	TConstArrayView<uint8> Linked;
+	if (Line && Line->IsShown() && Line->GetSim().IsValid())
+	{
+		Points = Line->GetSim().Pos;
+		Linked = Line->GetSim().Linked;
+	}
+	else
+	{
+		Straight = { GetAnchorLocation(), Diver->GetTetherAttachLocation() };
+		Points = Straight;
+	}
+	if (DeepAirLine::TouchedLink(Points, Linked, Serpent->GetHeadLocation(), AirLine.BiteTouchM) == INDEX_NONE)
+	{
+		return false;
+	}
+	Run->CutTetherFor(DeepAirLine::TetherBitten);
+	return Run->GetState() == EDeepRunState::Cut;
+}
+
+FKey UDeepTetherComponent::UnclipKey()
+{
+	// Free while swimming: WASD, Space/C/Ctrl, Shift, E, G, R, F, V, Q and the left button are taken.
+	return EKeys::T;
+}
+
+void UDeepTetherComponent::BindInput()
+{
+	const ADeepDiver* Diver = Cast<ADeepDiver>(GetOwner());
+	APlayerController* Player = Diver ? Cast<APlayerController>(Diver->GetController()) : nullptr;
+	if (!Player || !Player->IsLocalController())
+	{
+		return;
+	}
+	UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(Player->InputComponent);
+	if (!Input || BoundInputComponent.Get() == Input)
+	{
+		return;
+	}
+	if (!UnclipAction)
+	{
+		UnclipAction = NewObject<UInputAction>(this, TEXT("IA_Unclip"));
+		UnclipAction->ValueType = EInputActionValueType::Boolean;
+		UnclipAction->bConsumeInput = false;
+		UnclipMapping = NewObject<UInputMappingContext>(this, TEXT("IMC_AirLine"));
+		UnclipMapping->MapKey(UnclipAction, UnclipKey());
+	}
+	Input->BindAction(UnclipAction, ETriggerEvent::Started, this, &UDeepTetherComponent::PressUnclip);
+	const ULocalPlayer* Local = Player->GetLocalPlayer();
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = Local ? Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr)
+	{
+		if (!Subsystem->HasMappingContext(UnclipMapping))
+		{
+			Subsystem->AddMappingContext(UnclipMapping, 1);
+		}
+	}
+	BoundInputComponent = Input;
+}
+
+void UDeepTetherComponent::PressUnclip()
+{
+	ADeepDiver* Diver = Cast<ADeepDiver>(GetOwner());
+	UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
+	if (Run && Run->HasTether() && Run->CanSwim())
+	{
+		Run->RequestUnclip();
+	}
+}
+
+void UDeepTetherComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UnclipMapping)
+	{
+		const ADeepDiver* Diver = Cast<ADeepDiver>(GetOwner());
+		const APlayerController* Player = Diver ? Cast<APlayerController>(Diver->GetController()) : nullptr;
+		const ULocalPlayer* Local = Player ? Player->GetLocalPlayer() : nullptr;
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = Local ? Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr)
+		{
+			Subsystem->RemoveMappingContext(UnclipMapping);
+		}
+	}
+	Super::EndPlay(EndPlayReason);
 }

@@ -67,3 +67,5 @@
 "hull_hit","sfx","","clank",0.85,0.75,0,"Knocked into the shaft wall"
 "hull_breach","sfx","","alarm",0.8,0.7,0,"The hull gave out; the diver aboard drowns"
 "hull_critical","sfx","","alarm",0.7,0.9,0,"Hull integrity under a quarter in the cave shaft"
+"tether_bitten","sfx","","snap",0.95,0.7,0,"Serpent bit through the air line"
+"tether_unclip","sfx","","clank",0.6,1.3,0,"Diver unclips the air line"
