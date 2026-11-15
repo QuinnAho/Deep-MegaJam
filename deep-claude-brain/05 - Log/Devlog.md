@@ -138,6 +138,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The phrase "Director's cut" stays in the game as the Captain's excuse: the Director is the unseen boss who takes the 40 percent and orders the tether cut, and the Captain blames him while plainly enjoying it. That keeps the jam theme audible in first salvage, bank, cut and win lines.
 - Evidence: Best new lines. "Orders from the Director. Direct quote: Cut it. I am just following them. Happily." / "The pressure crushes lesser divers. Let us see which you are." / "Net is empty. Much like your skull." Commit in git log for CaptainLines.csv.
 
+### 9:53 PM  The game can ship, 23 hours early
+- What happened: A second build agent packages the game in its own checkout while the gameplay engineer keeps building in the main one. Package passes in 5 minutes 12 seconds, the packaged game starts and runs clean for 25 seconds, and the zip is 449 MB against the jam's 1 GB limit. Claude Code's built-in worktree isolation refused the repo, because the session was opened as `deep-megajam` and the folder on disk is `Deep-MegaJam`, so the orchestrator made the checkout by hand with `git worktree add`.
+- Why it matters: The most common way to miss a jam is a game that was never packaged until the last hour. Ours has been packaged before it has any gameplay. One warning from it: an empty game is already 729 MB on disk, so size needs watching.
+- Evidence: commit `dc33aae` merged into `main`; run 17 in [[Agent Runs]] (Sonnet at medium effort, 67k tokens, 10 minutes).
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

@@ -16,9 +16,12 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 14 | 9:21 PM | build-sheriff | Opus 5.5, inherited | `tools\ue.ps1`, All Toolsets, canary test, prove build and test. | 120k | 44 | 11 min | Green. Found and fixed a missing module registration. |
 | 15 | 9:21 PM | director-writer | Opus 5.5, inherited | 138 lines and 24 fee labels as CSV. | 102k | 17 | 8 min | Done. Checked by the orchestrator. |
 | 16 | 9:34 PM | systems-engineer | Opus 5.5, high | Rules with tests, then the playable grey box. | | | | Running. |
-| 17 | 9:43 PM | build-sheriff | Sonnet 5.5, medium | Prove package, smoke and zip in its own checkout (`.wt\pkg`, branch `sheriff/package`); add the `shot` verb. | | | | Running. First attempt at 9:41 PM was refused: Claude Code's built-in worktree isolation rejects this repo because the session was opened as `deep-megajam` and the folder on disk is `Deep-MegaJam`. A worktree made by hand works. |
+| 17 | 9:43 PM | build-sheriff | Sonnet 5.5, medium | Prove package, smoke and zip in its own checkout (`.wt\pkg`, branch `sheriff/package`); add the `shot` verb. | 67k | 15 | 10 min | Green, commit `dc33aae`, merged. Package 5 min 12 s, 729 MB; smoke pass; zip 449 MB. First attempt at 9:41 PM was refused: Claude Code's built-in worktree isolation rejects this repo because the session was opened as `deep-megajam` and the folder on disk is `Deep-MegaJam`. A worktree made by hand works. |
+
+| 18 | 9:47 PM | writer | Sonnet 5.5, medium | Rewrite all 138 lines for the Captain after the rename (D-016); file becomes `CaptainLines.csv`. | 61k | 13 | 70 s | Done, commit `5021c7f`. Checked by the orchestrator: same ids and counts, ASCII, 10 lines say "Director's cut", no strong language. |
 
 ## What the numbers say so far
 
 - Runs 9 to 11 cost about 1.41 million tokens for ten notes, because a fork carries the whole conversation. Runs 14 and 15 cost 222k for a working pipeline and the game's entire script. Fresh agents with tight briefs are about six times cheaper per run.
 - Since run 14 every agent has a named model. Since run 16 every agent has a named effort level.
+- Run 15 (Opus, inherited effort) wrote 138 lines in 8 minutes for 102k tokens. Run 18 (Sonnet, medium) rewrote all 138 in 70 seconds for 61k. For writing, the smaller model at medium effort was faster and cheaper with no visible loss.

@@ -13,7 +13,10 @@ The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each it
 | Gameplay | systems-engineer (Opus, high) | Items 1 and 2 below: rules with tests, then the playable grey box. | 9:34 PM |
 | Writing | director-writer | **Done 9:30 PM.** 138 lines across 41 events in `deep\Content\Data\DirectorLines.csv`, 24 fee labels in `SettlementFees.csv`. Checked: ASCII, no duplicate ids, longest line 15 words. | 9:21 PM |
 
-Subagents run on Opus 5.5 (`model: opus`), at Quinn's request.
+| Packaging | build-sheriff (Sonnet, medium) | **Done 9:53 PM**, merged from `sheriff/package`. On the still-empty game: `package` passes in 5 min 12 s (729 MB on disk), `smoke` passes, `zip` is 449 MB. `shot` verb added; it needs game-side `-DeepShot` support before it can pass. The checkout `.wt\pkg` stays as the packaging lane: merge `main` into it and package there, so packaging never blocks the builder in the main checkout. | 9:43 PM |
+| Writing | writer (Sonnet, medium) | **Done 9:49 PM**, commit `5021c7f`. All 138 lines rewritten for the Captain in `deep\Content\Data\CaptainLines.csv`; fee labels sharpened. Checked: same ids and counts, ASCII, 10 lines say "Director's cut". | 9:47 PM |
+
+Models and effort follow `.claude/loop.md`. The submarine AI is now **the Captain**; the Director is its unseen boss. See [[GDD]] v4.
 
 Only one agent builds or tests in the main checkout at a time: a running test or cook holds the module DLL and breaks a parallel build.
 
@@ -24,8 +27,8 @@ Only one agent builds or tests in the main checkout at a time: a running test or
 | 1 | Rules in `Sim/` with tests: depth and zones, tether, weight, Patience, settlement, fees, hull. Tuning in `UDeepTuningSettings`. | systems-engineer | Sat 10:15 PM | blocked on pipeline |
 | 2 | Playable grey box: diver (swim, lamp, grab, drop), tether and winch, salvage and weight, Patience, the cut, bailout, a self-building arena, `Deep.*` cheats, `DEEPSTATE`, a plain HUD. | systems-engineer | Sat 11:45 PM | blocked on 1 |
 | 3 | Bank, settlement screen, hull rating, descend by fade, re-tether, respawn counter. | systems-engineer | overnight | blocked on 2 |
-| 4 | First packaged build and smoke run. | build-sheriff | overnight | blocked on 3 |
-| 5 | Subtitles: the bark system that plays the Director's lines on events. Reads `DirectorLines.csv`, fills the `{n}`, `{gross}`, `{cut}`, `{net}`, `{depth}` tokens, never repeats a variant twice running. Voice is optional per line: play the audio for a line id if it exists, otherwise subtitle only. The 12 lines with tokens are subtitle only. | systems-engineer | Sun 10 AM | blocked on 2 |
+| 4 | Packaged build and smoke run of the playable loop, in `.wt\pkg`. The pipeline itself is proven (9:53 PM). Watch the size: the empty game is already 729 MB on disk and 449 MB zipped, against a 1 GB upload limit. | build-sheriff | overnight | blocked on 3 |
+| 5 | Subtitles: the bark system that plays the Captain's lines on events. Reads `CaptainLines.csv`, fills the `{n}`, `{gross}`, `{cut}`, `{net}`, `{depth}` tokens, never repeats a variant twice running. Voice is optional per line: play the audio for a line id if it exists, otherwise subtitle only. The 12 lines with tokens are subtitle only. | systems-engineer | Sun 10 AM | blocked on 2 |
 | 6 | AI playtest of scenarios S1 to S6. Needs the editor open and Claude reconnected. | playtester | Sun 10 AM | blocked on Quinn |
 | 7 | Monster pressure cycle and tether bite. | systems-engineer, Quinn tunes | Sun noon | blocked on 3 |
 | 8 | Title, controls card, win and lose screens, restart, quit. | systems-engineer | Sun 2 PM | blocked on 3 |

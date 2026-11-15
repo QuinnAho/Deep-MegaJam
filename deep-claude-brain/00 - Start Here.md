@@ -14,7 +14,7 @@ This vault is Claude's memory for the DEEP jam project. Every Claude session (Qu
 | Jam | 2026 Epic AI MegaJam. Theme: **DIRECTOR'S CUT**. See [[Jam Brief]]. |
 | Deadline | **Sunday Nov 15 2026, 8:59 PM EST** (5:59 PM PST). Late entries are disqualified. |
 | Team | Quinn and Colby (brothers), plus Claude agents. |
-| Game | DEEP: first-person tethered salvage dive, run by a corporate submarine AI called the Director. See [[GDD]]. |
+| Game | DEEP: first-person tethered salvage dive. The submarine's AI is the Captain, a sarcastic asshole who takes the Director's cut of every haul. See [[GDD]]. |
 | Phase | **Building.** Quinn said go at about 9:12 PM Nov 14. Agents are working through [[Board]] in order. Design is [[GDD]] v3. |
 | Project | `deep/Deep.uproject` inside this repo. UE 5.9 MegaJam Preview. Quinn added a C++ module, `Deep`, at 8:55 PM Nov 14. No content yet. All Toolsets is not enabled yet. |
 | Git repo | `C:\Repositories\Deep-MegaJam`, origin `github.com/QuinnAho/Deep-MegaJam`. No commits yet. |

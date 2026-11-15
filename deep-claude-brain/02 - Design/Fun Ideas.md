@@ -5,7 +5,9 @@ updated: 2026-11-14 21:45 EST
 
 Claude's suggestions for making DEEP more fun and more likely to win. **None of these are on the [[Board]] yet.** Tick the ones you want, cross out the rest, or tell Claude. Cost is agent time: S is under an hour, M is one to two hours, L is more.
 
-The test for every idea: does it make "one more piece, or go home?" sharper, make the cut land harder, or make the Director funnier? If not, it is not worth the hours.
+The test for every idea: does it make "one more piece, or go home?" sharper, make the cut land harder, or make the Captain funnier? If not, it is not worth the hours.
+
+Since 9:45 PM the voice is the Captain, and the Director is its unseen boss (see [[GDD]]). Where an idea below says "the Director" speaks, read "the Captain". The commentary mode keeps its film name: the Captain is made to read the Director's commentary and resents it.
 
 ## Claude's top five
 

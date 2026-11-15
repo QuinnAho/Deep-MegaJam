@@ -24,6 +24,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-013 | Gameplay holes fixed and scope narrowed to twelve must-ship items | In effect since Quinn's go |
 | D-014 | Design for fun and for winning: five principles, the first 90 seconds, a self-building arena | In effect since Quinn's go |
 | D-015 | Agents: Claude orchestrates; models and effort tiered by task; commit and push allowed | Decided |
+| D-016 | The submarine AI is the Captain, a sarcastic asshole; the Director is its unseen boss | Decided (name and voice by Quinn; the Director as boss is Claude's proposal) |
 
 ## Open
 
@@ -120,6 +121,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** [[GDD]] v3 and [[Board]]. Colby's work moves from blocking out a level to models, sound and tuning light settings. D-002 is lifted: code is allowed.
 
 ## Decided
+
+### D-016 The Captain, not the Director
+- **Status:** Decided for the name and the voice. The second half is Claude's proposal and can be overruled.
+- **Date:** 2026-11-14, 9:45 PM EST
+- **Who:** Quinn: "lets call it the captian not the director - should be saccastic kinda an assshole".
+- **Decision:** The AI that talks to the player is the Captain. It is sarcastic, rude and greedy, and it mocks the diver. This matches the first notes, which had a Captain role run by an AI.
+- **Claude's proposal to protect the theme:** The jam theme is Director's Cut, and theme is one of seven judged scores. Dropping the word "Director" would lose the pun the design was built on. So the Director stays as the Captain's boss at head office, never seen or heard. The 40 percent is still called the Director's cut on the settlement screen, and cutting the tether is a Director's order that the Captain enjoys carrying out.
+- **Why this works:** A foul-mouthed middle manager blaming head office is funnier than a polite one, and the phrase "Director's cut" is still said aloud every dive.
+- **What follows:** All 138 lines are being rewritten in the new voice as `CaptainLines.csv`. [[GDD]] is v4. The code is unaffected: it names the cut and Patience, not the character. The Brief doc in Google Docs still says "the Director" until it is reissued. If Quinn wants the Director gone entirely, about fifteen lines and the settlement label change.
 
 ### D-015 How the agents run
 - **Status:** Decided
