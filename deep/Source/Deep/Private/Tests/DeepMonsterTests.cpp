@@ -598,8 +598,8 @@ bool FDeepMonsterLoopTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Threat is full during the bite"), Run->GetMonsterThreat01() >= 0.999f);
 	const float PatienceBefore = Run->GetPatienceSeconds();
 	StepAll(1.f);
-	TestEqual(TEXT("Patience drains twice as fast during a bite"), PatienceBefore - Run->GetPatienceSeconds(),
-		Tuning.Patience.DrainPerSecond * Tuning.Patience.HuntedMultiplier, 0.01f);
+	// The air line (rescope, Nov 15): Patience no longer drains, not even during a bite; the bite itself is the threat.
+	TestEqual(TEXT("Patience holds during a bite"), PatienceBefore - Run->GetPatienceSeconds(), 0.f, 0.01f);
 	int32 CutSteps = 0;
 	while (Run->GetState() == EDeepRunState::Tethered && CutSteps < 100)
 	{

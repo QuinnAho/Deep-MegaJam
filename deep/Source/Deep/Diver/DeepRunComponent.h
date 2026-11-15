@@ -75,6 +75,8 @@ public:
 
 	// ---- Requests from the owning player (routed to the server) ----
 	void RequestCut();
+	/** Unclip the air line by choice (the tether component's key): bailout air, free re-clip at the hatch. */
+	void RequestUnclip();
 	void RequestContinue();
 	/** The helm control: > 0 descends, < 0 ascends (sent to the server when it changes). */
 	void SetHelmInput(float Input);
@@ -90,6 +92,10 @@ public:
 	void CutTether(bool bRequested);
 	/** Tethered -> Cut, announcing why (cut_patience, cut_requested, cut_bite). The one Cut path. */
 	void CutTetherFor(const TCHAR* Event);
+	/** Tethered -> Cut by the diver's own hand (tether_unclip): no re-tether fee at the hatch. */
+	void Unclip();
+	/** Off the line by choice (an unclip, not a cut): the line hangs whole from the hatch. */
+	bool IsUnclipped() const { return bUnclipped; }
 	/**
 	 * Banks the cargo at the console: settles it, pays credits, buys the next gate if affordable, opens the settlement
 	 * screen (or wins, with the relic). A diver still in the water is brought aboard first (cheats and tests).
@@ -181,6 +187,9 @@ protected:
 	void ServerRequestCut();
 
 	UFUNCTION(Server, Reliable)
+	void ServerRequestUnclip();
+
+	UFUNCTION(Server, Reliable)
 	void ServerRequestContinue();
 
 	UFUNCTION(Server, Unreliable)
@@ -200,6 +209,10 @@ protected:
 
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
 	float BailoutAirSeconds = 0.f;
+
+	/** The diver unclipped (Cut by choice); cleared by any other state. */
+	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
+	bool bUnclipped = false;
 
 	/** Seconds left in a timed state (Dead, Settling's input lock, Descending). */
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")

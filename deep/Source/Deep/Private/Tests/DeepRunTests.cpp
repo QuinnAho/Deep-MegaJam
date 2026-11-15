@@ -266,10 +266,11 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Starts with full Patience"), Run->GetPatienceFraction(), 1.f, 0.0001f);
 	TestEqual(TEXT("dive_start fired"), Bus->CountOf(DeepEvent::DiveStart), 1);
 
-	// Patience drains, warns at 50%, and refills on a pickup by size.
+	// The air line (rescope, Nov 15): Patience no longer drains on the line, so no warning; a pickup still refills it.
 	Run->SetPatienceFraction(0.505f);
 	Run->StepRun(1.f);
-	TestEqual(TEXT("patience_50 fired crossing half"), Bus->CountOf(DeepEvent::Patience50), 1);
+	TestEqual(TEXT("Patience holds on the air line"), Run->GetPatienceFraction(), 0.505f, 0.001f);
+	TestEqual(TEXT("No patience_50 without a drain"), Bus->CountOf(DeepEvent::Patience50), 0);
 	const float BeforePickup = Run->GetPatienceSeconds();
 	Run->NotifyPickup(Item(EDeepSalvageSize::Medium, 6.f, 70));
 	TestEqual(TEXT("A medium piece refills 10% of full"), Run->GetPatienceSeconds() - BeforePickup, Tuning.Patience.MaxSeconds * Tuning.Patience.RefillMedium, 0.01f);

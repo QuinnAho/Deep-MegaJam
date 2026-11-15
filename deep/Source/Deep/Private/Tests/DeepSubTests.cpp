@@ -152,7 +152,8 @@ bool FDeepSubHatchTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("dive_start fired"), W.Bus->CountOf(DeepEvent::DiveStart), 1);
 	W.Run->StepRun(0.5f);
 	TestEqual(TEXT("Not straight back in"), W.Run->GetState(), EDeepRunState::Tethered);
-	TestTrue(TEXT("Patience runs in the water"), W.Run->GetPatienceFraction() < 1.f);
+	// The air line (rescope, Nov 15): clipped on, Patience no longer drains.
+	TestEqual(TEXT("Patience holds on the air line"), W.Run->GetPatienceFraction(), 1.f, 0.0001f);
 
 	// Rising up through the hatch: on the deck, walking.
 	W.Diver->TeleportDiver(W.Sub->GetHatchLocation() - FVector(0.f, 0.f, 20.f));

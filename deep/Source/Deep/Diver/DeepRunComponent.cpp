@@ -12,6 +12,7 @@
 #include "Monster/DeepMonsterSettings.h"
 #include "Monster/DeepSerpent.h"
 #include "Net/UnrealNetwork.h"
+#include "Sim/DeepAirLineRules.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -126,6 +127,11 @@ void UDeepRunComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 void UDeepRunComponent::SetState(EDeepRunState NewState)
 {
 	State = NewState;
+	if (NewState != EDeepRunState::Cut)
+	{
+		// Only a Cut can be an unclip; aboard, dead or a new dive clears it.
+		bUnclipped = false;
+	}
 	if (NewState != EDeepRunState::Tethered)
 	{
 		// Whatever ended the tethered dive (Patience, a request, death, banking) also ends any bite on it.
@@ -381,12 +387,13 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 		}
 		bWasHome = bHome;
 
-		// The Captain gets twice as impatient while the serpent closes on (or chews) this diver's line.
+		// The line is the air line (rescope): Patience no longer drains unless the tuning brings the old rule back
+		// (then twice as fast while the serpent closes on this diver's line). Zero still cuts: Deep.SetPatience 0.
 		const UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>();
 		const bool bHunted = Brain && Brain->GetSerpent() && Brain->GetFocusDiver() == Diver
 			&& (Brain->GetState() == EDeepMonsterState::Stalk || Brain->GetState() == EDeepMonsterState::Bite);
 		const float Before = PatienceSeconds;
-		PatienceSeconds = UDeepRules::PatienceStep(Before, Dt, bHunted, Tuning.Patience);
+		PatienceSeconds = DeepAirLine::PatienceAfterStep(Before, Dt, bHunted, Tuning.Patience, Tuning.AirLine);
 		const int32 Warning = UDeepRules::PatienceWarningCrossed(Before, PatienceSeconds, Tuning.Patience);
 		if (Tuning.Patience.WarningFractions.IsValidIndex(Warning))
 		{
@@ -819,10 +826,16 @@ void UDeepRunComponent::EnterSub()
 		return;
 	}
 	const bool bWasCut = State == EDeepRunState::Cut;
+	const bool bWasUnclipped = bWasCut && bUnclipped;
 	Diver->SetWinching(false);
 	if (bWasCut)
 	{
-		ChargeFee(UDeepTuningSettings::Get().Economy.RetetherFee);
+		// Clipped back on at the hatch: the re-tether fee after a cut, free after a voluntary unclip.
+		const int32 Fee = DeepAirLine::ReclipFee(bWasUnclipped, UDeepTuningSettings::Get().Economy, UDeepTuningSettings::Get().AirLine);
+		if (Fee > 0 || !bWasUnclipped)
+		{
+			ChargeFee(Fee);
+		}
 	}
 	BailoutAirSeconds = 0.f;
 	bSeated = false;
@@ -845,7 +858,7 @@ void UDeepRunComponent::EnterSub()
 		}
 	}
 	Diver->SetAboard(true);
-	Fire(bWasCut ? DeepEvent::Retether : DeepEvent::EnterSub);
+	Fire(bWasCut && !bWasUnclipped ? DeepEvent::Retether : DeepEvent::EnterSub);
 }
 
 bool UDeepRunComponent::LeaveSub()
@@ -1060,6 +1073,21 @@ void UDeepRunComponent::CutTetherFor(const TCHAR* Event)
 	BailoutAirSeconds = UDeepTuningSettings::Get().Bailout.AirSeconds;
 	SetState(EDeepRunState::Cut);
 	Fire(Event);
+}
+
+void UDeepRunComponent::Unclip()
+{
+	if (State != EDeepRunState::Tethered)
+	{
+		return;
+	}
+	// Set first so the Cut it makes is already an unclip when its event goes out; SetState(Cut) keeps it.
+	bUnclipped = true;
+	CutTetherFor(DeepAirLine::Unclip);
+	if (State != EDeepRunState::Cut)
+	{
+		bUnclipped = false;
+	}
 }
 
 void UDeepRunComponent::Die(bool bByMonster)
@@ -1387,6 +1415,23 @@ void UDeepRunComponent::ServerRequestCut_Implementation()
 	CutTether(true);
 }
 
+void UDeepRunComponent::RequestUnclip()
+{
+	if (GetOwner()->HasAuthority())
+	{
+		Unclip();
+	}
+	else
+	{
+		ServerRequestUnclip();
+	}
+}
+
+void UDeepRunComponent::ServerRequestUnclip_Implementation()
+{
+	Unclip();
+}
+
 void UDeepRunComponent::RequestContinue()
 {
 	if (GetOwner()->HasAuthority())
@@ -1458,6 +1503,7 @@ void UDeepRunComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(UDeepRunComponent, State);
 	DOREPLIFETIME(UDeepRunComponent, PatienceSeconds);
 	DOREPLIFETIME(UDeepRunComponent, BailoutAirSeconds);
+	DOREPLIFETIME(UDeepRunComponent, bUnclipped);
 	DOREPLIFETIME(UDeepRunComponent, StateTimeLeft);
 	DOREPLIFETIME(UDeepRunComponent, Settlement);
 	DOREPLIFETIME(UDeepRunComponent, bSeated);

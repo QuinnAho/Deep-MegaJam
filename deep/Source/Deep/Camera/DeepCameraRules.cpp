@@ -37,6 +37,8 @@ FDeepCameraTuning::FDeepCameraTuning()
 	// The serpent: the alarm jolts, the bite lunges, death throws the view.
 	Add(EventShakes, TEXT("bite_alarm"),     Spec(2.f,  0.9f, 11.f, 0.50f, 0.03f, 0.35f));
 	Add(EventShakes, TEXT("cut_bite"),       Spec(12.f, 4.0f, 14.f, 0.90f, 0.02f, 0.60f));
+	// The serpent bit the air line: a hard tug back along the line, harder and shorter than a timed bite.
+	Add(EventShakes, TEXT("tether_bitten"),  Spec(18.f, 6.0f, 9.f,  0.70f, 0.01f, 0.50f));
 	Add(EventShakes, TEXT("death_monster"),  Spec(16.f, 6.0f, 12.f, 1.50f, 0.02f, 1.00f));
 	Add(EventShakes, TEXT("monster_near"),   Spec(0.6f, 0.25f, 2.5f, 2.50f, 0.80f, 1.20f));
 	// The harpoon: a firm kick on the shot (the diver is shoved back too); a bolt into the hull rings it; a bolt
