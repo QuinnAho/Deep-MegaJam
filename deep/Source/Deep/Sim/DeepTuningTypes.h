@@ -417,6 +417,24 @@ struct FDeepCaptainTuning
 	/** A line waiting behind a more urgent one is dropped if it waited longer than this. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain")
 	float PendingMaxAgeSeconds = 6.f;
+
+	// The radio (Deep.Captain.Radio 1, D-040): in the water he speaks only when the diver needs it.
+
+	/** In the water, an urgency-1 line shows only this long after the last line shown. Urgency 0 never shows there. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0"))
+	float WaterNotableGapSeconds = 30.f;
+
+	/** Scared while the serpent closes on this diver (stalk, hunt or bite) within this many metres. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0"))
+	float ScaredSerpentM = 25.f;
+
+	/** Tense while Patience is under this fraction (tethered). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "1"))
+	float TensePatienceFraction = 0.25f;
+
+	/** Scared and in the water: only lines at or above this urgency show (the planned near-silence). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Captain|Radio", meta = (ClampMin = "0", ClampMax = "3"))
+	int32 ScaredMinUrgency = 3;
 };
 
 USTRUCT(BlueprintType)
