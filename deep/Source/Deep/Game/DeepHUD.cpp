@@ -152,7 +152,7 @@ void ADeepHUD::DrawTitle(float RealNow)
 	TextCentered(FString::Printf(TEXT("CAPTAIN: %s"), *Line), CaptainColor, Canvas->ClipY * 0.60f, nullptr, 1.f);
 
 	FLinearColor Prompt = TextColor;
-	Prompt.A = 0.55f + 0.45f * FMath::Sin(RealNow * 3.f);
+	Prompt.A = 0.8f + 0.2f * FMath::Sin(RealNow * 3.f);
 	TextCentered(TEXT("PRESS ANY KEY"), Prompt, Canvas->ClipY * 0.76f, BigFont, 1.2f);
 	TextCentered(TEXT("A jam game. Salvage, a tether, and a Captain who hates you."), DimColor, Canvas->ClipY * 0.90f, nullptr, 0.7f);
 }
@@ -171,6 +171,8 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 		FString::Printf(TEXT("Hold %s  winch home (loud)        %s  lamp"), *Key(TEXT("Winch")), *Key(TEXT("Lamp"))),
 		FString::Printf(TEXT("Hold %s  ask to be cut loose        %s  menu"), *Key(TEXT("Cut")), *Key(TEXT("Menu"))),
 	};
+	const FString GoalA = TEXT("Grab salvage below. Bring it back");
+	const FString GoalB = TEXT("to the airlock under the sub.");
 	const float Line = 21.f * S;
 	float Widest = 0.f;
 	for (const FString& Text : Lines)
@@ -179,10 +181,17 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 		GetTextSize(Text, W, H, Font, S * 0.85f);
 		Widest = FMath::Max(Widest, W);
 	}
+	for (const FString& Text : { GoalA, GoalB })
+	{
+		float W = 0.f, H = 0.f;
+		GetTextSize(Text, W, H, Font, S * 0.8f);
+		Widest = FMath::Max(Widest, W);
+	}
 	const float W = Widest + 48.f * S;
-	const float H = (Lines.Num() + 3.2f) * Line;
-	const float X = (Canvas->ClipX - W) * 0.5f;
-	const float Top = Canvas->ClipY * 0.17f;
+	const float H = (Lines.Num() + 4.2f) * Line;
+	// On the right, so the salvage below the start view stays in sight.
+	const float X = Canvas->ClipX - W - 16.f * S;
+	const float Top = Canvas->ClipY * 0.2f;
 	DrawRect(FLinearColor(0.f, 0.01f, 0.02f, 0.88f * Alpha), X, Top, W, H);
 	DrawRect(FLinearColor(CaptainColor.R, CaptainColor.G, CaptainColor.B, Alpha), X, Top, W, 3.f * S);
 	float Y = Top + 10.f * S;
@@ -199,7 +208,8 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 	}
 	FLinearColor Goal = GoodColor;
 	Goal.A = Alpha;
-	TextAt(TEXT("Grab salvage below. Bring it back to the airlock under the sub."), Goal, X + 24.f * S, Y + 4.f * S, nullptr, 0.8f);
+	TextAt(GoalA, Goal, X + 24.f * S, Y + 4.f * S, nullptr, 0.8f);
+	TextAt(GoalB, Goal, X + 24.f * S, Y + 4.f * S + Line, nullptr, 0.8f);
 }
 
 void ADeepHUD::DrawPauseMenu()
