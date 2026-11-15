@@ -750,3 +750,28 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
   - Frames, each before the ping and 1 s after it:
     - `devlog/media/2026-11-15-camera-diverping-stop2-level-*.png` and `-stop3-level-*.png`, from the hatch (the stop 2 level frames also have a +1.4 s frame);
     - `-stop2-up-*.png` and `-stop3-up-*.png`, 20 m to the side of the sub, looking 55 degrees up. From the hatch, the sub fills the upward view.
+### 2:40 PM  The serpent is one model again, and it swims (polish/serpent-look)
+- What happened: Quinn: the monster "doesn't animate at all and looks like two models smooshed together; the older one was better". The cause was the Dragon Cave dragon head on the procedural tube body. It could not close its jaw either. `MeshHead.Mesh` is now empty by default, so the serpent wears its code-built head with the jaw again. The pack head is one tuning path away, and `Deep.Monster.MeshHead` stays as the switch. The weave was there but faint (0.6 m, nearly all of it at the tail). Tuning only: `WeaveAmplitudeM` 1.1, `WeaveHz` 0.7, `HeadSwayDeg` 9, and a new `WeaveNeckShare` 0.35 so the front half swims too (rule `UDeepMonsterRules::WeaveShare`). The body now sweeps wider, so `CaveBodyReachM` goes from 1.5 to 2.0 m and the drawn body still keeps 3 m off the cavern rock.
+- Why it matters: The thing that hunts you has to read as one living animal at first glance.
+- Failure on the way: the first frames, from the hatch at pitch -5, showed only the hatch and the beam. Without the Dragon Cave link the worktree had no rock, and in-game fog hid the serpent at 9 m. I linked the pack and re-shot side-on and close in plain look-dev light.
+- Evidence: build green; Deep.Sim.Monster 8/8 (new: WeaveShare), Deep.World.Monster 3/3 (Look now checks the head is code-built and that the neck swings at least 40 cm in 2 s; it measured 88 cm), Deep.World.Cavern 7/7. Frames: `devlog/media/2026-11-15-serpent-look-side.png` and `-side-0.4s.png` (0.4 s apart, the body's curve changes), `-head.png` (close, neck swinging), `-cavern.png` (in-game light at stop 2: dim in the lamp beam, as it plays).
+
+### 3:10 PM  The serpent's body is a rope the head drags (polish/serpent-look)
+- What happened: Quinn, 2:40 PM: "instead of a slither mechanic we need each spline to have physics so that it moves like an actual snake in 3d space ... the controller is the head". The sideways sine weave is gone. The body is now a chain of particles: particle 0 is pinned to the head, and the rest are pure physics in `UDeepMonsterRules::StepChain`. Mid-task Quinn added: "thers a lot of mmovment it should be zero gravity rope physics im owonering if the animation is still playing". It was: the head still added a small swimming stroke. The stroke is now 0, sideways drag went up, and the pull toward the trail changed from a spring to a drift.
+- Recipe:
+  1. Verlet: `Vel = Pos - Old`, damped by `exp(-drag*h)`. No gravity. Water drag is 1.2/s along the body and 10/s more across it, so the body slides along its length but does not swing sideways.
+  2. Fixed substeps of 1/120 s with a carried remainder. Frames are clamped at 0.1 s.
+  3. Jakobsen relaxation, 4 passes. Each pass moves both ends of a link half way to its rest length. The pinned neck takes no correction.
+  4. Then one head-to-tail follow-the-leader pass. It clamps each joint to the bend limit (28 degrees) and sets the exact link length.
+  5. A weak drift onto the head's trail (0.5/s). Old moves with Pos, so the drift adds no speed and never overshoots. A cave keep holds every particle `CaveWallClearM` off the rock.
+  6. The flinch is a cosine impulse along the body, written into Old. The chain resets on spawn, teleport and whole-trail snap.
+  7. The tube's centreline is a uniform Catmull-Rom curve through the particles (`ChainPoint`), so the joints show no creases.
+- Sources: Epic's `CableComponent.cpp`, which I read in the engine source: `VerletIntegrate` near line 791 and the substep loop near line 1216, where I took the fixed substep and carry. Thomas Jakobsen, "Advanced Character Physics", GDC 2001, used from memory and not fetched: Verlet with distance relaxation and pinned particles.
+- Failures on the way:
+  - The flinch test failed at 4 cm. The old spring pull swung the body back before the frame it measured, so the test now takes the peak over 0.5 s.
+  - My first try at a drift pull let the body fold back on itself after a 90 degree turn. A spring at 1.5/s fixed that, but it swung, and Quinn saw the swing. The drift at 0.5/s, with the heavy sideways drag, passes the same turn test.
+  - Frames: the Place cheat drops the head where the brain then snaps it back into the cave, about 1.8 s later. Strips shot after that show a teleport, not physics, so the strip is taken in the first 1.1 s.
+- Evidence: build green; Deep.Sim.Monster 12/12 (chain tests: Straight, Turn, Stable, Shipped, and others), Deep.World.Monster 3/3 (Look now asserts no animation: on a straight the neck stays within 5 cm of the head's line), Deep.World.Cavern 7/7. Frames, all in plain look-dev light except the cavern frame:
+  - `devlog/media/2026-11-15-serpent-physics-side-0.0s.png`, `-side-0.4s.png` and `-side-0.8s.png`: straight, then the head turns and the neck bends after it while the rest stays put;
+  - `-cavern.png`: game light at stop 2, the body in the lamp beam;
+  - `-face.png`: the code head with the jaw open.

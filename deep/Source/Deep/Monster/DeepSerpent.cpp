@@ -57,7 +57,7 @@ namespace
 	FAutoConsoleVariableRef CVarMeshHead(
 		TEXT("Deep.Monster.MeshHead"),
 		GMeshHeadAllowed,
-		TEXT("Deep.Monster.MeshHead <0|1>: 1 (default) = the serpent wears the mesh head from its settings (the Dragon Cave dragon) when it loads; 0 = the code-built head."),
+		TEXT("Deep.Monster.MeshHead <0|1>: 1 (default) = the serpent wears the mesh head its settings name, when it loads (none by default since Nov 15: the code-built head); 0 = always the code-built head."),
 		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
 		{
 			if (!GEngine)
@@ -806,11 +806,18 @@ void ADeepSerpent::PlaceHead(const FVector& HeadCm, const FVector& Facing)
 	{
 		Trail.Add(HeadCm - Heading * (i * TrailStepCm));
 	}
+	LastHeadCm = HeadCm;
+	ResetChain();
 	LayBody();
 }
 
-void ADeepSerpent::KeepPath(TFunctionRef<FVector(const FVector&)> Keep, bool bWholeTrail)
+void ADeepSerpent::KeepPath(const TFunction<FVector(const FVector&)>& Keep, bool bWholeTrail)
 {
+	BodyKeep = Keep;
+	if (!Keep)
+	{
+		return;
+	}
 	const FVector Here = GetActorLocation();
 	const FVector Kept = Keep(Here);
 	if (!Kept.Equals(Here, 1.0))
@@ -824,7 +831,66 @@ void ADeepSerpent::KeepPath(TFunctionRef<FVector(const FVector&)> Keep, bool bWh
 	}
 	if (bWholeTrail)
 	{
+		// The path was snapped: the body lies along it again instead of whipping across the cave.
+		LastHeadCm = GetActorLocation();
+		ResetChain();
 		LayBody();
+	}
+}
+
+void ADeepSerpent::ResetChain()
+{
+	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
+	const int32 N = FMath::Max(2, Tuning.Segments);
+	const float SpacingCm = BodyLengthM() / N * CmPerM;
+	// Neck, N segment centres, tail tip: half a spacing from the neck to the first centre and from the last to the tip.
+	Chain.RestCm.SetNum(N + 1);
+	for (int32 i = 0; i <= N; ++i)
+	{
+		Chain.RestCm[i] = (i == 0 || i == N) ? SpacingCm * 0.5f : SpacingCm;
+	}
+	TArray<FVector> Path;
+	Path.Reserve(Trail.Num() + 2);
+	Path.Add(GetActorLocation());
+	if (Trail.Num() >= 2)
+	{
+		Path.Append(Trail);
+	}
+	else
+	{
+		Path.Add(GetActorLocation() - Heading * 100.f);
+	}
+	UDeepMonsterRules::LayChain(Chain, Path, HeadBackCm);
+}
+
+void ADeepSerpent::StepBody(float Dt)
+{
+	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
+	const int32 N = FMath::Max(2, Tuning.Segments);
+	if (Chain.Pos.Num() != N + 2 || !FMath::IsNearlyEqual(Chain.RestCm[1], BodyLengthM() / N * CmPerM, 0.5f))
+	{
+		ResetChain();
+	}
+	// The pin: the neck of the head as it is drawn now (stroke, lunge, flinch and thrash included). The head drags the body.
+	const FTransform Socket = HeadSocket->GetComponentTransform();
+	const FVector Pin = Socket.TransformPosition(NeckCutLocalCm);
+	const FVector Forward = Socket.GetUnitAxis(EAxis::X);
+	if (bKickPending)
+	{
+		bKickPending = false;
+		UDeepMonsterRules::KickChain(Chain, FVector::UpVector, Tuning.Chain.RecoilKickMps * CmPerM, Tuning.Chain.RecoilKickWaveM * CmPerM, Tuning.Chain.SubstepS);
+	}
+	TArray<FVector> Path;
+	Path.Reserve(Trail.Num() + 1);
+	Path.Add(GetActorLocation());
+	Path.Append(Trail);
+	if (BodyKeep)
+	{
+		UDeepMonsterRules::StepChain(Chain, Pin, Forward, Path, HeadBackCm, Tuning.Chain, Dt, [this](const FVector& P) { return BodyKeep(P); });
+	}
+	else
+	{
+		UDeepMonsterRules::StepChain(Chain, Pin, Forward, Path, HeadBackCm, Tuning.Chain, Dt);
 	}
 }
 
@@ -849,6 +915,7 @@ void ADeepSerpent::Tick(float DeltaSeconds)
 	}
 	RecordTrail();
 	UpdateMotion(DeltaSeconds);
+	StepBody(DeltaSeconds);
 	LayBody();
 	UpdateEyes(DeltaSeconds);
 	UpdateMarks(DeltaSeconds);
@@ -927,9 +994,21 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	{
 		SeenState = Shown;
 		StateAge = 0.f;
+		// The flinch throws the body: one sideways kick into the chain.
+		bKickPending = static_cast<EDeepMonsterState>(Shown) == EDeepMonsterState::Recoil;
 	}
 	StateAge += Dt;
 	LifeAge += Dt;
+
+	// How fast the head travels (0..1 of the stroke's full speed): the swim stroke is zero at rest.
+	const FVector HeadNow = GetActorLocation();
+	if (Dt > 0.f)
+	{
+		const float Mps = static_cast<float>(FVector::Dist(HeadNow, LastHeadCm)) / CmPerM / Dt;
+		const float Target = FMath::Clamp(Mps / FMath::Max(0.1f, Tuning.Chain.StrokeFullSpeedMps), 0.f, 1.f);
+		Speed01 = FMath::FInterpTo(Speed01, Target, Dt, 3.f);
+	}
+	LastHeadCm = HeadNow;
 	const EDeepMonsterState State = static_cast<EDeepMonsterState>(Shown);
 	// The first sight (Pass) does not count: its markings stay dark, it is seen by the lamp alone.
 	if (State != EDeepMonsterState::Lurk && State != EDeepMonsterState::Pass)
@@ -1014,14 +1093,16 @@ void ADeepSerpent::UpdateMotion(float Dt)
 		GapeDeg = FMath::FInterpTo(GapeDeg, TargetGape, Dt, 18.f);
 	}
 
-	// The weave speeds and widens in the flinch (the body convulses away from the light).
-	const float Boost = 1.f + (Tuning.RecoilWeaveBoost - 1.f) * Flinch01;
-	WeavePhase = FMath::Fmod(WeavePhase + 2.f * PI * Tuning.WeaveHz * Boost * Dt, 2000.f * PI);
+	// The swim stroke: the head sweeps side to side (and yaws along its sweep) by its speed; the chain carries it down the
+	// body. Look only: the actor (the AI's path, the bite reach, the cave clearance) never moves with it.
+	const FDeepSerpentChainTuning& Stroke = Tuning.Chain;
+	StrokePhase = FMath::Fmod(StrokePhase + 2.f * PI * Stroke.StrokeHz * (0.5f + 0.5f * Speed01) * Dt, 2000.f * PI);
+	const float Sway = Stroke.StrokeDeg * Speed01 * FMath::Cos(StrokePhase);
+	const float StrokeCm = Stroke.StrokeM * CmPerM * Speed01 * FMath::Sin(StrokePhase);
 
-	// Head socket: lunge forward, flinch up and back, sway with the weave, bank into turns, thrash in the bite.
-	const float Sway = Tuning.HeadSwayDeg * FMath::Sin(WeavePhase + 0.5f * PI);
+	// Head socket: lunge forward, flinch up and back, the stroke, bank into turns, thrash in the bite.
 	const float Bank = Tuning.TurnRollDeg * FMath::Clamp(YawRateDegPerS / 90.f, -1.5f, 1.5f);
-	FVector SocketLoc(LungeCm - Tuning.RecoilPullM * CmPerM * Flinch01, 0.f, 0.f);
+	FVector SocketLoc(LungeCm - Tuning.RecoilPullM * CmPerM * Flinch01, StrokeCm, 0.f);
 	// Mesh head biting: turn side-on to the nearest diver. The line runs from the diver up to the sub, so side-on to
 	// the diver puts the line across the open mouth, through the teeth, seen in profile from where the diver is.
 	if (bMeshHead && State == EDeepMonsterState::Bite)
@@ -1074,40 +1155,21 @@ void ADeepSerpent::LayBody()
 	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
 	const int32 N = FMath::Max(2, Tuning.Segments);
 	const float SpacingM = BodyLengthM() / N;
-	const float HeadBack = HeadBackCm / CmPerM;
-	const float Boost = 1.f + (Tuning.RecoilWeaveBoost - 1.f) * Flinch01;
+	if (Chain.Pos.Num() != N + 2)
+	{
+		ResetChain();
+	}
 
-	// The path starts at the head as it is now, then the recorded trail.
-	TArray<FVector> Path;
-	Path.Reserve(Trail.Num() + 1);
-	Path.Add(GetActorLocation());
-	Path.Append(Trail);
-
+	// The hit segments are the chain's particles 1..N (0 is the neck, N + 1 the tail tip).
 	SegmentTransforms.SetNum(N);
-	FVector Previous = GetActorLocation();
 	for (int32 i = 0; i < N; ++i)
 	{
 		const float T = (i + 0.5f) / static_cast<float>(N);
-		const float AlongM = HeadBack + (i + 0.5f) * SpacingM;
-		const FVector OnPath = UDeepMonsterRules::PointAlongTrail(Path, AlongM * CmPerM);
-		const FVector Ahead = UDeepMonsterRules::PointAlongTrail(Path, (AlongM - SpacingM) * CmPerM);
-		const FVector Dir = (Ahead - OnPath).GetSafeNormal(UE_SMALL_NUMBER, Heading);
-		FVector Side = FVector::CrossProduct(FVector::UpVector, Dir);
-		if (!Side.Normalize())
-		{
-			Side = FVector::RightVector;
-		}
-
-		// A wave travelling down the body, growing toward the tail.
-		const float Phase = WeavePhase - 2.f * PI * AlongM / FMath::Max(0.1f, Tuning.WeaveWavelengthM);
-		const float SwingM = Tuning.WeaveAmplitudeM * Boost * (0.15f + 0.85f * T) * FMath::Sin(Phase);
-		const FVector Location = OnPath + Side * (SwingM * CmPerM);
-
+		const FVector Location = Chain.Pos[i + 1];
+		const FVector Facing = (Chain.Pos[i] - Chain.Pos[i + 2]).GetSafeNormal(UE_SMALL_NUMBER, Heading);
 		const float RadiusM = bTube ? RadiusAt(Tuning, T) : FMath::Lerp(Tuning.NeckRadiusM, Tuning.TailRadiusM, FMath::Pow(T, 1.2f));
-		const FVector Facing = (Previous - Location).GetSafeNormal(UE_SMALL_NUMBER, Dir);
 		const FVector Scale(FMath::Max(RadiusM * 2.f, SpacingM * 1.6f), RadiusM * 2.f, RadiusM * 2.f);
 		SegmentTransforms[i] = FTransform(Facing.Rotation(), Location, Scale);
-		Previous = Location;
 	}
 
 	if (bTube)
@@ -1142,12 +1204,8 @@ void ADeepSerpent::BuildTube()
 	const float StartM = HeadBack - FrontM;
 	const float BodyM = BodyLengthM();
 	const float LengthM = BodyM + FrontM;
-	const float Boost = 1.f + (Tuning.RecoilWeaveBoost - 1.f) * Flinch01;
 
-	TArray<FVector> Path;
-	Path.Reserve(Trail.Num() + 1);
-	Path.Add(GetActorLocation());
-	Path.Append(Trail);
+	// The body runs along the chain, from the neck (its pinned particle) to the tail tip, on a smooth curve through the particles.
 
 	const FTransform Socket = HeadSocket->GetComponentTransform();
 	const FVector SocketBack = -Socket.GetUnitAxis(EAxis::X);
@@ -1156,26 +1214,14 @@ void ADeepSerpent::BuildTube()
 	const bool bDenseFront = bMeshHead;
 	auto RingAlong = [bDenseFront](float T) { return bDenseFront ? FMath::Pow(T, 1.4f) : T; };
 
-	// ---- Ring centres: the trail plus the weave; the neck bends toward the head socket.
+	// ---- Ring centres: along the chain; the neck bends toward the head socket.
 	TArray<FVector, TInlineAllocator<128>> Centres;
-	TArray<float, TInlineAllocator<128>> Phases;
 	Centres.SetNum(Rings);
-	Phases.SetNum(Rings);
 	for (int32 k = 0; k < Rings; ++k)
 	{
 		const float T = k / static_cast<float>(Rings - 1);
 		const float AlongM = StartM + RingAlong(T) * LengthM;
-		const FVector OnPath = UDeepMonsterRules::PointAlongTrail(Path, AlongM * CmPerM);
-		const FVector Ahead = UDeepMonsterRules::PointAlongTrail(Path, (AlongM - 0.3f) * CmPerM);
-		const FVector Dir = (Ahead - OnPath).GetSafeNormal(UE_SMALL_NUMBER, Heading);
-		FVector Side = FVector::CrossProduct(FVector::UpVector, Dir);
-		if (!Side.Normalize())
-		{
-			Side = FVector::RightVector;
-		}
-		Phases[k] = WeavePhase - 2.f * PI * AlongM / FMath::Max(0.1f, Tuning.WeaveWavelengthM);
-		const float SwingM = Tuning.WeaveAmplitudeM * Boost * (0.15f + 0.85f * T) * FMath::Sin(Phases[k]);
-		FVector Centre = OnPath + Side * (SwingM * CmPerM);
+		FVector Centre = UDeepMonsterRules::ChainPoint(Chain, (AlongM - HeadBack) * CmPerM);
 		const float ToHeadM = AlongM - HeadBack;
 		const float Blend = 1.f - FMath::SmoothStep(0.f, NeckBlendM, FMath::Max(0.f, ToHeadM));
 		if (Blend > 0.f)
@@ -1228,8 +1274,27 @@ void ADeepSerpent::BuildTube()
 		const FVector WorldUp = (FVector::UpVector - Tangent * FVector::DotProduct(FVector::UpVector, Tangent)).GetSafeNormal(UE_SMALL_NUMBER, Up);
 		Up = FMath::Lerp(Up, WorldUp, 0.08f).GetSafeNormal(UE_SMALL_NUMBER, WorldUp);
 
-		const float RollDeg = Tuning.WeaveRollDeg * Boost * (0.3f + 0.7f * T) * FMath::Cos(Phases[k]) + Bank * FMath::Square(1.f - T);
-		const FVector RingUp = FQuat(Tangent, FMath::DegreesToRadians(RollDeg)).RotateVector(Up);
+		// Bank: the head's turn at the neck, then each ring into the body's own curve (its top tilts to the inside).
+		const float RollDeg = Bank * FMath::Square(1.f - T);
+		FVector RingUp = FQuat(Tangent, FMath::DegreesToRadians(RollDeg)).RotateVector(Up);
+		{
+			const int32 A = FMath::Max(0, k - 3);
+			const int32 B = FMath::Min(Rings - 1, k + 3);
+			const FVector In = Centres[k] - Centres[A];
+			const FVector Out = Centres[B] - Centres[k];
+			const double Len = 0.5 * (In.Size() + Out.Size());
+			if (A < k && k < B && Len > 1.0)
+			{
+				const FVector Turn = Out.GetSafeNormal() - In.GetSafeNormal();
+				const FVector Across = FVector::CrossProduct(RingUp, Tangent).GetSafeNormal();
+				// Curvature (1/m) toward Across: positive when the curve's inside is that way.
+				const double CurvePerM = FVector::DotProduct(Turn, Across) / (Len / CmPerM);
+				const float CurveRoll = FMath::Clamp(static_cast<float>(CurvePerM) * Tuning.Chain.CurveRollDegPerInvM,
+					-Tuning.Chain.MaxRollDeg, Tuning.Chain.MaxRollDeg) * FMath::SmoothStep(0.f, 0.08f, T);
+				const float R = FMath::DegreesToRadians(CurveRoll);
+				RingUp = (RingUp * FMath::Cos(R) + Across * FMath::Sin(R)).GetSafeNormal(UE_SMALL_NUMBER, RingUp);
+			}
+		}
 		const FVector RingSide = FVector::CrossProduct(RingUp, Tangent);
 		RingUps[k] = RingUp;
 		RingTangents[k] = Tangent;
