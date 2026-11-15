@@ -152,6 +152,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: Playtests and "does it look right" checks can run from a script, and later gameplay state (oxygen, trust, depth) can be exposed to agents with a few lines per tool. Gotchas found: toolset names are `Module.Class`, and the viewport capture needs `"world": null` passed explicitly.
 - Evidence: branch `tools/mcp`; screenshot `deep\Saved\Harness\mcp\CaptureGameViewport-20261114-215845-957.png` (not committed); note [[Unreal MCP Live Catalog]].
 
+### 10:25 PM  First look at the game, by a script
+- What happened: The tools agent gave `DeepToolset` three real tools (`GetState`, `Exec`, `GetArena`) and wrote `tools\playtest.ps1`, which starts Play In Editor, presses keys, asserts on the state JSON and screenshots the viewport. All five scenarios (boot, grab, overload, tether, winch) pass in about 2 minutes. This is the first time anyone has seen the game running, and the viewer was a Claude agent looking at the PNGs. It is bright flat teal fog with no visible submarine or salvage, a glowing vertical tether rod, and a readable but tiny HUD. It does not look like 300 m down.
+- Why it matters: The loop (build, play, assert, look) now runs with no human and no model tokens, so every later task can be gated on it. It also found a likely game bug: winching from beside the sub at anchor height stalls 7.4 m out instead of reaching 3 m; from below it arrives in 8 s. Gotchas: PowerShell 5.1 strips quotes passing JSON to a child process, and the state JSON has no world positions, hence `GetArena`.
+- Evidence: branch `tools/playtest`; screenshots `devlog\media\2026-11-14-greybox-S0-boot.png` and the four siblings; notes [[Validation Loop]] and [[Unreal MCP Live Catalog]].
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
