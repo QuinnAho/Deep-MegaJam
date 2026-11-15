@@ -8,7 +8,7 @@ Working guide. Quinn is leaning this way as of 2:40 AM Nov 15; he confirms it by
 Everything seen and heard copies from here (D-030). "(chosen here)" marks a value the research did not give; the rest is from [[Polish - Plan and Techniques]].
 
 ## 1. The look
-A cheap, old, worn submarine over a black ocean. Surfaces look photographed: scanned rock, rusted steel, wet concrete, dull and dirty. Light is scarce and has to be bought: dim blue-green water with shafts at 100 m, near black at 300 m where only the lamp and the sub's lights show, pure black at 500 m. Colour is muted and drains toward blue-green with depth. Warm amber appears only where a person or machine is working. The eye lands on two things: the water and the serpent.
+A cheap, old, worn submarine over a black ocean. Surfaces look photographed: scanned rock, rusted steel, wet concrete, dull and dirty. Light is scarce and has to be bought: dim blue-green water with shafts at 100 m, near black at 300 m where only the lamp and the sub's lights show, pure black at 500 m. Colour is muted and drains toward blue-green with depth. Warm amber appears only where a person or machine is working. The look is led by light and reflection, not by asset count: the diver's lamp is the main subject (a visible beam in the murk, hard shadows, particles lighting up in the cone, darkness everywhere else), and wet surfaces are where it lands. The eye lands on the lamp, the water and the serpent.
 
 ## 2. Do and do not
 Do:
@@ -52,7 +52,8 @@ The single accent is amber. Allowed only on: console and helm screens and practi
 ## 4. Materials
 - Physically based only: base colour, roughness, normal. Roughness 0.4 to 0.9 on worn surfaces; below 0.25 only on the serpent's wet skin and glass.
 - Worn: edge wear, rust, grime on every metal. No clean steel; paint is chipped, not glossy.
-- Wet: submerged surfaces get roughness minus 0.1 and silt in crevices. The floor near the hatch is wet.
+- Wet: submerged and sub-interior steel get roughness minus 0.1 (floor 0.3 to 0.5, wall steel 0.4 to 0.6, wet rock 0.35 to 0.55) with roughness varied by a grime mask so reflections break up; silt in crevices; puddles and streaks near the hatch at roughness 0.1 to 0.2 (chosen here). Dry, dusty surfaces stay above 0.7 so wet ones stand out. Reflections only work on a surface that has a normal map and variation; flat glossy planes are rejected.
+- The hatch water is a near-black, low-roughness (0.05, chosen here) surface that must reflect the lit room.
 - Never saturated: surface saturation at most 35%, value at most 70%. Colour comes from light.
 - Grading scans together: pack material saturation 0.7, multiply by the depth tint, textures capped at 2048, reject any albedo brighter than HUD secondary.
 - Use: Megascans rocks and harbour props, Industrial Infrastructure, Modular Ship Interior, Modular Underwater Exploration Base. Atlantis Ruins only graded dark.
@@ -70,12 +71,18 @@ The single accent is amber. Allowed only on: console and helm screens and practi
 | Unlit visibility | 40 m silhouettes | 4 m near sub lights | 0 m |
 Exposure locked, local exposure contrast 1.0, volumetric start 1.5 m. Lamp 40,000, cone 12 to 24 degrees, range 35 m, offset 25 cm right and 15 cm up, wobble 2% at 0.3 Hz, no flicker. Belly flood 100,000, 35 degrees, 60 m. Salvage glint: 100% at 100 m, 30% at 300 m, 15% at 500 m.
 
+## 5b. Ray tracing
+The project has Lumen GI and reflections with hardware ray tracing on (DX12). Use that; the Path Tracer is offline only and is not for the game.
+- With it on: the lamp casts hard shadows; the hatch water reflects the lit room; the helm window shows a faint reflection of the room over the dark sea; wet steel and rock reflect the lamp and sub lights.
+- With it off (no RTX card) the game must still look acceptable: the lamp beam, shadows and fog are unchanged, and the hatch and window fall back to screen-space or a fixed faint tint at the same colours. Check frames both ways before approval.
+
 ## 6. The monster
 - Long, dark, wet: near-black skin, roughness 0.25, 0.9 m thick behind the head tapering to 0.1 m, a ridge along the back.
 - Seen only by light: a cyan-green rim and two rows of small pulsing spots that speed up as threat rises. No other colour.
 - Not shown in the first minute of a dive. First sight is a partial silhouette at the edge of lamp range, after a sound.
 - Sound before shape: a low rumble and a pitch drop on the tether mean it is near.
 - It retreats from the lamp, visibly and audibly, so the rule is learned.
+- It answers the lamp: wet skin that glints where the beam hits, and eyes that shine back only while the beam is on them (retro-reflect, off otherwise).
 - Contact: 0.15 s hit-stop (chosen here), heavy sound, camera lunge, then the consequence.
 - Route open: code-driven body, owned or free mesh, or a generated head, if it passes section 11.
 
@@ -113,7 +120,7 @@ Depth values: section 5.
 1. Dark, worn and unsaturated at its depth, with no clean or glossy surface?
 2. Only section 3 colours, with amber only where allowed?
 3. Graded: saturation at most 35%, textures at most 2048, no albedo brighter than HUD secondary?
-4. Still reads with the lamp as the only light and the HUD hidden?
+4. Still reads with the lamp as the only light and the HUD hidden, and acceptable with ray tracing off?
 5. Sound: on a bus, at its level, with variations. UI: section 8 sizes and timings.
 
 ## 12. Still open
