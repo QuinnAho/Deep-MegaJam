@@ -83,6 +83,7 @@ protected:
 	TArray<FVector> SnowHome;
 	TArray<FVector> SnowDrift;
 	TArray<float> SnowScale;
+	TArray<FQuat> SnowSpin;
 	TArray<FTransform> SnowXforms;
 	float SnowTime = 0.f;
 };

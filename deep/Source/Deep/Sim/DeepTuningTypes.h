@@ -882,12 +882,80 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float MarkerHz = 1.f;
 
-	/** Helm sway while driving (degrees of roll and pitch, Hz): the hull camera rides the sub. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	/** Helm sway at full drive speed (degrees of roll and pitch, Hz), scaled by speed; none when parked. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmSwayDeg = 0.6f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmSwayHz = 0.2f;
+
+	/**
+	 * The helm floods: while someone is at the helm, the two bow lights become working lights aimed into the helm
+	 * camera's view at this intensity, full at every depth (the diver is aboard, so the 300 m lamp rule holds).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodIntensity = 40000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodConeDeg = 44.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodRangeM = 30.f;
+
+	/** How much the floods light the water: a visible beam that the specks stream through. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodFog = 0.35f;
+
+	/** The floods' pitch (down is negative); the helm camera looks down at Sub.HelmCameraPitchDeg. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodPitchDeg = -30.f;
+
+	/** The second flood aims lower, at the bed under the view, so an arriving sea floor rises into light. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodLowPitchDeg = -60.f;
+
+	/** Seen from the helm, specks are this much larger (the hull camera sits farther from them than a diver's eye). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSnowSizeScale = 1.7f;
+
+	/** Streak length = speed x this (s): a camera's shutter. 0.025 s at 8 m/s is a 20 cm streak; parked, none. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmStreakSeconds = 0.025f;
+
+	/** The trench wall ahead of the helm: a cliff of rock from the surface to past the last stop, seen only at the helm. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float TrenchAheadM = 8.f;
+
+	/** The wall runs at this angle across the view (deg), so one side is nearer: parallax across the frame. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float TrenchYawDeg = 22.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float TrenchWidthM = 44.f;
+
+	/** A ledge every this many metres of depth, so the eye can count the descent. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float TrenchLedgeEveryM = 10.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float TrenchLedgeOutM = 1.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float TrenchBottomM = 620.f;
+
+	/** Rock: dark, dull, never saturated (style guide 4). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	FLinearColor TrenchColor = FLinearColor(0.1f, 0.095f, 0.085f);
+
+	/** The settle when the sub parks: a damped dip of the helm camera (deg of pitch, cm of drop, seconds to fade). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSettleDeg = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSettleCm = 8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSettleSeconds = 1.4f;
 };
 
 // ---- Rule inputs and results ----

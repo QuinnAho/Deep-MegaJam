@@ -72,7 +72,39 @@ public:
 
 	UCameraComponent* GetHelmCamera() const { return HelmCamera; }
 
+	/** Vertical speed of the sub (m/s, + = down), from the replicated depth, smoothed. 0 when parked. */
+	float GetDriveSpeedMps() const { return DriveSpeedMps; }
+
+	/** Someone is seated at the helm: the floods are on and the trench wall shows. */
+	bool IsHelmManned() const { return bHelmManned; }
+
+	/** Sway amplitude as a fraction of full: |speed| / drive speed, clamped to 0..1. */
+	static float HelmSwayScale(float SpeedMps, float DriveSpeedMps);
+
+	/** Streak length (m) of a speck seen from the helm at this speed: |speed| x shutter seconds. */
+	static float HelmStreakM(float SpeedMps, float ShutterSeconds);
+
+	/** The trench wall's distance out from its base plane (m) at a point (along the wall, absolute depth): rock relief plus a ledge every LedgeEveryM. */
+	static float TrenchReliefM(float AlongM, float DepthM, float LedgeEveryM, float LedgeOutM);
+
 protected:
+	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
+	void TickHelmLook(float DeltaSeconds);
+
+	/** Builds the trench wall mesh once (sub-local, absolute depth along -Z). */
+	void BuildTrench();
+
+	float OutsideFog = 0.f;
+	float DriveSpeedMps = 0.f;
+	float LastDepthM = -1.f;
+	bool bHelmManned = false;
+	bool bWasParked = true;
+	float SettleAge = 100.f;
+
+	/** A cliff of rock ahead of the helm, slid up as the sub descends; visible only while the helm is manned. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<class UProceduralMeshComponent> Trench;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 

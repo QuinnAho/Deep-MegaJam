@@ -335,6 +335,7 @@ void ADeepEnvironment::BuildSnow(const FDeepLookTuning& Look)
 	SnowHome.Reset();
 	SnowDrift.Reset();
 	SnowScale.Reset();
+	SnowSpin.Reset();
 	SnowXforms.Reset();
 	const int32 Count = FMath::Max(0, Look.SnowCount);
 	if (Count == 0)
@@ -352,6 +353,7 @@ void ADeepEnvironment::BuildSnow(const FDeepLookTuning& Look)
 		// Basic shapes are 100 cm across: scale to the speck size.
 		SnowScale.Add(Rand.FRandRange(Look.SnowMinSizeM, Look.SnowMaxSizeM) * UDeepRules::CmPerM / DeepShapes::ShapeSizeCm);
 		const FRotator Spin(Rand.FRandRange(0.f, 360.f), Rand.FRandRange(0.f, 360.f), 0.f);
+		SnowSpin.Add(Spin.Quaternion());
 		SnowXforms.Add(FTransform(Spin.Quaternion(), GetActorLocation(), FVector(SnowScale.Last())));
 	}
 	Snow->AddInstances(SnowXforms, false, true, false);
@@ -383,12 +385,22 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 	// No specks inside the hull: the room is dry.
 	FBox Hull(ForceInit);
 	FTransform HullXf = FTransform::Identity;
+	// Seen through the helm camera, specks are larger and streak along the sub's travel, by its speed (a shutter).
+	bool bHelmView = false;
+	float SpeedMps = 0.f;
 	for (TActorIterator<ADeepSubmarine> It(GetWorld()); It; ++It)
 	{
 		Hull = It->GetSolidBoundsLocal(false);
 		HullXf = It->GetActorTransform();
+		bHelmView = PC->GetViewTarget() == *It;
+		SpeedMps = It->GetDriveSpeedMps();
 		break;
 	}
+	const double SizeScale = bHelmView ? FMath::Max(0.1f, Look.HelmSnowSizeScale) : 1.0;
+	const double StreakCm = bHelmView ? ADeepSubmarine::HelmStreakM(SpeedMps, Look.HelmStreakSeconds) * UDeepRules::CmPerM : 0.0;
+	// Below a few cm of streak a speck keeps its tumble; above, it is a line along the world's vertical (the travel).
+	const bool bStreak = StreakCm > 1.0;
+	const FQuat Upright = FQuat::Identity;
 
 	for (int32 i = 0; i < SnowHome.Num(); ++i)
 	{
@@ -397,7 +409,23 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 		const bool bInHull = (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
 			|| FVector::DistSquared(At, View) < ClearSq;
 		SnowXforms[i].SetLocation(At);
-		SnowXforms[i].SetScale3D(FVector(bInHull ? 0.0 : SnowScale[i]));
+		if (bInHull)
+		{
+			SnowXforms[i].SetScale3D(FVector::ZeroVector);
+			continue;
+		}
+		const double S = SnowScale[i] * SizeScale;
+		if (bStreak)
+		{
+			// Thin the streak as it lengthens so a fast speck does not read as a rod.
+			SnowXforms[i].SetRotation(Upright);
+			SnowXforms[i].SetScale3D(FVector(S * 0.7, S * 0.7, S + StreakCm / DeepShapes::ShapeSizeCm));
+		}
+		else
+		{
+			SnowXforms[i].SetRotation(SnowSpin[i]);
+			SnowXforms[i].SetScale3D(FVector(S));
+		}
 	}
 	Snow->BatchUpdateInstancesTransforms(0, SnowXforms, true, true, true);
 }

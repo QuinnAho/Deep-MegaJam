@@ -9,7 +9,15 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Components/StaticMeshComponent.h"
+#include "Diver/DeepRunComponent.h"
+#include "EngineUtils.h"
+#include "Game/DeepGameState.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/PlayerController.h"
 #include "Net/UnrealNetwork.h"
+#include "ProceduralMeshComponent.h"
+#include "World/DeepAbyssFloor.h"
+#include "World/DeepSalvage.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepShapes.h"
@@ -193,6 +201,15 @@ ADeepSubmarine::ADeepSubmarine()
 		Markers.Add(Light);
 	}
 
+	// The trench wall ahead of the helm: built at BeginPlay, shown only through the helm camera.
+	Trench = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Trench"));
+	Trench->SetupAttachment(Root);
+	Trench->SetMobility(EComponentMobility::Movable);
+	Trench->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Trench->SetGenerateOverlapEvents(false);
+	Trench->bAffectDistanceFieldLighting = false;
+	Trench->SetVisibility(false);
+
 	RoomVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("RoomVolume"));
 	RoomVolume->SetupAttachment(Root);
 	RoomVolume->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -343,12 +360,277 @@ void ADeepSubmarine::SetOutsideLights(float Scale, float Fog)
 	BellyFlood->SetIntensity(Look.BellyFloodIntensity * S);
 	BellyFlood->SetVisibility(S > 0.f);
 	OutsideScale = S;
+	OutsideFog = FMath::Max(0.f, Fog);
+	if (bHelmManned)
+	{
+		// The helm floods own the bow lights while someone drives; the depth fade applies again when they stand up.
+		return;
+	}
 	for (USpotLightComponent* Light : BowLights)
 	{
 		Light->SetIntensity(Look.BowLightIntensity * S);
 		Light->SetVisibility(S > 0.f);
-		Light->SetVolumetricScatteringIntensity(FMath::Max(0.f, Fog));
+		Light->SetVolumetricScatteringIntensity(OutsideFog);
 	}
+}
+
+float ADeepSubmarine::HelmSwayScale(float SpeedMps, float InDriveSpeedMps)
+{
+	return InDriveSpeedMps > UE_KINDA_SMALL_NUMBER ? FMath::Clamp(FMath::Abs(SpeedMps) / InDriveSpeedMps, 0.f, 1.f) : 0.f;
+}
+
+float ADeepSubmarine::HelmStreakM(float SpeedMps, float ShutterSeconds)
+{
+	return FMath::Abs(SpeedMps) * FMath::Max(0.f, ShutterSeconds);
+}
+
+float ADeepSubmarine::TrenchReliefM(float AlongM, float DepthM, float LedgeEveryM, float LedgeOutM)
+{
+	const float A = AlongM;
+	const float D = DepthM;
+	// Rock: big bulges, then smaller crossed waves (m out from the base plane, toward the sub).
+	float R = 1.4f * FMath::Sin(0.07f * A + 0.045f * D + 0.6f)
+		+ 0.6f * FMath::Sin(0.37f * A + 0.21f * D) * FMath::Sin(0.29f * D - 0.5f)
+		+ 0.3f * FMath::Sin(1.1f * A - 0.7f * D + 1.3f)
+		+ 0.14f * FMath::Sin(2.3f * A + 1.9f * D)
+		+ 0.06f * FMath::Sin(4.7f * A - 3.1f * D + 0.4f);
+	// Strata: a small step every 2.5 m.
+	R += 0.18f * FMath::Pow(FMath::Frac(D / 2.5f), 3.f);
+	// A ledge at every LedgeEveryM: a near-flat top that catches light, an underside that recedes over 2 m.
+	if (LedgeEveryM > 1.f && LedgeOutM > 0.f)
+	{
+		const float Q = FMath::Fmod(D, LedgeEveryM);
+		const float Level = FMath::RoundToFloat(D / LedgeEveryM);
+		float Out = 0.f;
+		if (Q < 2.f)
+		{
+			Out = FMath::Pow(1.f - Q / 2.f, 1.5f);
+		}
+		else if (Q > LedgeEveryM - 0.4f)
+		{
+			Out = (Q - (LedgeEveryM - 0.4f)) / 0.4f;
+		}
+		// Each ledge wanders along the wall, so they read as rock and not as shelving.
+		R += LedgeOutM * Out * (0.65f + 0.35f * FMath::Sin(0.19f * A + Level * 1.7f));
+	}
+	return R;
+}
+
+void ADeepSubmarine::BuildTrench()
+{
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	const double CellM = 0.5;
+	const double TopM = 40.0;
+	const double BottomM = FMath::Max(TopM + 10.0, double(Look.TrenchBottomM));
+	const double HalfW = FMath::Max(5.f, Look.TrenchWidthM * 0.5f);
+	const int32 Cols = FMath::CeilToInt(2.0 * HalfW / CellM) + 1;
+	const int32 Rows = FMath::CeilToInt((BottomM - TopM) / CellM) + 1;
+	const float Every = Look.TrenchLedgeEveryM;
+	const float Out = Look.TrenchLedgeOutM;
+
+	TArray<FVector> Vertices;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UV0;
+	TArray<FProcMeshTangent> Tangents;
+	TArray<int32> Triangles;
+	Vertices.Reserve(Cols * Rows);
+	Normals.Reserve(Cols * Rows);
+	UV0.Reserve(Cols * Rows);
+	Tangents.Reserve(Cols * Rows);
+	Triangles.Reserve((Cols - 1) * (Rows - 1) * 6);
+	const float Eps = 0.1f;
+	for (int32 j = 0; j < Rows; ++j)
+	{
+		const float D = float(TopM + j * CellM);
+		for (int32 i = 0; i < Cols; ++i)
+		{
+			const float A = float(-HalfW + i * CellM);
+			const float R = TrenchReliefM(A, D, Every, Out);
+			const float Ra = (TrenchReliefM(A + Eps, D, Every, Out) - TrenchReliefM(A - Eps, D, Every, Out)) / (2.f * Eps);
+			const float Rd = (TrenchReliefM(A, D + Eps, Every, Out) - TrenchReliefM(A, D - Eps, Every, Out)) / (2.f * Eps);
+			// Local: the face looks along -X (toward the sub), Y along the wall, Z = -absolute depth.
+			Vertices.Add(FVector(-R, A, -D) * UDeepRules::CmPerM);
+			Normals.Add(FVector(-1.0, -Ra, Rd).GetSafeNormal());
+			Tangents.Add(FProcMeshTangent(FVector(-Ra, 1.0, 0.0).GetSafeNormal(), false));
+			UV0.Add(FVector2D(A, D) / 2.0);
+		}
+	}
+	for (int32 j = 0; j < Rows - 1; ++j)
+	{
+		for (int32 i = 0; i < Cols - 1; ++i)
+		{
+			const int32 V00 = j * Cols + i;
+			const int32 V10 = V00 + 1;
+			const int32 V01 = V00 + Cols;
+			const int32 V11 = V01 + 1;
+			// Faces -X: Unreal's face normal is (P1 - P2) x (P0 - P2).
+			Triangles.Append({ V00, V01, V10, V10, V01, V11 });
+		}
+	}
+	Trench->ClearAllMeshSections();
+	Trench->CreateMeshSection(0, Vertices, Triangles, Normals, UV0, TArray<FColor>(), Tangents, /*bCreateCollision*/ false);
+	Trench->SetCastShadow(false);
+	// Worn steel's noise works from the object's pivot, so it rides with the wall; painted rock-grey with no rust it
+	// reads as grimy stone. Falls back to a flat tint.
+	UMaterialInterface* Base = Cast<UMaterialInterface>(Look.SteelMaterial.TryLoad());
+	if (Base)
+	{
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Trench);
+		M->SetVectorParameterValue(TEXT("PaintColor"), Look.TrenchColor);
+		M->SetScalarParameterValue(TEXT("Wear"), 0.f);
+		M->SetScalarParameterValue(TEXT("Rust"), 0.f);
+		M->SetScalarParameterValue(TEXT("Wet"), 0.25f);
+		M->SetScalarParameterValue(TEXT("PaintRoughness"), 0.75f);
+		M->SetScalarParameterValue(TEXT("PaintMetal"), 0.f);
+		M->SetScalarParameterValue(TEXT("PuddleRadius"), 0.f);
+		Trench->SetMaterial(0, M);
+	}
+	else if (UMaterialInterface* Basic = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+	{
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Basic, Trench);
+		M->SetVectorParameterValue(TEXT("Color"), Look.TrenchColor);
+		Trench->SetMaterial(0, M);
+	}
+}
+
+void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepLookTuning& Look = Tuning.Look;
+	const FDeepSubTuning& Sub = Tuning.Sub;
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	const ADeepGameState* State = World->GetGameState<ADeepGameState>();
+	const float DepthM = State ? State->SubDepthM : 0.f;
+	const bool bParked = State ? State->bParked : true;
+
+	// Speed from the replicated depth, so every machine agrees; smoothed so the look eases in and out.
+	float Raw = 0.f;
+	if (LastDepthM >= 0.f && DeltaSeconds > UE_KINDA_SMALL_NUMBER && !bParked)
+	{
+		Raw = (DepthM - LastDepthM) / DeltaSeconds;
+		// A stop jump (Deep.GotoStop) is not driving.
+		if (FMath::Abs(Raw) > Sub.DriveSpeedMps * 3.f)
+		{
+			Raw = 0.f;
+		}
+	}
+	LastDepthM = DepthM;
+	DriveSpeedMps = FMath::FInterpTo(DriveSpeedMps, Raw, DeltaSeconds, 4.f);
+	if (bParked && FMath::Abs(DriveSpeedMps) < 0.02f)
+	{
+		DriveSpeedMps = 0.f;
+	}
+
+	// Manned: any diver seated at the helm (replicated), so the floods show on every machine.
+	bool bManned = false;
+	for (TActorIterator<APawn> It(World); It; ++It)
+	{
+		const UDeepRunComponent* Run = It->FindComponentByClass<UDeepRunComponent>();
+		if (Run && Run->IsSeated())
+		{
+			bManned = true;
+			break;
+		}
+	}
+	const bool bGreyBox = Tuning.Arena.bGreyBox;
+	bManned = bManned && !bGreyBox;
+	if (bManned != bHelmManned)
+	{
+		bHelmManned = bManned;
+		for (int32 Index = 0; Index < BowLights.Num(); ++Index)
+		{
+			USpotLightComponent* Light = BowLights[Index];
+			const float Yaw = Index == 0 ? -8.f : 8.f;
+			if (bManned)
+			{
+				Light->SetIntensity(Look.HelmFloodIntensity);
+				Light->SetInnerConeAngle(Look.HelmFloodConeDeg * 0.45f);
+				Light->SetOuterConeAngle(Look.HelmFloodConeDeg);
+				Light->SetAttenuationRadius(Look.HelmFloodRangeM * UDeepRules::CmPerM);
+				Light->SetVolumetricScatteringIntensity(Look.HelmFloodFog);
+				// Port lights the wall ahead, starboard the bed below: two lights, two jobs.
+				Light->SetRelativeRotation(FRotator(Index == 0 ? Look.HelmFloodPitchDeg : Look.HelmFloodLowPitchDeg, Yaw * 0.6f, 0.f));
+				Light->SetVisibility(true);
+			}
+			else
+			{
+				Light->SetIntensity(Look.BowLightIntensity * OutsideScale);
+				Light->SetInnerConeAngle(Look.BowLightConeDeg * 0.4f);
+				Light->SetOuterConeAngle(Look.BowLightConeDeg);
+				Light->SetAttenuationRadius(Look.BowLightRangeM * UDeepRules::CmPerM);
+				Light->SetVolumetricScatteringIntensity(OutsideFog);
+				Light->SetRelativeRotation(FRotator(-18.f, Yaw, 0.f));
+				Light->SetVisibility(OutsideScale > 0.f);
+			}
+		}
+	}
+
+	// The trench wall: only for a local player looking through this sub's helm camera (a diver outside never sees it).
+	const APlayerController* PC = World->GetFirstPlayerController();
+	const bool bLocalHelmView = !bGreyBox && PC && PC->GetViewTarget() == this;
+	if (bLocalHelmView && Trench->GetNumSections() == 0)
+	{
+		BuildTrench();
+	}
+	if (Trench->IsVisible() != bLocalHelmView)
+	{
+		Trench->SetVisibility(bLocalHelmView);
+	}
+	if (bLocalHelmView)
+	{
+		// The point at absolute depth d sits (DepthM - d) above the sub: the wall slides up as the sub goes down.
+		const FVector Cam = Sub.HelmCameraM * UDeepRules::CmPerM;
+		Trench->SetRelativeLocation(FVector(Cam.X + Look.TrenchAheadM * UDeepRules::CmPerM, 0.0, DepthM * UDeepRules::CmPerM));
+		Trench->SetRelativeRotation(FRotator(0.f, Look.TrenchYawDeg, 0.f));
+	}
+
+	// The loaded stop's sea bed lies 8 m under the anchor: once the sub is below that stop (leaving it downward, or
+	// climbing up to it) the sub would pass through the bed, so it is hidden until the sub is at or above the stop.
+	if (State)
+	{
+		const bool bBelowStop = DepthM > Tuning.GetStop(State->Stop).SubDepthM + 0.5f;
+		for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
+		{
+			if (It->IsHidden() != bBelowStop)
+			{
+				It->SetActorHiddenInGame(bBelowStop);
+			}
+		}
+		// The salvage lying on that bed goes with it (a crate hanging in open water is worse than none).
+		for (TActorIterator<ADeepSalvage> It(World); It; ++It)
+		{
+			if (It->IsHidden() != bBelowStop)
+			{
+				It->SetActorHiddenInGame(bBelowStop);
+			}
+		}
+	}
+
+	// Settle: when the sub parks, the camera dips and recovers once.
+	if (bParked && !bWasParked)
+	{
+		SettleAge = 0.f;
+	}
+	bWasParked = bParked;
+	SettleAge += DeltaSeconds;
+	const float Secs = FMath::Max(0.1f, Look.HelmSettleSeconds);
+	const float Env = SettleAge < Secs * 1.5f ? FMath::Exp(-4.f * SettleAge / Secs) * FMath::Sin(UE_TWO_PI * 0.9f * SettleAge) : 0.f;
+
+	// Sway scaled by speed (none parked), plus a faint engine shiver.
+	const double T = World->GetTimeSeconds();
+	const float Scale = HelmSwayScale(DriveSpeedMps, Sub.DriveSpeedMps);
+	const float A = Look.HelmSwayDeg * Scale;
+	const float W = UE_TWO_PI * Look.HelmSwayHz;
+	const float Shiver = 0.04f * Scale * FMath::Sin(UE_TWO_PI * 7.3 * T) + 0.03f * Scale * FMath::Sin(UE_TWO_PI * 11.1 * T + 0.8);
+	HelmCamera->SetRelativeRotation(FRotator(
+		Sub.HelmCameraPitchDeg + A * 0.5f * FMath::Sin(W * 0.73 * T + 1.1) + Shiver - Look.HelmSettleDeg * Env,
+		A * 0.3f * FMath::Sin(W * 0.41 * T),
+		A * FMath::Sin(W * T) + Shiver * 0.5f));
+	HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, Look.HelmSettleCm * Env));
 }
 
 void ADeepSubmarine::Tick(float DeltaSeconds)
@@ -362,11 +644,7 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	{
 		Light->SetVisibility(bOn && !UDeepTuningSettings::Get().Arena.bGreyBox);
 	}
-	// The hull camera rides the sub: a slow roll and pitch, two incommensurate sines so it never repeats visibly.
-	const FDeepSubTuning& Sub = UDeepTuningSettings::Get().Sub;
-	const float A = Look.HelmSwayDeg;
-	const float W = UE_TWO_PI * Look.HelmSwayHz;
-	HelmCamera->SetRelativeRotation(FRotator(Sub.HelmCameraPitchDeg + A * 0.5f * FMath::Sin(W * 0.73 * T + 1.1), A * 0.3f * FMath::Sin(W * 0.41 * T), A * FMath::Sin(W * T)));
+	TickHelmLook(DeltaSeconds);
 }
 
 void ADeepSubmarine::ApplyLook()
