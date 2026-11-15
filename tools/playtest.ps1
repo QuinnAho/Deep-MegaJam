@@ -1,4 +1,4 @@
-<#
+﻿<#
 playtest.ps1 - scripted playtests for DEEP through the editor's MCP server. Costs no model tokens.
 
   playtest.ps1 <scenario|all> [-Port 8012] [-KeepEditor]
@@ -22,7 +22,9 @@ Keys: W/A/S/D move, Space up/jump, C down, E use/grab, G drop, R winch, F lamp, 
 param(
     [Parameter(Position = 0)][string]$Scenario = 'all',
     [int]$Port = 8012,
-    [switch]$KeepEditor
+    [switch]$KeepEditor,
+    [double]$Speed = 1,         # game-time speed: slomo n, and every game-time wait and key hold shortened by n
+    [switch]$NoUnthrottle       # leave the editor's background CPU throttle on when this script starts the editor
 )
 $ErrorActionPreference = 'Stop'
 $Tools = $PSScriptRoot
@@ -31,21 +33,90 @@ $ShotDir = Join-Path $Repo 'deep\Saved\Harness\playtest'
 $MediaDir = Join-Path $Repo 'devlog\media'
 New-Item -ItemType Directory -Force -Path $ShotDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
-$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys')
+$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys', 'S9-floor', 'S10-relic', 'S11-pass', 'S12-sidehome')
 $script:Notes = @()
 
+# ---- MCP in-process: one HTTP session for the whole run (the same protocol as tools\mcp.ps1) ----------
+$McpUrl = 'http://127.0.0.1:{0}/mcp' -f $Port
+$McpProto = '2025-11-25'
+$script:McpSession = $null
+$script:McpId = 0
+[Net.ServicePointManager]::Expect100Continue = $false
+function Mcp-Post([string]$body, [int]$timeoutSec) {
+    $req = [Net.HttpWebRequest]::Create($McpUrl)
+    $req.Method = 'POST'; $req.ContentType = 'application/json'; $req.Accept = 'application/json, text/event-stream'
+    $req.Timeout = $timeoutSec * 1000; $req.ReadWriteTimeout = $timeoutSec * 1000
+    if ($script:McpSession) { $req.Headers.Add('Mcp-Session-Id', $script:McpSession); $req.Headers.Add('MCP-Protocol-Version', $McpProto) }
+    $bytes = [Text.Encoding]::UTF8.GetBytes($body)
+    $req.ContentLength = $bytes.Length
+    $st = $req.GetRequestStream(); $st.Write($bytes, 0, $bytes.Length); $st.Close()
+    try { $resp = $req.GetResponse() } catch [Net.WebException] { $resp = $_.Exception.Response; if ($null -eq $resp) { throw } }
+    $sid = $resp.Headers['Mcp-Session-Id']; if ($sid) { $script:McpSession = $sid }
+    $ctype = [string]$resp.ContentType
+    $rd = New-Object IO.StreamReader($resp.GetResponseStream(), [Text.Encoding]::UTF8)
+    $text = $rd.ReadToEnd(); $rd.Close(); $resp.Close()
+    return [pscustomobject]@{ Ctype = $ctype; Text = $text }
+}
+function Mcp-Rpc([string]$method, $params, [int]$timeoutSec, [bool]$wantReply = $true) {
+    $msg = [ordered]@{ jsonrpc = '2.0'; method = $method }
+    if ($wantReply) { $script:McpId++; $msg['id'] = $script:McpId }
+    if ($null -ne $params) { $msg['params'] = $params }
+    $r = Mcp-Post ($msg | ConvertTo-Json -Depth 30 -Compress) $timeoutSec
+    if (-not $wantReply) { return $null }
+    $payloads = @()
+    if ($r.Ctype -match 'event-stream') {
+        $cur = ''
+        foreach ($line in ($r.Text -split "`n")) {
+            $l = $line.TrimEnd("`r")
+            if ($l.StartsWith('data:')) { $cur += $l.Substring(5).TrimStart() } elseif ($l -eq '' -and $cur -ne '') { $payloads += $cur; $cur = '' }
+        }
+        if ($cur -ne '') { $payloads += $cur }
+    } else { $payloads += $r.Text }
+    foreach ($p in $payloads) {
+        try { $o = $p | ConvertFrom-Json } catch { continue }
+        if ($o.PSObject.Properties['id'] -and $o.id -eq $script:McpId) {
+            if ($o.PSObject.Properties['error'] -and $o.error) { throw ('JSON-RPC error {0}: {1}' -f $o.error.code, $o.error.message) }
+            return $o.result
+        }
+    }
+    throw ('no JSON-RPC reply: ' + $r.Text.Substring(0, [Math]::Min(200, $r.Text.Length)))
+}
+function Mcp-Connect([int]$timeoutSec) {
+    $script:McpSession = $null
+    $res = Mcp-Rpc 'initialize' @{ protocolVersion = $McpProto; capabilities = @{}; clientInfo = @{ name = 'deep-playtest'; version = '2.0' } } $timeoutSec
+    $null = Mcp-Rpc 'notifications/initialized' $null $timeoutSec $false
+    return $res
+}
+# Same contract as before: Ok, and Text (the tool's text; images are saved and reported as 'image saved: <path>').
 function Mcp([string]$verb, [string]$name, [string]$json) {
-    $sq = [string][char]39
-    $dq = [string][char]34
-    $cmd = '& ' + $sq + (Join-Path $Tools 'mcp.ps1') + $sq + ' ' + $verb + ' ' + $sq + $name + $sq
-    if ($json) { $cmd += ' ' + $sq + $json.Replace($sq, $sq + $sq) + $sq }
-    $cmd += ' -Port ' + $Port + ' -MaxChars 100000'
-    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ($dq + $cmd.Replace($dq, '\' + $dq) + $dq))
-    $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    $out = & powershell.exe @a 2>&1 | Out-String
-    $code = $LASTEXITCODE
-    $ErrorActionPreference = $old
-    return [pscustomobject]@{ Ok = ($code -eq 0); Text = $out.Trim() }
+    try {
+        if ($verb -eq 'ping') {
+            $res = Mcp-Connect 3
+            return [pscustomobject]@{ Ok = $true; Text = ('OK server=' + $res.serverInfo.name) }
+        }
+        if (-not $script:McpSession) { $null = Mcp-Connect 30 }
+        $args1 = $null; if ($json) { $args1 = $json | ConvertFrom-Json } else { $args1 = @{} }
+        $i = $name.LastIndexOf('.')
+        $p = @{ name = 'call_tool'; arguments = @{ toolset_name = $name.Substring(0, $i); tool_name = $name.Substring($i + 1); arguments = $args1 } }
+        try { $res = Mcp-Rpc 'tools/call' $p 100 }
+        catch [Net.WebException] { $script:McpSession = $null; $null = Mcp-Connect 30; $res = Mcp-Rpc 'tools/call' $p 100 }   # session lost: reconnect once
+        $ok = -not ($res.PSObject.Properties['isError'] -and $res.isError)
+        $t = ''
+        foreach ($c in @($res.content)) {
+            if ($c.type -eq 'text') { $t += [string]$c.text + "`n" }
+            elseif ($c.type -eq 'image') {
+                $dir = Join-Path $Repo 'deep\Saved\Harness\mcp'
+                New-Item -ItemType Directory -Force -Path $dir | Out-Null
+                $ext = 'png'; if ($c.mimeType -match 'jpe?g') { $ext = 'jpg' }
+                $f = Join-Path $dir ('{0}-{1}.{2}' -f ($name -replace '^.*\.', ''), (Get-Date -Format 'yyyyMMdd-HHmmss-fff'), $ext)
+                [IO.File]::WriteAllBytes($f, [Convert]::FromBase64String([string]$c.data))
+                $t += 'image saved: ' + $f + "`n"
+            }
+        }
+        return [pscustomobject]@{ Ok = $ok; Text = $t.Trim() }
+    } catch {
+        return [pscustomobject]@{ Ok = $false; Text = ('transport: ' + $_.Exception.Message) }
+    }
 }
 function Call([string]$tool, [string]$json) {
     $r = Mcp 'call' $tool $json
@@ -86,10 +157,16 @@ function Get-Monster {
 # keys: array of key names, held together for $sec seconds
 function Hold([string[]]$keys, [double]$sec) {
     $e = @(); foreach ($k in $keys) { $e += ('{"key":{"keyName":"' + $k + '"},"value":{"x":1,"y":0,"z":0}}') }
-    $j = '{"entries":[' + ($e -join ',') + '],"durationSeconds":' + $sec.ToString([Globalization.CultureInfo]::InvariantCulture) + '}'
+    $j = '{"entries":[' + ($e -join ',') + '],"durationSeconds":' + ([Math]::Max(0.05, $sec / $Speed)).ToString([Globalization.CultureInfo]::InvariantCulture) + '}'
+    $t0 = [Diagnostics.Stopwatch]::StartNew()
     $null = Call 'InputToolset.InputToolset.ApplyInput' $j
+    # the tool may return before the keys are released; a hold is over only when its time is
+    $left = [Math]::Max(0.05, $sec / $Speed) - $t0.Elapsed.TotalSeconds
+    if ($left -gt 0) { Start-Sleep -Milliseconds ([int]($left * 1000)) }
+    $script:HoldWaited += [Math]::Max(0, $left)
 }
-function Wait-Sec([double]$s) { Start-Sleep -Milliseconds ([int]($s * 1000)) }
+$script:HoldWaited = 0
+function Wait-Sec([double]$s) { Start-Sleep -Milliseconds ([Math]::Max(20, [int]($s * 1000 / $Speed))) }   # a wait for game time: shorter when the game runs faster
 function Need([bool]$cond, [string]$why) { if (-not $cond) { throw $why } }
 function Teleport($p) { $null = Run-Exec ('Deep.Teleport {0} {1} {2}' -f [int]$p[0], [int]$p[1], [int]$p[2]); Wait-Sec 0.5 }
 function Near([double]$a, [double]$b, [double]$tol) { return ([Math]::Abs($a - $b) -le $tol) }
@@ -99,26 +176,37 @@ function Wait-Editor([int]$timeoutSec) {
     while ($sw.Elapsed.TotalSeconds -lt $timeoutSec) {
         $r = Mcp 'ping' '' ''
         if ($r.Ok -and $r.Text -match '^OK') { return $true }
-        Start-Sleep -Seconds 3
+        Start-Sleep -Milliseconds 500
     }
     return $false
 }
 
 function Start-Pie {
     $null = Call 'EditorToolset.EditorAppToolset.StartPIE' '{}'
-    for ($i = 0; $i -lt 20; $i++) {
-        Wait-Sec 1
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt 25) {
+        Start-Sleep -Milliseconds 250
         $r = Mcp 'call' 'DeepToolset.DeepToolset.GetState' '{}'
         if ($r.Ok) {
             $s = ($r.Text | ConvertFrom-Json).returnValue | ConvertFrom-Json
-            if ($s.diver_present) { Wait-Sec 1.5; return }
+            if ($s.diver_present) {
+                if ($Speed -ne 1) { $null = Run-Exec ('slomo ' + $Speed.ToString([Globalization.CultureInfo]::InvariantCulture)) }
+                Start-Sleep -Milliseconds 400; return
+            }
         }
     }
-    throw 'PIE started but no diver appeared within 20 s'
+    throw 'PIE started but no diver appeared within 25 s'
 }
 function Stop-Pie {
     $null = Mcp 'call' 'EditorToolset.EditorAppToolset.StopPIE' '{}'
-    Wait-Sec 2
+    # poll until the game world is gone (GetState fails or reports no diver), not a fixed 2 s
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt 8) {
+        $r = Mcp 'call' 'DeepToolset.DeepToolset.GetState' '{}'
+        if (-not $r.Ok) { break }
+        try { $s = ($r.Text | ConvertFrom-Json).returnValue | ConvertFrom-Json; if (-not $s.diver_present) { break } } catch { break }
+        Start-Sleep -Milliseconds 150
+    }
 }
 # One viewport PNG: kept in the harness folder and in devlog\media (named for the dev log).
 function Shot([string]$name) {
@@ -126,7 +214,7 @@ function Shot([string]$name) {
     if ($r.Ok -and $r.Text -match 'image saved: (.+\.png)') {
         $src = $Matches[1].Trim()
         Copy-Item -LiteralPath $src -Destination (Join-Path $ShotDir ($name + '.png')) -Force
-        Copy-Item -LiteralPath $src -Destination (Join-Path $MediaDir ('2026-11-15-play-' + $name + '.png')) -Force
+        Copy-Item -LiteralPath $src -Destination (Join-Path $MediaDir ('2026-11-15-play2-' + $name + '.png')) -Force
     } else { $script:Notes += ($name + ': screenshot failed: ' + $r.Text) }
 }
 
@@ -137,7 +225,7 @@ function Wait-State([scriptblock]$test, [double]$timeoutSec, [string]$what) {
         $s = Get-State
         if (& $test $s) { return $s }
         if ($sw.Elapsed.TotalSeconds -gt $timeoutSec) { throw ('timed out after {0:N0} s waiting for {1}; run_state={2} credits={3} stop={4} sub_depth={5} inside={6}' -f $sw.Elapsed.TotalSeconds, $what, $s.run_state, $s.credits, $s.stop, $s.sub_depth_m, $s.inside) }
-        Wait-Sec 0.7
+        Start-Sleep -Milliseconds 120
     }
 }
 # Leave the settlement screen the way a player does (Space), retrying until the minimum screen time has passed.
@@ -156,7 +244,8 @@ function Begin-Run {
     $s = Get-State
     if ($s.on_title) {
         Hold @('SpaceBar') 0.3
-        Wait-Sec 1
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ((Get-State).on_title -and $sw.Elapsed.TotalSeconds -lt 1.5) { Start-Sleep -Milliseconds 100 }
         if ((Get-State).on_title) { $script:Notes += 'title: a key press did not start the run, used Deep.Start'; $null = Run-Exec 'Deep.Start' }
     }
     $null = Wait-State { param($s) -not $s.on_title -and $s.run_state -eq 'aboard' } 15 'the run to start aboard'
@@ -633,6 +722,209 @@ function S8-keys {
     $script:Notes += ('S8 console commands used: ' + ($setup -join '; ') + '; Deep.Look (aim), Deep.Teleport (Far-Out), Deep.Harpoon.Reset; reads GetState and GetArena')
 }
 
+
+# ---- the Nov 15 night's changes: floor salvage, sinkhole relic, first pass, side return ----------------
+# Swim by keys toward a point (cm): face it, hold W. Throws with the state values when the diver stops making progress.
+function Swim-To($target, [double]$tolCm, [int]$maxLegs, [string]$what) {
+    $stuck = 0; $prev = $null
+    for ($leg = 0; $leg -lt $maxLegs; $leg++) {
+        $s = Get-State
+        $d = Dist3 $s.pos_cm $target
+        if ($d -le $tolCm -or $s.inside) { return $s }
+        if ($null -ne $prev -and (Dist3 $s.pos_cm $prev) -lt 15) { $stuck++ } else { $stuck = 0 }
+        if ($stuck -ge 3) { throw ('diver stuck swimming to {0}: pos {1} target {2} dist {3:N0} cm run_state {4} tether_distance {5:N1} m' -f $what, ($s.pos_cm -join ','), ($target -join ','), $d, $s.run_state, $s.tether_distance_m) }
+        $prev = $s.pos_cm
+        Look-At $s.pos_cm $target
+        Hold @('W') ([Math]::Min(1.2, [Math]::Max(0.2, ($d - $tolCm) / 300)))
+    }
+    $s = Get-State
+    throw ('did not reach {0} in {1} legs: pos {2} target {3} dist {4:N0} cm run_state {5}' -f $what, $maxLegs, ($s.pos_cm -join ','), ($target -join ','), (Dist3 $s.pos_cm $target), $s.run_state)
+}
+# At one stop: every piece of salvage rests (does not move in 3 s) and the nearest three can be swum to and grabbed with E.
+function Floor-Stop([int]$stop) {
+    $s = Drive-Now ('s' + $stop)
+    Need ($s.parked_stop -eq $stop) ('could not park at stop {0}: sub_depth {1:N1} limit {2}' -f $stop, $s.sub_depth_m, $s.depth_limit_m)
+    Dive
+    $a0 = Get-Arena
+    $n = @($a0.salvage).Count
+    Need ($n -gt 0) ('stop {0}: no salvage in the world' -f $stop)
+    Wait-Sec 3
+    $a1 = Get-Arena
+    $moved = 0
+    foreach ($p in $a0.salvage) { $q = @($a1.salvage | ?{ $_.name -eq $p.name })[0]; if ($null -eq $q -or (Dist3 $p.pos_cm $q.pos_cm) -gt 5) { $moved++ } }
+    $zs = @($a1.salvage | %{ [int]$_.pos_cm[2] }) | sort
+    $script:Notes += ('{0} stop {1}: {2} pieces, z range {3}..{4} cm (anchor z {5:N0}), {6} moved in 3 s' -f $script:Tag, $stop, $n, $zs[0], $zs[-1], $a1.anchor_cm[2], $moved)
+    Need ($moved -eq 0) ('stop {0}: {1} of {2} salvage pieces still moving 3 s after the dive (not resting on the floor)' -f $stop, $moved, $n)
+    Need ($zs[-1] -lt $a1.anchor_cm[2] - 300) ('stop {0}: salvage at z {1} is not below the submarine (anchor z {2:N0})' -f $stop, $zs[-1], $a1.anchor_cm[2])
+    $got = 0
+    for ($k = 0; $k -lt 3; $k++) {
+        $s = Get-State
+        $best = $null; $bd = 1e12
+        foreach ($p in (Get-Arena).salvage) { $d = Dist3 $p.pos_cm $s.pos_cm; if ($d -lt $bd) { $bd = $d; $best = $p } }
+        if ($null -eq $best) { break }
+        $items0 = $s.cargo_items
+        $s = Swim-To $best.pos_cm 110 40 ('salvage {0} at stop {1}' -f $best.name, $stop)
+        for ($t = 0; $t -lt 4 -and (Get-State).cargo_items -le $items0; $t++) { Look-At (Get-State).pos_cm $best.pos_cm; Hold @('E') 0.3; Wait-Sec 0.5 }
+        $s = Get-State
+        $script:Notes += ('{0} stop {1} piece {2} {3}: items {4} -> {5}, cargo {6} kg, diver {7}' -f $script:Tag, $stop, $k, $best.name, $items0, $s.cargo_items, $s.cargo_kg, ($s.pos_cm -join ','))
+        Need ($s.cargo_items -gt $items0) ('stop {0}: E beside salvage {1} did not grab it (diver {2}, piece {3}, items {4})' -f $stop, $best.name, ($s.pos_cm -join ','), ($best.pos_cm -join ','), $s.cargo_items)
+        $got++
+    }
+    $null = Run-Exec 'Deep.EnterSub'
+    $null = Wait-State { param($s) $s.inside } 10 'back aboard after the floor check'
+    $null = Run-Exec 'Deep.Console'
+    $null = Wait-State { param($s) $s.run_state -eq 'settling' } 10 'banking the floor haul'
+    Press-Continue
+}
+function S9-floor {
+    $script:Tag = 'S9'
+    Begin-Run
+    $null = Run-Exec 'Deep.BuyGate free'; $null = Run-Exec 'Deep.BuyGate free'
+    foreach ($st in 1, 2, 3) { Floor-Stop $st }
+    Shot 'S9-floor-end'
+}
+# The relic in its sinkhole at stop 3: swim to it from the hatch by keys, take it, come home, bank it, win.
+function S10-relic {
+    Begin-Run
+    $null = Run-Exec 'Deep.BuyGate free'; $null = Run-Exec 'Deep.BuyGate free'
+    $s = Drive-Now 's3'
+    Need ($s.parked_stop -eq 3) ('could not park at stop 3: sub_depth {0:N1}' -f $s.sub_depth_m)
+    Dive
+    $s = Get-State
+    Need ($s.relic_in_world) 'no relic in the world at stop 3'
+    $anc = (Get-Arena).anchor_cm
+    # the relic is the piece whose distance to the diver equals relic_distance_m
+    $rp = $null
+    foreach ($p in (Get-Arena).salvage) { if ([Math]::Abs((Dist3 $p.pos_cm $s.pos_cm) / 100 - $s.relic_distance_m) -lt 0.5) { $rp = $p } }
+    Need ($null -ne $rp) ('could not identify the relic among the salvage (relic_distance {0:N1} m)' -f $s.relic_distance_m)
+    $script:Notes += ('S10 relic at {0}, {1:N1} m from the diver, {2:N0} cm below the anchor, tether {3} m' -f ($rp.pos_cm -join ','), $s.relic_distance_m, ($anc[2] - $rp.pos_cm[2]), $s.tether_length_m)
+    Shot 'S10-relic-dive'
+    # a sinkhole has walls: swim level to above its centre first, then straight down it (a straight steep line from the hatch hits the rim)
+    $above = @($rp.pos_cm[0], $rp.pos_cm[1], ($anc[2] - 700))
+    $s = Swim-To $above 150 40 'the point above the sinkhole'
+    $script:Notes += ('S10 above the sinkhole: diver {0} tether_distance {1:N1} m' -f ($s.pos_cm -join ','), $s.tether_distance_m)
+    $s = Swim-To $rp.pos_cm 110 80 'the relic'
+    for ($t = 0; $t -lt 5 -and -not (Get-State).carrying_relic; $t++) { Look-At (Get-State).pos_cm $rp.pos_cm; Hold @('E') 0.3; Wait-Sec 0.5 }
+    $s = Get-State
+    $script:Notes += ('S10 at the relic: carrying={0} distance {1:N1} m diver {2} tether_distance {3:N1} m' -f $s.carrying_relic, $s.relic_distance_m, ($s.pos_cm -join ','), $s.tether_distance_m)
+    Shot 'S10-relic-grab'
+    Need ($s.carrying_relic) ('swam to the relic but E did not take it: diver {0} relic {1} dist {2:N1} m' -f ($s.pos_cm -join ','), ($rp.pos_cm -join ','), $s.relic_distance_m)
+    # home: the relic overloads the diver (60 kg), so swimming is out by design; the player winches (hold R)
+    $s = Get-State
+    $script:Notes += ('S10 loaded: overloaded {0} cargo_kg {1} (the relic is meant to be winched home)' -f $s.overloaded, $s.cargo_kg)
+    $prevd = $s.tether_distance_m; $flat = 0
+    for ($leg = 0; $leg -lt 60; $leg++) {
+        $s = Get-State
+        if ($s.inside) { break }
+        if (-not $s.carrying_relic) { $script:Notes += ('S10 relic no longer carried at leg {0}: cargo_kg {1} run_state {2} last_event {3} diver {4}' -f $leg, $s.cargo_kg, $s.run_state, $s.last_event, ($s.pos_cm -join ',')); break }
+        Hold @('R') 1.5
+        $x = Get-State
+        if ($x.run_state -eq 'cut') { $m = Get-Monster; $script:Notes += ('S10 tether cut at leg {0}: diver {1} tether_distance {2:N1} m serpent state {3} diver_distance {4} m first_sight_done {5} lamp {6}' -f $leg, ($x.pos_cm -join ','), $x.tether_distance_m, $m.state, $m.diver_distance_m, $m.first_sight_done, $x.lamp) }
+        if ($x.run_state -eq 'cut' -and -not $script:CutSeen) { $script:CutSeen = $true; $script:Notes += 'FINDING S10: the serpent cut the tether while the relic was winched out of the sinkhole; trying the harpoon as the player would'; $null = Run-Exec 'Deep.Harpoon.AimSub fire'; Wait-Sec 1; $script:Notes += ('S10 harpoon after the cut: ' + ((Get-State).harpoon | ConvertTo-Json -Compress)) }
+        if ($leg % 5 -eq 0) { $script:Notes += ('S10 winch leg {0}: diver {1} tether_distance {2:N1} m run_state {3}' -f $leg, ($x.pos_cm -join ','), $x.tether_distance_m, $x.run_state) }
+        if ([Math]::Abs($x.tether_distance_m - $prevd) -lt 0.2) { $flat++ } else { $flat = 0 }
+        $prevd = $x.tether_distance_m
+        if ($flat -ge 4) { throw ('winching the relic made no progress: diver {0} tether_distance {1:N1} m run_state {2} winching {3}' -f ($x.pos_cm -join ','), $x.tether_distance_m, $x.run_state, $x.winching) }
+    }
+    $s = Get-State
+    $script:Notes += ('S10 home with the relic: inside {0} run_state {1} carrying {2} tether_distance {3:N1} m diver {4} (legs {5})' -f $s.inside, $s.run_state, $s.carrying_relic, $s.tether_distance_m, ($s.pos_cm -join ','), $leg)
+    Need $s.inside ('could not climb back aboard with the relic: diver {0} anchor {1} tether_distance {2:N1} m' -f ($s.pos_cm -join ','), ($anc -join ','), $s.tether_distance_m)
+    Need $s.carrying_relic 'the relic was lost on the way home'
+    $null = Run-Exec 'Deep.Console'
+    $s = Wait-State { param($s) $s.won } 15 'the win after banking the relic'
+    $script:Notes += ('S10 won: rating {0} kept {1}' -f $s.run_totals.rating, $s.run_totals.kept)
+    Wait-Sec 1
+}
+# The serpent's first pass: staged once per run for a player-controlled diver; it must end, and then normal hunting follows.
+function S11-pass {
+    Begin-Run
+    $null = Run-Exec 'Deep.BuyGate free'
+    $s = Drive-Now 's2'
+    Need ($s.parked_stop -eq 2) ('could not park at stop 2: sub_depth {0:N1}' -f $s.sub_depth_m)
+    Dive
+    $m = Get-Monster
+    Need ($null -ne $m) 'could not read DEEPMONSTER'
+    $script:Notes += ('S11 on arrival: present={0} state={1} first_sight_done={2}' -f $m.present, $m.state, $m.first_sight_done)
+    Need (-not $m.first_sight_done) 'the first sight was already used before the diver did anything'
+    # swim and winch: noise. Watch for the Pass state, then for it to end.
+    $states = @(); $sawPass = $false; $sw = [Diagnostics.Stopwatch]::StartNew(); $passEnded = $false
+    while ($sw.Elapsed.TotalSeconds -lt 100) {
+        $s = Get-State
+        if ($s.run_state -ne 'tethered') { break }
+        Hold @('W', 'LeftShift') 1.0
+        $m = Get-Monster
+        if ($null -eq $m) { continue }
+        if ($states.Count -eq 0 -or $states[-1] -ne $m.state) { $states += $m.state }
+        if ($m.state -eq 'Pass') { $sawPass = $true }
+        if ($sawPass -and $m.state -ne 'Pass') { $passEnded = $true; break }
+        if ($m.first_sight_done -and $m.state -ne 'Pass') { $passEnded = $true; break }
+        $s = Get-State
+        if ($s.tether_distance_m -gt 30) { Teleport @(($s.pos_cm[0] - 1500), $s.pos_cm[1], $s.pos_cm[2]) }
+    }
+    $script:Notes += ('S11 states seen after {0:N0} s: {1}; saw Pass {2}; first_sight_done {3}' -f $sw.Elapsed.TotalSeconds, ($states -join ' > '), $sawPass, $m.first_sight_done)
+    Shot 'S11-pass'
+    Need $sawPass 'no first pass within 100 s of noisy swimming at stop 2'
+    Need $passEnded ('the pass did not end: state {0}' -f $m.state)
+    Need $m.first_sight_done 'first_sight_done is false after the pass ended'
+    # normal hunting: with the first sight used, a loud diver is stalked or the tether is bitten as before
+    $s = Get-State
+    Need ($s.run_state -eq 'tethered') ('the pass cut the run short: run_state {0}' -f $s.run_state)
+    $null = Run-Exec 'Deep.Monster.Noise 3'
+    $hunted = $false
+    for ($i = 0; $i -lt 40 -and -not $hunted; $i++) {
+        Hold @('W', 'LeftShift') 0.5
+        $m = Get-Monster
+        if ($m -and $m.state -in @('Stalk', 'Bite', 'Hunt')) { $hunted = $true }
+        if ((Get-State).run_state -ne 'tethered') { $hunted = $true }
+    }
+    $s = Get-State
+    $script:Notes += ('S11 after the pass: state {0} hunted {1} run_state {2}' -f $m.state, $hunted, $s.run_state)
+    Need $hunted ('after the pass the serpent never stalked: state {0}' -f $m.state)
+    # and the run continues: the diver can still get home (winch)
+    $null = Run-Exec 'Deep.Monster.State'
+    $null = Run-Exec 'Deep.EnterSub'
+    $s = Wait-State { param($s) $s.inside } 15 'getting home after the first pass'
+    Need ($s.inside) 'could not get home after the pass'
+}
+# A diver returning from 15 to 20 m out to the side of the submarine: swim straight at it, and separately winch.
+function S12-sidehome {
+    Begin-Run
+    Dive
+    $anc = (Get-Arena).anchor_cm
+    $cases = @(
+        @{ n = 'swim +side 18 m'; dx = 0; dy = 1800; how = 'swim' },
+        @{ n = 'swim -side 15 m'; dx = 0; dy = -1500; how = 'swim' },
+        @{ n = 'swim +side 20 m'; dx = 0; dy = 2000; how = 'swim' },
+        @{ n = 'winch -side 18 m'; dx = 0; dy = -1800; how = 'winch' },
+        @{ n = 'winch +side 20 m'; dx = 0; dy = 2000; how = 'winch' }
+    )
+    foreach ($c in $cases) {
+        $s = Get-State
+        if ($s.inside) { $null = Dive }
+        for ($i = 0; $i -lt 4; $i++) { Teleport @(($anc[0] + $c.dx), ($anc[1] + $c.dy), ($anc[2] - 300)); if ((Get-State).tether_distance_m -gt 12) { break } }
+        $s = Get-State
+        $d0 = $s.tether_distance_m
+        $script:Notes += ('S12 {0}: start {1} tether_distance {2:N1} m run_state {3}' -f $c.n, ($s.pos_cm -join ','), $d0, $s.run_state)
+        Need ($d0 -gt 12) ('{0}: teleport did not put the diver out to the side (distance {1:N1} m)' -f $c.n, $d0)
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        if ($c.how -eq 'swim') {
+            for ($leg = 0; $leg -lt 60; $leg++) {
+                $s = Get-State
+                if ($s.inside) { break }
+                Look-At $s.pos_cm @($anc[0], $anc[1], ($anc[2] - 60))
+                Hold @('W') 1.0
+            }
+        } else {
+            for ($leg = 0; $leg -lt 40; $leg++) {
+                if ((Get-State).inside) { break }
+                Hold @('R') 1.5
+            }
+        }
+        $s = Get-State
+        $script:Notes += ("S12 $($c.n): inside $($s.inside) run_state $($s.run_state) tether_distance $([Math]::Round($s.tether_distance_m,1)) m diver $($s.pos_cm -join ',') after $([int]$sw.Elapsed.TotalSeconds) s")
+        Need $s.inside ("$($c.n): the diver did not get home. diver $($s.pos_cm -join ',') anchor $($anc -join ',') tether_distance $([Math]::Round($s.tether_distance_m,1)) m (from $([Math]::Round($d0,1))) run_state $($s.run_state)")
+    }
+}
 # ---- driver ----------------------------------------------------------------------------------
 $list = @($Scenario)
 if ($Scenario -eq 'all') { $list = $All }
@@ -642,13 +934,15 @@ $total = [Diagnostics.Stopwatch]::StartNew()
 $startedEditor = $false
 if (-not (Wait-Editor 3)) {
     Write-Host ('editor not answering on {0}; starting it' -f $Port)
-    $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Tools 'ue.ps1') editor -Port $Port
     $startedEditor = $true
+    # Agent editors run in the background; Windows-side the editor throttles itself then. Turn that off for this editor only.
+    $extra = ''
+    if (-not $NoUnthrottle) { $extra = '-ini:EditorSettings:[/Script/UnrealEd.EditorPerformanceSettings]:bThrottleCPUWhenNotForeground=False' }
+    $null = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $Tools 'ue.ps1') editor -Port $Port
     if (-not (Wait-Editor 240)) { Write-Host 'FAIL all: editor never answered'; exit 1 }
-    Start-Sleep -Seconds 40   # the first PIE call is refused while the editor still runs its start-up slow task
+    # no fixed wait: Start-Pie below retries while the editor still runs its start-up slow task
 }
 $null = Mcp 'call' 'EditorToolset.EditorAppToolset.StopPIE' '{}'
-Wait-Sec 1
 
 $pass = 0; $fail = 0
 foreach ($n in $list) {
@@ -656,12 +950,13 @@ foreach ($n in $list) {
     $script:Notes = @()
     $err = $null
     try {
-        for ($tries = 0; $tries -lt 6; $tries++) {
-            try { Start-Pie; break } catch { if ($_.Exception.Message -match 'slow task' -and $tries -lt 5) { Start-Sleep -Seconds 15 } else { throw } }
+        for ($tries = 0; $tries -lt 151; $tries++) {
+            try { Start-Pie; break } catch { if ($_.Exception.Message -match 'slow task|not ready|busy' -and $tries -lt 150) { Start-Sleep -Seconds 1 } else { throw } }
         }
         & $n
-    } catch { $err = $_.Exception.Message -replace '\s+', ' ' }
+    } catch { $err = $_.Exception.Message -replace '\s+', ' '; if ($env:PT_TRACE) { $err += ' @ ' + ($_.ScriptStackTrace -replace '\s+', ' ') } }
     try { Shot $n } catch { }
+    try { $z = Get-State; Write-Host ('  END {0}: run_state={1} stop={2} parked={3} sub_depth={4:N0} credits={5} cargo_kg={6} hull={7} flashlight={8} won={9}' -f $n, $z.run_state, $z.stop, $z.parked_stop, $z.sub_depth_m, $z.credits, $z.cargo_kg, $z.hull_rating, $z.has_flashlight, $z.won) } catch { }
     try { Stop-Pie } catch { }
     foreach ($x in $script:Notes) { Write-Host ('  ' + $x) }
     if ($err) { $fail++; Write-Host ('FAIL {0}: {1} ({2:N0}s)' -f $n, $err, $sw.Elapsed.TotalSeconds) }
@@ -670,3 +965,12 @@ foreach ($n in $list) {
 Write-Host ('TOTAL {0} passed, {1} failed in {2:N0}s; screenshots in {3} and {4}' -f $pass, $fail, $total.Elapsed.TotalSeconds, $ShotDir, $MediaDir)
 if ($startedEditor -and -not $KeepEditor) { $null = Mcp 'call' 'EditorToolset.EditorAppToolset.ExitEditor' '{}' }
 if ($fail -eq 0) { exit 0 } else { exit 1 }
+
+
+
+
+
+
+
+
+
