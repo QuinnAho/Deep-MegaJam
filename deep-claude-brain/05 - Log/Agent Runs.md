@@ -53,8 +53,8 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 41 | 1:39 AM Nov 15 | playtest agent | Sonnet 5.5, medium | In `.wt\pkg`: play the first stop start to finish on simulated keyboard and mouse input, and list every step where real input fails. Function, not polish. | | | | Running. |
 
 | 42 | 2:01 AM Nov 15 | researcher | Sonnet 5.5, medium | In `.wt\dev`: read the agent skills Epic ships inside Unreal 5.9's toolset plugins and map them to the polish work packages. No editor. | | | | Running. |
-| 43 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\text`: other Unreal MCP servers and generation tools for the serpent, sound, voice and textures; a shortlist of what to add today. | | | | Running. |
-| 44 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\monster`: a polish checklist from recognised sources, existing agent skills for game work, and an outline for our own polish skill. | | | | Running. |
+| 43 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\text`: other Unreal MCP servers and generation tools for the serpent, sound, voice and textures; a shortlist of what to add today. | 91k | 31 | 2.2 min | Done, merged as `7c15b45`. Shortlist: Meshy MCP for props, OpenAI text-to-speech for the Captain, one fal key for sounds and images, Rodin for the relic (a jam partner), Blender MCP only as a last resort for the serpent. No third-party Unreal MCP server is confirmed for 5.9, so none is recommended. Several prices and licences are unconfirmed. |
+| 44 | 2:01 AM Nov 15 | web researcher | Sonnet 5.5, medium | In `.wt\monster`: a polish checklist from recognised sources, existing agent skills for game work, and an outline for our own polish skill. | 68k | 17 | 1.6 min | Done, merged as `e58a6e1`. A checkable polish checklist in nine groups, ten tells of an amateur jam game, and an outline for our own skill. Found no existing skill aimed at polish. Some sources confirmed by search only. |
 
 ## What the numbers say so far
 

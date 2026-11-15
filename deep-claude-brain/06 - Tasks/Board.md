@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 02:02 EST
+updated: 2026-11-15 02:06 EST
 ---
 # Board
 
@@ -62,8 +62,8 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 | The polish plan | Opus, high, `.wt\dev` on `research/polish-plan` | **Done 1:40 AM**, merged as `6ff4a2a`. Ten work packages in three lanes. | 1:32 AM |
 | Real-input playthrough | Sonnet, medium, `.wt\pkg` on `tools/regress` | Scenario `S8-keys`: the first stop on simulated keyboard and mouse input, and a list of what fails. Editor on port 8012. | 1:39 AM |
 | Engine skills | Sonnet, medium, `.wt\dev` on `research/engine-skills` | Read the skills Epic ships for agents (Niagara, MetaSound, widgets, textures, PCG, video) and map them to the work packages. | 2:01 AM |
-| Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | Other Unreal MCP servers; generation tools for the serpent, sound, voice and textures; what to add today. | 2:01 AM |
-| Polish craft | Sonnet, medium, `.wt\monster` on `research/polish-craft` | A checkable polish checklist, existing agent skills, and an outline for our own skill. | 2:01 AM |
+| Outside tools | Sonnet, medium, `.wt\text` on `research/ext-tools` | **Done 2:04 AM**, merged as `7c15b45`. | 2:01 AM |
+| Polish craft | Sonnet, medium, `.wt\monster` on `research/polish-craft` | **Done 2:03 AM**, merged as `e58a6e1`. | 2:01 AM |
 | Dev log post one | Sonnet, medium, `.wt\text` on `devlog/post1` | **Done 1:03 AM**, merged as `c263c9a`. `devlog/01-saturday-night.md`: the first five hours, for the Glass Box prize. A file only; nothing published. | 1:01 AM |
 
 ## Next, in order
@@ -72,6 +72,7 @@ Finish, parked for the polish pass (D-028: do not patch these one by one):
 |---|---|---|---|
 | 1 | Play the whole run by hand and say what is wrong with how it plays. | Quinn | todo |
 | 1a | Prove the loop with simulated key and mouse input, and list where real input fails. | Sonnet agent, `.wt\pkg` | doing |
+| 1b | **Scripted playtests faster than real time** (Quinn asked at about 2:03 AM). Verified in the 5.9 source: `-UseFixedTimeStep` with `-FPS=`, `-BENCHMARK`, the `slomo` cheat, and the editor setting `bThrottleCPUWhenNotForeground`, which slows an editor in the background. Also cut the fixed sleeps in `playtest.ps1` (40 s after start-up) and keep one editor for the whole set. Gate: each scenario gives the same result at speed as at normal speed. Separate idea for an agent playing live: freeze the game while the agent thinks and advance a fixed slice per action. | Sonnet agent, `.wt\pkg` | queued behind 1a (same checkout, one editor) |
 | 2 | Fix batch two: Quinn's notes and what 1a finds, in one engineer run. Function only. | Opus engineer, `.wt\dev` | waiting on 1 and 1a |
 | 3 | Real sound files replace the generated ones: import under `/Game/Audio/`, put the path in that row of `Sounds.csv`, run `Deep.Audio.Reload`. Sources: Colby, or WeLoveIndies from the jam perks. Quinn owns no audio on Fab. | Colby, Quinn | todo |
 | 4 | The Captain's voice. | writer | blocked on Quinn's choice |
