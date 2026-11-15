@@ -86,6 +86,10 @@ namespace DeepHudStyle
 	constexpr float PatienceW = 480.f;
 	constexpr float PatienceH = 44.f;
 	constexpr float StrainLineY = 122.f;  // the tether strain line inside the depth panel
+	// The calm HUD (rescope, Nov 15): small readouts instead of the big depth figure and the gauge column.
+	constexpr float CompactPanelW = 200.f; // water depth, bottom left
+	constexpr float CompactPanelH = 88.f;
+	constexpr float HelmReadoutW = 280.f;  // helm depth and the next stop, bottom right
 	constexpr float StrainShowAt = 0.5f;  // the strain line shows only above this strain
 	constexpr float StrainAlertAt = 0.75f;
 	constexpr float HullBarPx = 8.f;

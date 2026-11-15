@@ -9,6 +9,7 @@
 #include "Widgets/SLeafWidget.h"
 #include "UI/DeepHudFrame.h"
 #include "UI/DeepHudModel.h"
+#include "UI/DeepHudCalm.h"
 
 class SDeepHud : public SLeafWidget
 {
@@ -51,11 +52,11 @@ private:
 	double ModeStart = 0.0;
 	/** When the title card last opened: a screen over the title and back does not replay its entrance. */
 	double TitleStart = 0.0;
-	/** Modes whose controls hint has shown this run. */
-	TSet<EDeepHudMode> HintShown;
-	EDeepHudMode HintMode = EDeepHudMode::None;
-	double HintStart = -1000.0;
+	/** The calm layer: thins each frame (one prompt, critical cues, the hint until used, hull and cargo on change). */
+	FDeepHudCalm Calm;
+	/** The controls hint's fade, and its rows kept for the fade out. */
 	DeepHudModel::FFade HintFade;
+	TArray<FDeepHudPrompt> HintRows;
 
 	FDeepHudCue Cue;
 	double CueStart = -1000.0;

@@ -20,8 +20,8 @@ namespace
 {
 	TAutoConsoleVariable<int32> CVarCaptainRadio(
 		TEXT("Deep.Captain.Radio"),
-		1,
-		TEXT("1: the Captain is a voice on the sub's radio (pacing in the water, tone by danger, squelch, voice files, ducking). 0: the Captain as before D-040."),
+		0,
+		TEXT("1: the Captain is a voice on the sub's radio (pacing in the water, tone by danger, squelch, voice files, ducking). 0 (default since the calm HUD, Nov 15: Quinn, \"the captain is still useless\"): the Captain is quiet, with no radio audio and no subtitle in play."),
 		ECVF_Default);
 }
 
