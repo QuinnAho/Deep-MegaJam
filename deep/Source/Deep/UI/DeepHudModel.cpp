@@ -228,6 +228,12 @@ namespace DeepHudLayout
 		return { Local.X - Margin - DeepHudStyle::HelmReadoutW, Local.Y - Margin - DeepHudStyle::CompactPanelH, DeepHudStyle::HelmReadoutW, DeepHudStyle::CompactPanelH };
 	}
 
+	FDeepHudRect HelmLevers(FVector2f Local)
+	{
+		const FDeepHudRect G = HelmGauge(Local);
+		return { G.X, G.Y - Grid - DeepHudStyle::HelmLeversH, G.W, DeepHudStyle::HelmLeversH };
+	}
+
 	FDeepHudRect Sonar(FVector2f Local)
 	{
 		return { Margin, Local.Y - Margin - SonarH, SideW, SonarH };

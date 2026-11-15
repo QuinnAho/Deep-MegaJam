@@ -71,6 +71,7 @@ protected:
 	void OnWinchStop();
 	void OnLamp();
 	void OnPing();
+	void OnAllStop();
 	void OnCutStart();
 	void OnCutStop();
 	void OnContinue();
@@ -125,6 +126,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PingAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> AllStopAction;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CutAction;

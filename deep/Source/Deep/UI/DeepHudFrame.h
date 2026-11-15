@@ -145,6 +145,13 @@ struct FDeepHudFrame
 	EDeepHudTone HullTone = EDeepHudTone::Normal;
 	FString HelmStatus;
 	FString HelmReason;
+	/** The seated readout: the levers the player cannot see from the helm camera (ADeepGameState). */
+	int32 HelmNotch = 0;
+	int32 HelmNotchMin = -2;
+	int32 HelmNotchMax = 3;
+	/** The ballast lever, -1 blown .. 0 neutral .. +1 flooded. */
+	float HelmBallast = 0.f;
+	float HeadingDeg = 0.f;
 	/** The helm sonar, when EDeepHudPanel::Sonar is on. */
 	FDeepHudSonar Sonar;
 

@@ -1505,6 +1505,11 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 		}
 		Frame.ParkedStop = GameState->ParkedStop();
 		Frame.bAtLimit = Run->IsHelmAtLimit();
+		Frame.HelmNotch = GameState->HelmThrottleNotch;
+		Frame.HelmNotchMin = -FMath::Max(0, Tuning.Pilot.AsternNotches);
+		Frame.HelmNotchMax = FMath::Max(0, Tuning.Pilot.AheadNotches);
+		Frame.HelmBallast = GameState->HelmBallast;
+		Frame.HeadingDeg = GameState->SubYawDeg;
 		// The hull bar: only in the cave shaft, the one place the hull takes knocks.
 		Frame.Hull01 = DeepShaft::IsOn() ? GameState->GetHullIntegrity01() : -1.f;
 		Frame.HullTone = Frame.Hull01 < 0.f ? EDeepHudTone::Normal : Frame.Hull01 < Tuning.Captain.ScaredHull01 ? EDeepHudTone::Danger : Frame.Hull01 < Tuning.Captain.TenseHull01 ? EDeepHudTone::Warning : EDeepHudTone::Normal;

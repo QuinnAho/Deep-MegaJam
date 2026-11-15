@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Sim/DeepPilotRules.h"
 #include "Sim/DeepTuningTypes.h"
 #include "Story/DeepEventBus.h"
 #include "DeepRunComponent.generated.h"
@@ -84,6 +85,21 @@ public:
 	void SetHelmSteer(FVector2D Steer);
 	/** Server: the sideways speed in the shaft (m/s, the sub's frame). */
 	FVector2D GetSteerVelocityMps() const { return SteerVelMps; }
+
+	// ---- Real sub controls at the helm (Sim/DeepPilotRules; state on the game state so every machine sees it) ----
+	/** W/S: one throttle notch ahead (Dir > 0) or astern (Dir < 0). The lever stays where it is left. */
+	void StepThrottle(int32 Dir);
+	/** Held controls: ballast input (> 0 floods with C, < 0 blows with Space) and rudder (-1 port .. 1 starboard). */
+	void SetPilotHold(float BallastInput, float Rudder);
+	/** X: throttle to stop, ballast to neutral. */
+	void AllStop();
+	/** For the HUD, on any machine: throttle notch (- astern, 0 stop, + ahead), ballast lever (-1 blown .. 1 flooded), speeds. */
+	int32 GetThrottleNotch() const;
+	float GetBallast() const;
+	float GetSpeedMps() const;
+	float GetSurgeMps() const;
+	/** Server: the sub's motion under the pilot (stop frame). */
+	const FDeepPilotMotion& GetPilotMotion() const { return PilotMotion; }
 
 	// ---- Server ----
 	/** Advances the state machine. Ticks call it; tests call it with chosen steps. */
@@ -168,7 +184,12 @@ protected:
 	 */
 	void StepShaft(float DeltaSeconds, bool bAutopilot);
 	void DentHull(int32 Points, const TCHAR* Event, float ImpactMps);
-	void Park(int32 Stop);
+	/** Real sub controls (server): one step of the throttle, rudder and ballast, the walls, the limit and parking. */
+	void StepPilot(float DeltaSeconds);
+	/** The old direct controls are in use (tests, cheats, the autopilot, a sideways drift still settling). */
+	bool UsesDirectHelm() const;
+	/** Parks at Stop: snaps to its depth, or (bGlide, the pilot) leaves the game state to glide there. */
+	void Park(int32 Stop, bool bGlide = false);
 	/** relic_seen, once per run, the first time the relic is near or in view. */
 	void StepRelicSeen();
 	/** Banking the relic: the run is won, the review goes up. */
@@ -197,6 +218,15 @@ protected:
 
 	UFUNCTION(Server, Unreliable)
 	void ServerSetHelmSteer(FVector2D Steer);
+
+	UFUNCTION(Server, Reliable)
+	void ServerStepThrottle(int32 Dir);
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetPilotHold(float BallastInput, float Rudder);
+
+	UFUNCTION(Server, Reliable)
+	void ServerAllStop();
 
 	UFUNCTION(Client, Reliable)
 	void ClientEvent(FName Event, const FDeepEventPayload& Payload);
@@ -246,6 +276,12 @@ protected:
 	double LastHitClock = -1000.0;
 	double LastScrapeClock = -1000.0;
 	float ScrapeSeconds = 0.f;
+
+	/** Server: the pilot's held controls, the sub's motion and the ballast detent. */
+	float PilotBallastInput = 0.f;
+	float PilotRudder = 0.f;
+	float BallastDetentLeftS = 0.f;
+	FDeepPilotMotion PilotMotion;
 
 	UPROPERTY(Replicated)
 	float LastRefillFraction = 0.f;

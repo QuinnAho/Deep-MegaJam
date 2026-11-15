@@ -2195,3 +2195,102 @@ struct FDeepRoomDressTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
 	float StripRadiusCm = 280.f;
 };
+
+/**
+ * Real submarine controls at the helm (Sim/DeepPilotRules): a throttle lever in notches, a rudder with inertia and a
+ * ballast lever that stays where it is left. Speeds in m/s, rates per second. The sub never moves; the world does.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepPilotTuning
+{
+	GENERATED_BODY()
+
+	/** Throttle notches ahead of stop (slow, half, full) and astern (half, full). W/S step one notch per press. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Throttle")
+	int32 AheadNotches = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Throttle")
+	int32 AsternNotches = 2;
+
+	/** Speed along the heading at full ahead and full astern; the notches in between are even fractions. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Throttle")
+	float AheadSpeedMps = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Throttle")
+	float AsternSpeedMps = 2.f;
+
+	/** Drag along the heading (per second): low, so the sub carries way. 1/this = seconds to most of a new speed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Throttle")
+	float SurgeDragPerS = 0.45f;
+
+	/** Drag across the heading (per second): high, so a turn skids only a little. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Throttle")
+	float SwayDragPerS = 2.5f;
+
+	/** Turn rate at full rudder (deg/s) and how fast the rate builds and decays (per second). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Rudder")
+	float YawRateDegS = 28.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Rudder")
+	float YawResponsePerS = 1.6f;
+
+	/** Ballast lever travel per second while Space (blow) or C (flood) is held; it stays where it is left. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Ballast")
+	float BallastLeverPerS = 1.2f;
+
+	/** Passing neutral the lever holds in the detent this long before it goes on to the other side. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Ballast")
+	float BallastDetentS = 0.35f;
+
+	/** Let go this close to neutral, the lever drops into the detent. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Ballast")
+	float BallastDetentSnap = 0.12f;
+
+	/** Vertical speed at a full lever (flooded: down, blown: up); drag caps it there. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Ballast")
+	float HeaveSpeedMps = 2.6f;
+
+	/** Vertical drag (per second): how fast buoyancy reaches that speed and how long the sub coasts after. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Ballast")
+	float HeaveDragPerS = 0.55f;
+
+	/** Parks when this close to a stop's depth, slower than ParkSpeedMps (all axes), with the throttle at stop. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Park")
+	float ParkNearM = 5.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Park")
+	float ParkSpeedMps = 1.2f;
+
+	/** Parked, offset, depth and yaw glide to the stop's frame: this fraction-rate per second, at least the minimum speeds (about 2 s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Park")
+	float ParkGlidePerS = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Park")
+	float ParkGlideMinMps = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Park")
+	float ParkGlideMinDegS = 12.f;
+
+	/** A knock on the rock trips the throttle back to stop (clear feedback, no grinding along the wall at full ahead). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Walls")
+	bool bKnockTripsThrottle = true;
+
+	/** Of the speed along the wall, this much is left after a knock. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Walls")
+	float KnockKeepAlong = 0.5f;
+
+	/** The levers' throw either side of upright (degrees). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
+	float LeverThrowDeg = 38.f;
+
+	/** Where the throttle and ballast levers stand, sub-local metres (X ahead, Y starboard), beside the helm seat. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
+	FVector2D ThrottleLeverM = FVector2D(3.55f, 0.95f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
+	FVector2D BallastLeverM = FVector2D(3.55f, 2.05f);
+
+	/** How fast a lever swings to where it is set (per second, a share of the gap): it moves, it does not jump. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
+	float LeverFollowPerS = 14.f;
+};

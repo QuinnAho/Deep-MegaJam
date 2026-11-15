@@ -260,8 +260,12 @@ void ADeepShaft::Follow()
 	const TArray<float> Stops = UDeepTuningSettings::Get().StopDepthsM();
 	if (bOn)
 	{
+		// Turned with the arena root about the vertical through the sub by the helm's heading (same as
+		// UDeepPilotRules::HangLocationCm; exactly the old placement at yaw 0).
 		const FVector Side = Sub->GetActorRotation().RotateVector(FVector(State->SubOffsetM.X, State->SubOffsetM.Y, 0.f));
-		SetActorLocationAndRotation(Sub->GetActorLocation() + (FVector(0.f, 0.f, State->SubDepthM) - Side) * UDeepRules::CmPerM, Sub->GetActorRotation());
+		const FQuat Turn = State->SubYawDeg == 0.f ? FQuat::Identity : FQuat(FVector::UpVector, FMath::DegreesToRadians(-State->SubYawDeg));
+		const FVector At = Sub->GetActorLocation() + Turn.RotateVector((FVector(0.f, 0.f, State->SubDepthM) - Side) * UDeepRules::CmPerM);
+		SetActorLocationAndRotation(At, Turn * Sub->GetActorQuat());
 	}
 	for (int32 Index = 0; Index < Tubes.Num(); ++Index)
 	{

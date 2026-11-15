@@ -146,23 +146,31 @@ void ADeepDiver::Tick(float DeltaSeconds)
 
 	if (Run->IsSeated())
 	{
-		// At the helm: no walking; down (C) and up (Space) drive the sub. In the cave shaft W/S/A/D steer it sideways
-		// (forward, back, port, starboard); with the shaft off, S and W still drive it down and up.
+		// At the helm, real sub controls: W/S step the throttle a notch a press (it stays where it is left), A/D hold the
+		// rudder, C floods and Space blows the ballast lever (it stays where it is left), X is all stop.
 		Movement->Velocity = FVector::ZeroVector;
-		const bool bShaft = DeepShaft::IsOn();
-		const float Helm = FMath::Clamp(-VerticalInput - (bShaft ? 0.f : MoveInput.Y), -1.f, 1.f);
-		if (!FMath::IsNearlyEqual(Helm, LastHelmInputSent))
+		const int32 ThrottleAxis = MoveInput.Y > 0.5f ? 1 : (MoveInput.Y < -0.5f ? -1 : 0);
+		if (ThrottleAxis != LastThrottleAxis)
 		{
-			LastHelmInputSent = Helm;
-			Run->SetHelmInput(Helm);
+			LastThrottleAxis = ThrottleAxis;
+			if (ThrottleAxis != 0)
+			{
+				Run->StepThrottle(ThrottleAxis);
+			}
 		}
-		const FVector2D Steer = bShaft ? FVector2D(MoveInput.Y, MoveInput.X).GetClampedToMaxSize(1.f) : FVector2D::ZeroVector;
-		if (!Steer.Equals(LastHelmSteerSent, 0.01f))
+		const FVector2D Hold(FMath::Clamp(-VerticalInput, -1.f, 1.f), FMath::Clamp(MoveInput.X, -1.f, 1.f));
+		if (!Hold.Equals(LastPilotHoldSent, 0.01f))
 		{
-			LastHelmSteerSent = Steer;
-			Run->SetHelmSteer(Steer);
+			LastPilotHoldSent = Hold;
+			Run->SetPilotHold(Hold.X, Hold.Y);
 		}
 		return;
+	}
+	LastThrottleAxis = 0;
+	if (!LastPilotHoldSent.IsZero())
+	{
+		LastPilotHoldSent = FVector2D::ZeroVector;
+		Run->SetPilotHold(0.f, 0.f);
 	}
 	if (!FMath::IsNearlyZero(LastHelmInputSent))
 	{
@@ -522,6 +530,14 @@ void ADeepDiver::ToggleLamp()
 bool ADeepDiver::IsInWater() const
 {
 	return Run && (Run->GetState() == EDeepRunState::Tethered || Run->GetState() == EDeepRunState::Cut);
+}
+
+void ADeepDiver::AllStopKey()
+{
+	if (Run && Run->IsSeated())
+	{
+		Run->AllStop();
+	}
 }
 
 float ADeepDiver::GetPingWaitS() const

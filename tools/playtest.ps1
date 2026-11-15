@@ -671,7 +671,7 @@ function S8-keys {
     if ($s.run_state -eq 'settling') { Find-Finding ('SETTLEMENT E: still settling after E (E did not continue, or the console was used again): ' + ($log -join ' ')) }
     $s = Wait-State { param($s) $s.run_state -eq 'aboard' } 6 'the settlement screen to close on E'
     Need ($s.has_flashlight) ('flashlight not bought by the settlement (credits {0})' -f $s.credits)
-    # 6. walk to the helm, E, hold C, release near stop 2 (300 m)
+    # 6. walk to the helm, E, every helm key, then the autopilot to stop 2 (300 m)
     # the open hatch lies on the straight line from console to helm: walk around it (a diver who steps in drops into the sea)
     $null = Walk-To (& $L 0 175) 45 15 $null
     $s = Walk-To (& $L 370 0) 130 25 { param($s) $s.near_helm }
@@ -681,17 +681,50 @@ function S8-keys {
     Hold @('E') 0.3
     $s = Wait-State { param($s) $s.seated } 5 'E at the helm to sit'
     $script:Notes += ('S8 helm E: seated {0} sub_depth {1:N1}' -f $s.seated, $s.sub_depth_m)
+    # Every helm key once: C floods the ballast lever and it stays, X is all stop, W/S step
+    # the throttle a notch a press, A holds the rudder. The descent to stop 2 is then the autopilot (setup): a scripted
+    # key-only pilot through the bends is not written yet, and a sub that drops straight down hits the bends.
     $t0 = $s.sub_depth_m
-    Hold @('C') 12
+    Hold @('C') 1.2
     $s = Get-State
-    $script:Notes += ('S8 held C 12 s: sub_depth {0:N1} -> {1:N1}' -f $t0, $s.sub_depth_m)
-    Need ($s.sub_depth_m -gt $t0 + 20) 'holding C did not move the submarine down'
+    $script:Notes += ('S8 held C 1.2 s: ballast {0:N2} throttle_notch {1}' -f $s.ballast, $s.throttle_notch)
+    Need ($s.ballast -gt 0.5) ('holding C did not flood the ballast lever (ballast {0})' -f $s.ballast)
+    Wait-Sec 6
+    $s = Get-State
+    $script:Notes += ('S8 6 s on a flooded lever: sub_depth {0:N1} -> {1:N1}, helm_speed {2:N2} m/s, ballast {3:N2}' -f $t0, $s.sub_depth_m, $s.helm_speed_mps, $s.ballast)
+    Need ($s.sub_depth_m -gt $t0 + 6) 'a flooded ballast lever did not take the submarine down'
+    Need ($s.ballast -gt 0.5) 'the ballast lever did not stay where it was left'
     Shot 'S8-6-helm'
-    for ($i = 0; $i -lt 30 -and (Get-State).sub_depth_m -lt 296.5; $i++) { Hold @('C') ([Math]::Min(2.0, [Math]::Max(0.1, (296.5 - (Get-State).sub_depth_m) / 8))) }
-    Wait-Sec 1.5
+    Hold @('X') 0.3
+    Wait-Sec 0.3
     $s = Get-State
-    $script:Notes += ('S8 released: sub_depth {0:N1} parked_stop {1} stop {2} seated {3}' -f $s.sub_depth_m, $s.parked_stop, $s.stop, $s.seated)
-    Need ($s.parked_stop -eq 2) ('released at {0:N1} m but the sub did not park at stop 2 (parked_stop {1})' -f $s.sub_depth_m, $s.parked_stop)
+    $script:Notes += ('S8 X: ballast {0:N2} throttle_notch {1} sub_depth {2:N1}' -f $s.ballast, $s.throttle_notch, $s.sub_depth_m)
+    Need ([Math]::Abs($s.ballast) -lt 0.05 -and $s.throttle_notch -eq 0) ('X did not centre the levers (ballast {0:N2}, notch {1})' -f $s.ballast, $s.throttle_notch)
+    Hold @('W') 0.3
+    Wait-Sec 0.3
+    $n1 = (Get-State).throttle_notch
+    Hold @('W') 0.3
+    Wait-Sec 0.3
+    $n2 = (Get-State).throttle_notch
+    Hold @('S') 0.3
+    Hold @('S') 0.3
+    Wait-Sec 0.3
+    $n0 = (Get-State).throttle_notch
+    $script:Notes += ('S8 throttle by W, W, S, S: notch {0} -> {1} -> {2}' -f $n1, $n2, $n0)
+    Need ($n1 -eq 1 -and $n2 -eq 2 -and $n0 -eq 0) ('W/S did not step the throttle a notch a press ({0}, {1}, {2})' -f $n1, $n2, $n0)
+    $y0 = (Get-State).sub_yaw_deg
+    Hold @('D') 2
+    Wait-Sec 0.5
+    $s = Get-State
+    $script:Notes += ('S8 rudder D held 2 s: sub_yaw {0:N1} -> {1:N1} deg' -f $y0, $s.sub_yaw_deg)
+    Need ($s.sub_yaw_deg -gt $y0 + 10) 'holding D did not turn the submarine to starboard'
+    Hold @('X') 0.3
+    $null = Run-Exec 'Deep.GotoStop 2'; $setup += 'Deep.GotoStop 2'
+    $s = Wait-State { param($s) $s.parked_stop -eq 2 } 90 'the autopilot to park at stop 2'
+    Wait-Sec 2.5
+    $s = Get-State
+    $script:Notes += ('S8 parked: sub_depth {0:N1} parked_stop {1} stop {2} seated {3} yaw {4:N1}' -f $s.sub_depth_m, $s.parked_stop, $s.stop, $s.seated, $s.sub_yaw_deg)
+    Need ($s.parked_stop -eq 2) ('the sub did not park at stop 2 (parked_stop {0})' -f $s.parked_stop)
 
     # ---- extras: each non-fatal, a FINDING line when it fails ----
     function Extra([string]$name, [scriptblock]$body) { try { & $body } catch { Find-Finding ($name + ': ' + ($_.Exception.Message -replace '\s+', ' ')) } }

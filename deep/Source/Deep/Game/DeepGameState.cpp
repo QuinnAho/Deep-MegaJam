@@ -2,10 +2,12 @@
 
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepCaveRules.h"
+#include "Sim/DeepPilotRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepArena.h"
 #include "World/DeepShaft.h"
+#include "World/DeepHelmLevers.h"
 
 ADeepGameState::ADeepGameState()
 {
@@ -20,6 +22,11 @@ void ADeepGameState::ResetRun()
 	Stop = 1;
 	SubDepthM = UDeepTuningSettings::Get().GetStop(1).SubDepthM;
 	SubOffsetM = FVector2D::ZeroVector;
+	SubYawDeg = 0.f;
+	HelmThrottleNotch = 0;
+	HelmBallast = 0.f;
+	HelmSpeedMps = 0.f;
+	HelmSurgeMps = 0.f;
 	bParked = true;
 	DeepestStopReached = 1;
 	DiverNumber = 1;
@@ -53,6 +60,8 @@ void ADeepGameState::Tick(float DeltaSeconds)
 	{
 		StepParkGlide(DeltaSeconds);
 	}
+	// Every machine: the helm's levers on the sub, moving with the replicated state.
+	DeepHelmLevers::Ensure(GetWorld());
 }
 
 float ADeepGameState::GetHullIntegrity01() const
@@ -60,24 +69,44 @@ float ADeepGameState::GetHullIntegrity01() const
 	return UDeepCaveRules::HullIntegrity01(HullDamage, UDeepTuningSettings::Get().Cave);
 }
 
+bool ADeepGameState::IsSettledAtStop() const
+{
+	return bParked && SubOffsetM.IsNearlyZero(0.01f) && FMath::IsNearlyZero(FRotator::NormalizeAxis(SubYawDeg), 0.05f)
+		&& FMath::IsNearlyEqual(SubDepthM, UDeepTuningSettings::Get().GetStop(Stop).SubDepthM, 0.01f);
+}
+
 void ADeepGameState::StepParkGlide(float DeltaSeconds)
 {
-	if (SubOffsetM.IsZero())
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const float StopDepth = Tuning.GetStop(Stop).SubDepthM;
+	const bool bAtDepth = !bParked || SubDepthM == StopDepth;
+	if (SubOffsetM.IsZero() && SubYawDeg == 0.f && bAtDepth)
 	{
 		return;
 	}
-	// Shaft off: no offset at all. Parked: glide home to the stop's centre; the hatch opens once there (ApplySubDepth).
-	if (!DeepShaft::IsOn())
+	// Shaft off: no offset at all. Parked: glide home to the stop's frame (offset 0, heading 0, its depth) in about 2 s;
+	// the hatch opens once there (DeepArena::ApplyStop, IsSettledAtStop).
+	bool bChanged = false;
+	if (!DeepShaft::IsOn() && !SubOffsetM.IsZero())
 	{
 		SubOffsetM = FVector2D::ZeroVector;
+		bChanged = true;
 	}
-	else if (bParked)
+	if (bParked)
 	{
-		const float Step = FMath::Max(0.01f, UDeepTuningSettings::Get().Cave.ParkGlideMps) * FMath::Max(0.f, DeltaSeconds);
+		const FDeepPilotTuning& P = Tuning.Pilot;
+		const float MinMps = FMath::Max(P.ParkGlideMinMps, Tuning.Cave.ParkGlideMps);
 		const float Gap = SubOffsetM.Size();
-		SubOffsetM = Gap <= Step ? FVector2D::ZeroVector : SubOffsetM * (1.f - Step / Gap);
+		if (Gap > 0.f)
+		{
+			const float Next = UDeepPilotRules::GlideStep(Gap, 0.f, DeltaSeconds, MinMps, P);
+			SubOffsetM = Next <= 0.f ? FVector2D::ZeroVector : SubOffsetM * (Next / Gap);
+		}
+		SubYawDeg = UDeepPilotRules::GlideYawStep(SubYawDeg, DeltaSeconds, P);
+		SubDepthM = UDeepPilotRules::GlideStep(SubDepthM, StopDepth, DeltaSeconds, P.ParkGlideMinMps, P);
+		bChanged = true;
 	}
-	else
+	if (!bChanged)
 	{
 		return;
 	}
@@ -90,6 +119,11 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(ADeepGameState, Stop);
 	DOREPLIFETIME(ADeepGameState, SubDepthM);
 	DOREPLIFETIME(ADeepGameState, SubOffsetM);
+	DOREPLIFETIME(ADeepGameState, SubYawDeg);
+	DOREPLIFETIME(ADeepGameState, HelmThrottleNotch);
+	DOREPLIFETIME(ADeepGameState, HelmBallast);
+	DOREPLIFETIME(ADeepGameState, HelmSpeedMps);
+	DOREPLIFETIME(ADeepGameState, HelmSurgeMps);
 	DOREPLIFETIME(ADeepGameState, bParked);
 	DOREPLIFETIME(ADeepGameState, DeepestStopReached);
 	DOREPLIFETIME(ADeepGameState, Credits);
