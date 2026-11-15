@@ -39,3 +39,6 @@ deep-claude-brain/.obsidian/workspace-mobile.json
 # No trailing slash: a worktree holds a link of this name, not a folder.
 deep/Content/Packs/
 deep/Content/DragonCave
+
+# Written by packaging (the order files were opened in); rebuilt on every package
+deep/Build/Windows/FileOpenOrder/
