@@ -927,6 +927,16 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float BowLightRangeM = 18.f;
 
+	/** Work lights on the hull's top rails, aimed down each side so the frame and tanks read from the water (faded with depth like the other outside lights). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HullLightIntensity = 1500.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HullLightConeDeg = 60.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HullLightRangeM = 5.f;
+
 	/** Hull marker lights, red port and green starboard (style guide 3), blinking at this rate. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float MarkerIntensity = 120.f;
