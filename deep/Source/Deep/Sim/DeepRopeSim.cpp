@@ -103,6 +103,19 @@ void FDeepRopeSim::Advance(float DeltaSeconds, const FVector* StartPin, const FV
 					Pos[i + 1] -= Fix * 0.5;
 				}
 			}
+			// A little bending stiffness: each free point inside a joined run eases toward the middle of its
+			// neighbours, so a fold rounds over several links instead of kinking at one joint.
+			if (BendStiffness > 0.f)
+			{
+				for (int32 i = 1; i < Last; ++i)
+				{
+					if (Linked[i - 1] && Linked[i])
+					{
+						Pos[i] += ((Pos[i - 1] + Pos[i + 1]) * 0.5 - Pos[i]) * BendStiffness;
+					}
+				}
+				ApplyPins();
+			}
 		}
 	}
 	if (!bStepped)
@@ -156,12 +169,12 @@ void FDeepRopeSim::Cut(int32 Link, float WhipCmS, int32 WhipPoints)
 		const int32 Up = Link - k;
 		if (Pos.IsValidIndex(Up))
 		{
-			Prev[Up] = Pos[Up] - (-Along + Side * 0.5f) * Speed;
+			Prev[Up] = Pos[Up] - (-Along + Side) * Speed;
 		}
 		const int32 Down = Link + 1 + k;
 		if (Pos.IsValidIndex(Down))
 		{
-			Prev[Down] = Pos[Down] - (Along - Side * 0.5f) * Speed;
+			Prev[Down] = Pos[Down] - (Along - Side) * Speed;
 		}
 	}
 }

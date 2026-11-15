@@ -521,6 +521,33 @@ namespace
 			DeepStateReport::LogState(World);
 		}));
 
+	FAutoConsoleCommandWithWorld RopeLookCutCommand(
+		TEXT("Deep.Rope.LookCut"),
+		TEXT("Deep.Rope.LookCut: shots. Turns the view to where the tether parted (between the two loose ends)."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Rope.LookCut"));
+			UDeepTetherComponent* Tether = Diver ? Diver->GetTether() : nullptr;
+			const UDeepRopeComponent* Rope = Tether ? Tether->GetLineRope() : nullptr;
+			AController* Controller = Diver ? Diver->GetController() : nullptr;
+			if (!Rope || !Controller)
+			{
+				return;
+			}
+			const FDeepRopeSim& Sim = Rope->GetSim();
+			for (int32 i = 0; i < Sim.NumLinks(); ++i)
+			{
+				if (!Sim.IsLinked(i))
+				{
+					const FVector Target = (Sim.Pos[i] + Sim.Pos[i + 1]) * 0.5;
+					Controller->SetControlRotation((Target - Diver->GetPawnViewLocation()).Rotation());
+					UE_LOG(LogDeepCheats, Display, TEXT("Deep.Rope.LookCut: link %d, %.1f m away"), i, FVector::Dist(Target, Diver->GetPawnViewLocation()) / 100.0);
+					return;
+				}
+			}
+			UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Rope.LookCut: the rope is whole"));
+		}));
+
 	FAutoConsoleCommandWithWorld RopeStateCommand(
 		TEXT("Deep.Rope.State"),
 		TEXT("Deep.Rope.State: logs the tether rope (points, joined links, shown length, cut)."),

@@ -112,9 +112,9 @@ struct FDeepTetherTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
 	float WinchHullClearM = 0.3f;
 
-	/** A cable, not a rod. */
+	/** A diver's umbilical: thick enough to read in the lamp at 20 m, still a rope, not a rod. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tether")
-	float LineThicknessCm = 1.5f;
+	float LineThicknessCm = 3.f;
 };
 
 /** How the tether and the harpoon line look as ropes (visual only: no rule reads these). */
@@ -157,7 +157,7 @@ struct FDeepRopeTuning
 
 	/** Recoil speed of a cut end (cm/s), fading over WhipPoints points. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
-	float WhipCmS = 900.f;
+	float WhipCmS = 1200.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
 	int32 WhipPoints = 8;
@@ -173,13 +173,20 @@ struct FDeepRopeTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
 	float BiteNearM = 6.f;
 
-	/** The tether: dull, worn safety yellow, far under the style guide's 35% saturation cap once lit. */
+	/** Bending stiffness per solver pass (0..1): folds round over several links instead of kinking at one joint. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
-	FLinearColor TetherColor = FLinearColor(0.20f, 0.16f, 0.07f);
+	float BendStiffness = 0.08f;
 
-	/** The harpoon line: a dull grey-green cord. */
+	/**
+	 * The tether: old, dirty tan-yellow line (linear). Saturation 32%, under the style guide's 35% cap; dark, because
+	 * the lamp is 40,000 cd at arm's length and the first, brighter yellow (0.20, 0.16, 0.07) washed out cream-white.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
-	FLinearColor HarpoonColor = FLinearColor(0.16f, 0.17f, 0.15f);
+	FLinearColor TetherColor = FLinearColor(0.085f, 0.075f, 0.058f);
+
+	/** The harpoon line: a dull grey cord. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rope")
+	FLinearColor HarpoonColor = FLinearColor(0.07f, 0.072f, 0.066f);
 };
 
 USTRUCT(BlueprintType)

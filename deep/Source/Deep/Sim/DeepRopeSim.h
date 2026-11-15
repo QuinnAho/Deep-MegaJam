@@ -18,6 +18,8 @@ struct DEEP_API FDeepRopeSim
 	TArray<uint8> Linked;
 	/** Rest length of every link (cm). */
 	float RestCm = 100.f;
+	/** 0..1 per solver pass: how hard a point is pulled toward the middle of its neighbours (0 = limp chain). */
+	float BendStiffness = 0.f;
 	float Accumulator = 0.f;
 
 	bool IsValid() const { return Pos.Num() >= 2; }

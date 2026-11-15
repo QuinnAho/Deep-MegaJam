@@ -96,6 +96,7 @@ void UDeepRopeComponent::Drive(float DeltaSeconds, const FVector* StartPin, cons
 	{
 		LastEndPin = *EndPin;
 	}
+	Sim.BendStiffness = FMath::Clamp(Tuning.BendStiffness, 0.f, 1.f);
 	Sim.Advance(DeltaSeconds, StartPin, EndPin, LengthCm, SinkCmS2, Tuning.DragPerS, Tuning.SolverIterations);
 	LaySegments();
 }
