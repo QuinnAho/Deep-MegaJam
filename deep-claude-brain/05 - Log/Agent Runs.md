@@ -61,6 +61,9 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 | 47 | 2:42 AM Nov 15 | writer | Sonnet 5.5, medium | In `.wt\text` on `design/style-guide`: the style guide for the realistic direction (D-032), with every colour, type size, timing and volume as a number. Told at 2:44 AM to make it light-led, with ray-traced reflections. | 84k | 13 | 2 min | Done in two passes and merged. 131 lines against a 100 line limit, left untrimmed. It settled three conflicts in the research: the accent is amber and cyan is for HUD instruments; the room is not the Sci-Fi Research Lab; type is the engine's Roboto unless a font is added. |
 | - | 2:42 AM Nov 15 | (not started) | Opus 5.5, high | A 35 minute test of NVIDIA's DLSS plugin on 5.9, for award eligibility. | | | | **Refused by the session's permission system before it started.** It would have downloaded NVIDIA's plugin into the project. Needs Quinn's say. |
 
+| 48 | 2:51 AM Nov 15 | lighting and water engineer | Opus 5.5, high | In `.wt\dev` on `polish/water`: the sea at each depth, the lamp's beam, particles, light shafts, the hatch pool and ray-traced reflections, from the style guide. May create assets in `Content/Deep/Look/`. Must look each effect up before building it. | | | | Running. |
+| 49 | 2:51 AM Nov 15 | creature engineer | Opus 5.5, high | In `.wt\monster` on `polish/monster`: one continuous wet body for the serpent, markings that pulse with threat, eyes that shine back in the lamp, better motion, and a head that a mesh can replace. May create a material in `Content/Deep/Serpent/`. | | | | Running. |
+
 ## What the numbers say so far
 
 - Runs 9 to 11 cost about 1.41 million tokens for ten notes, because a fork carries the whole conversation. Runs 14 and 15 cost 222k for a working pipeline and the game's entire script. Fresh agents with tight briefs are about six times cheaper per run.

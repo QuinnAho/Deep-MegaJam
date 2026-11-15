@@ -45,6 +45,13 @@ The one note a polish brief links to. The pass has not started. It waits on Quin
 - **Say it in the brief.** Epic's skills tell agents not to author new effects or render unless asked. Every polish brief must ask for it in so many words.
 - **Add from the checklist:** a feedback table (what the player sees, hears and feels within a tenth of a second for grab, winch, cut, harpoon, bank, buy and drive); audio buses with the radio voice ducking the rest; settings for volume and mouse sensitivity; a credits and licences screen.
 
+## Decisions since the research
+
+- **The monster (D-034):** a dragon-headed serpent. The head is the realistic dragon from Quinn's Dragon Cave pack; the body is code-driven and wears the dragon's skin, regraded near-black and wet. The pack must be installed by Quinn before anyone can see its meshes.
+- **The 500 m site:** consider the same pack's stone arches, as a drowned temple to the monster.
+- **Megascans (D-034):** any Megascans asset may be used: rocks, surfaces such as rust, wet concrete and silt, decals, plants. They are free to the team.
+- **Assets and research (D-033):** agents may create materials and particle systems in their own lane folder, and must look an effect up before building it.
+
 ## Not confirmed anywhere
 
 The Official Rules PDF. The download size of any pack. How long the first cook with pack materials takes. Seven sounds with no candidate. Prices and output licences of several generation tools. Whether any auto-rigger handles a serpent. The asset scout judged style from text, not from the pictures.
