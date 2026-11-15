@@ -51,7 +51,8 @@ namespace EDeepHudPanel
 		SettingsCard = 1 << 19,
 		CreditsCard = 1 << 20,
 		ConfirmCard = 1 << 21,  // quit asks once
-		Count = 22,
+		Sonar = 1 << 22,        // the helm sonar, bottom left (Sonar lane)
+		Count = 23,
 	};
 }
 
@@ -68,6 +69,8 @@ struct FDeepHudModeInputs
 	bool bCarryingOrCut = false;
 	/** The screen open over a menu: 0 none, 1 settings, 2 credits, 3 the quit confirmation. */
 	uint8 MenuScreen = 0;
+	/** The helm sonar is on (Deep.Sonar 1); the helm mode adds its panel. */
+	bool bSonar = false;
 };
 
 namespace DeepHudModel
@@ -101,4 +104,34 @@ namespace DeepHudModel
 		void Set(float Target, double Now, float Snap = 0.f);
 		float Value(double Now) const;
 	};
+}
+
+/** A screen rectangle in the widget's 1080p reference units. */
+struct FDeepHudRect
+{
+	float X = 0.f;
+	float Y = 0.f;
+	float W = 0.f;
+	float H = 0.f;
+	float Right() const { return X + W; }
+	float Bottom() const { return Y + H; }
+	bool Overlaps(const FDeepHudRect& O) const { return X < O.Right() && O.X < Right() && Y < O.Bottom() && O.Y < Bottom(); }
+	bool Inside(float LX, float LY) const { return X >= 0.f && Y >= 0.f && Right() <= LX && Bottom() <= LY; }
+};
+
+/** Where the helm's panels sit, for a local (DPI-scaled) size. SDeepHud paints with these; Deep.UI.Sonar.Layout checks them. */
+namespace DeepHudLayout
+{
+	/** The helm instrument on the right, full height. */
+	DEEP_API FDeepHudRect HelmGauge(FVector2f Local);
+	/** The sonar scope, bottom left. */
+	DEEP_API FDeepHudRect Sonar(FVector2f Local);
+	/** The room kept above the sonar for the hull integrity bar (the Shaft lane's). */
+	DEEP_API FDeepHudRect HullSlot(FVector2f Local);
+	/** The controls hint at the top left with Rows prompt rows (at the helm it starts at the margin). */
+	DEEP_API FDeepHudRect ControlsHint(FVector2f Local, int32 Rows);
+	/** The widest the Captain's subtitle can be, bottom centre, with Lines lines of text. */
+	DEEP_API FDeepHudRect SubtitleMax(FVector2f Local, int32 Lines);
+	/** The sonar scope's centre and radius inside its panel. */
+	DEEP_API void SonarScope(const FDeepHudRect& Panel, FVector2f& Centre, float& Radius);
 }

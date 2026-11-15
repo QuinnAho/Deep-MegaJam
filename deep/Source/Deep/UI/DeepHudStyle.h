@@ -49,4 +49,16 @@ namespace DeepHudStyle
 	constexpr float NumberTween = 0.450f;
 	constexpr float SceneFade = 0.600f;
 	constexpr float SlideDistance = Grid * 2.f;
+
+	// The helm sonar (Sonar lane, Nov 15): an amber phosphor scope like the room's helm screens. Walls at the sub's
+	// depth are full amber, the slice below is the same amber at a third, so the two read as one instrument.
+	// Salvage is HUD primary (what you came for), the serpent Alert (danger only). No new hue.
+	constexpr float SonarLowerAlpha = 0.38f;
+	constexpr float SonarRingAlpha = 0.16f;
+	constexpr float SonarRimAlpha = 0.45f;
+	constexpr float SonarWallPx = 2.f;
+	constexpr float SonarLowerPx = 1.5f;
+	constexpr float SonarBlipPx = 7.f;
+	constexpr int32 SonarTrailSteps = 10;
+	constexpr float SonarTrailDeg = 36.f;
 }

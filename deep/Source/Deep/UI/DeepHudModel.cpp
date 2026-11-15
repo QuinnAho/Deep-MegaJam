@@ -56,7 +56,7 @@ namespace DeepHudModel
 		case EDeepHudMode::Aboard:
 			return ObjectPrompts | Subtitle | Feedback | ControlsHint;
 		case EDeepHudMode::Helm:
-			return HelmGauge | Subtitle | Feedback | ControlsHint;
+			return HelmGauge | Subtitle | Feedback | ControlsHint | (In.bSonar ? Sonar : None);
 		case EDeepHudMode::Water:
 			return Depth | Cargo | Patience | Reticle | Threat | WaterPrompts | Subtitle | Feedback | ControlsHint
 				| (In.bBiteAlarm ? BiteAlarm : None) | (In.bCarryingOrCut ? HatchMarker : None);
@@ -158,5 +158,58 @@ namespace DeepHudModel
 	{
 		const float T = Duration > 0.f ? static_cast<float>((Now - StartTime) / Duration) : 1.f;
 		return FMath::Lerp(From, To, EaseOutCubic(T));
+	}
+}
+
+// The helm layout. Numbers are the style guide's grid (DeepHudStyle: Margin 48, Pad 16, Grid 8) and the sizes the
+// existing panels already paint at; SDeepHud reads the same numbers so the tests check what is drawn.
+namespace DeepHudLayout
+{
+	namespace
+	{
+		constexpr float Margin = 48.f;
+		constexpr float Pad = 16.f;
+		constexpr float Grid = 8.f;
+		constexpr float SideW = 400.f;
+		constexpr float LabelH = 24.f;
+		constexpr float BodyH = 32.f;
+		constexpr float SonarH = 488.f;
+		constexpr float HullH = 48.f;
+	}
+
+	FDeepHudRect HelmGauge(FVector2f Local)
+	{
+		return { Local.X - Margin - SideW, Margin, SideW, Local.Y - Margin * 2.f };
+	}
+
+	FDeepHudRect Sonar(FVector2f Local)
+	{
+		return { Margin, Local.Y - Margin - SonarH, SideW, SonarH };
+	}
+
+	FDeepHudRect HullSlot(FVector2f Local)
+	{
+		const FDeepHudRect S = Sonar(Local);
+		return { S.X, S.Y - Grid - HullH, SideW, HullH };
+	}
+
+	FDeepHudRect ControlsHint(FVector2f Local, int32 Rows)
+	{
+		// The label, then rows of 44 with half a grid between (SDeepHud's hint). Width: the widest prompt row seen.
+		return { Margin, Margin, SideW, LabelH + Grid + FMath::Max(0, Rows) * (44.f + Grid * 0.5f) };
+	}
+
+	FDeepHudRect SubtitleMax(FVector2f Local, int32 Lines)
+	{
+		const float W = FMath::Min(960.f, Local.X - 2.f * (Margin + 320.f + Grid * 3.f));
+		const float H = Pad * 2.f + LabelH + Grid + FMath::Max(1, Lines) * BodyH;
+		return { Local.X * 0.5f - W * 0.5f, Local.Y - Margin - H, W, H };
+	}
+
+	void SonarScope(const FDeepHudRect& Panel, FVector2f& Centre, float& Radius)
+	{
+		// Header row on top, footer row below, a grid of air round the rim for the ring labels.
+		Radius = Panel.W * 0.5f - Pad - Grid * 2.f;
+		Centre = FVector2f(Panel.X + Panel.W * 0.5f, Panel.Y + Pad + LabelH + Grid * 2.f + Radius);
 	}
 }
