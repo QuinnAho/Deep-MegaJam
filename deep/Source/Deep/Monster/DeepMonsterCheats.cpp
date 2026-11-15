@@ -341,7 +341,7 @@ namespace
 					}
 				}
 				UE_LOG(LogDeepMonsterCheats, Display, TEXT("DEEPSPECIMEN pose=%d tris=%d nanite=%d bounds_cm=%s slots=%d scale=%.5f"),
-					Pose + 1, Mesh->GetNumTriangles(0), Mesh->IsNaniteEnabled() ? 1 : 0, *(Bounds.BoxExtent * 2.0).ToString(),
+					Pose + 1, Mesh->GetNumTriangles(0), Mesh->HasValidNaniteData() ? 1 : 0, *(Bounds.BoxExtent * 2.0).ToString(),
 					Mesh->GetStaticMaterials().Num(), Scale);
 			}
 		}));
