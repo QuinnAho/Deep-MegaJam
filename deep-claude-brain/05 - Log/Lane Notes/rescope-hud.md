@@ -26,7 +26,7 @@ One new pure layer, `UI/DeepHudCalm.h/.cpp` (`FDeepHudCalm::Apply`), thins the f
 | Cut | as Water plus the bailout air and the hatch marker; AIR LOW once below 30% |
 | Pause | the card plus the full CONTROLS list of the last play mode |
 
-- **The controls hint** shows until its controls are used once, then never again this run: Water after 3 m of movement, any cargo or line paid out; Helm after 1 m of sub depth or a stop change; any mode once the player leaves it. It stays at least 2.5 s so it can be read. A new run (the title) resets it.
+- **The controls hint** shows until its controls are used once, then never again this run: Water after 3 m of movement, any cargo or line paid out; Helm after 1 m of sub depth or a stop change; any mode once the player leaves it. It stays at least 8 s so all of it can be read (the first dive's hint is the game's verbs). The water hint no longer teaches CUT LOOSE (Q hold); T UNCLIP does the same job for free, and Q still works. A new run (the title) resets it.
 - **The helm hint keys** follow the helm lane: W/S throttle, A/D rudder, SPACE/C ballast (hold to rise or sink), X all stop, E stand up.
 - **Fades**: the hint, hull and cargo ease in and out over 0.4 s. HUD A's colours are unchanged.
 

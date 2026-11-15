@@ -32,7 +32,7 @@ struct FDeepHudCalmTuning
 	/** The helm hint counts as used once the sub's depth has changed this much. */
 	float HelmUseM = 1.f;
 	/** A hint stays at least this long, so it can be read even when the controls are in use at once. */
-	float HintMinSeconds = 2.5f;
+	float HintMinSeconds = 8.f;
 };
 
 namespace DeepHudCalm

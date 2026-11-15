@@ -87,6 +87,21 @@ bool FDeepHudCalmHintTest::RunTest(const FString& Parameters)
 	Calm.Apply(F, 0.0);
 	TestTrue(TEXT("the water hint shows on the first dive"), DeepHudCalmTest::Has(F, ControlsHint));
 	TestTrue(TEXT("the water hint ends with T unclip"), F.Hint.Num() == 2 && F.Hint.Last().Key == TEXT("T") && F.Hint.Last().Verb == TEXT("UNCLIP"));
+	{
+		// CUT LOOSE (Q hold) is no longer taught: T UNCLIP leaves the line for free.
+		FDeepHudCalm Other;
+		FDeepHudFrame G = DeepHudCalmTest::Make(EDeepHudMode::Water);
+		FDeepHudPrompt Cut;
+		Cut.Id = TEXT("h6");
+		Cut.Key = TEXT("Q");
+		Cut.Verb = TEXT("CUT LOOSE");
+		G.Hint.Add(Cut);
+		Other.Apply(G, 0.0);
+		TestFalse(TEXT("no CUT LOOSE row in the water hint"), G.Hint.ContainsByPredicate([](const FDeepHudPrompt& P) { return P.Verb == TEXT("CUT LOOSE"); }));
+		G = DeepHudCalmTest::Make(EDeepHudMode::Pause);
+		Other.Apply(G, 1.0);
+		TestFalse(TEXT("no CUT LOOSE row in the pause list"), G.Hint.ContainsByPredicate([](const FDeepHudPrompt& P) { return P.Verb == TEXT("CUT LOOSE"); }));
+	}
 	F = DeepHudCalmTest::Make(EDeepHudMode::Water);
 	F.DepthM = 1.f;
 	Calm.Apply(F, 1.0);

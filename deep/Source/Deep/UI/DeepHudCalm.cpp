@@ -187,7 +187,12 @@ void FDeepHudCalm::Apply(FDeepHudFrame& Frame, double Now)
 	{
 		Frame.Hint = DeepHudCalm::HelmHint();
 	}
-	else if (Frame.Mode == EDeepHudMode::Water && Frame.Hint.Num() > 0
+	if (Frame.Mode == EDeepHudMode::Water)
+	{
+		// T UNCLIP leaves the line for free; the Q hold to be cut loose still works but is no longer taught.
+		Frame.Hint.RemoveAll([](const FDeepHudPrompt& P) { return P.Id == FName(TEXT("h6")) || P.Verb == TEXT("CUT LOOSE"); });
+	}
+	if (Frame.Mode == EDeepHudMode::Water && Frame.Hint.Num() > 0
 		&& !Frame.Hint.ContainsByPredicate([](const FDeepHudPrompt& P) { return P.Verb == TEXT("UNCLIP"); }))
 	{
 		// The air line (lane D): T unclips, the diver goes on bailout air and re-clips free at the hatch.
