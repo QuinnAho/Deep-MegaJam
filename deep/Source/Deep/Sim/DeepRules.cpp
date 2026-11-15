@@ -373,3 +373,64 @@ FVector UDeepRules::SalvageSpotOffsetCm(const FDeepSalvageSpot& Spot)
 	const float Radians = FMath::DegreesToRadians(Spot.AngleDeg);
 	return FVector(FMath::Cos(Radians) * Spot.OutM, FMath::Sin(Radians) * Spot.OutM, -Spot.BelowM) * CmPerM;
 }
+
+FVector UDeepRules::RelicOffsetCm(const FDeepArenaTuning& Arena, float StopDepthM, float TetherLengthM)
+{
+	const float Reach = FMath::Max(0.f, TetherLengthM - FMath::Max(0.f, Arena.RelicReachMarginM));
+	const float Out = FMath::Clamp(Arena.RelicOutM, 0.f, Reach);
+	const float MaxBelow = FMath::Sqrt(FMath::Max(0.f, Reach * Reach - Out * Out));
+	const float Below = FMath::Clamp(Arena.RelicDepthM - StopDepthM, 0.f, MaxBelow);
+	const float Radians = FMath::DegreesToRadians(Arena.RelicAngleDeg);
+	return FVector(FMath::Cos(Radians) * Out, FMath::Sin(Radians) * Out, -Below) * CmPerM;
+}
+
+bool UDeepRules::IsRelicSeen(const FVector& EyeCm, const FVector& ViewDirection, const FVector& RelicCm, const FDeepArenaTuning& Arena)
+{
+	const FVector ToRelic = RelicCm - EyeCm;
+	const float DistanceM = static_cast<float>(ToRelic.Size()) / CmPerM;
+	if (DistanceM <= Arena.RelicSeenNearM)
+	{
+		return true;
+	}
+	if (DistanceM > Arena.RelicSeenViewM || ViewDirection.IsNearlyZero())
+	{
+		return false;
+	}
+	const float CosAngle = static_cast<float>(FVector::DotProduct(ToRelic.GetSafeNormal(), ViewDirection.GetSafeNormal()));
+	return CosAngle >= FMath::Cos(FMath::DegreesToRadians(Arena.RelicSeenConeDeg));
+}
+
+FString UDeepRules::ReviewRating(int32 DiversExpended, float Seconds, const FDeepReviewTuning& Tuning)
+{
+	if (Tuning.Words.IsEmpty())
+	{
+		return FString();
+	}
+	int32 Index = Tuning.Words.Num() - 1;
+	for (int32 Step = 0; Step < Tuning.MaxDiversExpended.Num(); ++Step)
+	{
+		if (FMath::Max(0, DiversExpended) <= Tuning.MaxDiversExpended[Step])
+		{
+			Index = Step;
+			break;
+		}
+	}
+	if (Tuning.SlowRunSeconds > 0.f && Seconds > Tuning.SlowRunSeconds)
+	{
+		++Index;
+	}
+	return Tuning.Words[FMath::Clamp(Index, 0, Tuning.Words.Num() - 1)];
+}
+
+FDeepRunReview UDeepRules::BuildReview(int32 DiversExpended, int32 Gross, int32 DirectorCut, int32 Fees, float Seconds, const FDeepReviewTuning& Tuning)
+{
+	FDeepRunReview Review;
+	Review.DiversExpended = FMath::Max(0, DiversExpended);
+	Review.Gross = FMath::Max(0, Gross);
+	Review.DirectorCut = FMath::Max(0, DirectorCut);
+	Review.Fees = FMath::Max(0, Fees);
+	Review.Kept = static_cast<int32>(FMath::Max<int64>(0, static_cast<int64>(Review.Gross) - Review.DirectorCut - Review.Fees));
+	Review.Seconds = FMath::Max(0.f, Seconds);
+	Review.Rating = ReviewRating(Review.DiversExpended, Review.Seconds, Tuning);
+	return Review;
+}

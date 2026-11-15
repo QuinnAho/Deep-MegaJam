@@ -17,6 +17,7 @@ TArray<FName> DeepEvent::AllFired()
 		Patience50, Patience25, Patience10, CutPatience, CutRequested, Bailout10s, Retether, DeathAir, Respawn,
 		BankGood, BankPoor, BankEmpty, HullBought, DescendStop2, DescendStop3,
 		MonsterFirstHeard, MonsterNear, MonsterRepelled, BiteAlarm, CutBite, DeathMonster,
+		Title, RelicSeen, RelicGrabbed, RelicWinch, Win,
 	};
 }
 

@@ -42,6 +42,11 @@ namespace DeepEvent
 	inline const TCHAR* BiteAlarm = TEXT("bite_alarm");
 	inline const TCHAR* CutBite = TEXT("cut_bite");
 	inline const TCHAR* DeathMonster = TEXT("death_monster");
+	inline const TCHAR* Title = TEXT("title");
+	inline const TCHAR* RelicSeen = TEXT("relic_seen");
+	inline const TCHAR* RelicGrabbed = TEXT("relic_grabbed");
+	inline const TCHAR* RelicWinch = TEXT("relic_winch");
+	inline const TCHAR* Win = TEXT("win");
 
 	/** Every event the game fires today. */
 	DEEP_API TArray<FName> AllFired();

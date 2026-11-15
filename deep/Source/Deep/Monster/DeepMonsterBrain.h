@@ -83,6 +83,8 @@ public:
 	void ForceState(EDeepMonsterState NewState);
 	/** Spawn bookkeeping (stop 2 and deeper). Tick calls this; tests call it directly. */
 	void Step(float DeltaSeconds);
+	/** A new run: the serpent and its controller are removed and every tether counts as intact again. */
+	void ResetForRun();
 
 	// ---- Subsystem ----
 

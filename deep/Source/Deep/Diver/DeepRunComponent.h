@@ -24,7 +24,14 @@ public:
 	// ---- State (any machine) ----
 	EDeepRunState GetState() const { return State; }
 	static FString StateName(EDeepRunState InState);
-	bool CanSwim() const { return State == EDeepRunState::Tethered || State == EDeepRunState::Cut; }
+	/** Tethered or cut, and the title screen is not up. */
+	bool CanSwim() const;
+	/** The title screen is up (the game state says so): the dive has not started. */
+	bool IsOnTitle() const;
+	/** The diver carries the relic. */
+	bool CarriesRelic() const;
+	/** The win screen is up and has been long enough for a key to leave it. */
+	bool CanLeaveReview() const { return State == EDeepRunState::Won && StateTimeLeft <= 0.f; }
 	/** The tether limits the diver and draws its line. */
 	bool HasTether() const { return State != EDeepRunState::Cut && State != EDeepRunState::Dead; }
 	float GetPatienceSeconds() const { return PatienceSeconds; }
@@ -66,8 +73,11 @@ public:
 	/** Settlement -> Descending (ignored until the screen has been up SettlementMinSeconds). */
 	void ContinueAfterSettlement();
 	void SetPatienceFraction(float Fraction);
-	/** Credits, hull, stop and diver number back to the start; a fresh dive at stop 1. */
-	void ResetRun();
+	/**
+	 * Credits, hull, stop, diver number, run totals, cargo, Patience and the serpent back to the start. A fresh dive
+	 * at stop 1, or (bToTitle) the diver waits under the airlock until the title screen is left.
+	 */
+	void ResetRun(bool bToTitle = false);
 	/** The diver picked a piece up: Patience refill and the Captain's comment. */
 	void NotifyPickup(const FDeepCargoItem& Item);
 
@@ -97,6 +107,10 @@ protected:
 	void HandleRepelled(ADeepDiver* Who);
 
 	void StartDive(EDiveStart Reason);
+	/** relic_seen, once per run, the first time the relic is near or in view. */
+	void StepRelicSeen();
+	/** Banking the relic: the run is won, the review goes up. */
+	void Win();
 	void Retether();
 	void Die(bool bByMonster = false);
 	void Respawn();
@@ -177,6 +191,7 @@ protected:
 	bool bWasOverloaded = false;
 	bool bWasTaut = false;
 	bool bWasWinching = false;
+	bool bRelicSeenThisRun = false;
 	TMap<FName, double> ChatterLastTime;
 	int32 FeeSeed = 0;
 };
