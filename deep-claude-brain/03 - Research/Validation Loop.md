@@ -1,6 +1,6 @@
 ---
 updated: 2026-11-14 21:30 EST
-verified: 2026-11-14 21:29 EST, build-sheriff ran tools\ue.ps1 build, test and verify on this machine (all PASS, plus a deliberate failing test and a deliberate compile error that both reported FAIL). package, zip, smoke and editor are written but not yet run. Tiers T2 to T5 and the MCP tool behaviour are still unverified design.
+verified: 2026-11-14 21:29 EST, build-sheriff ran tools\ue.ps1 build, test and verify on this machine (all PASS, plus a deliberate failing test and a deliberate compile error that both reported FAIL). package, zip and smoke were run for real at 21:50 EST on branch sheriff/package (all PASS: package 5m12s, 729.2 MB; zip 448.7 MB; smoke 25 s clean). shot is proven only on its failure path (no PNG, FAIL after 120 s) because the game-side -DeepShot support does not exist yet. editor is still unrun. Tiers T2 to T5 and the MCP tool behaviour are still unverified design.
 ---
 # Validation Loop
 
@@ -87,6 +87,7 @@ Everything goes through `tools\ue.ps1`. Run it from the repo root as `.\tools\ue
 | `package` | RunUAT BuildCookRun Win64 Development into `Builds\`. Reports exe path and size, warns at 1 GB. | 60 min |
 | `zip` | `Builds\<teamName>_<gameName>.zip` from `tools\jam.json` (created on first use; warns while teamName is `TeamName`). | 15 min |
 | `smoke` | Runs the packaged exe windowed for 25 s, then scans its log for fatal errors, asserts and ensures. | 25 s |
+| `shot -Name n [-Delay 6] [-Cmds "a;b"]` | Launches `UnrealEditor.exe Deep.uproject -game -windowed` with the three `-DeepShot*` switches, waits for the PNG, stops the game, prints `deep\Saved\Harness\shots\<name>-<timestamp>.png`. FAILs with "no screenshot produced; game-side -DeepShot support may be missing" if none appears. | 120 s |
 | `editor` | Starts the interactive editor with MCP at `http://127.0.0.1:8000/mcp`. Does not block. | none |
 | `clean` | Deletes `deep\Binaries` and `deep\Intermediate` only. | none |
 
@@ -128,4 +129,8 @@ Quirks found on this project with UE 5.9:
 - **The headless run starts its own MCP server.** With `-ModelContextProtocolPort=8011` the log shows "Starting MCP server on port 8011", so port 8000 stays free for the interactive editor.
 - **PowerShell 5.1 strips Unreal's inner quotes** from `-ExecCmds="Automation RunTests ^Deep; Quit"` when a native exe is called with `&`. `ue.ps1` passes one hand-built argument string to `Start-Process`, and never uses `Start-Process -Wait`, which hangs on helper processes that outlive the editor.
 - **Timings.** The first Development build took 45 s (8 actions; the wizard had only built DebugGame). Incremental builds take about 5 s. A headless test run takes 17 to 26 s.
-- `package`, `zip`, `smoke` and `editor` are written but not yet run.
+- **Package, proven (Nov 14, 21:44 EST, worktree `.wt\pkg`, nearly empty game).** `package` PASS in 5m12s, 729.2 MB in `Builds\Windows\Deep.exe` (Development, pak, no debug info). It passed first try, no script fixes. Well under the 1 GB limit, but it will grow with content, so re-check after each content drop.
+- **Zip, proven.** `zip` PASS in 17.6 s, `Builds\TeamName_DEEP.zip` 448.7 MB. It warns while `teamName` in `tools\jam.json` is still `TeamName`; fix that before the real submission.
+- **Smoke, proven.** `smoke` PASS in 26 s: the packaged exe ran 25 s windowed, and the log had no fatal error, assertion, ensure or unhandled exception.
+- **`shot` (new).** `ue.ps1 shot -Name <name> [-Delay <s, default 6>] [-Cmds "<console cmds separated by ;>"]` runs `UnrealEditor.exe "<uproject>" -game -windowed -ResX=1280 -ResY=720 -nosplash -unattended -log -abslog="<log>" -DeepShot="<abs png>" -DeepShotDelay=<s> -DeepShotCmds="<cmds>"`. The game must implement the three switches: `-DeepShot` (absolute PNG path to write), `-DeepShotDelay` (seconds to wait after start before capturing), `-DeepShotCmds` (console commands, `;` separated, run before capture). The verb waits up to 120 s for the PNG, kills the process if still running, and prints the path. Proven failure path: with no game-side support it ran 2m01s and printed `FAIL shot - no screenshot produced; game-side -DeepShot support may be missing`. The success path is not yet verified.
+- **Timings.** Cold worktree build 65 s, package 5m12s, smoke 26 s, zip 18 s.
