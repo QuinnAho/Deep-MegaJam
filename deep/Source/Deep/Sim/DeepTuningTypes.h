@@ -1637,6 +1637,14 @@ struct FDeepCameraTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	FSoftObjectPath PulseMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_SonarPulse.M_SonarPulse"));
 
+	/** No pulse inside this radius from the sub (metres): the room and hull are not scanned. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseStartM = 6.f;
+
+	/** Lidar dots fade out between half this distance from the eye and this (metres): far dots would shimmer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float PulseDotFarM = 40.f;
+
 	// ---- Interference (the feed degrades as the serpent closes)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Interference")

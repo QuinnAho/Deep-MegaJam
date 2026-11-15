@@ -13,6 +13,8 @@ struct FDeepEventPayload;
 class APlayerCameraManager;
 class UCameraShakeBase;
 class FJsonObject;
+class ADeepEnvironment;
+class UMaterialInstanceDynamic;
 
 UCLASS()
 class DEEP_API UDeepCameraSubsystem : public UTickableWorldSubsystem
@@ -48,10 +50,20 @@ private:
 	void HandleEvent(FName Event, const FDeepEventPayload& Payload);
 	APlayerCameraManager* LocalCamera() const;
 	void UpdateSway();
+	void UpdateLens();
+	ADeepEnvironment* FindEnvironment();
+	/** A dynamic instance of a camera post-process material (loaded by path once; null if missing). */
+	UMaterialInstanceDynamic* MakeMaterial(const FSoftObjectPath& Path, const TCHAR* What);
 
 	FDelegateHandle EventHandle;
 	int32 ShakesPlayed = 0;
 	FName LastShake;
 	TWeakObjectPtr<UCameraShakeBase> Sway;
 	TWeakObjectPtr<APlayerCameraManager> SwayCamera;
+
+	TWeakObjectPtr<ADeepEnvironment> Environment;
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> LensMID;
+	bool bLensTried = false;
+	bool bLensOn = false;
 };

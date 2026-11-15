@@ -6,6 +6,10 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "World/DeepEnvironment.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
@@ -175,6 +179,7 @@ void UDeepCameraSubsystem::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	UpdateSway();
+	UpdateLens();
 }
 
 TSharedRef<FJsonObject> UDeepCameraSubsystem::BuildStateJson() const
@@ -185,5 +190,55 @@ TSharedRef<FJsonObject> UDeepCameraSubsystem::BuildStateJson() const
 	Json->SetNumberField(TEXT("shakes_played"), ShakesPlayed);
 	Json->SetStringField(TEXT("last_shake"), LastShake.IsNone() ? FString() : LastShake.ToString());
 	Json->SetBoolField(TEXT("sway"), IsSwaying());
+	Json->SetBoolField(TEXT("lens"), bLensOn);
 	return Json;
+}
+
+ADeepEnvironment* UDeepCameraSubsystem::FindEnvironment()
+{
+	if (!Environment.IsValid() && GetWorld())
+	{
+		TActorIterator<ADeepEnvironment> It(GetWorld());
+		Environment = It ? *It : nullptr;
+	}
+	return Environment.Get();
+}
+
+UMaterialInstanceDynamic* UDeepCameraSubsystem::MakeMaterial(const FSoftObjectPath& Path, const TCHAR* What)
+{
+	UMaterialInterface* Base = Cast<UMaterialInterface>(Path.TryLoad());
+	if (!Base)
+	{
+		UE_LOG(LogDeepCamera, Warning, TEXT("DEEPCAMERA %s material missing: %s (run Content/Deep/Camera/build_camera_materials.py)"), What, *Path.ToString());
+		return nullptr;
+	}
+	return UMaterialInstanceDynamic::Create(Base, this);
+}
+
+void UDeepCameraSubsystem::UpdateLens()
+{
+	// The footage look's lens: a slight barrel bend after the tonemapper (M_FootageLens), on while the look is on.
+	const bool bWant = IsFootageOn();
+	if (!bWant && !LensMID)
+	{
+		bLensOn = false;
+		return;
+	}
+	const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+	if (!LensMID && !bLensTried)
+	{
+		bLensTried = true;
+		LensMID = MakeMaterial(T.LensMaterial, TEXT("lens"));
+	}
+	ADeepEnvironment* Env = FindEnvironment();
+	if (!LensMID || !Env)
+	{
+		bLensOn = false;
+		return;
+	}
+	LensMID->SetScalarParameterValue(TEXT("K"), T.FootageBarrel);
+	const bool bOn = bWant && T.FootageBarrel > 0.f;
+	// Set every tick (a short list): survives the environment being respawned.
+	Env->SetCameraBlendable(LensMID, bOn ? 1.f : 0.f);
+	bLensOn = bOn;
 }
