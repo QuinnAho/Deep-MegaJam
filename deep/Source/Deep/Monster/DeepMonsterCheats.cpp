@@ -54,7 +54,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs MonsterPlaceCommand(
 		TEXT("Deep.Monster.Place"),
-		TEXT("Deep.Monster.Place <metres> [side_deg]: puts the serpent's head that far in front of the view, swimming across it (side_deg turns its heading; default 90 = left to right)."),
+		TEXT("Deep.Monster.Place <metres> [side_deg] [right_m] [up_m]: puts the serpent's head that far in front of the view (and right_m to the right, up_m up), swimming across it (side_deg turns its heading; default 90 = left to right)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Place"));
@@ -77,8 +77,29 @@ namespace
 			// Heading: the view's forward turned SideDeg about up, kept level so the body lies across the screen.
 			const FVector Level = FVector(Forward.X, Forward.Y, 0.f).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 			const FVector Facing = Level.RotateAngleAxis(SideDeg, FVector::UpVector);
-			Serpent->PlaceHead(ViewLocation + Forward * Metres * 100.f, Facing);
+			// Optional offsets to the view's right and up (metres): put the head outside the beam so only the body
+			// crosses it.
+			const float RightM = Args.Num() > 2 ? FCString::Atof(*Args[2]) : 0.f;
+			const float UpM = Args.Num() > 3 ? FCString::Atof(*Args[3]) : 0.f;
+			const FVector Right = FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::Y);
+			const FVector Up = FRotationMatrix(ViewRotation).GetUnitAxis(EAxis::Z);
+			Serpent->PlaceHead(ViewLocation + (Forward * Metres + Right * RightM + Up * UpM) * 100.f, Facing);
 			LogMonster(Brain);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs MonsterPoseCommand(
+		TEXT("Deep.Monster.Pose"),
+		TEXT("Deep.Monster.Pose <state|-1>: shots only. The serpent shows that state's motion and markings (0 lurk, 1 stalk, 2 recoil, 3 bite, 4 hunt) at full threat; the brain is untouched. -1 turns it off."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UDeepMonsterBrain* Brain = RequireBrain(World, TEXT("Deep.Monster.Pose")))
+			{
+				if (ADeepSerpent* Serpent = Brain->SpawnSerpent(true))
+				{
+					Serpent->SetPoseOverride(Args.Num() > 0 ? FCString::Atoi(*Args[0]) : -1);
+				}
+				LogMonster(Brain);
+			}
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs MonsterNoiseCommand(

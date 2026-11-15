@@ -179,7 +179,7 @@ struct FDeepSerpentBodyTuning
 
 	/** Head tip to tail tip. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float LengthM = 11.f;
+	float LengthM = 16.f;
 
 	/** Hit spheres along the body (the harpoon tests against these; the sphere fallback draws them). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body", meta = (ClampMin = "2", ClampMax = "64"))
@@ -189,32 +189,32 @@ struct FDeepSerpentBodyTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
 	float HeadRadiusM = 0.4f;
 
-	/** Body radius at the front, where it meets the head (style guide: 0.9 m thick). Match a mesh head's neck here. */
+	/** Body radius at the front, where it meets the head. Style guide: 0.9 m thick; second pass: 1.1 m, swelling to 1.4 m, 16 m long, so it is many times the diver. Match a mesh head's neck here. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float NeckRadiusM = 0.45f;
+	float NeckRadiusM = 0.55f;
 
 	/** Body radius at the tail tip (style guide: 0.1 m thick). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float TailRadiusM = 0.05f;
+	float TailRadiusM = 0.06f;
 
 	/** Taper shape from neck to tail: 1 = straight cone, above 1 = stays thick longer. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float TaperPower = 1.6f;
+	float TaperPower = 1.8f;
 
 	/** The body swells to this times NeckRadiusM a little behind the head (chosen here). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float BellySwell = 1.12f;
+	float BellySwell = 1.25f;
 
 	/** Sideways swing at the widest point of the weave. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveAmplitudeM = 0.45f;
+	float WeaveAmplitudeM = 0.6f;
 
 	/** Length of one full S of the weave along the body. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveWavelengthM = 4.f;
+	float WeaveWavelengthM = 6.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Body")
-	float WeaveHz = 0.6f;
+	float WeaveHz = 0.4f;
 
 	// ---- The tube: one continuous body, rebuilt each frame along the head's path ----
 
@@ -223,11 +223,11 @@ struct FDeepSerpentBodyTuning
 	bool bTubeBody = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube", meta = (ClampMin = "4", ClampMax = "128"))
-	int32 TubeRings = 48;
+	int32 TubeRings = 64;
 
 	/** Vertices per ring; a multiple of 4 keeps one vertex on the ridge line. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube", meta = (ClampMin = "8", ClampMax = "32"))
-	int32 TubeSides = 12;
+	int32 TubeSides = 16;
 
 	/** Dorsal ridge: the top vertex raised by this fraction of the radius (plan: 30 percent). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tube")
@@ -244,14 +244,14 @@ struct FDeepSerpentBodyTuning
 	// ---- The head: a socket at the front of the body; a code-built wedge with a jaw, or a mesh ----
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	float HeadLengthM = 1.35f;
+	float HeadLengthM = 2.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	float HeadWidthM = 1.f;
+	float HeadWidthM = 0.95f;
 
 	/** Skull height above the head centre at its highest (the jaw hangs below). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	float HeadHeightM = 0.36f;
+	float HeadHeightM = 0.22f;
 
 	/** Head yaw sway with the weave, so the head never rides rigid (chosen here). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
@@ -280,10 +280,10 @@ struct FDeepSerpentBodyTuning
 
 	/** Eye centre from the head socket: forward, half the spacing, up (metres). Move to a mesh's eye sockets. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	FVector EyeOffsetM = FVector(0.5f, 0.3f, 0.15f);
+	FVector EyeOffsetM = FVector(0.5f, 0.32f, 0.08f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
-	float EyeRadiusM = 0.045f;
+	float EyeRadiusM = 0.028f;
 
 	// ---- Skin (the body material slot) and the markings layer ----
 
@@ -308,33 +308,33 @@ struct FDeepSerpentBodyTuning
 
 	/** Near-black (linear). Used directly when the skin material is missing. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	FLinearColor SkinColor = FLinearColor(0.012f, 0.016f, 0.016f);
+	FLinearColor SkinColor = FLinearColor(0.008f, 0.01f, 0.01f);
 
-	/** Rim and spots: cyan-green #3FE0B0 (chosen here; the style guide names the hue only). Linear. */
+	/** Spots (and the rim, if it is ever turned back on): cyan-green #3FE0B0 (chosen here; the style guide names the hue only). Linear. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
 	FLinearColor MarkColor = FLinearColor(0.05f, 0.75f, 0.43f);
 
 	/** Spot brightness at full reveal and full threat. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	float SpotGain = 6.f;
+	float SpotGain = 2.5f;
 
 	/** Spot radius on the thickest part of the body, and the spacing along each row (metres). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	float SpotSizeM = 0.06f;
+	float SpotSizeM = 0.035f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	float SpotSpacingM = 0.5f;
+	float SpotSpacingM = 0.9f;
 
 	/** Spot brightness kept at threat 0 (fraction of SpotGain). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	float SpotCalmFraction = 0.25f;
+	float SpotCalmFraction = 0.f;
 
-	/** Rim brightness at threat 0 and threat 1. */
+	/** Rim brightness at threat 0 and threat 1. Zero: a glowing outline made it a cartoon eel (second pass). Seen by lamp highlights and silhouette only. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	float RimGainCalm = 0.06f;
+	float RimGainCalm = 0.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
-	float RimGainThreat = 0.45f;
+	float RimGainThreat = 0.f;
 
 	/** Spot pulse rate at threat 0 and threat 1 (it speeds up as threat rises). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
@@ -358,11 +358,11 @@ struct FDeepSerpentBodyTuning
 
 	/** Emissive multiplier at full shine. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
-	float EyeShineEmissive = 20.f;
+	float EyeShineEmissive = 60.f;
 
 	/** How tightly an eye must face the lamp to shine (power on the facing cosine). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
-	float EyeShineFacingPower = 2.f;
+	float EyeShineFacingPower = 3.f;
 
 	/** Shine rise and fall rates (per second, exponential). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
@@ -373,10 +373,10 @@ struct FDeepSerpentBodyTuning
 
 	/** Eye point light intensity at full shine (unitless, like the sub's airlock light) and reach. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
-	float EyeLightIntensity = 1500.f;
+	float EyeLightIntensity = 250.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Eyes")
-	float EyeLightRadiusM = 1.2f;
+	float EyeLightRadiusM = 0.6f;
 
 	// ---- Motion cues ----
 
@@ -410,10 +410,25 @@ struct FDeepSerpentBodyTuning
 
 	/** Jaw gape: wide on the strike and the hiss, a little open while hunting. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
-	float JawOpenDeg = 42.f;
+	float JawOpenDeg = 40.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
 	float JawHuntDeg = 14.f;
+
+	/** Jaw gape while it holds the line after the strike, so the teeth stay visible in the thrash. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+	float BiteHoldGapeDeg = 20.f;
+
+	/** Spots follow threat to this power: near zero until it peaks (1 = linear). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Skin")
+	float SpotThreatPower = 2.f;
+
+	/** Teeth on the code-built head and jaw, per side, and their colour (dull, yellowed bone, under the value cap). Linear. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	int32 TeethPerSide = 9;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Head")
+	FLinearColor TeethColor = FLinearColor(0.16f, 0.15f, 0.12f);
 };
 
 /** Everything the state rule needs for one step. Distances in metres. */

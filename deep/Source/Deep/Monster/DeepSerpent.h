@@ -42,6 +42,9 @@ public:
 	/** Shows the markings now, skipping the first-minute rule (cheats and shots). */
 	void RevealNow() { bForceReveal = true; Reveal01 = 1.f; }
 
+	/** Shots only: shows this state's motion and markings (threat 1) whatever the brain is doing; -1 = off. The brain is untouched. */
+	void SetPoseOverride(int32 InState) { PoseOverride = InState; }
+
 	FVector GetHeadLocation() const { return GetActorLocation(); }
 	FVector GetHeading() const { return Heading; }
 
@@ -128,6 +131,14 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> MarksMID;
 
+	/** The code-built head's teeth: the skin material, bone-coloured. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> TeethMID;
+
+	/** The code-built jaw: the skin, darker, so an open mouth reads as a hole. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> MouthMID;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> EyeMIDs;
 
@@ -149,6 +160,7 @@ protected:
 	bool bTubeCreated = false;
 	bool bForceReveal = false;
 	bool bHeardOnce = false;
+	int32 PoseOverride = -1;
 	uint8 SeenState = 0;
 	float StateAge = 0.f;
 	float LifeAge = 0.f;

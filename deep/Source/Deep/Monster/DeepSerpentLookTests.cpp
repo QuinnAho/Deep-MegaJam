@@ -84,6 +84,25 @@ bool FDeepSerpentLookTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Markings dark at first"), Serpent->GetReveal01() < 0.01f);
 	Serpent->RevealNow();
 	TestTrue(TEXT("Reveal cheat shows the markings"), Serpent->GetReveal01() > 0.99f);
+
+	// Ready for a pack head (the Dragon Cave dragon): a static mesh in the head socket by path, and a body material by
+	// path. The eyes are a layer on the socket, so they still answer the lamp over a mesh head. An engine cone stands in.
+	UDeepMonsterSettings* Settings = GetMutableDefault<UDeepMonsterSettings>();
+	const FDeepSerpentBodyTuning Saved = Settings->Body;
+	ON_SCOPE_EXIT { Settings->Body = Saved; };
+	Settings->Body.HeadMesh = FSoftObjectPath(TEXT("/Engine/BasicShapes/Cone.Cone"));
+	Settings->Body.HeadMeshRotation = FRotator(-90.f, 0.f, 0.f);
+	Settings->Body.HeadMeshMaterial = Settings->Body.SkinMaterial;
+	ADeepSerpent* Dragon = World->SpawnActor<ADeepSerpent>(FVector(0.f, 0.f, -110000.f), FRotator::ZeroRotator);
+	UTEST_NOT_NULL(TEXT("Second serpent spawned"), Dragon);
+	TestTrue(TEXT("A mesh head set by path is worn in the socket"), Dragon->HasMeshHead());
+	Dragon->PlaceHead(Lamp->GetComponentLocation() + Lamp->GetForwardVector() * 800.f, Facing);
+	Diver->ToggleLamp();
+	for (int32 i = 0; i < 10; ++i)
+	{
+		Dragon->Tick(0.05f);
+	}
+	TestTrue(TEXT("Eyes still shine over a mesh head"), Dragon->GetEyeShine01() > 0.4f);
 	return true;
 }
 

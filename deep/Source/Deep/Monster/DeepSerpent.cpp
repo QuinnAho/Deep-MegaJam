@@ -221,6 +221,42 @@ namespace
 		Mesh->CreateMeshSection_LinearColor(1, Lifted, Tri, N, UV0, UV1, None, None, C, PT, false, false);
 	}
 
+	/** One tooth: a three-sided spike from Base along Dir, flat-shaded, drawn from both sides (so winding cannot hide it). */
+	void AddTooth(const FVector& Base, const FVector& Dir, float LenCm, float RadCm, TArray<FVector>& V, TArray<FVector>& N,
+		TArray<FProcMeshTangent>& T, TArray<FVector2D>& UV, TArray<FLinearColor>& C, TArray<int32>& Tri)
+	{
+		const FVector Axis = Dir.GetSafeNormal(UE_SMALL_NUMBER, FVector::DownVector);
+		FVector A, B;
+		Axis.FindBestAxisVectors(A, B);
+		const FVector Tip = Base + Axis * LenCm;
+		FVector P[3];
+		for (int32 k = 0; k < 3; ++k)
+		{
+			const float Ang = 2.f * PI * k / 3.f;
+			P[k] = Base + (A * FMath::Cos(Ang) + B * FMath::Sin(Ang)) * RadCm;
+		}
+		for (int32 k = 0; k < 3; ++k)
+		{
+			const FVector& P0 = P[k];
+			const FVector& P1 = P[(k + 1) % 3];
+			FVector Normal = FVector::CrossProduct(P1 - P0, Tip - P0).GetSafeNormal();
+			if (FVector::DotProduct(Normal, (P0 + P1) * 0.5f - Base) < 0.f)
+			{
+				Normal = -Normal;
+			}
+			const int32 I = V.Num();
+			for (const FVector& Q : { P0, P1, Tip })
+			{
+				V.Add(Q);
+				N.Add(Normal);
+				T.Add(FProcMeshTangent(Axis, false));
+				UV.Add(FVector2D::ZeroVector);
+				C.Add(FLinearColor(0.05f, 0.f, 0.f, 1.f));
+			}
+			Tri.Append({ I, I + 1, I + 2, I, I + 2, I + 1 });
+		}
+	}
+
 	void QuietMesh(UPrimitiveComponent* Mesh)
 	{
 		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -351,6 +387,18 @@ void ADeepSerpent::SetupLook()
 	if (SkinMID)
 	{
 		SkinMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.SkinColor);
+	}
+	if (SkinBase)
+	{
+		// Teeth: the same wet material, bone-coloured, no scales (they read UV 0).
+		TeethMID = UMaterialInstanceDynamic::Create(SkinBase, this);
+		TeethMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.TeethColor);
+		TeethMID->SetScalarParameterValue(TEXT("ScaleDepth"), 0.f);
+		TeethMID->SetScalarParameterValue(TEXT("GrooveRoughness"), 0.35f);
+		// The jaw (the mouth's floor faces the lamp in a strike) is darker still, so the open mouth reads as a hole.
+		MouthMID = UMaterialInstanceDynamic::Create(SkinBase, this);
+		MouthMID->SetVectorParameterValue(TEXT("SkinColor"), Tuning.SkinColor * 0.25f);
+		MouthMID->SetScalarParameterValue(TEXT("WetCoat"), 0.3f);
 	}
 	if (UMaterialInterface* MarksBase = Cast<UMaterialInterface>(Tuning.MarksMaterial.TryLoad()))
 	{
@@ -494,11 +542,61 @@ void ADeepSerpent::BuildHeadShells()
 	LoftShell(Sections, Sides, -0.15f * L * CmPerM, XFront - HingeX - 4.f, Tuning.SkinTilesPerM, Tuning.SkinTilesAround, JawShape, V, UV0, UV1, C, Tri);
 	MakeShell(JawShell, V, UV0, UV1, C, Tri, Sections, Sides);
 
+	// Teeth: a row along each side of the upper lip pointing down, and of the jaw pointing up, interleaved; longer at
+	// the front. They are what makes the open mouth read in silhouette and in the beam.
+	const int32 Teeth = FMath::Max(0, Tuning.TeethPerSide);
+	if (Teeth > 0)
+	{
+		const float JawBack = -0.15f * L * CmPerM;
+		const float JawFront = XFront - HingeX - 4.f;
+		for (int32 Pass = 0; Pass < 2; ++Pass)
+		{
+			const bool bUpper = Pass == 0;
+			TArray<FVector> TV, TN;
+			TArray<FProcMeshTangent> TT;
+			TArray<FVector2D> TUV;
+			TArray<FLinearColor> TC;
+			TArray<int32> TTri;
+			for (int32 i = 0; i < Teeth; ++i)
+			{
+				const float Frac = (i + (bUpper ? 0.f : 0.5f)) / static_cast<float>(Teeth);
+				const float LenM = FMath::Lerp(0.05f, 0.1f, Frac) * (i == Teeth - 1 ? 1.5f : 1.f);
+				for (const float SideSign : { -1.f, 1.f })
+				{
+					FVector Base, Dir;
+					if (bUpper)
+					{
+						const float S = FMath::Lerp(0.42f, 0.96f, Frac);
+						const FRingShape Shape = Skull(S);
+						Base = FVector(FMath::Lerp(XBack, XFront, S), SideSign * Shape.HalfWidth * 0.8f * CmPerM, -Shape.Bottom * 0.5f * CmPerM);
+						Dir = FVector(-0.15f, -SideSign * 0.2f, -1.f);
+					}
+					else
+					{
+						const float S = FMath::Lerp(0.3f, 0.95f, Frac);
+						const FRingShape Shape = JawShape(S);
+						Base = FVector(FMath::Lerp(JawBack, JawFront, S), SideSign * Shape.HalfWidth * 0.8f * CmPerM, Shape.Top * CmPerM);
+						Dir = FVector(-0.15f, -SideSign * 0.2f, 1.f);
+					}
+					AddTooth(Base, Dir, LenM * CmPerM, LenM * 0.22f * CmPerM, TV, TN, TT, TUV, TC, TTri);
+				}
+			}
+			UProceduralMeshComponent* Mesh = bUpper ? HeadShell.Get() : JawShell.Get();
+			const TArray<FVector2D> None;
+			Mesh->CreateMeshSection_LinearColor(2, TV, TTri, TN, TUV, TUV, None, None, TC, TT, false, false);
+			if (TeethMID)
+			{
+				Mesh->SetMaterial(2, TeethMID);
+			}
+		}
+	}
+
 	for (UProceduralMeshComponent* Mesh : { HeadShell.Get(), JawShell.Get() })
 	{
-		if (SkinMID)
+		UMaterialInstanceDynamic* Wear = (Mesh == JawShell.Get() && MouthMID) ? MouthMID.Get() : SkinMID.Get();
+		if (Wear)
 		{
-			Mesh->SetMaterial(0, SkinMID);
+			Mesh->SetMaterial(0, Wear);
 		}
 		if (MarksMID)
 		{
@@ -577,14 +675,16 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	const FDeepSerpentBodyTuning& Tuning = UDeepMonsterSettings::Get().Body;
 	Dt = FMath::Max(0.f, Dt);
 
-	if (MoodState != SeenState)
+	// A pose override (shots only) shows that state's motion; the brain's own state is untouched.
+	const uint8 Shown = PoseOverride >= 0 ? static_cast<uint8>(PoseOverride) : MoodState;
+	if (Shown != SeenState)
 	{
-		SeenState = MoodState;
+		SeenState = Shown;
 		StateAge = 0.f;
 	}
 	StateAge += Dt;
 	LifeAge += Dt;
-	const EDeepMonsterState State = static_cast<EDeepMonsterState>(MoodState);
+	const EDeepMonsterState State = static_cast<EDeepMonsterState>(Shown);
 	if (State != EDeepMonsterState::Lurk)
 	{
 		bHeardOnce = true;
@@ -613,7 +713,8 @@ void ADeepSerpent::UpdateMotion(float Dt)
 	// The bite: strike, clamp, thrash.
 	float ThrashYaw = 0.f;
 	float ThrashRoll = 0.f;
-	float TargetGape = 2.f;
+	// A slit of a mouth at rest: the jaw line reads in silhouette.
+	float TargetGape = 4.f;
 	float TargetLungeCm = 0.f;
 	switch (State)
 	{
@@ -629,7 +730,8 @@ void ADeepSerpent::UpdateMotion(float Dt)
 		else
 		{
 			TargetLungeCm = Tuning.LungeM * 0.35f * CmPerM;
-			TargetGape = 6.f;
+			// Holding the line between its teeth: open enough that the teeth stay visible in the thrash.
+			TargetGape = Tuning.BiteHoldGapeDeg;
 			const float W = 2.f * PI * Tuning.BiteThrashHz * (StateAge - Strike);
 			ThrashYaw = Tuning.BiteThrashDeg * FMath::Sin(W);
 			ThrashRoll = Tuning.BiteThrashDeg * 0.6f * FMath::Sin(W + 1.f);
@@ -865,7 +967,7 @@ void ADeepSerpent::UpdateEyes(float Dt)
 	{
 		const float SideSign = e == 0 ? -1.f : 1.f;
 		const FVector EyePos = Eyes[e]->GetComponentLocation();
-		const FVector EyeNormal = Socket.TransformVectorNoScale(FVector(1.f, 1.2f * SideSign, 0.3f).GetSafeNormal());
+		const FVector EyeNormal = Socket.TransformVectorNoScale(FVector(1.f, 0.7f * SideSign, 0.15f).GetSafeNormal());
 		float Target = 0.f;
 		for (TActorIterator<ADeepDiver> It(World); It; ++It)
 		{
@@ -915,12 +1017,13 @@ void ADeepSerpent::UpdateMarks(float Dt)
 	const bool bReveal = bForceReveal || (LifeAge >= Tuning.RevealDelayS && bHeardOnce);
 	Reveal01 = FMath::FInterpConstantTo(Reveal01, bReveal ? 1.f : 0.f, Dt, 1.f / FMath::Max(0.1f, Tuning.RevealFadeS));
 
-	const float Threat = MoodThreat;
+	const float Threat = PoseOverride >= 0 ? 1.f : MoodThreat;
+	// Spots stay near dark until threat peaks (power curve), then pulse fast.
+	const float ThreatCurve = FMath::Pow(Threat, FMath::Max(0.1f, Tuning.SpotThreatPower));
 	PulsePhase = FMath::Fmod(PulsePhase + 2.f * PI * FMath::Lerp(Tuning.PulseHzCalm, Tuning.PulseHzThreat, Threat) * Dt, 2000.f * PI);
-	// The flinch flares the markings, then they die with it.
-	// The flinch flares the spots, then they die with it (the rim stays thin: a whole-body glow read as a toy).
+	// The flinch flares the spots, then they die with it. The rim gain defaults to 0: an outline read as a toy.
 	const float Flare = 1.f + Flinch01;
 	MarksMID->SetScalarParameterValue(TEXT("PulsePhase"), PulsePhase);
-	MarksMID->SetScalarParameterValue(TEXT("SpotGain"), Tuning.SpotGain * Reveal01 * Flare * FMath::Lerp(Tuning.SpotCalmFraction, 1.f, Threat));
+	MarksMID->SetScalarParameterValue(TEXT("SpotGain"), Tuning.SpotGain * Reveal01 * Flare * FMath::Lerp(Tuning.SpotCalmFraction, 1.f, ThreatCurve));
 	MarksMID->SetScalarParameterValue(TEXT("RimGain"), Reveal01 * FMath::Lerp(Tuning.RimGainCalm, Tuning.RimGainThreat, Threat));
 }
