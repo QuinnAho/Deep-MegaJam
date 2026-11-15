@@ -3,7 +3,11 @@
 // settlement with the damage count up, a second shot in a dive is refused, and a bolt in the serpent makes it recoil.
 
 #include "CoreMinimal.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
+#include "Engine/CollisionProfile.h"
+#include "Engine/StaticMeshActor.h"
 #include "Diver/DeepRunComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -18,6 +22,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepEventBus.h"
+#include "World/DeepShapes.h"
 #include "World/DeepSubmarine.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -292,6 +297,115 @@ bool FDeepHarpoonSerpentTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("It recoils"), Brain->GetState(), EDeepMonsterState::Recoil);
 	TestEqual(TEXT("Nothing to reel"), W.Harpoon->GetPhase(), EDeepHarpoonPhase::Idle);
 	TestEqual(TEXT("No hull damage"), W.State->HullDamage, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHarpoonRecoilRuleTest, "Deep.Sim.Harpoon.Recoil", DEEP_HARPOON_TEST_FLAGS)
+bool FDeepHarpoonRecoilRuleTest::RunTest(const FString& Parameters)
+{
+	const FVector Aim(0.f, 2.f, 0.f);
+	const FVector Start = UDeepHarpoonRules::RecoilVelocityMps(Aim, 0.f, 3.5f, 0.5f);
+	TestEqual(TEXT("Full strength at once: 3.5 m/s"), Start.Size(), 3.5, 0.001);
+	TestEqual(TEXT("Straight back from the aim"), Start.GetSafeNormal(), FVector(0.f, -1.f, 0.f));
+	TestEqual(TEXT("Half way: half the speed"), UDeepHarpoonRules::RecoilVelocityMps(Aim, 0.25f, 3.5f, 0.5f).Y, -1.75, 0.001);
+	TestTrue(TEXT("Fades every step"), UDeepHarpoonRules::RecoilVelocityMps(Aim, 0.4f, 3.5f, 0.5f).Size() < UDeepHarpoonRules::RecoilVelocityMps(Aim, 0.3f, 3.5f, 0.5f).Size());
+	TestTrue(TEXT("Nothing at RecoilSeconds"), UDeepHarpoonRules::RecoilVelocityMps(Aim, 0.5f, 3.5f, 0.5f).IsZero());
+	TestTrue(TEXT("Nothing after"), UDeepHarpoonRules::RecoilVelocityMps(Aim, 3.f, 3.5f, 0.5f).IsZero());
+	TestTrue(TEXT("Nothing before the shot"), UDeepHarpoonRules::RecoilVelocityMps(Aim, -0.1f, 3.5f, 0.5f).IsZero());
+	TestTrue(TEXT("No aim, no shove"), UDeepHarpoonRules::RecoilVelocityMps(FVector::ZeroVector, 0.f, 3.5f, 0.5f).IsZero());
+	TestTrue(TEXT("Zero time, no shove"), UDeepHarpoonRules::RecoilVelocityMps(Aim, 0.f, 3.5f, 0.f).IsZero());
+
+	TestEqual(TEXT("The whole shove: 3.5 * 0.5 / 2 = 0.875 m"), UDeepHarpoonRules::RecoilTravelM(0.f, 10.f, 3.5f, 0.5f), 0.875f, 0.0001f);
+	float Summed = 0.f;
+	for (int32 Step = 0; Step < 37; ++Step)
+	{
+		Summed += UDeepHarpoonRules::RecoilTravelM(Step / 60.f, (Step + 1) / 60.f, 3.5f, 0.5f);
+	}
+	TestEqual(TEXT("Frame steps add up to the same shove"), Summed, 0.875f, 0.0001f);
+	TestEqual(TEXT("A first 60 fps frame already moves ~5.8 cm (no ramp)"), UDeepHarpoonRules::RecoilTravelM(0.f, 1.f / 60.f, 3.5f, 0.5f), 0.0578f, 0.001f);
+	TestEqual(TEXT("Nothing after the window"), UDeepHarpoonRules::RecoilTravelM(0.5f, 2.f, 3.5f, 0.5f), 0.f);
+	TestEqual(TEXT("Zero strength, no travel"), UDeepHarpoonRules::RecoilTravelM(0.f, 1.f, 0.f, 0.5f), 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepHarpoonRecoilWorldTest, "Deep.World.Harpoon.Recoil", DEEP_HARPOON_TEST_FLAGS)
+bool FDeepHarpoonRecoilWorldTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepHarpoonTest;
+	const UDeepHarpoonSettings& Settings = UDeepHarpoonSettings::Get();
+	const float ShoveCm = UDeepHarpoonRules::RecoilTravelM(0.f, Settings.RecoilSeconds, Settings.RecoilMps, Settings.RecoilSeconds) * UDeepRules::CmPerM;
+	const float Dt = 1.f / 60.f;
+	FHarpoonWorld W;
+	UTEST_TRUE(TEXT("World"), W.Valid());
+	UTEST_TRUE(TEXT("A shove to test"), ShoveCm > 20.f);
+
+	// Open water below the sub, no input: a shot along +Y shoves the diver back along -Y.
+	const FVector From = W.Sub->GetDiverStartTransform().GetLocation() + FVector(0.f, 0.f, -500.f);
+	W.Diver->TeleportDiver(From);
+	W.Harpoon->FireAlong(From, FVector(0.f, 1.f, 0.f));
+	UTEST_EQUAL(TEXT("Fired"), W.Harpoon->GetPhase(), EDeepHarpoonPhase::Flying);
+	TestTrue(TEXT("The shove starts with the shot"), W.Harpoon->IsKicking());
+	W.Harpoon->StepHarpoon(Dt);
+	const FVector AfterOne = W.Diver->GetActorLocation() - From;
+	TestTrue(FString::Printf(TEXT("Immediate: the first frame moves back %.1f cm"), -AfterOne.Y), AfterOne.Y < -4.f);
+	float Elapsed = Dt;
+	while (Elapsed < Settings.RecoilSeconds + 0.2f)
+	{
+		W.Harpoon->StepHarpoon(Dt);
+		Elapsed += Dt;
+	}
+	const FVector Moved = W.Diver->GetActorLocation() - From;
+	TestEqual(FString::Printf(TEXT("Shoved back by the rule's distance (%.1f cm of %.1f)"), -Moved.Y, ShoveCm), static_cast<float>(-Moved.Y), ShoveCm, 8.f);
+	TestTrue(TEXT("Straight back, opposite the aim"), FMath::Abs(Moved.X) < 2.f && FMath::Abs(Moved.Z) < 2.f);
+	TestFalse(TEXT("The shove is over after RecoilSeconds"), W.Harpoon->IsKicking());
+	const FVector Rest = W.Diver->GetActorLocation();
+	for (int32 Step = 0; Step < 30; ++Step)
+	{
+		W.Harpoon->StepHarpoon(Dt);
+	}
+	TestTrue(TEXT("And the diver stays stopped"), FVector::Dist(Rest, W.Diver->GetActorLocation()) < 0.5f);
+
+	// An empty click: no shot, no shove.
+	W.Harpoon->FireAlong(Rest, FVector(0.f, 1.f, 0.f));
+	TestEqual(TEXT("Empty"), W.Harpoon->GetLastResult(), EDeepHarpoonResult::Empty);
+	TestFalse(TEXT("An empty click gives no kick"), W.Harpoon->IsKicking());
+
+	// Rock close behind: the shove stops at the rock.
+	W.Harpoon->Reload();
+	const FVector Near = From + FVector(400.f, 0.f, -300.f);
+	W.Diver->TeleportDiver(Near);
+	const float Radius = W.Diver->GetCapsuleComponent()->GetScaledCapsuleRadius();
+	const float GapCm = 30.f;
+	AStaticMeshActor* Rock = W.World->SpawnActor<AStaticMeshActor>(Near - FVector(0.f, Radius + GapCm + 20.f, 0.f), FRotator::ZeroRotator);
+	UTEST_NOT_NULL(TEXT("Rock"), Rock);
+	Rock->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
+	Rock->GetStaticMeshComponent()->SetStaticMesh(DeepShapes::LoadMesh(DeepShapes::Cube));
+	Rock->GetStaticMeshComponent()->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	Rock->SetActorScale3D(FVector(3.f, 0.4f, 4.f));
+	W.Harpoon->FireAlong(Near, FVector(0.f, 1.f, 0.f));
+	for (float T = 0.f; T < Settings.RecoilSeconds + 0.2f; T += Dt)
+	{
+		W.Harpoon->StepHarpoon(Dt);
+	}
+	const float Back = static_cast<float>(Near.Y - W.Diver->GetActorLocation().Y);
+	TestTrue(FString::Printf(TEXT("Stopped at the rock: %.1f cm back with a %.0f cm gap"), Back, GapCm), Back > GapCm - 10.f && Back <= GapCm + 1.f);
+	Rock->Destroy();
+
+	// At the sub: the shove starts, then the reel takes over and still brings the diver into the hatch.
+	W.Harpoon->Reload();
+	W.Run->CutTether(true);
+	UTEST_EQUAL(TEXT("Cut"), W.Run->GetState(), EDeepRunState::Cut);
+	W.FireAtSubFrom(FVector(0.2f, 0.f, -1.f), 15.f);
+	TestTrue(TEXT("Shoved on the shot at the sub"), W.Harpoon->IsKicking());
+	for (int32 Step = 0; Step < 60 && W.Harpoon->GetPhase() == EDeepHarpoonPhase::Flying; ++Step)
+	{
+		W.Harpoon->StepHarpoon(Dt);
+	}
+	UTEST_EQUAL(TEXT("Latched on the sub"), W.Harpoon->GetLatchTarget(), EDeepHarpoonTarget::Submarine);
+	TestFalse(TEXT("The reel ends the shove at once"), W.Harpoon->IsKicking());
+	W.StepUntilIdle(8.f);
+	W.Run->StepRun(0.05f);
+	TestEqual(TEXT("Reeled into the hatch: aboard"), W.Run->GetState(), EDeepRunState::Aboard);
 	return true;
 }
 

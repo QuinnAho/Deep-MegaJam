@@ -13,7 +13,7 @@ bool FDeepCameraShakeMapTest::RunTest(const FString& Parameters)
 {
 	const FDeepCameraTuning T;
 	const TCHAR* Shaking[] = { TEXT("hull_hit"), TEXT("hull_critical"), TEXT("hull_breach"), TEXT("bite_alarm"), TEXT("cut_bite"),
-		TEXT("death_monster"), TEXT("harpoon_fired"), TEXT("harpoon_hit_sub"), TEXT("enter_sub"), TEXT("descend_stop2"),
+		TEXT("death_monster"), TEXT("harpoon_fired"), TEXT("harpoon_hit_sub"), TEXT("harpoon_hit_monster"), TEXT("enter_sub"), TEXT("descend_stop2"),
 		TEXT("descend_stop3"), TEXT("monster_near") };
 	for (const TCHAR* Event : Shaking)
 	{
@@ -29,7 +29,9 @@ bool FDeepCameraShakeMapTest::RunTest(const FString& Parameters)
 
 	auto Spec = [&T](const TCHAR* E) { return DeepCameraRules::ShakeForEvent(FName(E), T); };
 	auto Rot = [&Spec](const TCHAR* E) { return Spec(E).RotationDeg; };
-	TestTrue(TEXT("The harpoon kick is small next to a hull hit"), Rot(TEXT("harpoon_fired")) < Rot(TEXT("hull_hit")));
+	TestTrue(TEXT("The harpoon kick is firm but under a critical hull"), Rot(TEXT("harpoon_fired")) >= 1.f && Rot(TEXT("harpoon_fired")) < Rot(TEXT("hull_critical")));
+	TestTrue(TEXT("A bolt in the serpent thuds harder than the shot"), Rot(TEXT("harpoon_hit_monster")) > Rot(TEXT("harpoon_fired")));
+	TestTrue(TEXT("The serpent thud sits between a hull hit and a critical"), Rot(TEXT("harpoon_hit_monster")) > Rot(TEXT("hull_hit")) && Rot(TEXT("harpoon_hit_monster")) < Rot(TEXT("hull_critical")));
 	TestTrue(TEXT("Hull damage escalates: hit < critical < breach"), Rot(TEXT("hull_hit")) < Rot(TEXT("hull_critical")) && Rot(TEXT("hull_critical")) < Rot(TEXT("hull_breach")));
 	TestTrue(TEXT("The bite is harder than its alarm"), Rot(TEXT("cut_bite")) > Rot(TEXT("bite_alarm")));
 	TestTrue(TEXT("Death by the serpent is the hardest"), Rot(TEXT("death_monster")) >= Rot(TEXT("cut_bite")));

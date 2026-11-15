@@ -39,9 +39,11 @@ FDeepCameraTuning::FDeepCameraTuning()
 	Add(EventShakes, TEXT("cut_bite"),       Spec(12.f, 4.0f, 14.f, 0.90f, 0.02f, 0.60f));
 	Add(EventShakes, TEXT("death_monster"),  Spec(16.f, 6.0f, 12.f, 1.50f, 0.02f, 1.00f));
 	Add(EventShakes, TEXT("monster_near"),   Spec(0.6f, 0.25f, 2.5f, 2.50f, 0.80f, 1.20f));
-	// The harpoon: a small kick; a bolt into the hull rings it.
-	Add(EventShakes, TEXT("harpoon_fired"),  Spec(1.f,  0.6f, 16.f, 0.18f, 0.01f, 0.14f));
+	// The harpoon: a firm kick on the shot (the diver is shoved back too); a bolt into the hull rings it; a bolt
+	// into the serpent lands as a heavy thud, between a hull hit and a critical.
+	Add(EventShakes, TEXT("harpoon_fired"),  Spec(3.f,  1.5f, 12.f, 0.30f, 0.01f, 0.22f));
 	Add(EventShakes, TEXT("harpoon_hit_sub"),Spec(2.f,  1.0f, 15.f, 0.40f, 0.02f, 0.30f));
+	Add(EventShakes, TEXT("harpoon_hit_monster"), Spec(5.f, 1.8f, 11.f, 0.60f, 0.02f, 0.40f));
 	// The sub: the hatch clunks shut behind you; a long low rumble on reaching a new depth.
 	Add(EventShakes, TEXT("enter_sub"),      Spec(2.f,  0.8f, 10.f, 0.30f, 0.02f, 0.22f));
 	Add(EventShakes, TEXT("descend_stop2"),  Spec(2.f,  0.5f,  3.f, 3.50f, 0.60f, 1.50f));

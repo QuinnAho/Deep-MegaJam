@@ -70,3 +70,28 @@ int32 UDeepHarpoonRules::RepairFromCredits(int32 Gross, int32 DirectorCut, int32
 	const int64 Shortfall = static_cast<int64>(FMath::Max(0, DirectorCut)) + FMath::Max(0, Fees) - FMath::Max(0, Gross);
 	return static_cast<int32>(FMath::Clamp<int64>(Shortfall, 0, FMath::Max(0, Repair)));
 }
+
+FVector UDeepHarpoonRules::RecoilVelocityMps(const FVector& Aim, float SecondsSinceShot, float RecoilMps, float RecoilSeconds)
+{
+	const FVector Back = -Aim.GetSafeNormal();
+	if (Back.IsNearlyZero() || RecoilSeconds <= 0.f || SecondsSinceShot < 0.f || SecondsSinceShot >= RecoilSeconds)
+	{
+		return FVector::ZeroVector;
+	}
+	return Back * (FMath::Max(0.f, RecoilMps) * (1.f - SecondsSinceShot / RecoilSeconds));
+}
+
+float UDeepHarpoonRules::RecoilTravelM(float FromSeconds, float ToSeconds, float RecoilMps, float RecoilSeconds)
+{
+	if (RecoilSeconds <= 0.f || RecoilMps <= 0.f)
+	{
+		return 0.f;
+	}
+	// v(t) = RecoilMps * (1 - t / T) on [0, T]; its area from 0 to t is RecoilMps * (t - t^2 / 2T).
+	auto Area = [RecoilMps, RecoilSeconds](float T)
+	{
+		const float C = FMath::Clamp(T, 0.f, RecoilSeconds);
+		return RecoilMps * (C - C * C / (2.f * RecoilSeconds));
+	};
+	return FMath::Max(0.f, Area(ToSeconds) - Area(FromSeconds));
+}
