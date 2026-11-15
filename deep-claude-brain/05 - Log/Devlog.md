@@ -235,6 +235,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The first thing a judge does is press a key on the title, and now the scripted playtest proves it without the `Deep.Start` cheat. A first version of the new test failed for a test reason: a test world spawns the game mode as a plain actor, so `GetAuthGameMode` is empty. The controller now finds the game mode the same way the cheats do.
 - Evidence: `Deep.World.TitleKey` (K, Space, Enter, LMB, RMB, Esc, a gamepad button through `InputKey`; mouse movement does not start), `Deep.World.TetherDistanceAfterCut`, `Deep.World.FullRunCommands` all pass; `playtest.ps1 S0-title` PASS with no fallback note; frame `devlog/media/2026-11-15-feel-title.png`. A physical keyboard is still unchecked.
 
+### UI feedback from Quinn: too busy, not polished
+- What happened: Quinn looked at the playtest frames and said the UI is far too busy with unnecessary information and is not polished at all.
+- Why it matters: The settlement card, the always-on left HUD box (depth, cargo, tether, credits, hull, stop, diver number), the key-hint strip and the Captain subtitle all show at once, and the settlement panel overlaps the left HUD. A polish pass should cut to the few things a player needs at each moment (for example air and Patience while diving, the net and one button on settlement) and hide the rest.
+- Evidence: `devlog\media\2026-11-14-loop-S6-bank.png`, `devlog\media\2026-11-14-loop-S5-cut-bailout.png`. Not fixed yet; needs a UI task on the Board.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
