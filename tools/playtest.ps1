@@ -12,6 +12,7 @@ Scenarios (the game since the submarine room, Nov 15):
   S5-harpoon  the harpoon reels a cut diver into the hatch
   S6-bank     the settlement numbers and the automatic gate purchase
   S7-run      full run: stop 1, flashlight, stop 2, hull upgrade, stop 3, relic, win screen
+  S8-keys     stop 1 on simulated keys only (walk to hatch, grab with E, console, helm, hold C), then lamp/winch/cut/harpoon/pause
 Starts the editor if the port does not answer, runs PIE per scenario, asserts on DeepToolset.GetState JSON
 (and the DEEPMONSTER log line for the serpent), saves a viewport PNG per scenario to
 deep\Saved\Harness\playtest\<scenario>.png and devlog\media\2026-11-15-play-<scenario>.png, stops PIE and prints
@@ -30,7 +31,7 @@ $ShotDir = Join-Path $Repo 'deep\Saved\Harness\playtest'
 $MediaDir = Join-Path $Repo 'devlog\media'
 New-Item -ItemType Directory -Force -Path $ShotDir | Out-Null
 New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
-$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run')
+$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys')
 $script:Notes = @()
 
 function Mcp([string]$verb, [string]$name, [string]$json) {
@@ -441,6 +442,195 @@ function S7-run {
     Need ($s.won) 'bank of the relic did not win'
     Need ($null -ne $s.run_totals) 'no run totals on the win screen'
     Wait-Sec 1
+}
+
+# ---- S8-keys helpers: drive by keys, steer with the positions the state report gives -------------------
+function Yaw-Of($dx, $dy) { return [Math]::Atan2($dy, $dx) * 180 / [Math]::PI }
+function Look-At($from, $to) {
+    $dx = $to[0] - $from[0]; $dy = $to[1] - $from[1]; $dz = $to[2] - $from[2]
+    $h = [Math]::Sqrt($dx * $dx + $dy * $dy)
+    $pitch = [Math]::Atan2($dz, [Math]::Max($h, 1)) * 180 / [Math]::PI
+    $null = Run-Exec ('Deep.Look {0:N1} {1:N1}' -f $pitch, (Yaw-Of $dx $dy))
+}
+# Walk on the deck with W (facing the target via Deep.Look) until $stop says so or the point is within $tol cm.
+function Walk-To($target, [double]$tol, [double]$maxSec, [scriptblock]$stop) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $maxSec) {
+        $s = Get-State
+        if ($stop -and (& $stop $s)) { return $s }
+        $dx = $target[0] - $s.pos_cm[0]; $dy = $target[1] - $s.pos_cm[1]
+        $d = [Math]::Sqrt($dx * $dx + $dy * $dy)
+        if ($d -le $tol) { return $s }
+        $null = Run-Exec ('Deep.Look 0 {0:N1}' -f (Yaw-Of $dx $dy))
+        Hold @('W') ([Math]::Min(0.7, [Math]::Max(0.15, ($d - $tol) / 320)))
+    }
+    return (Get-State)
+}
+function Dist3($a, $b) { return [Math]::Sqrt([Math]::Pow($a[0]-$b[0],2) + [Math]::Pow($a[1]-$b[1],2) + [Math]::Pow($a[2]-$b[2],2)) }
+function Walk-Heading {
+    $a = (Get-State).pos_cm; Hold @('W') 0.6; $b = (Get-State).pos_cm
+    return (Yaw-Of ($b[0] - $a[0]) ($b[1] - $a[1]))
+}
+function Find-Finding([string]$text) { $script:Notes += ('FINDING ' + $text) }
+
+function S8-keys {
+    $setup = @()
+    # 1. title and a key: the real key path
+    $s = Get-State
+    Need ($s.on_title) 'boot did not show the title'
+    Hold @('SpaceBar') 0.3
+    Wait-Sec 1
+    $s = Get-State
+    if ($s.on_title) { Find-Finding 'TITLE: SpaceBar did not leave the title'; $null = Run-Exec 'Deep.Start'; $setup += 'Deep.Start' }
+    $s = Wait-State { param($s) -not $s.on_title -and $s.run_state -eq 'aboard' } 15 'the run to start aboard'
+    $script:Notes += ('S8 started on a key: inside {0} parked_stop {1} pos {2}' -f $s.inside, $s.parked_stop, ($s.pos_cm -join ','))
+    $sub = (Get-Arena).submarine
+    $L = { param($lx, $ly) @(($sub[0] + $lx), ($sub[1] + $ly)) }
+    Shot 'S8-1-title-key'
+    # 1b. real mouse look: does a Mouse2D / MouseX push turn the view? Measured by the heading of a short walk.
+    $null = Run-Exec 'Deep.Look 0 0'
+    $h0 = Walk-Heading
+    $turn = $null
+    foreach ($k in @('Mouse2D', 'MouseX')) {
+        $null = Run-Exec 'Deep.Look 0 0'
+        $e = '{"entries":[{"key":{"keyName":"' + $k + '"},"value":{"x":40,"y":0,"z":0}}],"durationSeconds":0.3}'
+        try { $null = Call 'InputToolset.InputToolset.ApplyInput' $e } catch { $script:Notes += ('S8 mouse ' + $k + ' rejected: ' + $_.Exception.Message.Substring(0, [Math]::Min(120, $_.Exception.Message.Length))); continue }
+        $h1 = Walk-Heading
+        $script:Notes += ('S8 mouse look via {0}: heading before {1:N0} deg, after a push of x=40: {2:N0} deg' -f $k, $h0, $h1)
+        if ([Math]::Abs($h1 - $h0) -gt 5) { $turn = $k; break }
+    }
+    if ($null -eq $turn) { Find-Finding 'MOUSE LOOK: no simulated Mouse2D/MouseX push turned the view (input tool or game: see notes)' }
+    # 2. walk to the hatch (local 0,0) and drop through it
+    $s = Walk-To (& $L 0 0) 30 25 { param($s) $s.run_state -ne 'aboard' }
+    $s = Wait-State { param($s) $s.run_state -eq 'tethered' } 10 'falling through the hatch after walking to it'
+    $script:Notes += ('S8 dropped by walking: depth {0:N1} m inside {1}' -f $s.depth_m, $s.inside)
+    Shot 'S8-2-under'
+    # 3. swim to the nearest salvage, grab with E
+    Need ((Get-Arena).salvage.Count -gt 0) 'no salvage in the arena'
+    for ($leg = 0; $leg -lt 40; $leg++) {
+        $s = Get-State
+        if ($s.cargo_kg -gt 0) { break }
+        $best = $null; $bd = 1e12
+        foreach ($p in (Get-Arena).salvage) { $d = Dist3 $p.pos_cm $s.pos_cm; if ($d -lt $bd) { $bd = $d; $best = $p } }
+        Need ($null -ne $best) 'salvage vanished'
+        Look-At $s.pos_cm $best.pos_cm
+        if ($bd -le 130) { Hold @('E') 0.3; Wait-Sec 0.5 }
+        else { Hold @('W') ([Math]::Min(1.2, [Math]::Max(0.2, ($bd - 110) / 300))) }
+    }
+    $s = Get-State
+    $script:Notes += ('S8 grab with E: cargo_kg {0} value {1} (legs {2})' -f $s.cargo_kg, $s.cargo_value, $leg)
+    Need ($s.cargo_kg -gt 0) 'E never picked salvage up while swimming up to the nearest piece'
+    # 4. back up through the hatch (aim at the anchor, W plus Space)
+    $anc = (Get-Arena).anchor_cm
+    for ($leg = 0; $leg -lt 40; $leg++) {
+        $s = Get-State
+        $script:Notes += ('S8 climb leg {0}: run_state {1} inside {2} items {3} credits {4} dist {5:N1}' -f $leg, $s.run_state, $s.inside, $s.cargo_items, $s.credits, $s.tether_distance_m)
+        if ($s.inside) { break }
+        # the hull is solid: get under the hatch first, then rise straight up through it
+        $hd = [Math]::Sqrt([Math]::Pow($s.pos_cm[0] - $anc[0], 2) + [Math]::Pow($s.pos_cm[1] - $anc[1], 2))
+        if ($hd -gt 70) {
+            $under = @($anc[0], $anc[1], ($anc[2] - 220))
+            if ($s.pos_cm[2] -gt $anc[2] - 150) { $under[2] = $anc[2] - 250 }
+            Look-At $s.pos_cm $under
+            Hold @('W') ([Math]::Min(0.8, [Math]::Max(0.15, $hd / 350)))
+        } else {
+            Look-At $s.pos_cm @($anc[0], $anc[1], ($anc[2] + 150))
+            Hold @('W', 'SpaceBar') 0.5
+        }
+    }
+    $s = Get-State
+    $script:Notes += ('S8 back up by keys: inside {0} run_state {1} cargo {2} kg' -f $s.inside, $s.run_state, $s.cargo_kg)
+    Need ($s.inside -and $s.run_state -eq 'aboard') ('did not come back aboard by swimming up (inside {0}, run_state {1}, dist {2:N1} m)' -f $s.inside, $s.run_state, $s.tether_distance_m)
+    # 5. walk to the console, E; credits are setup so the bank can afford the flashlight gate
+    $null = Run-Exec 'Deep.Credits 60'; $setup += 'Deep.Credits 60'
+    $s = Walk-To (& $L -160 175) 120 25 { param($s) $s.near_console }
+    Need ($s.near_console) 'walked to the console but near_console is false'
+    $cash0 = $s.credits
+    $script:Notes += ('S8 at console: credits {0} cargo_kg {1} cargo_items {2} near_console {3} run_state {4}' -f $s.credits, $s.cargo_kg, $s.cargo_items, $s.near_console, $s.run_state)
+    Hold @('E') 0.3
+    $trace = @(); $seen = $false
+    for ($i = 0; $i -lt 16; $i++) { $x = Get-State; $trace += ('{0}/{1}/{2}' -f $x.run_state, $x.credits, $x.cargo_items); if ($x.run_state -eq 'settling') { $seen = $true; $s = $x; break } }
+    $script:Notes += ('S8 console E trace (state/credits/items): ' + ($trace -join ' '))
+    Need $seen 'E at the console never opened the settlement'
+    $script:Notes += ('S8 console E: settling, gross {0} net {1} credits {2} -> {3} flashlight {4}' -f $s.last_bank.gross, $s.last_bank.net, $cash0, $s.credits, $s.has_flashlight)
+    Shot 'S8-5-settle'
+    # 5b. E on the settlement screen: leaves it, and must not use the console again
+    Wait-Sec 1.6
+    Hold @('E') 0.3
+    $log = @()
+    for ($i = 0; $i -lt 4; $i++) { $x = Get-State; $log += ('{0}/{1}' -f $x.run_state, $x.credits); Wait-Sec 0.4 }
+    $script:Notes += ('S8 E on settlement: run_state/credits after the press: ' + ($log -join ' '))
+    $s = Get-State
+    if ($s.run_state -eq 'settling') { Find-Finding ('SETTLEMENT E: still settling after E (E did not continue, or the console was used again): ' + ($log -join ' ')) }
+    $s = Wait-State { param($s) $s.run_state -eq 'aboard' } 6 'the settlement screen to close on E'
+    Need ($s.has_flashlight) ('flashlight not bought by the settlement (credits {0})' -f $s.credits)
+    # 6. walk to the helm, E, hold C, release near stop 2 (300 m)
+    # the open hatch lies on the straight line from console to helm: walk around it (a diver who steps in drops into the sea)
+    $null = Walk-To (& $L 0 175) 45 15 $null
+    $s = Walk-To (& $L 370 0) 130 25 { param($s) $s.near_helm }
+    $hp = (& $L 370 0)
+    $script:Notes += ('S8 helm walk ended: pos {0} helm_world {1} dist_xy {2:N0} cm near_helm {3} sub {4}' -f ($s.pos_cm -join ','), ($hp -join ','), [Math]::Sqrt([Math]::Pow($s.pos_cm[0]-$hp[0],2)+[Math]::Pow($s.pos_cm[1]-$hp[1],2)), $s.near_helm, ($sub -join ','))
+    Need ($s.near_helm) 'walked to the helm but near_helm is false'
+    Hold @('E') 0.3
+    $s = Wait-State { param($s) $s.seated } 5 'E at the helm to sit'
+    $script:Notes += ('S8 helm E: seated {0} sub_depth {1:N1}' -f $s.seated, $s.sub_depth_m)
+    $t0 = $s.sub_depth_m
+    Hold @('C') 12
+    $s = Get-State
+    $script:Notes += ('S8 held C 12 s: sub_depth {0:N1} -> {1:N1}' -f $t0, $s.sub_depth_m)
+    Need ($s.sub_depth_m -gt $t0 + 20) 'holding C did not move the submarine down'
+    Shot 'S8-6-helm'
+    for ($i = 0; $i -lt 30 -and (Get-State).sub_depth_m -lt 296.5; $i++) { Hold @('C') ([Math]::Min(2.0, [Math]::Max(0.1, (296.5 - (Get-State).sub_depth_m) / 8))) }
+    Wait-Sec 1.5
+    $s = Get-State
+    $script:Notes += ('S8 released: sub_depth {0:N1} parked_stop {1} stop {2} seated {3}' -f $s.sub_depth_m, $s.parked_stop, $s.stop, $s.seated)
+    Need ($s.parked_stop -eq 2) ('released at {0:N1} m but the sub did not park at stop 2 (parked_stop {1})' -f $s.sub_depth_m, $s.parked_stop)
+
+    # ---- extras: each non-fatal, a FINDING line when it fails ----
+    function Extra([string]$name, [scriptblock]$body) { try { & $body } catch { Find-Finding ($name + ': ' + ($_.Exception.Message -replace '\s+', ' ')) } }
+    Extra 'E at helm to stand up' { Hold @('E') 0.3; Wait-Sec 0.6; $x = Get-State; $script:Notes += ('S8 E to leave helm: seated {0}' -f $x.seated); if ($x.seated) { Find-Finding 'HELM: E did not stand the diver up' } }
+    Extra 'drop through the hatch at stop 2' {
+        $null = Walk-To (& $L 0 0) 30 30 { param($s) $s.run_state -ne 'aboard' }
+        $null = Wait-State { param($s) $s.run_state -eq 'tethered' } 10 'the second drop'
+    }
+    Extra 'lamp F' {
+        $x0 = (Get-State).lamp; Hold @('F') 0.3; Wait-Sec 0.4; $x1 = (Get-State).lamp
+        $script:Notes += ('S8 lamp F: {0} -> {1}' -f $x0, $x1)
+        if ($x0 -eq $x1) { Find-Finding 'LAMP: F did not toggle the lamp (flashlight owned)' }
+    }
+    Extra 'winch R' {
+        $null = Far-Out
+        $d0 = (Get-State).tether_distance_m; Hold @('R') 2.5; $x = Get-State
+        $script:Notes += ('S8 winch R 2.5 s: tether_distance {0:N1} -> {1:N1} m, run_state {2}' -f $d0, $x.tether_distance_m, $x.run_state)
+        if ($x.tether_distance_m -ge $d0 - 1) { Find-Finding 'WINCH: holding R did not reel the diver in' }
+    }
+    Extra 'cut Q' {
+        $null = Far-Out
+        $null = Run-Exec 'Deep.Harpoon.Reset'
+        Hold @('Q') 2.3; Wait-Sec 0.5; $x = Get-State
+        $script:Notes += ('S8 cut Q held 2.3 s: run_state {0} bailout_air {1:N1}' -f $x.run_state, $x.bailout_air_s)
+        if ($x.run_state -ne 'cut') { Find-Finding ('CUT: holding Q 2.3 s did not cut the tether (run_state ' + $x.run_state + ')') }
+    }
+    Extra 'harpoon LMB' {
+        $x = Get-State; Need ($x.run_state -eq 'cut') 'not cut, nothing to shoot from'
+        $subp = (Get-Arena).submarine
+        Look-At $x.pos_cm @($subp[0], $subp[1], ($subp[2] - 50))
+        Hold @('LeftMouseButton') 0.25
+        Wait-Sec 0.6
+        $script:Notes += ('S8 LMB fired: harpoon ' + ((Get-State).harpoon | ConvertTo-Json -Compress))
+        $x = Wait-State { param($s) $s.inside } 60 'the harpoon to reel the diver aboard'
+        $script:Notes += ('S8 harpoon reeled: run_state {0}' -f $x.run_state)
+    }
+    Extra 'pause Esc' {
+        $r0 = (Get-State).run_s; Wait-Sec 1; $r1 = (Get-State).run_s
+        Hold @('Escape') 0.3; Wait-Sec 0.5; $p0 = (Get-State).run_s; Wait-Sec 1.5; $p1 = (Get-State).run_s
+        $script:Notes += ('S8 pause: run_s unpaused {0:N1}->{1:N1}, after Esc {2:N1}->{3:N1}' -f $r0, $r1, $p0, $p1)
+        if (($p1 - $p0) -gt 1.0) { Find-Finding 'PAUSE: Esc via the input tool did not pause (the tool skips PlayerController::InputKey, where the menu keys are read)'; return }
+        Hold @('Escape') 0.3; Wait-Sec 0.5; $q0 = (Get-State).run_s; Wait-Sec 1; $q1 = (Get-State).run_s
+        $script:Notes += ('S8 resume: run_s {0:N1}->{1:N1}' -f $q0, $q1)
+        if (($q1 - $q0) -lt 0.5) { Find-Finding 'PAUSE: second Esc did not resume' }
+    }
+    $script:Notes += ('S8 console commands used: ' + ($setup -join '; ') + '; Deep.Look (aim), Deep.Teleport (Far-Out), Deep.Harpoon.Reset; reads GetState and GetArena')
 }
 
 # ---- driver ----------------------------------------------------------------------------------
