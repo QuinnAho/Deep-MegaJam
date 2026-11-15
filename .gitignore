@@ -1,0 +1,34 @@
+# Unreal Engine: generated folders (the project lives in deep/)
+deep/Binaries/
+deep/DerivedDataCache/
+deep/Intermediate/
+deep/Saved/
+deep/Plugins/**/Binaries/
+deep/Plugins/**/Intermediate/
+
+# IDE and solution files (regenerated from the .uproject)
+deep/.vs/
+deep/.idea/
+deep/*.sln
+deep/*.slnx
+deep/*.VC.db
+deep/*.VC.opendb
+deep/*.suo
+deep/*.xcworkspace
+
+# Packaged builds
+Builds/
+*.zip
+
+# Claude Code: per-machine files
+.claude/settings.local.json
+.claude/worktrees/
+
+# Obsidian: per-user window layout
+deep-claude-brain/.obsidian/workspace.json
+deep-claude-brain/.obsidian/workspace-mobile.json
+
+# Secrets
+.env
+.env.*
+*.key

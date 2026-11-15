@@ -1,0 +1,163 @@
+---
+updated: 2026-11-14 21:00 EST
+---
+# Devlog
+
+Raw material for the Glass Box prize, which goes to the best dev log showing how the game was built. This note is the honest record: what we did, what went wrong and what we cut. The devlog-scribe agent turns it into posts. Nothing here is polished and nothing is left out because it is embarrassing.
+
+## Entry format
+
+Add entries as things happen, newest at the bottom of the day.
+
+```
+### 9:40 PM  Short title
+- What happened: one or two sentences.
+- Why it matters: what it changed, or what we learned.
+- Evidence: a link, a screenshot path, a commit hash or a test result.
+```
+
+Times are EST. Mark a time "about" when it comes from memory and not from a timestamp.
+
+## Saturday Nov 14 2026
+
+### 6:43 PM  The first idea is written down
+- What happened: The "Game Jammy" Google Doc is created with the first notes: a submarine horror game in the style of a co-op extraction game, a tether, a diver, a captain run by an AI, a monster that fears light and hears you.
+- Why it matters: This is the starting point. The jam opened on Nov 12, so we began on the evening of day three of four.
+- Evidence: The doc's creation time in Google Drive.
+
+### 8:06 PM  The repo exists
+- What happened: The git repo is created.
+- Why it matters: Commits will feed this dev log.
+- Evidence: The repo folder timestamp.
+
+### 8:09 PM  Claude gets a brain
+- What happened: An Obsidian vault is created inside the repo as Claude's memory.
+- Why it matters: Every Claude session, on either brother's machine, reads the same notes and writes back to them.
+- Evidence: This vault. See [[00 - Start Here]].
+
+### About 8:10 PM  The engine finishes installing
+- What happened: Unreal Engine 5.9 MegaJam Preview finishes installing.
+- Why it matters: It is the build with the new agent tooling. It is also a preview that Epic calls unstable.
+- Evidence: The engine folder timestamp.
+
+### About 8:15 PM  Research changes the plan
+- What happened: The Claude session starts and the first hour of research finds five things:
+  - The deadline is about 24 hours away: Sunday 8:59 PM EST.
+  - The theme is Director's Cut.
+  - UE 5.9 ships Epic's own MCP server, and a new project has every toolset turned off, so an agent sees no tools until they are enabled.
+  - The DLSS plugin stops at UE 5.8.
+  - NVIDIA ACE is not practical for a jam build.
+- Why it matters: The original plan assumed more time, co-op, and NVIDIA ACE. The theme gave the submarine AI a name and a job: the Director, who takes a cut and cuts the tether.
+- Evidence: [[Jam Brief]], [[Unreal MCP in UE 5.9]], [[NVIDIA RTX, DLSS and ACE]], [[Track Strategy]].
+
+### About 8:35 PM  Claude runs ahead and gets stopped
+- What happened: Claude starts writing a C++ project scaffold: project file, build files, a rules library and tests. Quinn rejects the writes and says, in short: I'm going to make the project, don't code yet.
+- Why it matters: The agent ran ahead of the humans. The idea was not settled and Quinn wanted to create the project himself. The fix was a standing rule: no game code and no scaffolding until Quinn says go. Claude removed the empty folders it had made.
+- Evidence: D-002 in [[Decision Log]].
+
+### 8:38 PM  Quinn creates the project
+- What happened: Quinn creates `Deep.uproject` in UE 5.9. It is Blueprint-only and empty.
+- Why it matters: There is now a real project to point the tools at.
+- Evidence: The editor process start time.
+
+### About 8:45 PM  A one-way door
+- What happened: Quinn asks for specialised subagents and end-to-end validation with AI playing the game. He also says he is fine with 5.8 but wants to use 5.9's features for development and maybe move to 5.8 later. We learn that this cannot work: assets saved in 5.9 will not open in 5.8.
+- Why it matters: The engine has to be chosen before any content exists. The toolsets that let an agent play and see the game are only in 5.9. The DLSS plugin is only in 5.8.
+- Evidence: [[Engine Choice - 5.9 vs 5.8]], D-006 in [[Decision Log]].
+
+### About 8:50 PM  The project moves into the repo, and the work fans out
+- What happened: Quinn moves the project into the repo at `deep/` and tells Claude to use subagents to move faster. The rest of this vault is written by three parallel forks of the main session.
+- Why it matters: This is the first use of parallel agents on the project, and it was used on notes before any code.
+- Evidence: D-004 and D-005 in [[Decision Log]].
+
+### 8:56 PM  The design doc goes to the cloud
+- What happened: Claude writes the game design and a ranked to-do list, with a Quinn / Colby / Claude split, into a new Google Doc. Quinn's rule for it: design and to-dos only, not Claude's memory. Claude could create the doc but was not permitted to change its sharing, so Quinn shares it with Colby by hand.
+- Why it matters: Humans get one editable page. Agents keep a short copy in [[GDD]] and re-read the doc at the start of each work block.
+- Evidence: The doc link in [[GDD]].
+
+### 9:00 PM  The brain is populated, and we learn what it cost
+- What happened: The vault reaches 19 notes: jam facts, track strategy, engine research, the validation design, the agent roster, the decision log and this dev log. Checks run on the result: every wiki link resolves and no token or account detail appears in any note.
+- Why it matters: Two lessons. First, each of the three forked subagents carried the whole research conversation and used about 470,000 tokens to write two to five notes. From now on subagents start fresh and are briefed with links to vault notes, which is the reason the vault exists. Second, Quinn asked for memory to stay light, so what loads every session is six one-line pointers and a short `CLAUDE.md`; everything else is read on demand.
+- Evidence: [[00 - Start Here]], [[Agent Orchestration]].
+
+### 9:00 PM  The dev log becomes a standing duty
+- What happened: Quinn: "very important we need to keep a dev log". The rule is now in the repo's `CLAUDE.md`: every session appends here while it works, not at the end.
+- Why it matters: The Glass Box prize is judged on this record, and moments such as a first playtest cannot be recreated afterwards.
+- Evidence: `CLAUDE.md` at the repo root.
+
+### 8:55 PM  The project becomes a C++ project
+- What happened: Quinn adds a C++ module, `Deep`, to the project. The first build finishes a minute later.
+- Why it matters: Agents write and test C++ far more reliably than Blueprint graphs, and C++ survives an engine change in either direction.
+- Evidence: `deep/Source`, `deep/Binaries` timestamps.
+
+### 9:10 PM  The first cut: ten holes and a shorter list
+- What happened: Quinn asks for a briefer doc, the holes in the gameplay, and only the to-dos that finish in time. Claude finds ten holes in its own v1 design. The worst three: a player could run out of salvage and never afford to descend; the monster did not appear for five or more dives; and death was never defined. The fixes change prices, add respawn and re-tether rules, and make the relic too heavy to swim up.
+- Why it matters: The to-do list drops from fifteen items to twelve must-ship items with a cut order. The gear upgrade shop, a unique third level and five smaller features are cut 23.8 hours before the deadline.
+- Evidence: D-013 in [[Decision Log]], [[GDD]], [[Board]].
+
+### About 9:12 PM  Go
+- What happened: Quinn says go and asks one question before the building starts: what makes this fun, and what gives us the best shot at winning? Claude's answer is five principles. One tension only, greed against the cut. The cut is the best moment in the game and never ends the run alone. The Director's writing is the personality, and dying is a joke about replacement divers. The first 90 seconds must show the theme, the loop and the joke, because a judge gives a jam game about five minutes. The monster is a pressure cycle that is heard long before it is seen.
+- Why it matters: The design changes again. The player can now ask to be cut loose to reach salvage beyond the tether, and the level builds itself from code so agents can test without a map.
+- Evidence: D-014 in [[Decision Log]], [[GDD]].
+
+### 9:16 PM  The first two agents start, then restart on a smaller model
+- What happened: Two fresh subagents start in parallel, each briefed with a role file and links to vault notes: a build sheriff writing the build, test and package script, and a writer producing the Director's lines as data. The gameplay engineer waits for the pipeline, because two agents building in one checkout break each other's builds. Two minutes in, Quinn asks for subagents to run on Opus 5.5 to keep usage down. Neither agent had written a file yet, so both are stopped and restarted on Opus 5.5 at 9:21 PM.
+- Why it matters: This is the pattern for the rest of the jam. The orchestrator hands out work and checks evidence; agents start small, read only what they need, and run on the cheaper model.
+- Evidence: `.claude/agents` (each role file names `model: opus`), [[Board]].
+
+### About 9:25 PM  A cost policy for the agents
+- What happened: Quinn asks Claude to act as the orchestrator and get the best performance per token. The rules go into `.claude/loop.md`: the cheapest model that will pass the gate first time (Opus 5.5 for critical-path gameplay code, Sonnet for scripts, writing, playtests and this dev log, Haiku for running a command and summarising it); fresh agents with tight briefs; reports under 150 words; warm agents reused for the next task in the same code; a model raised only after a second failed gate. The gameplay engineer also keeps a 40-line code map so new agents do not read the whole source tree.
+- Why it matters: The first three subagents cost about 470,000 tokens each. The work that most needs a large model is deciding what to build and checking evidence, not typing.
+- Evidence: `.claude/loop.md`, `.claude/agents`.
+
+### 9:27 PM  The Director gets a voice, as data
+- What happened: The director-writer agent writes all of the Director's lines as two CSV files. There are 138 lines across 41 game events, from the title screen to the win, plus 24 joke fee labels for the settlement screen. No line is over 15 words, 117 are 12 words or fewer, and every line is plain ASCII. The runtime fills in tokens for diver number, depth and credits. Each line has a short note for the text-to-speech voice. Every line was checked against the GDD's Cut list, so none mentions the shop, sonar, saving, or the lamp and winch costing Patience. The cut moment has five variants in five different joke shapes, and variant 1 says "Director's cut".
+- Why it matters: The Director's writing is the game's personality and its best chance with a judge who plays for five minutes. Because the lines are data, the voice can be tuned and rewritten without touching code. Three of the lines:
+  - "Your scene did not make the Director's cut." (the tether is cut when Patience runs out)
+  - "Please hold your breath. Your air is important to us." (also the cut)
+  - "Of all my divers, you were easily the most recent." (the win)
+- Evidence: `deep/Content/Data/DirectorLines.csv`, `deep/Content/Data/SettlementFees.csv`.
+
+### 9:29 PM  The pipeline goes green
+- What happened: The build sheriff writes `tools\ue.ps1`, one script that builds, tests, packages and smoke-runs the game, with one PASS or FAIL line per run and full logs in `deep\Saved\Harness`. The first build took 45 s and passed. The first test run failed in 28 s before any test ran: the editor refused to load the `Deep` module. The cause was the C++ class wizard, which had written a class called `Deep` over the module's own `Deep.cpp` and deleted the line that registers the module. It still compiled, so nobody had noticed. One new file, `DeepModule.cpp`, fixed it. The second surprise: the test filter `Deep` matched 27 tests, 26 of them Epic's own tests with "deep" in their names, so the script now matches from the start of the test name. A deliberately broken test and a deliberate compile error both came back FAIL with the file, line and message.
+- Why it matters: Agents can now prove their work in about 25 s (build about 5 s, headless tests about 18 s), and the gameplay engineer is unblocked. The MCP toolsets are switched on in the project too (Epic's fix for known issue UE-412135).
+- Evidence: `.\tools\ue.ps1 verify` gives `PASS verify (21.9s)` with 1 of 1 tests passed. Logs and report in `deep\Saved\Harness\test-20261114-212927-report\index.json`. See [[Validation Loop]].
+
+## Cut list
+
+The theme is Director's Cut, so we keep the list of what did not make the cut and why.
+
+| Cut | Status | Why |
+|---|---|---|
+| Co-op, Steam and proximity voice | Proposed cut for the jam build | Judges play alone. Netcode multiplies the work on every system. The plugins have no builds for 5.9 Preview. See [[Co-op, Steam and Voice]]. |
+| NVIDIA ACE | Cut | The on-device models are several gigabytes against a 1 GB build limit, they need an RTX GPU on the judge's machine, and the plugins target UE 5.7. |
+| A live language model in the shipped build | Proposed cut | A judge would need a key and a connection, and a key inside the package is a leaked key. Scripted lines with pre-generated voice replace it. |
+| Claude's first C++ scaffold | Rejected by Quinn | Written before the idea was settled and before Quinn had made the project. |
+| Gear upgrade shop (five items) | Proposed cut, 9:10 PM | A whole screen of UI. The hull rating is bought automatically at settlement instead. |
+| A unique third level | Proposed cut, 9:10 PM | One arena kit with three light and fog settings. The relic's weight makes stop 3 different. |
+| Lamp and winch costing Patience | Proposed cut, 9:10 PM | Two more rules to build, tune and explain. The beam only works where it is pointed, which is limit enough. |
+| Tether gun, sonar, DLSS, controller support, PCG terrain | Proposed cut, 9:10 PM | None is needed to finish the loop. |
+
+## Numbers worth quoting
+
+- 10.3k people had joined the jam and 155 entries were in at about 8:20 PM on Nov 14.
+- About 26 hours from the first note in the Google Doc (6:43 PM Nov 14) to the deadline (8:59 PM Nov 15). About 24 and a half hours from the start of the Claude session.
+- We started on the evening of day three of a four-day jam.
+
+## Capture as we go
+
+Take these when they happen. They cannot be recreated later.
+
+- [ ] Screenshot of the first level built by an agent.
+- [ ] Screenshot or recording of the first AI playtest.
+- [ ] Screenshot of the first settlement screen, with the Director's cut on it.
+- [ ] Before and after of the underwater look.
+
+## Tools used so far
+
+Keep this in step with the "Tools you used" list in [[Submission Checklist]].
+
+- Unreal Engine 5.9 MegaJam Preview
+- Claude Code
+- Obsidian
+- Google Docs

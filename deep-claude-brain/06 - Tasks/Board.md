@@ -1,0 +1,58 @@
+---
+updated: 2026-11-14 21:36 EST
+---
+# Board
+
+The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each item are in [[GDD]]. Status words: `todo`, `doing`, `blocked`, `done`.
+
+## Running now
+
+| Lane | Agent | Task | Started |
+|---|---|---|---|
+| Pipeline | build-sheriff | **Done 9:32 PM.** `tools\ue.ps1` exists; `build` (45 s cold, 5 s warm), `test` (17 s) and `verify` pass, and a failing test, an empty filter and a compile error each report FAIL. All Toolsets and Unreal MCP are in the `.uproject`. Not yet run: `package`, `zip`, `smoke`, `editor`. | 9:21 PM |
+| Gameplay | systems-engineer (Opus, high) | Items 1 and 2 below: rules with tests, then the playable grey box. | 9:34 PM |
+| Writing | director-writer | **Done 9:30 PM.** 138 lines across 41 events in `deep\Content\Data\DirectorLines.csv`, 24 fee labels in `SettlementFees.csv`. Checked: ASCII, no duplicate ids, longest line 15 words. | 9:21 PM |
+
+Subagents run on Opus 5.5 (`model: opus`), at Quinn's request.
+
+Only one agent builds or tests in the main checkout at a time: a running test or cook holds the module DLL and breaks a parallel build.
+
+## Next, in order
+
+| # | Item | Agent | Target (EST) | Status |
+|---|---|---|---|---|
+| 1 | Rules in `Sim/` with tests: depth and zones, tether, weight, Patience, settlement, fees, hull. Tuning in `UDeepTuningSettings`. | systems-engineer | Sat 10:15 PM | blocked on pipeline |
+| 2 | Playable grey box: diver (swim, lamp, grab, drop), tether and winch, salvage and weight, Patience, the cut, bailout, a self-building arena, `Deep.*` cheats, `DEEPSTATE`, a plain HUD. | systems-engineer | Sat 11:45 PM | blocked on 1 |
+| 3 | Bank, settlement screen, hull rating, descend by fade, re-tether, respawn counter. | systems-engineer | overnight | blocked on 2 |
+| 4 | First packaged build and smoke run. | build-sheriff | overnight | blocked on 3 |
+| 5 | Subtitles: the bark system that plays the Director's lines on events. Reads `DirectorLines.csv`, fills the `{n}`, `{gross}`, `{cut}`, `{net}`, `{depth}` tokens, never repeats a variant twice running. Voice is optional per line: play the audio for a line id if it exists, otherwise subtitle only. The 12 lines with tokens are subtitle only. | systems-engineer | Sun 10 AM | blocked on 2 |
+| 6 | AI playtest of scenarios S1 to S6. Needs the editor open and Claude reconnected. | playtester | Sun 10 AM | blocked on Quinn |
+| 7 | Monster pressure cycle and tether bite. | systems-engineer, Quinn tunes | Sun noon | blocked on 3 |
+| 8 | Title, controls card, win and lose screens, restart, quit. | systems-engineer | Sun 2 PM | blocked on 3 |
+| 9 | Voice for the Director's lines. | director-writer | Sun 2 PM | blocked on Quinn's choice |
+| 10 | Feature freeze, then fixes only. | all | Sun 3 PM | todo |
+| 11 | Final package, second PC test, 30 to 60 second video. | Quinn + Colby | Sun 5 PM | todo |
+| 12 | itch.io page, submission form, dev log link. Submitted. | Colby, Claude drafts | Sun 8 PM | todo |
+
+## Waiting on Quinn
+
+| Item | Why it matters |
+|---|---|
+| Open the editor after the pipeline agent finishes, then reconnect Claude with `/mcp`. | Agents cannot see or play the game until this session is connected to `unreal-mcp`. |
+| May Claude commit at each green checkpoint? | Commits give rollback points and feed the dev log. Nothing has been committed yet. |
+| The Director's voice: an OpenAI key, or a built-in Windows voice as a stand-in. | Decides item 9 and the OpenAI award. |
+| Share [DEEP - Brief](https://docs.google.com/document/d/1s7-gTlxQ-urXaO8CnRa_atFVw1bGDQ9sgtFYwNMFdtM/edit) with Colby. | Claude cannot change sharing. |
+| Delete the stray notes in the vault root (`Welcome.md`, empty `GDD.md`, empty `Co-op, Steam and Voice.md`) and the old long design doc. | The empty notes shadow the real ones in Obsidian. |
+
+## For Colby
+
+Models (submarine, salvage pieces, relic, monster), sounds (breathing, winch, tether snap, monster, ambience, one music loop), then the three light and fog settings once the arena exists. Dev log post, video and itch.io page on Sunday.
+
+## Done
+
+| Item | When | Evidence |
+|---|---|---|
+| Research and setup notes in the vault. | Nov 14, 9:00 PM | [[00 - Start Here]] |
+| Hole pass and narrowed scope. | Nov 14, 9:10 PM | D-013 in [[Decision Log]] |
+| Brief design doc in Google Docs. | Nov 14, 9:13 PM | [[GDD]] |
+| Fun and winning pass; agent role files; `.mcp.json`. | Nov 14, 9:15 PM | D-014 in [[Decision Log]], `.claude/agents` |
