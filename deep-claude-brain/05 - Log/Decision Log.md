@@ -25,6 +25,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-014 | Design for fun and for winning: five principles, the first 90 seconds, a self-building arena | In effect since Quinn's go |
 | D-015 | Agents: Claude orchestrates; models and effort tiered by task; commit and push allowed | Decided |
 | D-016 | The submarine AI is the Captain, a sarcastic asshole; the Director is its unseen boss | Decided (name and voice by Quinn; the Director as boss is Claude's proposal) |
+| D-017 | Build our own MCP tooling: a command-line client, a `DeepToolset`, and scripted playtests | Decided (Quinn asked; the shape is Claude's) |
 
 ## Open
 
@@ -121,6 +122,17 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** [[GDD]] v3 and [[Board]]. Colby's work moves from blocking out a level to models, sound and tuning light settings. D-002 is lifted: code is allowed.
 
 ## Decided
+
+### D-017 Build our own MCP tooling
+- **Status:** Decided. Quinn: "we should be building out our mcp tools as well make sure your updated with 5.9 feature". The three parts below are Claude's proposal.
+- **Date:** 2026-11-14, 9:56 PM EST
+- **Who:** Quinn asked; Claude shaped it.
+- **Decision:**
+  1. `tools\mcp.ps1`, a command-line client for Unreal's MCP server, so any agent or script can call editor tools without a Claude MCP connection.
+  2. `DeepToolset`, our own tools registered with Unreal's toolset registry: typed game state and the test set-up actions.
+  3. Scripted playtests that drive Play-In-Editor through the client and assert on game state, with a screenshot each.
+- **Why:** Claude's own MCP connection is made at session start, so it breaks whenever the editor restarts and subagents may not have it. A script has no such limit. A scripted scenario also costs no model tokens to run, which is the best performance per token available for regression testing. The live catalog keeps us honest about what 5.9 really ships, as opposed to what was announced.
+- **What follows:** A tools agent is building the client and the catalog against a live editor on port 8012. `DeepToolset` waits for the grey box, because it exposes game state. See [[Board]] items 5a, 5b and 6, and [[Unreal MCP in UE 5.9]].
 
 ### D-016 The Captain, not the Director
 - **Status:** Decided for the name and the voice. The second half is Claude's proposal and can be overruled.

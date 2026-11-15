@@ -143,6 +143,11 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Why it matters: The most common way to miss a jam is a game that was never packaged until the last hour. Ours has been packaged before it has any gameplay. One warning from it: an empty game is already 729 MB on disk, so size needs watching.
 - Evidence: commit `dc33aae` merged into `main`; run 17 in [[Agent Runs]] (Sonnet at medium effort, 67k tokens, 10 minutes).
 
+### 10:04 PM  The first playable slice, built from nothing
+- What happened: All in C++ with no assets. Press Play on an empty map and the game spawns a submarine made of engine basic shapes, ten salvage pieces in a ring below it, an abyss floor, and water light and fog. The diver swims in first person and can grab and drop salvage. Weight drags the diver down, and one heavy piece is enough to stop the diver swimming up. The tether stops the diver at 40 m and shows as a stretched yellow cylinder. Holding R winches the diver home at 7 m/s, and F toggles the lamp. The HUD shows depth, zone, cargo, tether left and a grab prompt. Input is built in code with Enhanced Input. Console commands `Deep.State`, `Deep.GiveSalvage`, `Deep.GotoStop` and `Deep.Teleport` are there for tests. A world test builds the arena in a blank world and checks a full dive: the tether clamp, the winch, a grab and a drop, a stop change, and `DEEPSTATE` JSON that parses.
+- Why it matters: The core loop of grab, get heavy and winch home exists and has tests, and every number is still config. Surprises about the preview engine: only one compile error in the whole slice (strict shadowing, C4458). The Entry map has a PlayerStart, which the game mode ignores and spawns under the airlock instead. A test world needs the game mode's `StartPlay` called by hand before actors begin play. The build script refused twice because the packaging worktree had its own editor open, even though that editor did not lock our DLL, which cost about 12 minutes of waiting.
+- Evidence: `.\tools\ue.ps1 verify` gives `PASS verify (41.9s)`, 15 of 15 tests passed. Report in `deep\Saved\Harness\test-20261114-220341-report\index.json`. Code map in `deep\Source\Deep\ARCHITECTURE.md`. Nobody has played it yet: it is unplayed until someone presses Play.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

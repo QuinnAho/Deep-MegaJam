@@ -1,0 +1,304 @@
+#include "Sim/DeepRules.h"
+
+float UDeepRules::DepthM(float WorldZCm, float AnchorZCm, float AnchorDepthM)
+{
+	return FMath::Max(0.f, AnchorDepthM + (AnchorZCm - WorldZCm) / CmPerM);
+}
+
+int32 UDeepRules::ZoneIndex(float InDepthM, const TArray<FDeepZone>& Zones)
+{
+	int32 Best = INDEX_NONE;
+	int32 Shallowest = INDEX_NONE;
+	for (int32 Index = 0; Index < Zones.Num(); ++Index)
+	{
+		const float Min = Zones[Index].MinDepthM;
+		if (Shallowest == INDEX_NONE || Min < Zones[Shallowest].MinDepthM)
+		{
+			Shallowest = Index;
+		}
+		if (Min <= InDepthM && (Best == INDEX_NONE || Min > Zones[Best].MinDepthM))
+		{
+			Best = Index;
+		}
+	}
+	return Best != INDEX_NONE ? Best : Shallowest;
+}
+
+FString UDeepRules::ZoneName(float InDepthM, const TArray<FDeepZone>& Zones)
+{
+	const int32 Index = ZoneIndex(InDepthM, Zones);
+	return Zones.IsValidIndex(Index) ? Zones[Index].Name : FString();
+}
+
+float UDeepRules::TetherLengthM(int32 Stop, const FDeepTetherTuning& Tuning)
+{
+	const int32 Extra = FMath::Max(Stop, 1) - 1;
+	return FMath::Max(0.f, Tuning.BaseLengthM + Tuning.LengthPerStopM * static_cast<float>(Extra));
+}
+
+FDeepTetherSolve UDeepRules::SolveTether(const FVector& AnchorCm, const FVector& WantedCm, float LengthM, const FDeepTetherTuning& Tuning)
+{
+	FDeepTetherSolve Out;
+	Out.LengthM = FMath::Max(0.f, LengthM);
+
+	const FVector Offset = WantedCm - AnchorCm;
+	const float DistanceCm = static_cast<float>(Offset.Size());
+	const float LengthCm = Out.LengthM * CmPerM;
+
+	Out.DistanceM = DistanceCm / CmPerM;
+	Out.LeftM = FMath::Max(0.f, Out.LengthM - Out.DistanceM);
+
+	if (Out.LengthM <= UE_KINDA_SMALL_NUMBER)
+	{
+		// No line paid out: the diver is held at the anchor and the line is fully taut.
+		Out.Strain = 1.f;
+		Out.bTaut = true;
+		Out.bClamped = DistanceCm > UE_KINDA_SMALL_NUMBER;
+		Out.ClampedPositionCm = AnchorCm;
+		return Out;
+	}
+
+	Out.Strain = FMath::Clamp(Out.DistanceM / Out.LengthM, 0.f, 1.f);
+	Out.bTaut = Out.Strain >= Tuning.TautStrain;
+
+	if (DistanceCm > LengthCm)
+	{
+		Out.bClamped = true;
+		Out.ClampedPositionCm = AnchorCm + Offset * (LengthCm / DistanceCm);
+	}
+	else
+	{
+		Out.ClampedPositionCm = WantedCm;
+	}
+	return Out;
+}
+
+FVector UDeepRules::WinchStep(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning)
+{
+	const FVector ToAnchor = AnchorCm - DiverCm;
+	const float DistanceCm = static_cast<float>(ToAnchor.Size());
+	const float StopCm = FMath::Max(0.f, Tuning.WinchArriveM) * CmPerM;
+	const float StepCm = FMath::Max(0.f, Tuning.WinchSpeedMps * DeltaSeconds) * CmPerM;
+
+	if (DistanceCm <= StopCm || StepCm <= 0.f || DistanceCm <= UE_KINDA_SMALL_NUMBER)
+	{
+		return DiverCm;
+	}
+	const float MoveCm = FMath::Min(StepCm, DistanceCm - StopCm);
+	return DiverCm + ToAnchor * (MoveCm / DistanceCm);
+}
+
+bool UDeepRules::IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning)
+{
+	// A centimetre of slack so a winch that stopped exactly at the arrive distance counts as home.
+	return FVector::Dist(DiverCm, AnchorCm) <= FMath::Max(0.f, Tuning.WinchArriveM) * CmPerM + 1.f;
+}
+
+float UDeepRules::CargoKg(const TArray<FDeepCargoItem>& Cargo)
+{
+	float Total = 0.f;
+	for (const FDeepCargoItem& Item : Cargo)
+	{
+		Total += FMath::Max(0.f, Item.Kg);
+	}
+	return Total;
+}
+
+int32 UDeepRules::CargoValue(const TArray<FDeepCargoItem>& Cargo)
+{
+	int64 Total = 0;
+	for (const FDeepCargoItem& Item : Cargo)
+	{
+		Total += FMath::Max(0, Item.Value);
+	}
+	return static_cast<int32>(FMath::Min<int64>(Total, MAX_int32));
+}
+
+FDeepWeightResult UDeepRules::SolveWeight(float CarriedKg, const FDeepWeightTuning& Tuning)
+{
+	FDeepWeightResult Out;
+	Out.CarriedKg = FMath::Max(0.f, CarriedKg);
+	Out.ExcessKg = FMath::Max(0.f, Out.CarriedKg - Tuning.FreeKg);
+	Out.SinkSpeedMps = FMath::Clamp(Out.ExcessKg * Tuning.SinkMpsPerKg, 0.f, FMath::Max(0.f, Tuning.MaxSinkMps));
+	const float Floor = FMath::Clamp(Tuning.MinSwimMultiplier, 0.f, 1.f);
+	Out.SwimMultiplier = FMath::Clamp(1.f - Out.ExcessKg * Tuning.SwimSlowdownPerKg, Floor, 1.f);
+	Out.bOverloaded = Out.CarriedKg > 0.f && Out.CarriedKg >= Tuning.OverloadKg;
+	return Out;
+}
+
+FVector UDeepRules::SwimVelocityMps(const FVector& WishDirection, bool bSprint, const FDeepWeightResult& Weight, const FDeepSwimTuning& Tuning)
+{
+	const float Sprint = bSprint ? FMath::Max(0.f, Tuning.SprintMultiplier) : 1.f;
+	const float Speed = FMath::Max(0.f, Tuning.SwimSpeedMps) * Sprint * Weight.SwimMultiplier;
+	FVector Velocity = WishDirection.GetClampedToMaxSize(1.0) * Speed;
+	if (Weight.bOverloaded && Velocity.Z > 0.0)
+	{
+		Velocity.Z = 0.0;
+	}
+	Velocity.Z -= Weight.SinkSpeedMps;
+	return Velocity;
+}
+
+float UDeepRules::PatienceStep(float PatienceSeconds, float DeltaSeconds, bool bHunted, const FDeepPatienceTuning& Tuning)
+{
+	const float Rate = FMath::Max(0.f, Tuning.DrainPerSecond) * (bHunted ? FMath::Max(0.f, Tuning.HuntedMultiplier) : 1.f);
+	return FMath::Clamp(PatienceSeconds - Rate * FMath::Max(0.f, DeltaSeconds), 0.f, FMath::Max(0.f, Tuning.MaxSeconds));
+}
+
+float UDeepRules::PatienceRefillSeconds(EDeepSalvageSize Size, const FDeepPatienceTuning& Tuning)
+{
+	float Fraction = 0.f;
+	switch (Size)
+	{
+	case EDeepSalvageSize::Small:  Fraction = Tuning.RefillSmall; break;
+	case EDeepSalvageSize::Medium: Fraction = Tuning.RefillMedium; break;
+	case EDeepSalvageSize::Large:  Fraction = Tuning.RefillLarge; break;
+	case EDeepSalvageSize::Pearl:  Fraction = Tuning.RefillPearl; break;
+	case EDeepSalvageSize::Relic:  Fraction = Tuning.RefillRelic; break;
+	}
+	return FMath::Max(0.f, Fraction) * FMath::Max(0.f, Tuning.MaxSeconds);
+}
+
+float UDeepRules::PatienceAfterSalvage(float PatienceSeconds, EDeepSalvageSize Size, const FDeepPatienceTuning& Tuning)
+{
+	return FMath::Clamp(PatienceSeconds + PatienceRefillSeconds(Size, Tuning), 0.f, FMath::Max(0.f, Tuning.MaxSeconds));
+}
+
+int32 UDeepRules::PatienceWarningCrossed(float BeforeSeconds, float AfterSeconds, const FDeepPatienceTuning& Tuning)
+{
+	if (Tuning.MaxSeconds <= 0.f || AfterSeconds >= BeforeSeconds)
+	{
+		return INDEX_NONE;
+	}
+	const float Before = BeforeSeconds / Tuning.MaxSeconds;
+	const float After = AfterSeconds / Tuning.MaxSeconds;
+
+	int32 MostSevere = INDEX_NONE;
+	for (int32 Index = 0; Index < Tuning.WarningFractions.Num(); ++Index)
+	{
+		const float Threshold = Tuning.WarningFractions[Index];
+		if (Before > Threshold && After <= Threshold)
+		{
+			if (MostSevere == INDEX_NONE || Threshold < Tuning.WarningFractions[MostSevere])
+			{
+				MostSevere = Index;
+			}
+		}
+	}
+	return MostSevere;
+}
+
+int32 UDeepRules::DirectorCut(int32 Gross, int32 Percent)
+{
+	if (Gross <= 0)
+	{
+		return 0;
+	}
+	const int64 P = FMath::Clamp(Percent, 0, 100);
+	return static_cast<int32>((static_cast<int64>(Gross) * P + 99) / 100);
+}
+
+FDeepSettlement UDeepRules::Settle(int32 Gross, const TArray<int32>& Fees, const FDeepEconomyTuning& Tuning)
+{
+	FDeepSettlement Out;
+	Out.Gross = FMath::Max(0, Gross);
+	Out.DirectorCut = DirectorCut(Out.Gross, Tuning.DirectorCutPercent);
+
+	int64 FeeSum = 0;
+	for (const int32 Fee : Fees)
+	{
+		FeeSum += FMath::Max(0, Fee);
+	}
+	Out.Fees = static_cast<int32>(FMath::Min<int64>(FeeSum, MAX_int32));
+	Out.Net = static_cast<int32>(FMath::Max<int64>(0, static_cast<int64>(Out.Gross) - Out.DirectorCut - FeeSum));
+	return Out;
+}
+
+int32 UDeepRules::ApplyFee(int32 Credits, int32 Fee)
+{
+	return static_cast<int32>(FMath::Max<int64>(0, static_cast<int64>(FMath::Max(0, Credits)) - FMath::Max(0, Fee)));
+}
+
+int32 UDeepRules::NextHullPrice(int32 HullRating, const FDeepEconomyTuning& Tuning)
+{
+	const int32 Index = FMath::Max(HullRating, 1) - 1;
+	return Tuning.HullPrices.IsValidIndex(Index) ? FMath::Max(0, Tuning.HullPrices[Index]) : INDEX_NONE;
+}
+
+int32 UDeepRules::MaxHullRating(const FDeepEconomyTuning& Tuning)
+{
+	return Tuning.HullPrices.Num() + 1;
+}
+
+FDeepHullPurchase UDeepRules::TryBuyHull(int32 Credits, int32 HullRating, const FDeepEconomyTuning& Tuning)
+{
+	FDeepHullPurchase Out;
+	Out.Credits = FMath::Max(0, Credits);
+	Out.HullRating = FMath::Max(HullRating, 1);
+
+	const int32 Price = NextHullPrice(Out.HullRating, Tuning);
+	if (Price >= 0 && Out.Credits >= Price)
+	{
+		Out.Credits -= Price;
+		Out.Spent = Price;
+		Out.HullRating += 1;
+		Out.bBought = true;
+	}
+	return Out;
+}
+
+float UDeepRules::BailoutStep(float AirSeconds, float RealDeltaSeconds, const FDeepBailoutTuning& Tuning)
+{
+	float Air = FMath::Max(0.f, AirSeconds);
+	float Remaining = FMath::Max(0.f, RealDeltaSeconds);
+	const float Window = FMath::Max(0.f, Tuning.SlowWindowSeconds);
+	const float SlowScale = FMath::Max(0.f, Tuning.SlowDrainScale);
+
+	if (Air > Window)
+	{
+		const float Fast = FMath::Min(Remaining, Air - Window);
+		Air -= Fast;
+		Remaining -= Fast;
+	}
+	Air -= Remaining * SlowScale;
+	return FMath::Max(0.f, Air);
+}
+
+int32 UDeepRules::PickGrabTarget(const FVector& EyeCm, const FVector& ViewDirection, const TArray<FVector>& CandidatesCm, const TArray<float>& RadiiM, const FDeepSwimTuning& Tuning)
+{
+	const FVector View = ViewDirection.GetSafeNormal();
+	const float CosCone = FMath::Cos(FMath::DegreesToRadians(FMath::Clamp(Tuning.GrabConeDeg, 0.f, 180.f)));
+	const float ReachCm = FMath::Max(0.f, Tuning.ReachM) * CmPerM;
+
+	int32 Best = INDEX_NONE;
+	float BestSurfaceCm = TNumericLimits<float>::Max();
+	for (int32 Index = 0; Index < CandidatesCm.Num(); ++Index)
+	{
+		const FVector ToTarget = CandidatesCm[Index] - EyeCm;
+		const float CentreCm = static_cast<float>(ToTarget.Size());
+		const float RadiusCm = RadiiM.IsValidIndex(Index) ? FMath::Max(0.f, RadiiM[Index]) * CmPerM : 0.f;
+		const float SurfaceCm = FMath::Max(0.f, CentreCm - RadiusCm);
+		if (SurfaceCm > ReachCm)
+		{
+			continue;
+		}
+		// Anything we are touching counts as in view; otherwise it must be inside the cone.
+		const bool bTouching = CentreCm <= RadiusCm || CentreCm <= UE_KINDA_SMALL_NUMBER;
+		if (!bTouching && (View.IsNearlyZero() || FVector::DotProduct(ToTarget / CentreCm, View) < CosCone))
+		{
+			continue;
+		}
+		if (SurfaceCm < BestSurfaceCm)
+		{
+			BestSurfaceCm = SurfaceCm;
+			Best = Index;
+		}
+	}
+	return Best;
+}
+
+FVector UDeepRules::SalvageSpotOffsetCm(const FDeepSalvageSpot& Spot)
+{
+	const float Radians = FMath::DegreesToRadians(Spot.AngleDeg);
+	return FVector(FMath::Cos(Radians) * Spot.OutM, FMath::Sin(Radians) * Spot.OutM, -Spot.BelowM) * CmPerM;
+}

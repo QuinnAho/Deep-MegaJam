@@ -42,6 +42,7 @@ Every number is tuning and lives in config.
 
 | System | Rule |
 |---|---|
+| Stops and depth | Three stops at 100 m, 300 m and 500 m of displayed depth, in the Sunlight (0 to 200 m), Twilight (200 to 400 m) and Midnight (400 to 600 m) zones. The relic sits at 600 m. Depth is what the HUD shows; the arenas need not be that far apart in the level. |
 | Tether | 40 m at stop 1. Each new stop adds 20 m. Cannot swim past it. |
 | Winch | Hold to be reeled home at 7 m/s. Loud. |
 | Weight | First 10 kg free. Past that you sink and swim about 1% slower per kg. An overloaded diver cannot swim up and needs the winch. |

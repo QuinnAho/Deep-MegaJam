@@ -20,6 +20,8 @@ One row per subagent run. The orchestrator adds the row when the agent reports, 
 
 | 18 | 9:47 PM | writer | Sonnet 5.5, medium | Rewrite all 138 lines for the Captain after the rename (D-016); file becomes `CaptainLines.csv`. | 61k | 13 | 70 s | Done, commit `5021c7f`. Checked by the orchestrator: same ids and counts, ASCII, 10 lines say "Director's cut", no strong language. |
 
+| 19 | 9:56 PM | tools agent | Sonnet 5.5, medium | In `.wt\pkg`: command-line MCP client, live catalog of 5.9 toolsets, PIE round trip with a screenshot, how to write our own toolset. | | | | Running. |
+
 ## What the numbers say so far
 
 - Runs 9 to 11 cost about 1.41 million tokens for ten notes, because a fork carries the whole conversation. Runs 14 and 15 cost 222k for a working pipeline and the game's entire script. Fresh agents with tight briefs are about six times cheaper per run.

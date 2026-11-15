@@ -16,6 +16,8 @@ The agents' work queue. Quinn said go at about 9:12 PM Nov 14. Rules for each it
 | Packaging | build-sheriff (Sonnet, medium) | **Done 9:53 PM**, merged from `sheriff/package`. On the still-empty game: `package` passes in 5 min 12 s (729 MB on disk), `smoke` passes, `zip` is 449 MB. `shot` verb added; it needs game-side `-DeepShot` support before it can pass. The checkout `.wt\pkg` stays as the packaging lane: merge `main` into it and package there, so packaging never blocks the builder in the main checkout. | 9:43 PM |
 | Writing | writer (Sonnet, medium) | **Done 9:49 PM**, commit `5021c7f`. All 138 lines rewritten for the Captain in `deep\Content\Data\CaptainLines.csv`; fee labels sharpened. Checked: same ids and counts, ASCII, 10 lines say "Director's cut". | 9:47 PM |
 
+| MCP tooling | tools agent (Sonnet, medium) | In `.wt\pkg` on branch `tools/mcp`, against a live 5.9 editor on port 8012: a command-line MCP client `tools\mcp.ps1`, a live catalog of 5.9's toolsets, a proven PIE round trip with a screenshot, and how to write our own toolset. | 9:56 PM |
+
 Models and effort follow `.claude/loop.md`. The submarine AI is now **the Captain**; the Director is its unseen boss. See [[GDD]] v4.
 
 Only one agent builds or tests in the main checkout at a time: a running test or cook holds the module DLL and breaks a parallel build.
@@ -29,7 +31,9 @@ Only one agent builds or tests in the main checkout at a time: a running test or
 | 3 | Bank, settlement screen, hull rating, descend by fade, re-tether, respawn counter. | systems-engineer | overnight | blocked on 2 |
 | 4 | Packaged build and smoke run of the playable loop, in `.wt\pkg`. The pipeline itself is proven (9:53 PM). Watch the size: the empty game is already 729 MB on disk and 449 MB zipped, against a 1 GB upload limit. | build-sheriff | overnight | blocked on 3 |
 | 5 | Subtitles: the bark system that plays the Captain's lines on events. Reads `CaptainLines.csv`, fills the `{n}`, `{gross}`, `{cut}`, `{net}`, `{depth}` tokens, never repeats a variant twice running. Voice is optional per line: play the audio for a line id if it exists, otherwise subtitle only. The 12 lines with tokens are subtitle only. | systems-engineer | Sun 10 AM | blocked on 2 |
-| 6 | AI playtest of scenarios S1 to S6. Needs the editor open and Claude reconnected. | playtester | Sun 10 AM | blocked on Quinn |
+| 5a | `DeepToolset`: our own MCP tools for the game. `GetState` (typed, replaces parsing the log), `GotoStop`, `GiveSalvage`, `SetPatience`, `ForceCut`, `SpawnMonster`, `ResetRun`. Editor-only module. Follows the how-to from the MCP tooling agent. | systems-engineer or a second builder in `.wt\pkg` | overnight | blocked on 2 and the MCP tooling agent |
+| 5b | Scripted playtests: `tools\playtest.ps1 S1` drives PIE through `tools\mcp.ps1` and asserts on `GetState`, with a screenshot per scenario. No model tokens per run; an agent only reads the summary. | build-sheriff | Sun 9 AM | blocked on 5a |
+| 6 | AI playtest: scenarios S1 to S6 scripted (5b), plus one exploratory "critic" pass by an agent. Works through `tools\mcp.ps1` on an editor the harness starts, so it does not depend on Claude's own MCP connection. | playtester | Sun 10 AM | blocked on 5b |
 | 7 | Monster pressure cycle and tether bite. | systems-engineer, Quinn tunes | Sun noon | blocked on 3 |
 | 8 | Title, controls card, win and lose screens, restart, quit. | systems-engineer | Sun 2 PM | blocked on 3 |
 | 9 | Voice for the Director's lines. | director-writer | Sun 2 PM | blocked on Quinn's choice |

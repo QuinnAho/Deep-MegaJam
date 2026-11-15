@@ -1,0 +1,24 @@
+// The one-line machine-readable state used by tests and playtest agents: `DEEPSTATE {json}`.
+
+#pragma once
+
+#include "CoreMinimal.h"
+
+class UWorld;
+class ADeepDiver;
+
+namespace DeepStateReport
+{
+	/** The diver to report on: the first local player's pawn, else the first diver in the world. */
+	DEEP_API ADeepDiver* FindDiver(UWorld* World);
+
+	/**
+	 * Condensed JSON. Keys: diver_present, depth_m, zone, cargo_kg, cargo_value, cargo_items, overloaded,
+	 * tether_length_m, tether_distance_m, tether_left_m, tether_strain, tether_taut, winching, home, lamp,
+	 * credits, hull_rating, stop, diver_number, salvage_in_world, pos_cm [x,y,z]. Positions are Unreal units (cm).
+	 */
+	DEEP_API FString BuildJson(UWorld* World);
+
+	/** Logs `DEEPSTATE {json}` and returns the line. */
+	DEEP_API FString LogState(UWorld* World);
+}
