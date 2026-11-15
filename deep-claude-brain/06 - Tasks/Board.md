@@ -5,7 +5,7 @@ updated: 2026-11-15 07:01 EST
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 10:10 AM)
+## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 10:20 AM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 
@@ -16,11 +16,10 @@ A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The histo
 - The packaged game matches the editor. The orchestrator took frames of the dragon's head, a pillar at the well and the bottom of the well from the package, and its log has no `missing usage flag` line.
 - **Nothing visual merges into `main` until Quinn has seen frames and said "merge".** The frames page URL is in Claude's memory, as is the URL of his board of 61 asset picks. When he says it: merge `polish/integration` into `main` with the gate in `.claude/loop.md`, push, and tell him to restart his editor.
 
-**Running now (three engineers, all Opus at high)**
+**Running now (two engineers, both Opus at high)**
 
 Their reports go to the session that started them, so a new session checks the branches.
 
-- `polish/ascent` in `.wt\pkg`, since 9:18 AM (a fresh engineer; time box 10:50 AM). The lamp burns anything close to white: the serpent's body at 2 m and the pit floor beside the relic at 1 m. Fix the close-range dimming at its cause (`Diver/DeepDiver.cpp`, `UDeepRules::LampNearScale`), give the silt detail that holds at 0.5 m, then walk the real ending frame by frame and fix what fails; then the bite in the dark. Frames `devlog/media/2026-11-15-ascent-*.png`.
 - `polish/fx` in `.wt\dev`, since 10:08 AM (a fresh engineer; time box 11:25 AM). Breath bubbles, bubbles at the hatch and the winch, and a silt puff, as Niagara particles with a lit translucent material. A first try without Niagara (mirror spheres) was rejected and reverted by its own engineer; the reason and the rejected frames are in the dev log (10:05 AM). Assets go in `deep/Content/Deep/FX/`. Frames `devlog/media/2026-11-15-fx-*.png`.
 - `polish/hull` in `.wt\text`, second task since 10:00 AM (the hull engineer, resumed; time box 10:45 AM). The hull is done and merged. Now only the smear on the trench rock while driving: proved to be the temporal upscaler; why the moving rock writes no velocity is not yet proved. It must stop and report if the cause is a project-wide rendering setting.
 - When one reports: look at its frames yourself, write the verdicts, merge into `polish/integration`, run the gate **and a package**, read the packaged log, take a frame from the packaged game, push, and add the frames to the page. A lane whose frames fail goes back to its engineer with a written review. Working parts may merge; a failed frame is never called done.
@@ -34,11 +33,18 @@ Their reports go to the session that started them, so a new session checks the b
 - The playtest overwrites tracked screenshots in `devlog/media`. Put them back with `git checkout -- devlog/media` before the next merge.
 - **The playtest leaves its editor open** when a later call finds the port already answering. At 9:11 AM that editor held two material files and a merge in `.wt\monster` failed half-way; the gate then refused to build ("an editor is running on this project"), so nothing wrong was built. After a playtest, check for an `UnrealEditor.exe` on that checkout and port and stop it before merging.
 
-**In real play the bottom of the well still fails with the lamp on**
+**The lamp and the ending as played (the `polish/ascent` lane, done 10:11 AM)**
 
-- The playtest's own screenshot at the relic (`deep\Saved\Harness\playtest\S10-relic-grab.png` in `.wt\monster`) shows the lamp burning the pit floor to a white disc with a block pattern at 1 m. The staged frames of the well did not show it, because they were framed from 2 m at an angle.
-- Where to look: the lamp's close-range dimming (`Diver/DeepDiver.cpp`, `UDeepRules::LampNearScale`), the bed's material `M_Silt` at 2 m tiles (`Look.SeabedUvTileM`), and the stretched surface of the sinkhole (`World/DeepAbyssFloor.cpp`).
-- This is the `polish/ascent` lane, running since 9:18 AM. The same fault burns the serpent's body white at 2 m in the recoil (`devlog/media/2026-11-15-dragon2-recoil.png`).
+- Merged in `.wt\monster` as `c9a54b2` (gate 77 of 77) with the launch fix `5a5f8ab` on top. **Not pushed until its package is green and the playtest set has run**: the pit floor is now flat and the view tips down on the hatch drop, and both touch what the playtests do.
+- The lamp now samples its whole cone and no longer burns the serpent, the pit floor or the hoard. Left from that lane: the bite with the lamp off (nearly black; not started), the serpent in the shaft never caught in a frame, the hard edge of the beam up the shaft, a dim lamp pool at 100 m, the pit wall nearly black at 1 m.
+- For Quinn: the view now tips down at least 45 degrees as the diver drops through the hatch (`Arena.HatchDropPitchDeg`). It makes the bed and the well's glow the first thing seen. It is a change to the camera at every dive.
+
+**An open editor blocks every build (found 10:14 AM)**
+
+- An Unreal editor starts Live Coding by itself, and while it runs UnrealBuildTool refuses every build that uses the same installed engine, in every checkout: "Unable to build while Live Coding is active". A package failed on it while another lane had an editor open for asset work.
+- `tools/ue.ps1 editor` now passes `-LiveCoding=0` (integration, `5a5f8ab`). Lanes cut before that must add it by hand; the two engineers running at 10:15 AM were told.
+- **Quinn's own editor does the same.** When he opens the main checkout in Unreal 5.9, every agent build and the merge gate stop until he closes it or turns Live Coding off (Editor Preferences, Live Coding, untick Enable; or start the editor with `-LiveCoding=0`).
+- To see who holds it: list `UnrealEditor.exe` processes with their command lines. Never stop one you did not start.
 
 **Left over from the well pass (small)**
 

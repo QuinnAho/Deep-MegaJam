@@ -40,6 +40,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$m = New-Object Syst
 # merge and push only if the exit code is 0 AND verify.txt has a line starting "PASS verify"
 ```
 
+**An open editor blocks every build.** An Unreal editor starts Live Coding by itself, and UnrealBuildTool then refuses every build that uses the same installed engine, in every checkout: "Unable to build while Live Coding is active". `tools/ue.ps1 editor` passes `-LiveCoding=0` so agent editors do not do this. If a build fails with that message, list the `UnrealEditor.exe` processes and their command lines, wait for the one without `-LiveCoding=0`, or ask its owner; never stop a process you did not start. Quinn's own editor on the main checkout has the same effect.
+
 After merging two code branches, always build before pushing, even when git reports no conflict: two files can each define a helper with the same name and only collide once compiled together.
 
 **Long checks, at checkpoints, not per merge**
