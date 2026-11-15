@@ -42,6 +42,12 @@ public:
 	/** Hardware ray tracing for Lumen reflections (hit lighting) and ray-traced shadows. Console: Deep.RayTracing. */
 	static void SetRayTracing(bool bOn);
 
+	/** Camera lane: adds a post-process material to the water look's blendables, or sets its weight (0 = off). Local view only. */
+	void SetCameraBlendable(class UMaterialInterface* Material, float Weight);
+
+	/** True while the footage look (Deep.Look.Footage) is applied on top of the depth look. */
+	bool IsFootageApplied() const { return bAppliedFootage; }
+
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
@@ -78,6 +84,7 @@ protected:
 
 	FDeepLookPreset Applied;
 	float AppliedDepthM = -1.f;
+	bool bAppliedFootage = false;
 
 	/** Per speck: home offset in the box (cm), drift velocity (cm/s), scale. */
 	TArray<FVector> SnowHome;

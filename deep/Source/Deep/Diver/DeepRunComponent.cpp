@@ -610,6 +610,7 @@ void UDeepRunComponent::DentHull(int32 Points, const TCHAR* Event, float ImpactM
 	FDeepEventPayload Payload;
 	Payload.DepthM = GameState->SubDepthM;
 	Payload.HullIntegrity01 = UDeepCaveRules::HullIntegrity01(GameState->HullDamage, Cave);
+	Payload.ImpactMps = ImpactMps;
 	if (Event)
 	{
 		Fire(Event, Payload);

@@ -88,6 +88,10 @@ struct FDeepEventPayload
 	UPROPERTY(BlueprintReadOnly, Category = "Deep")
 	float HullIntegrity01 = 1.f;
 
+	/** How hard the sub hit (m/s into the wall) for hull_hit and hull_damage; 0 otherwise. The camera shakes by it. */
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float ImpactMps = 0.f;
+
 	/** The actor the event is about (usually the diver). May be null. */
 	UPROPERTY(BlueprintReadOnly, Category = "Deep")
 	TObjectPtr<AActor> Source = nullptr;

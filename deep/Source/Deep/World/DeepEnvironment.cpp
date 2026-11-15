@@ -11,6 +11,8 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Net/UnrealNetwork.h"
+#include "Camera/DeepCameraRules.h"
+#include "Camera/DeepCameraSubsystem.h"
 #include "Game/DeepGameState.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -204,7 +206,8 @@ void ADeepEnvironment::Tick(float DeltaSeconds)
 	// Every machine blends by the replicated depth, so driving fades continuously and clients match the server.
 	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
 	const float DepthM = State ? State->SubDepthM : Tuning.GetStop(Stop).SubDepthM;
-	if (!FMath::IsNearlyEqual(DepthM, AppliedDepthM, 0.01f))
+	// Toggling the footage look (Deep.Look.Footage) reapplies at once, not only on the next depth change.
+	if (!FMath::IsNearlyEqual(DepthM, AppliedDepthM, 0.01f) || UDeepCameraSubsystem::IsFootageOn() != bAppliedFootage)
 	{
 		AppliedDepthM = DepthM;
 		ApplyLook(BlendLook(Tuning.Look, DepthM), Tuning.Look);
@@ -327,6 +330,45 @@ void ADeepEnvironment::ApplyLook(const FDeepLookPreset& L, const FDeepLookTuning
 	S.SceneFringeIntensity = L.Fringe;
 	S.bOverride_MotionBlurAmount = true;
 	S.MotionBlurAmount = Look.MotionBlur;
+
+	// The footage look (Camera lane, Deep.Look.Footage): a helmet camera's picture on top of the depth look. Grain that
+	// rises with depth (heavier in the shadows), a darker vignette, and colour fringe only toward the edges. No
+	// exposure or fog change: darkness stays the design. The lens bend and the sway are the camera subsystem's.
+	const FDeepCameraTuning& Cam = UDeepTuningSettings::Get().Camera;
+	bAppliedFootage = UDeepCameraSubsystem::IsFootageOn();
+	const FVector2D Grain = bAppliedFootage ? DeepCameraRules::FootageGrain(AppliedDepthM, Cam) : FVector2D(0.f, 1.f);
+	S.FilmGrainIntensity = L.Grain + Grain.X;
+	S.bOverride_FilmGrainIntensityShadows = bAppliedFootage;
+	S.FilmGrainIntensityShadows = Grain.Y;
+	S.VignetteIntensity = L.Vignette + (bAppliedFootage ? Cam.FootageVignetteAdd : 0.f);
+	S.SceneFringeIntensity = L.Fringe + (bAppliedFootage ? Cam.FootageFringeAdd : 0.f);
+	S.bOverride_ChromaticAberrationStartOffset = bAppliedFootage;
+	S.ChromaticAberrationStartOffset = Cam.FootageFringeStart;
+	if (bAppliedFootage)
+	{
+		S.MotionBlurAmount = Cam.FootageMotionBlur;
+	}
+}
+
+void ADeepEnvironment::SetCameraBlendable(UMaterialInterface* Material, float Weight)
+{
+	if (!Material || !Exposure)
+	{
+		return;
+	}
+	TArray<FWeightedBlendable>& Blendables = Exposure->Settings.WeightedBlendables.Array;
+	for (FWeightedBlendable& B : Blendables)
+	{
+		if (B.Object == Material)
+		{
+			B.Weight = Weight;
+			return;
+		}
+	}
+	if (Weight > 0.f)
+	{
+		Blendables.Add(FWeightedBlendable(Weight, Material));
+	}
 }
 
 void ADeepEnvironment::BuildSnow(const FDeepLookTuning& Look)
