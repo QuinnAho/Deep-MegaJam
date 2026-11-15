@@ -18,6 +18,7 @@ Quinn (Nov 15): "what really is lacking is the environment ... we need to genera
   - Each rock's centre is set from the deepest wall over its span, so it stands out at most `ScatterProtrudeM` (0.45 m, clamped to HullPadM 0.6). The sub's padded box never reaches it; this is visual only, with no collision.
   - They are instanced static meshes attached to the shaft actor and hidden with their stretch.
 - **Material** `M_CaveRock` (recipe below) is used on the shaft, the scatter and the caverns: `Cave.RockMaterial` comes first in `DeepCavern.cpp`'s material pick.
+- **Flyable bends** (coordinator, 5:07 PM, for Lane A's inertial helm: full flood 2.6 m/s, rudder 28 deg/s): `CentreM` scales each stretch's bend so the centre drifts at most `BendMaxDriftPerM` (0.5 m per m of depth, so a bend sweeps at most 1.3 m/s at full flood). The scale is one number per stretch, so the centre stays smooth. It is measured on the raw curve every metre, aimed at 95% of the cap, and cached per thread. `RadiusM` adds `BendRoomM` (1.5 m) times drift/cap: more room where it bends. Proved by `Deep.Sim.CaveShape.Drift` (numbers under Numbers and tests).
 - **Caverns**: build 4, noise on the cavern shells, was cut for time. The cavern shells already had outward-only relief, and now share the rock material and rebuild live.
 
 ## Failures and fixes
@@ -54,7 +55,11 @@ Quinn (Nov 15): "what really is lacking is the environment ... we need to genera
 - Deep.Sim.CaveShape.Floor: 203,616 samples, none inside the floor (11.14 m for the test box). Mid-shaft the rock stands in by up to 2.8 m and recedes by up to 2.5 m; at the mouths, 0.8 m.
 - Deep.Sim.CaveShape.Contact: agrees with the rock at 60 of 60 points (30 cm either side). On the centreline the padded box stays at least 1.48 m from the rock all the way down.
 - Deep.World.CaveShape.Mesh: 7,114 vertices within 0.000 m of the rule; 16 of 16 traces hit, worst gap 0.00 m.
-- Filters Deep.Sim.CaveShape, Deep.World.CaveShape, Deep.Sim.Cave, Deep.World.Cave, Deep.World.Cavern, Deep.World.Dressing, Deep.UI.Sonar and Deep.World.Sonar: 34 run, 33 pass. The one failure is Deep.World.Cave.Hit (see above).
+- Filters Deep.Sim.CaveShape, Deep.World.CaveShape, Deep.Sim.Cave, Deep.World.Cave, Deep.World.Cavern, Deep.World.Dressing, Deep.UI.Sonar and Deep.World.Sonar: 34 run, 33 pass before the drift cap. The one failure was Deep.World.Cave.Hit (see above). With the cap it passes (the run that measured the cap: 35 run, 33 pass. The two failures were the room overshooting the cavern radius and my guessed 1.0 m radius-step bound; both are fixed). Final run, filters Deep.Sim.Cave, Deep.World.Cave, Deep.UI.Sonar, Deep.World.Sonar and Deep.World.Dressing: **35 run, 35 pass**, Deep.World.Cave.Hit included.
+- Deep.Sim.CaveShape.Drift, over 90..610 m:
+  - Max centre drift 0.480 m per m (cap 0.50), at 480 m. The centre still swings up to 7.2 m off the axis.
+  - Max step between 0.5 m rows: the centre 0.240 m, RadiusM 1.016 m (the designed swell into a cavern, about 2 m per m, smooth), and the nearest rock round the outline 1.87 m (at 232.8 m).
+  - The rock figure is a strata ledge lip, not a jump of the passage. It is reported, not asserted. If the helm knocks on ledges, lower `StrataDepthM` (1.8).
 
 ## Frames
-`devlog/media/2026-11-15-rescope-cave-060m.png` (parked at 100 m, stop 1: dark water), `-150m.png` (shaped, textured wall), `-250m-bright.png` (first grade, too bright) and `-stop2.png` (the cavern dome from outside, first grade). Helm seat, via `toolsE.ps1 shot -Port 8022`. The darker grade is rebuilt (CAVEMAT ok); its frames are pending the shared slot.
+`devlog/media/2026-11-15-rescope-cave-060m.png` (parked at 100 m, stop 1: dark water), `-150m.png` (shaped, textured wall), `-250m-bright.png` (first grade, too bright) and `-stop2.png` (the cavern dome from outside, first grade). Helm seat, via `tools\ue.ps1 shot -Port 8022`. The darker grade is rebuilt (CAVEMAT ok); its frames are pending the shared slot.

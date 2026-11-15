@@ -1524,6 +1524,17 @@ struct FDeepCaveTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
 	FVector2D BendWavelengthM = FVector2D(150.f, 130.f);
 
+	/**
+	 * The passage centre drifts sideways at most this far (m) per metre of depth: each stretch's bend is scaled down until
+	 * it holds. 0.5 at a 2.6 m/s full-flood sink sweeps 1.3 m/s, which slow ahead on the inertial helm can follow. 0 = off.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float BendMaxDriftPerM = 0.5f;
+
+	/** Extra radius (m) where the centre drifts at that cap, less where it drifts less: room to fly the bend. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
+	float BendRoomM = 1.5f;
+
 	/** Radius of the open caverns. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Shape")
 	float CavernRadiusM = 30.f;

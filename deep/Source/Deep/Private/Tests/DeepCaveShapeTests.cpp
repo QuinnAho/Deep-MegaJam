@@ -368,5 +368,62 @@ bool FDeepCaveShapeRebuildTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// The bends are flyable on the inertial helm: the passage centre never drifts sideways faster than BendMaxDriftPerM per
+// metre of depth (0.5: at a 2.6 m/s full-flood sink a bend sweeps at most 1.3 m/s), and neither the centre nor the
+// radius jumps between two 0.5 m mesh rows anywhere in the run.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveShapeDriftTest, "Deep.Sim.CaveShape.Drift", DEEP_CAVESHAPE_TEST_FLAGS)
+bool FDeepCaveShapeDriftTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepCaveTuning& Cave = Tuning.Cave;
+	const TArray<float> Stops = Tuning.StopDepthsM();
+	UTEST_TRUE(TEXT("At least two stops"), Stops.Num() >= 2);
+	UTEST_TRUE(TEXT("The drift cap is on"), Cave.BendMaxDriftPerM > 0.f);
+	const float Min = UDeepCaveRules::MinRadiusM(FVector(-6.f, -4.f, -2.5f), FVector(6.f, 4.f, 2.5f), Cave);
+
+	const float From = Stops[0] - 10.f;
+	const float To = Stops.Last() + Cave.BelowLastStopM;
+	float MaxDrift = 0.f, MaxDriftAt = 0.f;
+	float MaxCentreStep = 0.f, MaxRadiusStep = 0.f, MaxRoughStep = 0.f, MaxRoughAt = 0.f, MaxOff = 0.f;
+	const float Row = 0.5f;
+	for (float D = From; D + Row <= To; D += 0.25f)
+	{
+		const FVector2D C0 = UDeepCaveRules::CentreM(D, Stops, Cave);
+		const FVector2D C1 = UDeepCaveRules::CentreM(D + 0.25f, Stops, Cave);
+		const float Drift = float((C1 - C0).Size()) / 0.25f;
+		if (Drift > MaxDrift)
+		{
+			MaxDrift = Drift;
+			MaxDriftAt = D;
+		}
+		MaxOff = FMath::Max(MaxOff, float(C0.Size()));
+		MaxCentreStep = FMath::Max(MaxCentreStep, float((UDeepCaveRules::CentreM(D + Row, Stops, Cave) - C0).Size()));
+		MaxRadiusStep = FMath::Max(MaxRadiusStep, FMath::Abs(UDeepCaveRules::RadiusM(D + Row, Stops, Min, Cave) - UDeepCaveRules::RadiusM(D, Stops, Min, Cave)));
+		// The rock itself (the nearest wall round the outline), for the report: lumps and ledges, not a jump.
+		float Near0 = TNumericLimits<float>::Max(), Near1 = TNumericLimits<float>::Max();
+		for (int32 A = 0; A < 32; ++A)
+		{
+			const float Theta = A * UE_TWO_PI / 32.f;
+			Near0 = FMath::Min(Near0, UDeepCaveRules::WallRadiusM(D, Theta, Stops, Min, Cave));
+			Near1 = FMath::Min(Near1, UDeepCaveRules::WallRadiusM(D + Row, Theta, Stops, Min, Cave));
+		}
+		if (FMath::Abs(Near1 - Near0) > MaxRoughStep)
+		{
+			MaxRoughStep = FMath::Abs(Near1 - Near0);
+			MaxRoughAt = D;
+		}
+	}
+	AddInfo(FString::Printf(TEXT("Run %.0f..%.0f m: max centre drift %.3f m per m (cap %.2f) at %.1f m, the centre up to %.1f m off the axis"),
+		From, To, MaxDrift, Cave.BendMaxDriftPerM, MaxDriftAt, MaxOff));
+	AddInfo(FString::Printf(TEXT("Max step between 0.5 m rows: centre %.3f m, radius %.3f m, nearest rock %.3f m (at %.1f m)"),
+		MaxCentreStep, MaxRadiusStep, MaxRoughStep, MaxRoughAt));
+	TestTrue(FString::Printf(TEXT("Centre drift %.3f m/m within the cap %.2f"), MaxDrift, Cave.BendMaxDriftPerM), MaxDrift <= Cave.BendMaxDriftPerM + 0.005f);
+	TestTrue(FString::Printf(TEXT("Centre step %.3f m per row: no jump"), MaxCentreStep), MaxCentreStep <= Row * Cave.BendMaxDriftPerM + 0.005f);
+	// The radius wave swells into a cavern at up to about 2 m per m of depth by design; a jump would be far more.
+	TestTrue(FString::Printf(TEXT("Radius step %.3f m per row: no jump"), MaxRadiusStep), MaxRadiusStep <= 1.5f);
+	TestTrue(TEXT("The bends still bend (centre over 3 m off the axis somewhere)"), MaxOff > 3.f);
+	return true;
+}
+
 #endif
 

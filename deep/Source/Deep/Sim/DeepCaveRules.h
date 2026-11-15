@@ -46,6 +46,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
 	static FVector2D CentreM(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave);
 
+	/** How far (m) the passage centre moves sideways per metre of depth here: never above Cave.BendMaxDriftPerM. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
+	static float DriftPerM(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave);
+
 	/** The passage's radius at a depth: StopRadiusM at the stops, caverns and squeezes between, never below MinRadiusM. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Cave")
 	static float RadiusM(float DepthM, const TArray<float>& StopsM, float MinRadiusM, const FDeepCaveTuning& Cave);

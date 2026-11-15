@@ -198,6 +198,62 @@ float UDeepCaveRules::Envelope(float DepthM, const TArray<float>& StopsM, const 
 	return Smooth01((DepthM - A) / RampIn) * Smooth01((B - DepthM) / RampOut);
 }
 
+namespace
+{
+	/** The bend before the drift cap: both waves at full amplitude, times the envelope. */
+	FVector2D RawCentreM(float DepthM, int32 K, float E, const FDeepCaveTuning& Cave)
+	{
+		const float X = Cave.BendAmplitudeM.X * Wave(DepthM, Cave.BendWavelengthM.X, Phase(Cave.Seed, K, 0), Phase(Cave.Seed, K, 1));
+		const float Y = Cave.BendAmplitudeM.Y * Wave(DepthM, Cave.BendWavelengthM.Y, Phase(Cave.Seed, K, 2), Phase(Cave.Seed, K, 3));
+		return FVector2D(X, Y) * E;
+	}
+
+	/**
+	 * One scale per stretch (so the centre stays smooth): the steepest drift of the raw bend, sampled every metre, brought
+	 * down to 95% of BendMaxDriftPerM (the 5% covers the curve between samples). 1 when already inside the cap.
+	 */
+	float ComputeBendScale(int32 K, const TArray<float>& StopsM, const FDeepCaveTuning& Cave)
+	{
+		const float A = StopsM[K];
+		const float B = StopsM[K + 1];
+		float Steepest = 0.f;
+		FVector2D Prev = FVector2D::ZeroVector;
+		for (float D = A; D <= B; D += 1.f)
+		{
+			const FVector2D C = RawCentreM(D, K, UDeepCaveRules::Envelope(D, StopsM, Cave), Cave);
+			if (D > A)
+			{
+				Steepest = FMath::Max(Steepest, float((C - Prev).Size()));
+			}
+			Prev = C;
+		}
+		const float Target = 0.95f * Cave.BendMaxDriftPerM;
+		return Steepest > Target ? Target / Steepest : 1.f;
+	}
+
+	/** ComputeBendScale, remembered per thread for the last inputs seen (the mesh asks for it at every vertex). */
+	float BendScale(int32 K, const TArray<float>& StopsM, const FDeepCaveTuning& Cave)
+	{
+		if (Cave.BendMaxDriftPerM <= 0.f || K < 0 || K + 1 >= StopsM.Num())
+		{
+			return 1.f;
+		}
+		const float Inputs[] = { Cave.BendAmplitudeM.X, Cave.BendAmplitudeM.Y, Cave.BendWavelengthM.X, Cave.BendWavelengthM.Y,
+			Cave.StraightBelowStopM, Cave.StraightAboveStopM, Cave.BendMaxDriftPerM, float(Cave.Seed), float(K), StopsM[K], StopsM[K + 1] };
+		const uint32 Key = FCrc::MemCrc32(Inputs, sizeof(Inputs));
+		struct FEntry { uint32 Key = 0; float Scale = 1.f; bool bSet = false; };
+		thread_local FEntry Cache[8];
+		FEntry& Slot = Cache[K & 7];
+		if (!Slot.bSet || Slot.Key != Key)
+		{
+			Slot.Key = Key;
+			Slot.Scale = ComputeBendScale(K, StopsM, Cave);
+			Slot.bSet = true;
+		}
+		return Slot.Scale;
+	}
+}
+
 FVector2D UDeepCaveRules::CentreM(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave)
 {
 	const float E = Envelope(DepthM, StopsM, Cave);
@@ -206,9 +262,13 @@ FVector2D UDeepCaveRules::CentreM(float DepthM, const TArray<float>& StopsM, con
 		return FVector2D::ZeroVector;
 	}
 	const int32 K = Segment(DepthM, StopsM);
-	const float X = Cave.BendAmplitudeM.X * Wave(DepthM, Cave.BendWavelengthM.X, Phase(Cave.Seed, K, 0), Phase(Cave.Seed, K, 1));
-	const float Y = Cave.BendAmplitudeM.Y * Wave(DepthM, Cave.BendWavelengthM.Y, Phase(Cave.Seed, K, 2), Phase(Cave.Seed, K, 3));
-	return FVector2D(X, Y) * E;
+	return RawCentreM(DepthM, K, E, Cave) * BendScale(K, StopsM, Cave);
+}
+
+float UDeepCaveRules::DriftPerM(float DepthM, const TArray<float>& StopsM, const FDeepCaveTuning& Cave)
+{
+	const float H = 0.25f;
+	return float((CentreM(DepthM + H, StopsM, Cave) - CentreM(DepthM - H, StopsM, Cave)).Size()) / (2.f * H);
 }
 
 float UDeepCaveRules::RadiusM(float DepthM, const TArray<float>& StopsM, float MinRadiusM, const FDeepCaveTuning& Cave)
@@ -223,6 +283,12 @@ float UDeepCaveRules::RadiusM(float DepthM, const TArray<float>& StopsM, float M
 		const float N = FMath::Clamp(1.4f * Wave(DepthM, Cave.RadiusWavelengthM, Phase(Cave.Seed, K, 4), Phase(Cave.Seed, K, 5)), -1.f, 1.f);
 		const float Raw = N >= 0.f ? Stop + N * (Cave.CavernRadiusM - Stop) : Stop + N * (Stop - MinRadiusM);
 		R = Stop + E * (Raw - Stop);
+		// Room in the bends: the more the centre drifts here, the wider (smooth, since the drift is).
+		if (Cave.BendRoomM > 0.f && Cave.BendMaxDriftPerM > 0.f)
+		{
+			const float Room = Cave.BendRoomM * FMath::Clamp(DriftPerM(DepthM, StopsM, Cave) / Cave.BendMaxDriftPerM, 0.f, 1.f);
+			R = FMath::Min(R + Room, FMath::Max(R, Cave.CavernRadiusM));
+		}
 	}
 	return FMath::Max(R, MinRadiusM);
 }
