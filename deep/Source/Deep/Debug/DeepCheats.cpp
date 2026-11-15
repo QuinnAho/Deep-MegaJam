@@ -208,7 +208,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs BankCommand(
 		TEXT("Deep.Bank"),
-		TEXT("Deep.Bank: banks the diver's cargo wherever it is and opens the settlement screen."),
+		TEXT("Deep.Bank: banks the diver's cargo at the console (comes aboard first) and opens the settlement screen."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			WithRun(World, TEXT("Deep.Bank"), [](UDeepRunComponent& Run) { Run.Bank(); });
@@ -216,7 +216,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs ContinueCommand(
 		TEXT("Deep.Continue"),
-		TEXT("Deep.Continue: leaves the settlement screen (descends if the hull allows)."),
+		TEXT("Deep.Continue: leaves the settlement screen, back to the deck."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			WithRun(World, TEXT("Deep.Continue"), [](UDeepRunComponent& Run) { Run.ContinueAfterSettlement(); });
@@ -360,6 +360,116 @@ namespace
 					Diver->AddCargo(Item);
 				}
 				Run.Bank();
+			});
+		}));
+
+
+	/** Brings the diver aboard if it is still in the water (a cut diver pays the re-tether fee). */
+	void AboardFirst(UDeepRunComponent& Run)
+	{
+		if (Run.CanSwim())
+		{
+			Run.EnterSub();
+		}
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs EnterSubCommand(
+		TEXT("Deep.EnterSub"),
+		TEXT("Deep.EnterSub: the diver comes up through the hatch onto the deck (as swimming up into it)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.EnterSub"), [](UDeepRunComponent& Run) { AboardFirst(Run); });
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HatchCommand(
+		TEXT("Deep.Hatch"),
+		TEXT("Deep.Hatch: drops the diver through the hatch: swimming, tethered, the dive starts (needs the sub parked at a stop)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.Hatch"), [](UDeepRunComponent& Run)
+			{
+				Run.LeaveHelm();
+				if (!Run.LeaveSub())
+				{
+					UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Hatch: not aboard, or the hatch is locked (the sub is not parked at a stop)"));
+				}
+			});
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs ConsoleCommand(
+		TEXT("Deep.Console"),
+		TEXT("Deep.Console: uses the console (comes aboard first): banks cargo, or shows the account and buys the next gate if affordable."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.Console"), [](UDeepRunComponent& Run)
+			{
+				AboardFirst(Run);
+				Run.LeaveHelm();
+				Run.UseConsole();
+			});
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HelmCommand(
+		TEXT("Deep.Helm"),
+		TEXT("Deep.Helm [0|1]: takes (1, default) or leaves (0) the helm; comes aboard first."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const bool bTake = Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0;
+			WithRun(World, TEXT("Deep.Helm"), [bTake](UDeepRunComponent& Run)
+			{
+				AboardFirst(Run);
+				if (bTake)
+				{
+					Run.TakeHelm();
+				}
+				else
+				{
+					Run.LeaveHelm();
+				}
+			});
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs DriveCommand(
+		TEXT("Deep.Drive"),
+		TEXT("Deep.Drive <metres|s1|s2|s3> [now]: takes the helm and drives there at the helm's speed (now: at once), parking at a stop. The limit applies."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.Drive <metres|s1|s2|s3> [now]"));
+				return;
+			}
+			const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+			const FString Where = Args[0].ToLower();
+			const float Target = Where.StartsWith(TEXT("s")) ? Tuning.GetStop(FCString::Atoi(*Where.Mid(1))).SubDepthM : FCString::Atof(*Where);
+			const bool bNow = Args.Num() >= 2 && Args[1].ToLower() == TEXT("now");
+			WithRun(World, TEXT("Deep.Drive"), [Target, bNow](UDeepRunComponent& Run)
+			{
+				AboardFirst(Run);
+				Run.SetAutopilot(Target);
+				if (bNow)
+				{
+					// Long steps until it arrives (the helm's own speed, just not in real time).
+					for (int32 Step = 0; Step < 4000 && Run.IsAutopiloting(); ++Step)
+					{
+						Run.StepRun(0.25f);
+					}
+				}
+			});
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs BuyGateCommand(
+		TEXT("Deep.BuyGate"),
+		TEXT("Deep.BuyGate [free]: buys the next layer gate (flashlight 50 cr, then hull upgrade 200 cr) if affordable, or free."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const bool bFree = Args.Num() >= 1 && Args[0].ToLower() == TEXT("free");
+			WithRun(World, TEXT("Deep.BuyGate"), [bFree](UDeepRunComponent& Run)
+			{
+				if (!Run.BuyNextGate(bFree))
+				{
+					UE_LOG(LogDeepCheats, Warning, TEXT("Deep.BuyGate: nothing bought (not enough credits, or both gates owned)"));
+				}
 			});
 		}));
 

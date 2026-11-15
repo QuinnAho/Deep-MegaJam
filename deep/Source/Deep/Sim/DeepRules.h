@@ -155,6 +155,31 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Arena")
 	static bool IsRelicSeen(const FVector& EyeCm, const FVector& ViewDirection, const FVector& RelicCm, const FDeepArenaTuning& Arena);
 
+	// ---- The submarine: the helm and the layer gates (D-023) ----
+
+	/** Deepest the helm may go: DepthLimitsM[GatesBought] (0 none, 1 flashlight, 2 hull upgrade), clamped to the table. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sub")
+	static float HelmDepthLimitM(int32 GatesBought, const FDeepSubTuning& Tuning);
+
+	/**
+	 * Drives the sub: Input > 0 descends, < 0 ascends, at DriveSpeedMps. Never below LimitM, never above TopM.
+	 * bAtLimit / bAtTop when the control pushed against either end.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sub")
+	static FDeepHelmStep HelmStep(float DepthM, float Input, float DeltaSeconds, float TopM, float LimitM, const FDeepSubTuning& Tuning);
+
+	/** 1-based stop within SnapM of DepthM (the nearest such), or 0 when none is that close. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sub")
+	static int32 HelmParkStop(float DepthM, const TArray<float>& StopDepthsM, float SnapM);
+
+	/** 1-based stop nearest DepthM (ties go to the shallower). The arena of that stop is the one shown while driving. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sub")
+	static int32 NearestStop(float DepthM, const TArray<float>& StopDepthsM);
+
+	/** A point (sub-relative cm) is inside the hatch's square opening (any height). */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sub")
+	static bool InHatchColumn(const FVector& LocalCm, const FDeepSubTuning& Tuning);
+
 	// ---- The win ----
 
 	/** The Captain's one word for a run (see FDeepReviewTuning). Empty if no words are tuned. */

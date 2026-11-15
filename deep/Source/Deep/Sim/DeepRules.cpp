@@ -434,3 +434,63 @@ FDeepRunReview UDeepRules::BuildReview(int32 DiversExpended, int32 Gross, int32 
 	Review.Rating = ReviewRating(Review.DiversExpended, Review.Seconds, Tuning);
 	return Review;
 }
+
+// ---------------------------------------------------------------- the submarine
+
+float UDeepRules::HelmDepthLimitM(int32 GatesBought, const FDeepSubTuning& Tuning)
+{
+	if (Tuning.DepthLimitsM.IsEmpty())
+	{
+		return 0.f;
+	}
+	return Tuning.DepthLimitsM[FMath::Clamp(GatesBought, 0, Tuning.DepthLimitsM.Num() - 1)];
+}
+
+FDeepHelmStep UDeepRules::HelmStep(float DepthM, float Input, float DeltaSeconds, float TopM, float LimitM, const FDeepSubTuning& Tuning)
+{
+	FDeepHelmStep Out;
+	const float Wanted = DepthM + FMath::Clamp(Input, -1.f, 1.f) * FMath::Max(0.f, Tuning.DriveSpeedMps) * FMath::Max(0.f, DeltaSeconds);
+	const float Low = FMath::Max(TopM, LimitM);
+	Out.DepthM = FMath::Clamp(Wanted, TopM, Low);
+	Out.bAtLimit = Input > 0.f && Wanted >= Low - KINDA_SMALL_NUMBER;
+	Out.bAtTop = Input < 0.f && Wanted <= TopM + KINDA_SMALL_NUMBER;
+	return Out;
+}
+
+int32 UDeepRules::HelmParkStop(float DepthM, const TArray<float>& StopDepthsM, float SnapM)
+{
+	int32 Best = 0;
+	float BestGap = TNumericLimits<float>::Max();
+	for (int32 Index = 0; Index < StopDepthsM.Num(); ++Index)
+	{
+		const float Gap = FMath::Abs(StopDepthsM[Index] - DepthM);
+		if (Gap <= SnapM && Gap < BestGap)
+		{
+			Best = Index + 1;
+			BestGap = Gap;
+		}
+	}
+	return Best;
+}
+
+int32 UDeepRules::NearestStop(float DepthM, const TArray<float>& StopDepthsM)
+{
+	int32 Best = 1;
+	float BestGap = TNumericLimits<float>::Max();
+	for (int32 Index = 0; Index < StopDepthsM.Num(); ++Index)
+	{
+		const float Gap = FMath::Abs(StopDepthsM[Index] - DepthM);
+		if (Gap < BestGap)
+		{
+			Best = Index + 1;
+			BestGap = Gap;
+		}
+	}
+	return Best;
+}
+
+bool UDeepRules::InHatchColumn(const FVector& LocalCm, const FDeepSubTuning& Tuning)
+{
+	const double Half = Tuning.HatchHalfSizeM * CmPerM;
+	return FMath::Abs(LocalCm.X) <= Half && FMath::Abs(LocalCm.Y) <= Half;
+}

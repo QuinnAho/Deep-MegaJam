@@ -47,7 +47,9 @@ int32 UDeepTetherComponent::CurrentStop() const
 
 float UDeepTetherComponent::GetAnchorDepthM() const
 {
-	return UDeepTuningSettings::Get().GetStop(CurrentStop()).SubDepthM;
+	const UWorld* World = GetWorld();
+	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	return State ? State->SubDepthM : UDeepTuningSettings::Get().GetStop(CurrentStop()).SubDepthM;
 }
 
 void UDeepTetherComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

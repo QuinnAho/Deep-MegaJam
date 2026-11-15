@@ -61,6 +61,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Run")
 	FDeepRunTuning Run;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
+	FDeepSubTuning Sub;
+
+	/** Displayed depth of each stop (Stops[i].SubDepthM), shallowest first. */
+	TArray<float> StopDepthsM() const;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepCaptainTuning Captain;
 

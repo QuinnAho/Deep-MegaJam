@@ -50,6 +50,7 @@ FString ADeepPlayerController::KeyHint(FName Action)
 {
 	static const TMap<FName, FString> Hints = {
 		{ TEXT("Grab"), TEXT("E") },
+		{ TEXT("Use"), TEXT("E") },
 		{ TEXT("Drop"), TEXT("G") },
 		{ TEXT("Winch"), TEXT("R") },
 		{ TEXT("Lamp"), TEXT("F") },

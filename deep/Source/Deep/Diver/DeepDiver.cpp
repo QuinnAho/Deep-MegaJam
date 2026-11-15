@@ -7,6 +7,8 @@
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "EngineUtils.h"
+#include "Game/DeepGameState.h"
+#include "GameFramework/PlayerController.h"
 #include "World/DeepSubmarine.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -98,12 +100,18 @@ void ADeepDiver::ApplySwimTuning()
 	Movement->MaxFlySpeed = FMath::Max(1.f, FastestMps * UDeepRules::CmPerM);
 	Movement->MaxAcceleration = Tuning.Swim.AccelerationMps2 * UDeepRules::CmPerM;
 	Movement->BrakingDecelerationFlying = Tuning.Swim.DragMps2 * UDeepRules::CmPerM;
-	Movement->SetMovementMode(MOVE_Flying);
+	Movement->MaxWalkSpeed = FMath::Max(1.f, Tuning.Sub.WalkSpeedMps * UDeepRules::CmPerM);
+	Movement->SetMovementMode(Run && Run->IsInside() ? MOVE_Walking : MOVE_Flying);
 }
 
 void ADeepDiver::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	// The lamp needs the flashlight (D-023): it shows only once it is bought.
+	if (Lamp->IsVisible() != IsLampOn())
+	{
+		Lamp->SetVisibility(IsLampOn());
+	}
 
 	// Movement input only comes from the controlling machine; character movement replicates the result.
 	if (!IsLocallyControlled())
@@ -111,9 +119,37 @@ void ADeepDiver::Tick(float DeltaSeconds)
 		return;
 	}
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	if (Movement->MovementMode != MOVE_Flying)
+	SyncAboardMode();
+
+	if (Run->IsSeated())
 	{
-		Movement->SetMovementMode(MOVE_Flying);
+		// At the helm: no walking; down (C, S) and up (Space, W) drive the sub.
+		Movement->Velocity = FVector::ZeroVector;
+		const float Helm = FMath::Clamp(-VerticalInput - MoveInput.Y, -1.f, 1.f);
+		if (!FMath::IsNearlyEqual(Helm, LastHelmInputSent))
+		{
+			LastHelmInputSent = Helm;
+			Run->SetHelmInput(Helm);
+		}
+		return;
+	}
+	if (!FMath::IsNearlyZero(LastHelmInputSent))
+	{
+		LastHelmInputSent = 0.f;
+		Run->SetHelmInput(0.f);
+	}
+	if (Run->IsInside() || Run->IsOnTitle())
+	{
+		if (Run->CanWalk())
+		{
+			const FRotator Flat(0.f, GetControlRotation().Yaw, 0.f);
+			const FVector Wish = FRotationMatrix(Flat).GetScaledAxis(EAxis::X) * MoveInput.Y + FRotationMatrix(Flat).GetScaledAxis(EAxis::Y) * MoveInput.X;
+			if (!Wish.IsNearlyZero())
+			{
+				AddMovementInput(Wish.GetClampedToMaxSize(1.f), 1.f);
+			}
+		}
+		return;
 	}
 
 	// Asking to be cut loose: hold the key while tethered.
@@ -207,8 +243,80 @@ ADeepSalvage* ADeepDiver::FindGrabTarget() const
 	return Pieces.IsValidIndex(Pick) ? Pieces[Pick] : nullptr;
 }
 
+void ADeepDiver::SyncAboardMode()
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	const bool bInside = Run->IsInside() || (Run->IsOnTitle() && Run->GetState() == EDeepRunState::Aboard);
+	if (bInside && Movement->MovementMode == MOVE_Flying)
+	{
+		SetAboard(true);
+	}
+	else if (!bInside && Movement->MovementMode != MOVE_Flying)
+	{
+		SetAboard(false);
+	}
+	// Seated: look through the helm camera under the hull; standing or swimming: through the diver's eyes.
+	if (APlayerController* Player = Cast<APlayerController>(GetController()))
+	{
+		AActor* Want = this;
+		if (Run->IsSeated())
+		{
+			if (ADeepSubmarine* Sub = Tether->GetSubmarine())
+			{
+				Want = Sub;
+			}
+		}
+		if (Player->GetViewTarget() != Want)
+		{
+			Player->SetViewTargetWithBlend(Want, 0.25f);
+		}
+	}
+}
+
+void ADeepDiver::SetAboard(bool bInside)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->GravityScale = bInside ? 1.f : 0.f;
+	Movement->Velocity = FVector::ZeroVector;
+	Movement->SetMovementMode(bInside ? MOVE_Walking : MOVE_Flying);
+}
+
+bool ADeepDiver::HasFlashlight() const
+{
+	const UWorld* World = GetWorld();
+	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	return State && State->HasFlashlight();
+}
+
+bool ADeepDiver::IsLampOn() const
+{
+	return bLampOn && HasFlashlight();
+}
+
+void ADeepDiver::Use()
+{
+	if (HasAuthority())
+	{
+		Run->Use();
+	}
+	else
+	{
+		ServerUse();
+	}
+}
+
+void ADeepDiver::ServerUse_Implementation()
+{
+	Run->Use();
+}
+
 void ADeepDiver::Grab()
 {
+	if (Run->IsInside())
+	{
+		Use();
+		return;
+	}
 	if (HasAuthority())
 	{
 		DoGrab();
@@ -280,6 +388,25 @@ void ADeepDiver::ResetToStart()
 	}
 }
 
+void ADeepDiver::ResetToRoom()
+{
+	const ADeepSubmarine* Sub = Tether->GetSubmarine();
+	if (!Sub)
+	{
+		return;
+	}
+	const FTransform Start = Sub->GetRoomStartTransform();
+	TeleportDiver(Start.GetLocation());
+	FRotator View = Start.Rotator();
+	View.Pitch = UDeepTuningSettings::Get().Sub.RoomStartPitchDeg;
+	View.Roll = 0.f;
+	SetActorRotation(FRotator(0.f, View.Yaw, 0.f));
+	if (AController* PawnController = GetController())
+	{
+		PawnController->SetControlRotation(View);
+	}
+}
+
 void ADeepDiver::Drop()
 {
 	if (HasAuthority())
@@ -333,6 +460,11 @@ void ADeepDiver::ServerSetWinching_Implementation(bool bInWinching)
 
 void ADeepDiver::ToggleLamp()
 {
+	if (!HasFlashlight())
+	{
+		// No flashlight yet: the HUD says where to buy it.
+		return;
+	}
 	bLampOn = !bLampOn;
 	OnRep_Lamp();
 	if (!HasAuthority())
@@ -349,7 +481,7 @@ void ADeepDiver::ServerSetLamp_Implementation(bool bOn)
 
 void ADeepDiver::OnRep_Lamp()
 {
-	Lamp->SetVisibility(bLampOn);
+	Lamp->SetVisibility(IsLampOn());
 }
 
 void ADeepDiver::AddCargo(const FDeepCargoItem& Item)

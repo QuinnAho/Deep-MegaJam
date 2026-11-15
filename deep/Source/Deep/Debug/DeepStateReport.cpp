@@ -95,6 +95,15 @@ namespace DeepStateReport
 		Json->SetNumberField(TEXT("diver_number"), State ? State->DiverNumber : 1);
 		Json->SetBoolField(TEXT("on_title"), State && State->bOnTitle);
 		Json->SetBoolField(TEXT("won"), State && State->bWon);
+		Json->SetBoolField(TEXT("inside"), Run && Run->IsInside());
+		Json->SetBoolField(TEXT("seated"), Run && Run->IsSeated());
+		Json->SetNumberField(TEXT("sub_depth_m"), State ? State->SubDepthM : 0.f);
+		Json->SetNumberField(TEXT("depth_limit_m"), State ? State->DepthLimitM() : 0.f);
+		Json->SetBoolField(TEXT("has_flashlight"), State && State->HasFlashlight());
+		Json->SetBoolField(TEXT("hull_upgraded"), State && State->IsHullUpgraded());
+		Json->SetNumberField(TEXT("parked_stop"), State ? State->ParkedStop() : 0);
+		Json->SetBoolField(TEXT("near_console"), Run && Run->IsNearConsole());
+		Json->SetBoolField(TEXT("near_helm"), Run && Run->IsNearHelm());
 		Json->SetNumberField(TEXT("run_s"), State ? State->RunSeconds : 0.f);
 		if (State)
 		{

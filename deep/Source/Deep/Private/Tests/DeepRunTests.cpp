@@ -289,7 +289,7 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	Diver->SetWinching(true);
 	TestFalse(TEXT("A cut diver cannot winch"), Diver->IsWinching());
 
-	// Bailout expiring: the 10 s warning, death, fee, cargo lost; then the next diver.
+	// Bailout expiring: the 10 s warning, death, fee, cargo lost; then the next diver, aboard.
 	State->Credits = 100;
 	const int32 DiverBefore = State->DiverNumber;
 	float Elapsed = 0.f;
@@ -306,12 +306,16 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Carried salvage is lost"), Diver->GetCargo().Num(), 0);
 	TestEqual(TEXT("Death fee charged"), State->Credits, 100 - Tuning.Economy.DeathFee);
 	Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
-	TestEqual(TEXT("Respawned tethered"), Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Respawned aboard"), Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("Diver number goes up"), State->DiverNumber, DiverBefore + 1);
 	TestEqual(TEXT("respawn fired"), Bus->CountOf(DeepEvent::Respawn), 1);
-	TestTrue(TEXT("Respawned under the airlock"), FVector::Dist(Diver->GetActorLocation(), Start) < 50.0);
+	TestTrue(TEXT("Respawned in the room"), Sub->IsInRoom(Diver->GetActorLocation()));
 	TestEqual(TEXT("Respawn refills Patience"), Run->GetPatienceFraction(), 1.f, 0.0001f);
-	TestEqual(TEXT("Salvage respawned"), CountSalvage(World), Tuning.Arena.SalvageSpots.Num());
+	Run->StepRun(10.f);
+	TestEqual(TEXT("Patience does not run aboard"), Run->GetPatienceFraction(), 1.f, 0.0001f);
+	TestTrue(TEXT("Through the hatch"), Run->LeaveSub());
+	Diver->TeleportDiver(Start);
+	TestEqual(TEXT("Salvage respawned for the dive"), CountSalvage(World), Tuning.Arena.SalvageSpots.Num());
 
 	// Credits never go below zero.
 	State->Credits = 10;
@@ -320,8 +324,10 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	Run->StepRun(60.f);
 	TestEqual(TEXT("Death with 10 credits leaves 0"), State->Credits, 0);
 	Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
+	Run->LeaveSub();
+	Diver->TeleportDiver(Start);
 
-	// Asking to be cut loose, then reaching the airlock: re-tethered for a fee, the run continues.
+	// Asking to be cut loose, then reaching the hatch: re-tethered for a fee, aboard.
 	State->Credits = 100;
 	Run->RequestCut();
 	TestEqual(TEXT("Requested cut"), Run->GetState(), EDeepRunState::Cut);
@@ -329,18 +335,23 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	Run->StepRun(5.f);
 	Diver->TeleportDiver(Anchor);
 	Run->StepRun(0.05f);
-	TestEqual(TEXT("Re-tethered at the airlock"), Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Home at the hatch on bailout air: aboard"), Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("retether fired"), Bus->CountOf(DeepEvent::Retether), 1);
 	TestEqual(TEXT("Re-tether fee charged"), State->Credits, 100 - Tuning.Economy.RetetherFee);
 
-	// Banking at the airlock with cargo: exactly the rule's net goes to credits.
+	// A haul: up to the hatch is home (aboard, nothing banked yet); the console banks exactly the rule's net.
+	Run->LeaveSub();
 	Diver->TeleportDiver(Start);
 	Run->StepRun(0.05f);
 	State->Credits = 0;
 	Diver->AddCargo(Item(EDeepSalvageSize::Medium, 6.f, 70));
 	Diver->TeleportDiver(Anchor);
 	Run->StepRun(0.05f);
-	TestEqual(TEXT("Arriving home with cargo opens the settlement"), Run->GetState(), EDeepRunState::Settling);
+	TestEqual(TEXT("Arriving home with cargo brings the diver aboard"), Run->GetState(), EDeepRunState::Aboard);
+	TestEqual(TEXT("enter_sub fired"), Bus->CountOf(DeepEvent::EnterSub), 1);
+	TestEqual(TEXT("Nothing banked at the hatch"), Diver->GetCargo().Num(), 1);
+	Run->UseConsole();
+	TestEqual(TEXT("The console with cargo opens the settlement"), Run->GetState(), EDeepRunState::Settling);
 	const FDeepSettlementReport& Report = Run->GetSettlement();
 	const int32 FeeTotal = UDeepRules::SettlementFeeTotal(70, Tuning.Economy);
 	const FDeepSettlement Expected = UDeepRules::Settle(70, { FeeTotal }, Tuning.Economy);
@@ -360,32 +371,36 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cargo banked"), Diver->GetCargo().Num(), 0);
 	TestTrue(TEXT("A bank event fired"), Bus->CountOf(DeepEvent::BankPoor) + Bus->CountOf(DeepEvent::BankGood) == 1);
 
-	// The settlement screen ignores the key at first, then a key press starts the next dive at the same stop.
+	// The settlement screen ignores the key at first, then a key press returns to the deck.
 	Run->ContinueAfterSettlement();
 	TestEqual(TEXT("Continue is locked at first"), Run->GetState(), EDeepRunState::Settling);
 	Run->StepRun(Tuning.Run.SettlementMinSeconds + 0.05f);
 	Run->ContinueAfterSettlement();
-	TestEqual(TEXT("Continue descends"), Run->GetState(), EDeepRunState::Descending);
-	const int32 DiveStartsBefore = Bus->CountOf(DeepEvent::DiveStart);
-	Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
-	Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
-	TestEqual(TEXT("Back to diving"), Run->GetState(), EDeepRunState::Tethered);
-	TestEqual(TEXT("Same stop without a hull rating"), State->Stop, 1);
-	TestEqual(TEXT("dive_start fired for the new dive"), Bus->CountOf(DeepEvent::DiveStart), DiveStartsBefore + 1);
+	TestEqual(TEXT("Continue returns to the deck"), Run->GetState(), EDeepRunState::Aboard);
+	TestEqual(TEXT("Same stop: nothing drives the sub but the helm"), State->Stop, 1);
 
-	// With the hull affordable it is bought automatically and the next dive is one stop deeper.
+	// With the flashlight affordable it is bought automatically; then the helm drives to stop 2.
 	State->Credits = Tuning.Economy.HullPrices.IsEmpty() ? 0 : Tuning.Economy.HullPrices[0];
 	Run->Bank();
 	TestEqual(TEXT("An empty bank still settles"), Run->GetState(), EDeepRunState::Settling);
 	TestEqual(TEXT("bank_empty fired"), Bus->CountOf(DeepEvent::BankEmpty), 1);
-	TestTrue(TEXT("Hull bought"), Run->GetSettlement().bHullBought);
+	TestTrue(TEXT("Flashlight bought"), Run->GetSettlement().bHullBought);
 	TestEqual(TEXT("hull_bought fired"), Bus->CountOf(DeepEvent::HullBought), 1);
-	TestEqual(TEXT("Hull rating 2"), State->HullRating, 2);
+	TestEqual(TEXT("Gate 1 (flashlight)"), State->HullRating, 2);
+	TestTrue(TEXT("Has the flashlight"), State->HasFlashlight());
 	Run->StepRun(Tuning.Run.SettlementMinSeconds + 0.05f);
 	Run->ContinueAfterSettlement();
-	Run->StepRun(Tuning.Run.DescendSeconds + 0.1f);
-	TestEqual(TEXT("Descended to stop 2"), State->Stop, 2);
+	Run->SetAutopilot(Tuning.GetStop(2).SubDepthM);
+	for (int32 Step = 0; Step < 400 && Run->IsAutopiloting(); ++Step)
+	{
+		Run->StepRun(0.5f);
+	}
+	TestEqual(TEXT("Drove to stop 2"), State->Stop, 2);
+	TestEqual(TEXT("Parked at stop 2"), State->ParkedStop(), 2);
 	TestEqual(TEXT("descend_stop2 fired"), Bus->CountOf(DeepEvent::DescendStop2), 1);
+	Run->LeaveHelm();
+	TestTrue(TEXT("Through the hatch at stop 2"), Run->LeaveSub());
+	Diver->GetTether()->UpdateTether(0.f);
 	TestEqual(TEXT("Tether is longer at stop 2"), Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(2, Tuning.Tether), 0.01f);
 
 	// DEEPSTATE reports the run.
@@ -422,8 +437,8 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 		Diver->SetWinching(false);
 	}
 
-	// Stop 2, a full dive: grab, Patience runs out, cut, swim home with the cargo (re-tether + bank), settle, dive
-	// again at stop 2, cut again and die: the replacement diver starts at stop 2.
+	// Stop 2, a full dive: grab, Patience runs out, cut, swim home with the cargo (re-tether, aboard), bank at the
+	// console, dive again at stop 2, cut again and die: the replacement diver starts aboard at stop 2.
 	Diver->ResetToStart();
 	Run->StepRun(0.05f);
 	TestEqual(TEXT("Stop 2: tethered"), Run->GetState(), EDeepRunState::Tethered);
@@ -437,15 +452,16 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	Run->StepRun(3.f);
 	Diver->TeleportDiver(Anchor);
 	Run->StepRun(0.05f);
-	TestEqual(TEXT("Stop 2: home with cargo after a cut settles"), Run->GetState(), EDeepRunState::Settling);
+	TestEqual(TEXT("Stop 2: home after a cut is aboard"), Run->GetState(), EDeepRunState::Aboard);
+	Run->UseConsole();
+	TestEqual(TEXT("Stop 2: the console settles"), Run->GetState(), EDeepRunState::Settling);
 	TestEqual(TEXT("Stop 2: settled the haul"), Run->GetSettlement().Gross, 200);
 	TestEqual(TEXT("Stop 2: cargo banked"), Diver->GetCargo().Num(), 0);
 	Run->StepRun(Tuning.Run.SettlementMinSeconds + 0.05f);
 	Run->ContinueAfterSettlement();
-	Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
-	Run->StepRun(Tuning.Run.DescendSeconds * 0.6f);
+	TestTrue(TEXT("Stop 2: through the hatch again"), Run->LeaveSub());
 	TestEqual(TEXT("Stop 2: diving again"), Run->GetState(), EDeepRunState::Tethered);
-	TestTrue(TEXT("Stop 2 or deeper after the second settlement"), State->Stop >= 2);
+	Diver->TeleportDiver(Start);
 	const int32 StopBeforeDeath = State->Stop;
 	const int32 DiverBeforeStop2Death = State->DiverNumber;
 	Run->SetPatienceFraction(0.f);
@@ -453,9 +469,11 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	Run->StepRun(60.f);
 	TestEqual(TEXT("Stop 2: air runs out"), Run->GetState(), EDeepRunState::Dead);
 	Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
-	TestEqual(TEXT("Stop 2: next diver tethered"), Run->GetState(), EDeepRunState::Tethered);
+	TestEqual(TEXT("Stop 2: next diver aboard"), Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("Stop 2: next diver number"), State->DiverNumber, DiverBeforeStop2Death + 1);
 	TestEqual(TEXT("Stop 2: death keeps the stop"), State->Stop, StopBeforeDeath);
+	Run->LeaveSub();
+	Diver->GetTether()->UpdateTether(0.f);
 	TestEqual(TEXT("Stop 2: tether length still the stop's"), Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(StopBeforeDeath, Tuning.Tether), 0.01f);
 
 	// Reset.

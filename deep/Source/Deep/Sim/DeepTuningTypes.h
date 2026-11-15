@@ -25,10 +25,10 @@ enum class EDeepRunState : uint8
 	Cut,
 	/** Bailout air ran out: a short written-off screen, then the next diver. */
 	Dead,
-	/** Banked at the airlock: the settlement screen is up. */
+	/** Banked at the console: the settlement screen is up. */
 	Settling,
-	/** Fade to the next dive (and the next stop, if the hull allows). */
-	Descending,
+	/** Inside the submarine: walking on the deck, at the console or seated at the helm. No Patience, no serpent. */
+	Aboard,
 	/** The relic is banked: the run is over and the performance review is up. */
 	Won
 };
@@ -721,4 +721,116 @@ struct FDeepSettlementReport
 	/** The stop the continue key leads to. */
 	UPROPERTY(BlueprintReadOnly, Category = "Economy")
 	int32 NextStop = 1;
+};
+
+/**
+ * The submarine's one room, the hatch, the console and the helm (D-022, D-023). Positions are relative to the
+ * submarine actor (metres, +X = the nose). The sub never moves; driving moves the arena root the other way.
+ */
+USTRUCT(BlueprintType)
+struct FDeepSubTuning
+{
+	GENERATED_BODY()
+
+	FDeepSubTuning()
+	{
+		DepthLimitsM = { 200.f, 400.f, 600.f };
+	}
+
+	/** Inside of the room: half length (X), half width (Y), height. The deck's top is at -RoomHeightM / 2. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float RoomHalfLengthM = 4.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float RoomHalfWidthM = 2.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float RoomHeightM = 3.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float WallThicknessM = 0.2f;
+
+	/** Half the side of the square hatch in the deck, centred under the sub (above the tether anchor). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float HatchHalfSizeM = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float RoomLightIntensity = 6000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float RoomLightRadiusM = 9.f;
+
+	/** Where a diver stands at the start of a run and after a respawn (X, Y on the deck), and the view pitch. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	FVector2D RoomStartM = FVector2D(-3.4f, 0.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float RoomStartPitchDeg = -22.f;
+
+	/** Where a diver who comes up through the hatch is put on the deck. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	FVector2D EnterStandM = FVector2D(-1.5f, 0.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	FVector2D ConsoleM = FVector2D(-1.6f, 1.75f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	FVector2D HelmM = FVector2D(3.7f, 0.f);
+
+	/** The console or the helm can be used from this far (horizontal). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float UseRangeM = 1.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float WalkSpeedMps = 3.f;
+
+	/** A swimmer whose centre rises to this far below the deck's top, inside the hatch, comes aboard. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float EnterBelowDeckM = 0.4f;
+
+	/** A walker whose centre falls this far below the deck's top (into the hatch) drops into the water. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float DropBelowDeckM = 1.2f;
+
+	/** The Captain mutters (idle_inside) after this long aboard without using anything. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	float IdleInsideSeconds = 25.f;
+
+	/** Displayed metres of depth per second while the helm control is held. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
+	float DriveSpeedMps = 8.f;
+
+	/** Releasing the control within this many metres of a stop parks there. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
+	float ParkSnapM = 5.f;
+
+	/** The helm will not go below DepthLimitsM[n]: n = 0 no flashlight, 1 flashlight, 2 hull upgrade. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
+	TArray<float> DepthLimitsM;
+
+	/** The helm camera, outside under the hull (metres from the sub's centre), looking down and ahead. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
+	FVector HelmCameraM = FVector(5.2f, 0.f, -2.6f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
+	float HelmCameraPitchDeg = -32.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
+	float HelmCameraFovDeg = 95.f;
+};
+
+/** One helm step: the new depth, and whether the control pushed against the limit or the top. */
+USTRUCT(BlueprintType)
+struct FDeepHelmStep
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Sub")
+	float DepthM = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Sub")
+	bool bAtLimit = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Sub")
+	bool bAtTop = false;
 };

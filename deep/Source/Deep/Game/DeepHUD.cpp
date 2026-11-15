@@ -15,6 +15,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepCaptain.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepSubmarine.h"
 
 namespace
 {
@@ -63,7 +64,25 @@ void ADeepHUD::DrawHUD()
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const EDeepRunState State = Run ? Run->GetState() : EDeepRunState::Tethered;
 
-	DrawStatus(Diver, Now);
+	const bool bTethered = State == EDeepRunState::Tethered;
+	if (bTethered && !bWasTethered)
+	{
+		DiveStartTime = Now;
+	}
+	bWasTethered = bTethered;
+
+	if (Run && Run->IsSeated())
+	{
+		DrawHelm(Diver);
+	}
+	else
+	{
+		DrawStatus(Diver, Now);
+	}
+	if (State == EDeepRunState::Aboard && Run && !Run->IsSeated())
+	{
+		DrawAboard(Diver);
+	}
 	if (State == EDeepRunState::Cut)
 	{
 		DrawBailout(Diver);
@@ -90,10 +109,6 @@ void ADeepHUD::DrawHUD()
 	{
 		DrawSettlement(*Run);
 	}
-	else if (State == EDeepRunState::Descending)
-	{
-		DrawDescending(*Run);
-	}
 	else if (State == EDeepRunState::Won)
 	{
 		DrawReview(*Run);
@@ -101,10 +116,11 @@ void ADeepHUD::DrawHUD()
 
 	// The first dive of a run: a big controls card until the first grab (or for ControlsCardSeconds).
 	const float CardSeconds = UDeepTuningSettings::Get().Run.ControlsCardSeconds;
+	const float DiveSeconds = Now - DiveStartTime;
 	if (GameState && State == EDeepRunState::Tethered && GameState->DiverNumber == 1 && GameState->Stop == 1 && GameState->TotalGross == 0
-		&& Diver->GetCargo().IsEmpty() && GameState->RunSeconds < CardSeconds)
+		&& Diver->GetCargo().IsEmpty() && DiveSeconds < CardSeconds)
 	{
-		DrawControlsCard(FMath::Clamp((CardSeconds - GameState->RunSeconds) / 1.5f, 0.f, 1.f));
+		DrawControlsCard(FMath::Clamp((CardSeconds - DiveSeconds) / 1.5f, 0.f, 1.f));
 	}
 	// Last, so the Captain is never hidden behind a panel. The review shows the Captain's win line itself.
 	if (State != EDeepRunState::Won)
@@ -168,11 +184,11 @@ void ADeepHUD::DrawControlsCard(float Alpha)
 		TEXT("W A S D  swim        Mouse  look"),
 		FString::Printf(TEXT("%s / %s  up / down        %s  sprint"), *Key(TEXT("Up")), *Key(TEXT("Down")), *Key(TEXT("Sprint"))),
 		FString::Printf(TEXT("%s or left click  grab        %s  drop"), *Key(TEXT("Grab")), *Key(TEXT("Drop"))),
-		FString::Printf(TEXT("Hold %s  winch home (loud)        %s  lamp"), *Key(TEXT("Winch")), *Key(TEXT("Lamp"))),
+		FString::Printf(TEXT("Hold %s  winch home (loud)        %s  lamp (needs the flashlight)"), *Key(TEXT("Winch")), *Key(TEXT("Lamp"))),
 		FString::Printf(TEXT("Hold %s  ask to be cut loose        %s  menu"), *Key(TEXT("Cut")), *Key(TEXT("Menu"))),
 	};
-	const FString GoalA = TEXT("Grab salvage below. Bring it back");
-	const FString GoalB = TEXT("to the airlock under the sub.");
+	const FString GoalA = TEXT("Grab salvage below. Swim back up through");
+	const FString GoalB = TEXT("the hatch and bank it at the console.");
 	const float Line = 21.f * S;
 	float Widest = 0.f;
 	for (const FString& Text : Lines)
@@ -323,13 +339,25 @@ void ADeepHUD::DrawStatus(const ADeepDiver* Diver, float Now)
 		}
 	};
 
-	Text(FString::Printf(TEXT("DEPTH  %.0f m   %s"), Diver->GetDepthM(), *Diver->GetZoneName().ToUpper()), TextColor);
+	const UDeepRunComponent* RunForDepth = Diver->GetRun();
+	const ADeepGameState* SubState = GetWorld()->GetGameState<ADeepGameState>();
+	if (RunForDepth && RunForDepth->IsInside() && SubState)
+	{
+		Text(FString::Printf(TEXT("ABOARD   SUB AT %.0f m   %s"), SubState->SubDepthM, SubState->bParked ? TEXT("PARKED") : TEXT("BETWEEN STOPS")), TextColor);
+	}
+	else
+	{
+		Text(FString::Printf(TEXT("DEPTH  %.0f m   %s"), Diver->GetDepthM(), *Diver->GetZoneName().ToUpper()), TextColor);
+	}
 	const FDeepWeightResult Weight = Diver->GetWeight();
 	Text(FString::Printf(TEXT("CARGO  %.0f kg   %d cr%s"), Weight.CarriedKg, Diver->GetCargoValue(), Weight.bOverloaded ? TEXT("   TOO HEAVY") : TEXT("")), Weight.bOverloaded ? WarnColor : TextColor);
 
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const UDeepTetherComponent* Tether = Diver->GetTether();
-	if (Run && !Run->HasTether())
+	if (Run && Run->IsInside())
+	{
+	}
+	else if (Run && !Run->HasTether())
 	{
 		Text(TEXT("TETHER  CUT"), DangerColor);
 	}
@@ -342,8 +370,13 @@ void ADeepHUD::DrawStatus(const ADeepDiver* Diver, float Now)
 
 	if (const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>())
 	{
-		Text(FString::Printf(TEXT("CREDITS %d   HULL %d"), State->Credits, State->HullRating), TextColor);
-		Text(FString::Printf(TEXT("STOP %d   DIVER #%d"), State->Stop, State->DiverNumber), TextColor);
+		const FDeepEconomyTuning& Economy = UDeepTuningSettings::Get().Economy;
+		Text(FString::Printf(TEXT("CREDITS %d   DIVER #%d"), State->Credits, State->DiverNumber), TextColor);
+		Text(State->HasFlashlight() ? FString(TEXT("FLASHLIGHT  yes")) : FString::Printf(TEXT("FLASHLIGHT  no  (%d cr)"), Economy.HullPrices.IsValidIndex(0) ? Economy.HullPrices[0] : 0),
+			State->HasFlashlight() ? GoodColor : WarnColor);
+		Text(State->IsHullUpgraded() ? FString(TEXT("HULL  upgraded")) : FString::Printf(TEXT("HULL  standard  (upgrade %d cr)"), Economy.HullPrices.IsValidIndex(1) ? Economy.HullPrices[1] : 0),
+			State->IsHullUpgraded() ? GoodColor : TextColor);
+		Text(FString::Printf(TEXT("SUB LIMIT  %.0f m"), State->DepthLimitM()), TextColor);
 	}
 	// A fee just taken (re-tether, death): show it next to the account for a moment.
 	if (Run && Run->GetLastFee() > 0 && Now - Run->GetLastFeeTime() < 3.f)
@@ -405,7 +438,7 @@ void ADeepHUD::DrawBailout(const ADeepDiver* Diver)
 	const bool bSlow = Air <= Tuning.SlowWindowSeconds;
 	const bool bPulse = Air <= Tuning.WarnSeconds && FMath::Frac(RealNow * (bSlow ? 1.5f : 2.5f)) < 0.5f;
 
-	TextCentered(TEXT("TETHER CUT  -  SWIM TO THE AIRLOCK"), DangerColor, 14.f * S, nullptr, 1.f);
+	TextCentered(TEXT("TETHER CUT  -  SWIM UP INTO THE HATCH"), DangerColor, 14.f * S, nullptr, 1.f);
 	TextCentered(FString::Printf(TEXT("BAILOUT AIR  %.1f s"), Air), bPulse ? FLinearColor::White : DangerColor, 38.f * S, BigFont, 1.6f);
 
 	const float W = Canvas->ClipX * 0.34f;
@@ -432,7 +465,7 @@ void ADeepHUD::DrawAirlockMarker(const ADeepDiver* Diver, float HintY)
 	const float DistanceM = static_cast<float>(FVector::Dist(Anchor, Diver->GetActorLocation())) / UDeepRules::CmPerM;
 	const FVector CameraLocation = Player->PlayerCameraManager->GetCameraLocation();
 	const FVector CameraForward = Player->PlayerCameraManager->GetCameraRotation().Vector();
-	const FString Label = FString::Printf(TEXT("AIRLOCK  %.0f m"), DistanceM);
+	const FString Label = FString::Printf(TEXT("HATCH  %.0f m"), DistanceM);
 	const FVector Screen = Canvas->Project(Anchor);
 	const bool bInFront = FVector::DotProduct(Anchor - CameraLocation, CameraForward) > 0.0;
 	if (bInFront && Screen.X >= 0.f && Screen.X <= Canvas->ClipX && Screen.Y >= 0.f && Screen.Y <= Canvas->ClipY)
@@ -483,8 +516,8 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 	}
 	if (bTethered && Diver->GetCargo().Num() > 0 && !Diver->IsWinching())
 	{
-		Prompts.Emplace(TEXT("Bring the cargo to the airlock to bank it"), DimColor);
-		// First-time players lose the sub: mark the airlock while carrying (below the Patience bar).
+		Prompts.Emplace(TEXT("Swim up into the hatch, then bank the cargo at the console"), DimColor);
+		// First-time players lose the sub: mark the hatch while carrying (below the Patience bar).
 		DrawAirlockMarker(Diver, 76.f * S);
 	}
 
@@ -535,12 +568,15 @@ void ADeepHUD::DrawPrompts(const ADeepDiver* Diver)
 		*ADeepPlayerController::KeyHint(TEXT("Up")), *ADeepPlayerController::KeyHint(TEXT("Down")), *ADeepPlayerController::KeyHint(TEXT("Sprint")),
 		*ADeepPlayerController::KeyHint(TEXT("Grab")), *ADeepPlayerController::KeyHint(TEXT("Drop")));
 	// Only what is possible now: no winch and no cut once the tether is gone.
+	const FString LampHint = Diver->HasFlashlight()
+		? FString::Printf(TEXT("%s lamp"), *ADeepPlayerController::KeyHint(TEXT("Lamp")))
+		: FString(TEXT("no lamp yet (flashlight at the console)"));
 	const FString ControlsB = bTethered
-		? FString::Printf(TEXT("hold %s winch home   %s lamp   hold %s be cut loose   %s menu"),
-			*ADeepPlayerController::KeyHint(TEXT("Winch")), *ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Cut")),
+		? FString::Printf(TEXT("hold %s winch home   %s   hold %s be cut loose   %s menu"),
+			*ADeepPlayerController::KeyHint(TEXT("Winch")), *LampHint, *ADeepPlayerController::KeyHint(TEXT("Cut")),
 			*ADeepPlayerController::KeyHint(TEXT("Menu")))
-		: FString::Printf(TEXT("no tether: swim to the airlock   %s lamp   %s menu"),
-			*ADeepPlayerController::KeyHint(TEXT("Lamp")), *ADeepPlayerController::KeyHint(TEXT("Menu")));
+		: FString::Printf(TEXT("no tether: swim up into the hatch   %s   %s menu"),
+			*LampHint, *ADeepPlayerController::KeyHint(TEXT("Menu")));
 	constexpr float ControlsScale = 0.62f;
 	float WA = 0.f, WB = 0.f, HA = 0.f;
 	GetTextSize(ControlsA, WA, HA, Font, S * ControlsScale);
@@ -702,40 +738,294 @@ void ADeepHUD::DrawSettlement(const UDeepRunComponent& Run)
 	Row(TEXT("NET"), Credits(Report.Net), Report.Net > 0 ? GoodColor : DangerColor);
 	Row(TEXT("Credits"), Credits(Report.CreditsAfter), TextColor);
 	Y += 6.f * S;
+	const auto GateName = [](int32 Rating) { return Rating <= 2 ? FString(TEXT("FLASHLIGHT")) : FString(TEXT("HULL UPGRADE")); };
 	if (Report.bHullBought)
 	{
-		Row(FString::Printf(TEXT("HULL RATING %d BOUGHT"), Report.HullRating), FString::Printf(TEXT("-%d cr"), Report.HullSpent), GoodColor);
+		Row(FString::Printf(TEXT("%s BOUGHT"), *GateName(Report.HullRating)), FString::Printf(TEXT("-%d cr"), Report.HullSpent), GoodColor);
 	}
 	else if (Report.NextHullPrice >= 0)
 	{
-		Row(FString::Printf(TEXT("Hull rating %d"), Report.HullRating + 1), FString::Printf(TEXT("needs %d cr"), Report.NextHullPrice), DimColor);
+		Row(GateName(Report.HullRating + 1), FString::Printf(TEXT("needs %d cr"), Report.NextHullPrice), DimColor);
 	}
 	else
 	{
-		Row(TEXT("Hull rating"), TEXT("maxed"), DimColor);
+		Row(TEXT("Flashlight and hull upgrade"), TEXT("owned"), DimColor);
 	}
 
-	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
-	const bool bDeeper = State && Report.NextStop > State->Stop;
-	const FDeepStopTuning Next = Tuning.GetStop(Report.NextStop);
-	const FString NextZone = UDeepRules::ZoneName(Next.SubDepthM, Tuning.Zones).ToUpper();
 	Y += 10.f * S;
 	const bool bReady = Run.GetStateTimeLeft() <= 0.f;
-	const FString Action = bDeeper
-		? FString::Printf(TEXT("[%s]  DESCEND TO %.0f m  %s"), *ADeepPlayerController::KeyHint(TEXT("Continue")), Next.SubDepthM, *NextZone)
-		: FString::Printf(TEXT("[%s]  DIVE AGAIN"), *ADeepPlayerController::KeyHint(TEXT("Continue")));
-	TextCentered(Action, bReady ? CaptainColor : DimColor, Y, nullptr, 1.1f);
+	const FString Action = FString::Printf(TEXT("[%s]  BACK TO THE DECK%s"), *ADeepPlayerController::KeyHint(TEXT("Continue")),
+		Report.bHullBought ? TEXT("  -  THEN TAKE THE HELM TO GO DEEPER") : TEXT(""));
+	TextCentered(Action, bReady ? CaptainColor : DimColor, Y, nullptr, 1.05f);
 }
 
-void ADeepHUD::DrawDescending(const UDeepRunComponent& Run)
+// ---------------------------------------------------------------- aboard the sub
+
+namespace
 {
-	const float Total = FMath::Max(0.01f, UDeepTuningSettings::Get().Run.DescendSeconds);
-	const float T = FMath::Clamp(1.f - Run.GetStateTimeLeft() / Total, 0.f, 1.f);
-	// Fade to black, hold, fade back in; the depth counter rolls meanwhile.
-	const float Alpha = FMath::Clamp(1.f - FMath::Abs(T - 0.5f) * 2.f, 0.f, 1.f);
-	DrawRect(FLinearColor(0.f, 0.f, 0.f, FMath::Clamp(Alpha * 1.4f, 0.f, 1.f)), 0.f, 0.f, Canvas->ClipX, Canvas->ClipY);
-	const float Depth = FMath::Lerp(Run.GetDescendFromDepthM(), Run.GetDescendToDepthM(), FMath::SmoothStep(0.f, 1.f, T));
-	FLinearColor Color = TextColor;
-	Color.A = FMath::Clamp(Alpha * 2.f, 0.f, 1.f);
-	TextCentered(FString::Printf(TEXT("%.0f m"), Depth), Color, Canvas->ClipY * 0.45f, BigFont, 1.8f);
+	/** Name and price of the next layer gate, or empty when both are owned. */
+	bool NextGate(const ADeepGameState* State, FString& OutName, int32& OutPrice)
+	{
+		if (!State)
+		{
+			return false;
+		}
+		OutPrice = UDeepRules::NextHullPrice(State->HullRating, UDeepTuningSettings::Get().Economy);
+		if (OutPrice < 0)
+		{
+			return false;
+		}
+		OutName = State->HullRating <= 1 ? TEXT("FLASHLIGHT") : TEXT("HULL UPGRADE");
+		return true;
+	}
+
+	/** Why the helm stops where it does, in one line. */
+	FString LimitReason(const ADeepGameState* State)
+	{
+		if (!State)
+		{
+			return FString();
+		}
+		const FDeepEconomyTuning& Economy = UDeepTuningSettings::Get().Economy;
+		const float Limit = State->DepthLimitM();
+		if (!State->HasFlashlight())
+		{
+			return FString::Printf(TEXT("No flashlight: the helm stops at %.0f m. Bank %d cr at the console to buy one."), Limit, Economy.HullPrices.IsValidIndex(0) ? Economy.HullPrices[0] : 0);
+		}
+		if (!State->IsHullUpgraded())
+		{
+			return FString::Printf(TEXT("Standard hull: the helm stops at %.0f m. Bank %d cr at the console for the hull upgrade."), Limit, Economy.HullPrices.IsValidIndex(1) ? Economy.HullPrices[1] : 0);
+		}
+		return FString::Printf(TEXT("Hull upgraded: rated to %.0f m."), Limit);
+	}
+
+	/** The deepest stop the helm can reach now that the sub has never parked at, or 0. */
+	int32 NewReachableStop(const ADeepGameState* State)
+	{
+		if (!State)
+		{
+			return 0;
+		}
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		int32 Best = 0;
+		for (int32 Stop = 1; Stop <= Tuning.NumStops(); ++Stop)
+		{
+			if (Tuning.GetStop(Stop).SubDepthM <= State->DepthLimitM() + 0.01f && Stop > State->DeepestStopReached)
+			{
+				Best = Stop;
+			}
+		}
+		return Best;
+	}
+}
+
+bool ADeepHUD::DrawMarker(const FVector& World, const FString& Label, const FLinearColor& Color)
+{
+	const APlayerController* Player = GetOwningPlayerController();
+	if (!Player || !Player->PlayerCameraManager)
+	{
+		return false;
+	}
+	const FVector CameraLocation = Player->PlayerCameraManager->GetCameraLocation();
+	const FVector CameraForward = Player->PlayerCameraManager->GetCameraRotation().Vector();
+	if (FVector::DotProduct(World - CameraLocation, CameraForward) <= 0.0)
+	{
+		return false;
+	}
+	const FVector Screen = Canvas->Project(World);
+	if (Screen.X < 0.f || Screen.X > Canvas->ClipX || Screen.Y < 0.f || Screen.Y > Canvas->ClipY)
+	{
+		return false;
+	}
+	float TW = 0.f, TH = 0.f;
+	GetTextSize(Label, TW, TH, Font, S * 0.85f);
+	DrawRect(PanelColor, Screen.X - TW * 0.5f - 6.f * S, Screen.Y - TH - 10.f * S, TW + 12.f * S, TH + 4.f * S);
+	TextAt(Label, Color, Screen.X - TW * 0.5f, Screen.Y - TH - 8.f * S, nullptr, 0.85f);
+	DrawRect(Color, Screen.X - 1.5f * S, Screen.Y - 6.f * S, 3.f * S, 6.f * S);
+	return true;
+}
+
+void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
+{
+	const UDeepRunComponent* Run = Diver->GetRun();
+	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
+	const ADeepSubmarine* Sub = Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
+	if (!Run || !State || !Sub)
+	{
+		return;
+	}
+	const bool bCargo = Diver->GetCargo().Num() > 0;
+	const bool bParked = State->bParked;
+	const FString UseKey = ADeepPlayerController::KeyHint(TEXT("Use"));
+	const int32 NewStop = NewReachableStop(State);
+
+	// Labels on the three things in the room.
+	DrawMarker(Sub->GetHatchLocation(), bParked ? TEXT("HATCH - walk in to dive") : TEXT("HATCH - LOCKED"), bParked ? GoodColor : DangerColor);
+	DrawMarker(Sub->GetConsoleLocation() + FVector(0.f, 0.f, 40.f), bCargo ? TEXT("CONSOLE - bank here") : TEXT("CONSOLE"), bCargo ? CaptainColor : TextColor);
+	DrawMarker(Sub->GetHelmLocation() + FVector(0.f, 0.f, 60.f), TEXT("HELM - drive the sub"), NewStop > 0 || !bParked ? CaptainColor : TextColor);
+
+	// The one thing to do next.
+	FString Next;
+	FString Why;
+	FLinearColor Color = CaptainColor;
+	if (Run->IsNearConsole() && bCargo)
+	{
+		Next = FString::Printf(TEXT("[%s]  BANK %d cr OF CARGO"), *UseKey, Diver->GetCargoValue());
+	}
+	else if (Run->IsNearConsole())
+	{
+		Next = FString::Printf(TEXT("[%s]  USE THE CONSOLE"), *UseKey);
+		Why = TEXT("Credits and the next purchase. Bring salvage up to bank it here.");
+	}
+	else if (Run->IsNearHelm())
+	{
+		Next = FString::Printf(TEXT("[%s]  TAKE THE HELM"), *UseKey);
+		Why = NewStop > 0 ? FString::Printf(TEXT("You can now drive down to %.0f m."), UDeepTuningSettings::Get().GetStop(NewStop).SubDepthM) : LimitReason(State);
+	}
+	else if (bCargo)
+	{
+		Next = TEXT("BANK YOUR CARGO AT THE CONSOLE");
+		Why = TEXT("Walk to the green screen.");
+	}
+	else if (!bParked)
+	{
+		Next = TEXT("THE HATCH IS LOCKED BETWEEN STOPS");
+		Why = TEXT("Take the helm and stop at 100, 300 or 500 m.");
+		Color = WarnColor;
+	}
+	else if (NewStop > 0)
+	{
+		Next = TEXT("TAKE THE HELM TO GO DEEPER");
+		Why = FString::Printf(TEXT("You can now drive down to %.0f m. The helm is at the front."), UDeepTuningSettings::Get().GetStop(NewStop).SubDepthM);
+	}
+	else
+	{
+		Next = TEXT("DROP THROUGH THE HATCH TO DIVE");
+		Why = TEXT("Walk into the yellow square in the floor. Bring salvage back up the same way.");
+		Color = GoodColor;
+	}
+	float Y = Canvas->ClipY * 0.62f;
+	Y += TextCentered(Next, Color, Y, BigFont, 1.f) + 4.f * S;
+	if (!Why.IsEmpty())
+	{
+		TextCentered(Why, TextColor, Y, nullptr, 0.85f);
+	}
+
+	// The console's account panel, while near it or just after using it.
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Run->IsNearConsole() || Now - Run->GetLastConsoleTime() < 4.f)
+	{
+		FString Gate;
+		int32 Price = 0;
+		const bool bGate = NextGate(State, Gate, Price);
+		const float W = 420.f * S;
+		const float X = Canvas->ClipX - W - 16.f * S;
+		float PY = Canvas->ClipY * 0.2f;
+		DrawRect(FLinearColor(0.f, 0.03f, 0.02f, 0.9f), X, PY, W, 116.f * S);
+		DrawRect(GoodColor, X, PY, W, 3.f * S);
+		PY += 10.f * S;
+		TextAt(TEXT("CONSOLE"), GoodColor, X + 16.f * S, PY, nullptr, 0.9f);
+		PY += 24.f * S;
+		TextAt(FString::Printf(TEXT("Credits   %d cr"), State->Credits), TextColor, X + 16.f * S, PY, nullptr, 0.85f);
+		PY += 22.f * S;
+		TextAt(bGate ? FString::Printf(TEXT("Next      %s   %d cr"), *Gate, Price) : FString(TEXT("Next      nothing: both gates owned")), bGate && State->Credits >= Price ? GoodColor : TextColor, X + 16.f * S, PY, nullptr, 0.85f);
+		PY += 22.f * S;
+		TextAt(TEXT("Bought automatically when you can afford it."), DimColor, X + 16.f * S, PY, nullptr, 0.7f);
+	}
+	if (Now - Run->GetLastGateTime() < 4.f)
+	{
+		TextCentered(State->IsHullUpgraded() ? TEXT("HULL UPGRADE BOUGHT: THE HELM CAN GO TO 600 m") : TEXT("FLASHLIGHT BOUGHT: THE LAMP WORKS, THE HELM CAN GO TO 400 m"), GoodColor, Canvas->ClipY * 0.3f, BigFont, 0.9f);
+	}
+
+	const FString Controls = FString::Printf(TEXT("WASD walk   Mouse look   %s use (console, helm)   walk into the hatch to dive   %s menu"),
+		*UseKey, *ADeepPlayerController::KeyHint(TEXT("Menu")));
+	float CW = 0.f, CH = 0.f;
+	GetTextSize(Controls, CW, CH, Font, S * 0.62f);
+	DrawRect(PanelColor, 4.f * S, Canvas->ClipY - CH - 16.f * S, CW + 12.f * S, CH + 8.f * S);
+	TextAt(Controls, FLinearColor(0.85f, 0.92f, 0.95f), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.62f);
+
+	const float Dot = 3.f * S;
+	DrawRect(FLinearColor(1.f, 1.f, 1.f, 0.6f), Canvas->ClipX * 0.5f - Dot * 0.5f, Canvas->ClipY * 0.5f - Dot * 0.5f, Dot, Dot);
+}
+
+void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
+{
+	const UDeepRunComponent* Run = Diver->GetRun();
+	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
+	if (!Run || !State)
+	{
+		return;
+	}
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const float Depth = State->SubDepthM;
+	const float Limit = State->DepthLimitM();
+
+	// Depth, big, top centre.
+	TextCentered(TEXT("HELM"), DimColor, 10.f * S, nullptr, 0.8f);
+	TextCentered(FString::Printf(TEXT("%.0f m   %s"), Depth, *UDeepRules::ZoneName(Depth, Tuning.Zones).ToUpper()), TextColor, 30.f * S, BigFont, 1.6f);
+
+	// The gauge: 0 m at the top, the deepest limit at the bottom; stops, the limit and the sub.
+	float Deepest = 0.f;
+	for (const float L : Tuning.Sub.DepthLimitsM)
+	{
+		Deepest = FMath::Max(Deepest, L);
+	}
+	Deepest = FMath::Max(Deepest, 1.f);
+	const float GX = Canvas->ClipX - 120.f * S;
+	const float GTop = Canvas->ClipY * 0.14f;
+	const float GH = Canvas->ClipY * 0.62f;
+	auto YAt = [&](float M) { return GTop + GH * FMath::Clamp(M / Deepest, 0.f, 1.f); };
+	DrawRect(PanelColor, GX - 70.f * S, GTop - 30.f * S, 180.f * S, GH + 50.f * S);
+	DrawRect(FLinearColor(0.3f, 0.5f, 0.6f, 0.8f), GX, GTop, 6.f * S, GH);
+	DrawRect(FLinearColor(0.6f, 0.1f, 0.05f, 0.6f), GX, YAt(Limit), 6.f * S, GTop + GH - YAt(Limit));
+	TextAt(TEXT("DEPTH"), DimColor, GX - 60.f * S, GTop - 26.f * S, nullptr, 0.7f);
+	for (int32 Stop = 1; Stop <= Tuning.NumStops(); ++Stop)
+	{
+		const float SD = Tuning.GetStop(Stop).SubDepthM;
+		const bool bHere = State->ParkedStop() == Stop;
+		DrawRect(bHere ? GoodColor : TextColor, GX - 14.f * S, YAt(SD) - 1.f * S, 34.f * S, 3.f * S);
+		TextAt(FString::Printf(TEXT("%.0f"), SD), bHere ? GoodColor : TextColor, GX - 62.f * S, YAt(SD) - 10.f * S, nullptr, 0.7f);
+	}
+	DrawRect(DangerColor, GX - 20.f * S, YAt(Limit) - 1.5f * S, 50.f * S, 3.f * S);
+	TextAt(FString::Printf(TEXT("LIMIT %.0f"), Limit), DangerColor, GX + 26.f * S, YAt(Limit) - 10.f * S, nullptr, 0.65f);
+	DrawRect(CaptainColor, GX - 8.f * S, YAt(Depth) - 5.f * S, 22.f * S, 10.f * S);
+	TextAt(TEXT("SUB"), CaptainColor, GX + 18.f * S, YAt(Depth) - 10.f * S, nullptr, 0.65f);
+
+	// The limit and why, always visible; a banner while the control pushes against it.
+	TextCentered(LimitReason(State), State->IsHullUpgraded() ? DimColor : WarnColor, 78.f * S, nullptr, 0.8f);
+	if (Run->IsHelmAtLimit())
+	{
+		const bool bFlash = FMath::Frac(GetWorld()->GetRealTimeSeconds() * 2.f) < 0.5f;
+		TextCentered(FString::Printf(TEXT("DEPTH LIMIT %.0f m - THE HELM WILL NOT GO DEEPER"), Limit), bFlash ? FLinearColor::White : DangerColor, Canvas->ClipY * 0.3f, BigFont, 1.f);
+	}
+
+	// What to do now.
+	const int32 Parked = State->ParkedStop();
+	const FString Up = ADeepPlayerController::KeyHint(TEXT("Up"));
+	const FString Down = ADeepPlayerController::KeyHint(TEXT("Down"));
+	FString Next;
+	FString Why;
+	if (Parked > 0)
+	{
+		const int32 NewStop = NewReachableStop(State);
+		Next = FString::Printf(TEXT("PARKED AT %.0f m"), Tuning.GetStop(Parked).SubDepthM);
+		Why = NewStop > 0
+			? FString::Printf(TEXT("Hold [%s] or [S] to dive to %.0f m.  [%s] stand up, then drop through the hatch."), *Down, Tuning.GetStop(NewStop).SubDepthM, *ADeepPlayerController::KeyHint(TEXT("Use")))
+			: FString::Printf(TEXT("[%s] stand up, then drop through the hatch to dive here."), *ADeepPlayerController::KeyHint(TEXT("Use")));
+	}
+	else
+	{
+		Next = TEXT("BETWEEN STOPS: THE HATCH IS LOCKED");
+		Why = TEXT("Let go of the control within a few metres of 100, 300 or 500 m to park there.");
+	}
+	float Y = Canvas->ClipY * 0.62f;
+	Y += TextCentered(Next, Parked > 0 ? GoodColor : CaptainColor, Y, BigFont, 0.95f) + 4.f * S;
+	TextCentered(Why, TextColor, Y, nullptr, 0.85f);
+
+	const FString Controls = FString::Printf(TEXT("hold %s or S  dive      hold %s or W  rise      %s  stand up      %s menu"),
+		*Down, *Up, *ADeepPlayerController::KeyHint(TEXT("Use")), *ADeepPlayerController::KeyHint(TEXT("Menu")));
+	float CW = 0.f, CH = 0.f;
+	GetTextSize(Controls, CW, CH, Font, S * 0.7f);
+	DrawRect(PanelColor, 4.f * S, Canvas->ClipY - CH - 16.f * S, CW + 12.f * S, CH + 8.f * S);
+	TextAt(Controls, FLinearColor(0.85f, 0.92f, 0.95f), 10.f * S, Canvas->ClipY - CH - 12.f * S, nullptr, 0.7f);
 }

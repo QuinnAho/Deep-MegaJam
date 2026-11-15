@@ -1,4 +1,5 @@
-// The diver's run loop: Patience, the cut, bailout air, re-tether, death and respawn, banking, settlement and descent.
+// The diver's run loop: aboard the sub (deck, console, helm), the dive through the hatch, Patience, the cut, bailout
+// air, re-tether at the hatch, death and respawn aboard, banking at the console, settlement, and driving the sub.
 // Server-authoritative state machine (StepRun) that calls UDeepRules and fires DeepEvent names on the event bus.
 // Replicated so each player's HUD can draw its own diver's state.
 
@@ -26,6 +27,23 @@ public:
 	static FString StateName(EDeepRunState InState);
 	/** Tethered or cut, and the title screen is not up. */
 	bool CanSwim() const;
+	/** Inside the sub: aboard, on the settlement screen or on the win screen. Walking, not swimming. */
+	bool IsInside() const { return State == EDeepRunState::Aboard || State == EDeepRunState::Settling || State == EDeepRunState::Won; }
+	/** Aboard, standing, and the title is not up: WASD walks. */
+	bool CanWalk() const { return State == EDeepRunState::Aboard && !bSeated && !IsOnTitle(); }
+	/** Seated at the helm: the view is the helm camera and up/down drive the sub. */
+	bool IsSeated() const { return bSeated; }
+	/** Within use range of the console / the helm (aboard, standing). */
+	bool IsNearConsole() const;
+	bool IsNearHelm() const;
+	/** The helm is pushing against the depth limit right now. */
+	bool IsHelmAtLimit() const { return bHelmAtLimit; }
+	/** Server: the helm is driving itself toward a depth (Deep.Drive). */
+	bool IsAutopiloting() const { return AutopilotDepthM >= 0.f; }
+	/** World time the console was last used (the HUD shows the account panel for a while). */
+	float GetLastConsoleTime() const { return LastConsoleTime; }
+	/** World time the last gate was bought (HUD flash). */
+	float GetLastGateTime() const { return LastGateTime; }
 	/** The title screen is up (the game state says so): the dive has not started. */
 	bool IsOnTitle() const;
 	/** The diver carries the relic. */
@@ -33,14 +51,12 @@ public:
 	/** The win screen is up and has been long enough for a key to leave it. */
 	bool CanLeaveReview() const { return State == EDeepRunState::Won && StateTimeLeft <= 0.f; }
 	/** The tether limits the diver and draws its line. */
-	bool HasTether() const { return State != EDeepRunState::Cut && State != EDeepRunState::Dead; }
+	bool HasTether() const { return State == EDeepRunState::Tethered; }
 	float GetPatienceSeconds() const { return PatienceSeconds; }
 	float GetPatienceFraction() const;
 	float GetBailoutAirSeconds() const { return BailoutAirSeconds; }
 	float GetStateTimeLeft() const { return StateTimeLeft; }
 	const FDeepSettlementReport& GetSettlement() const { return Settlement; }
-	float GetDescendFromDepthM() const { return DescendFromDepthM; }
-	float GetDescendToDepthM() const { return DescendToDepthM; }
 	/** Fraction of Patience the last pickup refilled and the world time it happened (HUD flash). */
 	float GetLastRefillFraction() const { return LastRefillFraction; }
 	float GetLastRefillTime() const { return LastRefillTime; }
@@ -60,6 +76,8 @@ public:
 	// ---- Requests from the owning player (routed to the server) ----
 	void RequestCut();
 	void RequestContinue();
+	/** The helm control: > 0 descends, < 0 ascends (sent to the server when it changes). */
+	void SetHelmInput(float Input);
 
 	// ---- Server ----
 	/** Advances the state machine. Ticks call it; tests call it with chosen steps. */
@@ -68,10 +86,29 @@ public:
 	void CutTether(bool bRequested);
 	/** Tethered -> Cut, announcing why (cut_patience, cut_requested, cut_bite). The one Cut path. */
 	void CutTetherFor(const TCHAR* Event);
-	/** Ends the dive: settles the cargo, pays credits, buys a hull rating if affordable, opens the settlement screen. */
+	/**
+	 * Banks the cargo at the console: settles it, pays credits, buys the next gate if affordable, opens the settlement
+	 * screen (or wins, with the relic). A diver still in the water is brought aboard first (cheats and tests).
+	 */
 	void Bank();
-	/** Settlement -> Descending (ignored until the screen has been up SettlementMinSeconds). */
+	/** Settlement -> Aboard (ignored until the screen has been up SettlementMinSeconds). */
 	void ContinueAfterSettlement();
+
+	// ---- Aboard (server) ----
+	/** The use key: stand up from the helm, or use the helm or the console if in range. */
+	void Use();
+	/** Up through the hatch (or a cut diver home: re-tether fee). The diver stands on the deck, walking. */
+	void EnterSub();
+	/** Down through the hatch: swimming, tethered, Patience full, salvage respawned. Only while parked at a stop. */
+	bool LeaveSub();
+	/** The console: with cargo it banks; without, it shows the account and buys the next gate if affordable. */
+	void UseConsole();
+	void TakeHelm();
+	void LeaveHelm();
+	/** Drives toward TargetDepthM at the helm's speed (clamped to the limit) and parks if it is a stop. < 0 stops. */
+	void SetAutopilot(float TargetDepthM);
+	/** Buys the next layer gate (flashlight, then hull upgrade): at its price if affordable, or free. */
+	bool BuyNextGate(bool bFree);
 	void SetPatienceFraction(float Fraction);
 	/**
 	 * Credits, hull, stop, diver number, run totals, cargo, Patience and the serpent back to the start. A fresh dive
@@ -85,7 +122,7 @@ public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 protected:
-	enum class EDiveStart : uint8 { First, SameStop, NewStop, Respawn, Reset };
+	enum class EDiveStart : uint8 { First, Hatch };
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -107,14 +144,19 @@ protected:
 	void HandleRepelled(ADeepDiver* Who);
 
 	void StartDive(EDiveStart Reason);
+	/** First step of a run: aboard if the diver stands in the room, else a first dive (hand-spawned test divers). */
+	void BeginRun();
+	/** The diver came up through the hatch (or is home at the anchor). */
+	bool ReachedHatch(bool bArrivalOnly) const;
+	void StepAboard(float DeltaSeconds);
+	void StepHelm(float DeltaSeconds);
+	void Park(int32 Stop);
 	/** relic_seen, once per run, the first time the relic is near or in view. */
 	void StepRelicSeen();
 	/** Banking the relic: the run is won, the review goes up. */
 	void Win();
-	void Retether();
 	void Die(bool bByMonster = false);
 	void Respawn();
-	void SwapToNextDive();
 	void ChargeFee(int32 Fee);
 	void SetState(EDeepRunState NewState);
 
@@ -126,6 +168,9 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerRequestContinue();
+
+	UFUNCTION(Server, Unreliable)
+	void ServerSetHelmInput(float Input);
 
 	UFUNCTION(Client, Reliable)
 	void ClientEvent(FName Event, const FDeepEventPayload& Payload);
@@ -147,10 +192,22 @@ protected:
 	FDeepSettlementReport Settlement;
 
 	UPROPERTY(Replicated)
-	float DescendFromDepthM = 0.f;
+	bool bSeated = false;
 
 	UPROPERTY(Replicated)
-	float DescendToDepthM = 0.f;
+	bool bHelmAtLimit = false;
+
+	UPROPERTY(Replicated)
+	float LastConsoleTime = -100.f;
+
+	UPROPERTY(Replicated)
+	float LastGateTime = -100.f;
+
+	/** Server: the helm control, and the autopilot target (< 0 off). */
+	float HelmInput = 0.f;
+	float AutopilotDepthM = -1.f;
+	bool bWasDriving = false;
+	float IdleSeconds = 0.f;
 
 	UPROPERTY(Replicated)
 	float LastRefillFraction = 0.f;
@@ -185,7 +242,6 @@ protected:
 	TArray<FDelegateHandle> MonsterHandles;
 
 	bool bStarted = false;
-	bool bSwapped = false;
 	bool bFirstSalvageThisRun = true;
 	bool bWasHome = false;
 	bool bWasOverloaded = false;

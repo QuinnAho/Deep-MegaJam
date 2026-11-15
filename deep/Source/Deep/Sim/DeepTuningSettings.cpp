@@ -106,3 +106,13 @@ bool UDeepTuningSettings::FindSalvageKind(EDeepSalvageSize Size, FDeepSalvageKin
 	}
 	return false;
 }
+
+TArray<float> UDeepTuningSettings::StopDepthsM() const
+{
+	TArray<float> Out;
+	for (const FDeepStopTuning& Stop : Stops)
+	{
+		Out.Add(Stop.SubDepthM);
+	}
+	return Out;
+}

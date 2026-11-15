@@ -36,7 +36,12 @@ private:
 	void DrawBiteAlarm(const UDeepRunComponent& Run, float RealNow);
 	void DrawDead(const UDeepRunComponent& Run);
 	void DrawSettlement(const UDeepRunComponent& Run);
-	void DrawDescending(const UDeepRunComponent& Run);
+	/** Aboard and standing: labels on the hatch, console and helm, the one next step, the console's account panel. */
+	void DrawAboard(const ADeepDiver* Diver);
+	/** Seated at the helm: depth, a gauge with the stops and the limit, why the limit is there, what to do. */
+	void DrawHelm(const ADeepDiver* Diver);
+	/** A label over a world point if it is on screen. */
+	bool DrawMarker(const FVector& World, const FString& Label, const FLinearColor& Color);
 	/** Where home is: a box on the airlock, or an edge hint when it is off screen. */
 	void DrawAirlockMarker(const ADeepDiver* Diver, float Y);
 	void DrawTitle(float RealNow);
@@ -53,4 +58,7 @@ private:
 	TObjectPtr<UFont> BigFont;
 
 	float S = 1.f;
+	/** World time the current tethered dive began (the first dive's controls card). */
+	float DiveStartTime = -1.f;
+	bool bWasTethered = false;
 };

@@ -6,6 +6,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
+#include "World/DeepArenaRoot.h"
 #include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
@@ -39,6 +40,30 @@ namespace DeepArena
 		return World ? FindFirst<ADeepSubmarine>(World) : nullptr;
 	}
 
+	ADeepArenaRoot* FindArenaRoot(const UWorld* World)
+	{
+		return World ? FindFirst<ADeepArenaRoot>(World) : nullptr;
+	}
+
+	FVector ArenaAnchor(const UWorld* World)
+	{
+		const ADeepSubmarine* Sub = FindSubmarine(World);
+		if (!Sub)
+		{
+			return FVector::ZeroVector;
+		}
+		const ADeepArenaRoot* Root = FindArenaRoot(World);
+		return Sub->GetAnchorLocation() + (Root ? Root->GetActorLocation() - Sub->GetActorLocation() : FVector::ZeroVector);
+	}
+
+	static void HangFromRoot(UWorld* World, AActor* Actor)
+	{
+		if (ADeepArenaRoot* Root = Actor ? FindArenaRoot(World) : nullptr)
+		{
+			Actor->AttachToActor(Root, FAttachmentTransformRules::KeepWorldTransform);
+		}
+	}
+
 	ADeepSalvage* SpawnSalvage(UWorld* World, const FDeepSalvageKind& Kind, const FVector& LocationCm)
 	{
 		if (!World || World->GetNetMode() == NM_Client)
@@ -49,6 +74,7 @@ namespace DeepArena
 		if (Salvage)
 		{
 			Salvage->SetKind(Kind);
+			HangFromRoot(World, Salvage);
 		}
 		return Salvage;
 	}
@@ -56,7 +82,7 @@ namespace DeepArena
 	static int32 SpawnSalvageRing(UWorld* World, const ADeepSubmarine* Sub)
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-		const FVector Anchor = Sub->GetAnchorLocation();
+		const FVector Anchor = ArenaAnchor(World);
 		int32 Spawned = 0;
 		for (const FDeepSalvageSpot& Spot : Tuning.Arena.SalvageSpots)
 		{
@@ -120,7 +146,7 @@ namespace DeepArena
 			return Relic;
 		}
 		const FVector Offset = UDeepRules::RelicOffsetCm(Tuning.Arena, Tuning.GetStop(Stop).SubDepthM, UDeepRules::TetherLengthM(Stop, Tuning.Tether));
-		Relic = SpawnSalvage(World, Kind, Sub->GetAnchorLocation() + Offset);
+		Relic = SpawnSalvage(World, Kind, ArenaAnchor(World) + Offset);
 		UE_LOG(LogDeepArena, Log, TEXT("Relic placed %.1f m below the anchor at stop %d"), -Offset.Z / UDeepRules::CmPerM, Stop);
 		return Relic;
 	}
@@ -165,6 +191,10 @@ namespace DeepArena
 		{
 			return nullptr;
 		}
+		if (!FindArenaRoot(World))
+		{
+			World->SpawnActor<ADeepArenaRoot>(Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
+		}
 
 		if (!FindFirst<ADeepSalvage>(World))
 		{
@@ -177,6 +207,7 @@ namespace DeepArena
 			if (ADeepAbyssFloor* Floor = World->SpawnActor<ADeepAbyssFloor>(FloorAt, FRotator::ZeroRotator, SpawnParams()))
 			{
 				Floor->SetSizeM(Tuning.Arena.FloorSizeM);
+				HangFromRoot(World, Floor);
 			}
 		}
 
@@ -188,12 +219,49 @@ namespace DeepArena
 		return Sub;
 	}
 
+	static void PositionRoot(UWorld* World)
+	{
+		const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+		const ADeepSubmarine* Sub = FindSubmarine(World);
+		ADeepArenaRoot* Root = FindArenaRoot(World);
+		if (!State || !Sub || !Root)
+		{
+			return;
+		}
+		// Deeper than the loaded stop: the world is above us, so the root goes up.
+		const float OffsetM = State->SubDepthM - UDeepTuningSettings::Get().GetStop(State->Stop).SubDepthM;
+		Root->SetActorLocation(Sub->GetActorLocation() + FVector(0.f, 0.f, OffsetM * UDeepRules::CmPerM));
+	}
+
 	void ApplyStop(UWorld* World, int32 Stop)
 	{
 		if (ADeepEnvironment* Environment = World ? FindFirst<ADeepEnvironment>(World) : nullptr)
 		{
 			Environment->SetStop(Stop);
 		}
+		PositionRoot(World);
 		EnsureRelic(World, Stop);
+		if (ADeepSubmarine* Sub = FindSubmarine(World))
+		{
+			const ADeepGameState* State = World->GetGameState<ADeepGameState>();
+			Sub->SetHatchOpen(!State || State->bParked);
+		}
+	}
+
+	void ApplySubDepth(UWorld* World)
+	{
+		ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+		if (!State || World->GetNetMode() == NM_Client)
+		{
+			return;
+		}
+		const int32 Nearest = UDeepRules::NearestStop(State->SubDepthM, UDeepTuningSettings::Get().StopDepthsM());
+		const bool bNewArena = Nearest != State->Stop;
+		State->Stop = Nearest;
+		ApplyStop(World, Nearest);
+		if (bNewArena)
+		{
+			RespawnSalvage(World);
+		}
 	}
 }

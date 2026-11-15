@@ -628,7 +628,10 @@ bool FDeepMonsterLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Not an air death"), Bus->CountOf(DeepEvent::DeathAir), 0);
 	TestTrue(TEXT("The death screen names the serpent"), Run->WasLastDeathMonster());
 	Run->StepRun(Tuning.Run.DeathScreenSeconds + 0.1f);
-	TestEqual(TEXT("Respawned tethered"), Run->GetState(), EDeepRunState::Tethered);
+	// The replacement diver starts aboard (D-022) and drops through the hatch to dive again.
+	TestEqual(TEXT("Respawned aboard"), Run->GetState(), EDeepRunState::Aboard);
+	TestTrue(TEXT("Drops through the hatch"), Run->LeaveSub());
+	TestEqual(TEXT("Tethered again"), Run->GetState(), EDeepRunState::Tethered);
 	TestEqual(TEXT("Diver number goes up"), GameState->DiverNumber, DiverBefore + 1);
 	TestTrue(TEXT("The serpent knows the new diver is tethered"), Brain->IsTethered(Diver));
 

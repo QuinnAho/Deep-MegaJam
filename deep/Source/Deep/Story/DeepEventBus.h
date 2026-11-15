@@ -47,6 +47,12 @@ namespace DeepEvent
 	inline const TCHAR* RelicGrabbed = TEXT("relic_grabbed");
 	inline const TCHAR* RelicWinch = TEXT("relic_winch");
 	inline const TCHAR* Win = TEXT("win");
+	inline const TCHAR* EnterSub = TEXT("enter_sub");
+	inline const TCHAR* HelmTake = TEXT("helm_take");
+	inline const TCHAR* HelmDescend = TEXT("helm_descend");
+	inline const TCHAR* HelmDepthLimit = TEXT("helm_depth_limit");
+	inline const TCHAR* HelmArrive = TEXT("helm_arrive");
+	inline const TCHAR* IdleInside = TEXT("idle_inside");
 
 	/** Every event the game fires today. */
 	DEEP_API TArray<FName> AllFired();
