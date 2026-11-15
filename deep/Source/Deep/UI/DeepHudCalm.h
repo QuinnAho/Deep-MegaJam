@@ -40,6 +40,9 @@ namespace DeepHudCalm
 	/** The helm's controls (the helm lane's levers): W/S throttle, A/D rudder, SPACE/C ballast, X all stop, E stand up. */
 	DEEP_API TArray<FDeepHudPrompt> HelmHint();
 
+	/** The air line's row for the water hint: T unclips (bailout air, re-clip free at the hatch). */
+	DEEP_API FDeepHudPrompt UnclipHint();
+
 	/** A cue worth the screen: Warning or Danger, and about the hull, the line, the air or a bite. */
 	DEEP_API bool IsCriticalCue(const FDeepHudCue& Cue);
 

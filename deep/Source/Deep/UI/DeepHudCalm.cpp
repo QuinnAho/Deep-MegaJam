@@ -39,6 +39,11 @@ namespace DeepHudCalm
 		};
 	}
 
+	FDeepHudPrompt UnclipHint()
+	{
+		return Row(TEXT("h8"), TEXT("T"), TEXT("UNCLIP"), TEXT("bailout air; re-clip at the hatch"));
+	}
+
 	bool IsCriticalCue(const FDeepHudCue& Cue)
 	{
 		if (Cue.Tone != EDeepHudTone::Warning && Cue.Tone != EDeepHudTone::Danger)
@@ -181,6 +186,12 @@ void FDeepHudCalm::Apply(FDeepHudFrame& Frame, double Now)
 	if (Frame.Mode == EDeepHudMode::Helm)
 	{
 		Frame.Hint = DeepHudCalm::HelmHint();
+	}
+	else if (Frame.Mode == EDeepHudMode::Water && Frame.Hint.Num() > 0
+		&& !Frame.Hint.ContainsByPredicate([](const FDeepHudPrompt& P) { return P.Verb == TEXT("UNCLIP"); }))
+	{
+		// The air line (lane D): T unclips, the diver goes on bailout air and re-clips free at the hatch.
+		Frame.Hint.Add(DeepHudCalm::UnclipHint());
 	}
 	if ((Frame.Mode == EDeepHudMode::Aboard || Frame.Mode == EDeepHudMode::Helm || Frame.Mode == EDeepHudMode::Water) && Frame.Hint.Num() > 0)
 	{

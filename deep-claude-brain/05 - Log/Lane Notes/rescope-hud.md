@@ -37,11 +37,12 @@ One new pure layer, `UI/DeepHudCalm.h/.cpp` (`FDeepHudCalm::Apply`), thins the f
   - `Deep.UI.Hud.Panels`: water patience is now off, and there is no subtitle or patience in any play mode. The old assert said water shows patience.
   - `Deep.UI.Hud.Layout`: the depth panel is compact instead of 280 x 128. The strain-line-Y check is replaced by "depth clear of cargo".
   - `Deep.UI.Hud.GaugeLabels`: it now tests on a local copy of the old 400 px column, because `HelmGauge()` returns the slim readout. The SUB and LIMIT rule is kept in case the gauge comes back.
-- Results: see the commit and report.
+- Results: Deep.UI.Hud 11/11 (it includes HudCalm 4/4), Deep.UI.Sonar 6/6, Deep.UI.Settings 5/5, Deep.Story.Captain 4/4.
+- Lane D's air line (merged into integration): the Water hint gets a `T UNCLIP` row, added by the calm layer because `Game/DeepHUD.cpp` is outside this lane. With patience no longer draining while clipped on, the patience meter stays removed.
 
 ## Frames
 
-`devlog/media/2026-11-15-rescope-hud-helm.png`, `-aboard.png`, `-water.png` (1280x720).
+`devlog/media/2026-11-15-rescope-hud-helm.png`, `-aboard.png`, `-water.png` (1280x720). The helm frame shows the new levers hint, the sonar and the readout (LIMIT 200 m); aboard shows only the hint; water shows the small depth and the hint with T UNCLIP. There is no prompt, cue or patience at rest.
 
 ## Open
 

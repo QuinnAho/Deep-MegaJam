@@ -86,6 +86,7 @@ bool FDeepHudCalmHintTest::RunTest(const FString& Parameters)
 	FDeepHudFrame F = DeepHudCalmTest::Make(EDeepHudMode::Water);
 	Calm.Apply(F, 0.0);
 	TestTrue(TEXT("the water hint shows on the first dive"), DeepHudCalmTest::Has(F, ControlsHint));
+	TestTrue(TEXT("the water hint ends with T unclip"), F.Hint.Num() == 2 && F.Hint.Last().Key == TEXT("T") && F.Hint.Last().Verb == TEXT("UNCLIP"));
 	F = DeepHudCalmTest::Make(EDeepHudMode::Water);
 	F.DepthM = 1.f;
 	Calm.Apply(F, 1.0);
@@ -106,7 +107,7 @@ bool FDeepHudCalmHintTest::RunTest(const FString& Parameters)
 	F = DeepHudCalmTest::Make(EDeepHudMode::Pause);
 	F.Hint.Reset();
 	Calm.Apply(F, 20.0);
-	TestEqual(TEXT("pause carries the last controls list"), F.Hint.Num(), 1);
+	TestEqual(TEXT("pause carries the last controls list (with T unclip)"), F.Hint.Num(), 2);
 	F = DeepHudCalmTest::Make(EDeepHudMode::Water);
 	Calm.Apply(F, 21.0);
 	TestFalse(TEXT("back from pause: still gone"), DeepHudCalmTest::Has(F, ControlsHint));
