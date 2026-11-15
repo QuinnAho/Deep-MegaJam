@@ -75,8 +75,7 @@ void DeepHarpoonHUD::Draw(AHUD* Hud, UCanvas* Canvas, const ADeepDiver* Diver, f
 				const FLinearColor Color = !bInRange ? FarColor
 					: (Aim.Target == EDeepHarpoonTarget::Submarine ? SubColor : (Aim.Target == EDeepHarpoonTarget::Monster ? MonsterColor : TerrainColor));
 				Brackets(Hud, CX, CY, (bInRange ? 14.f : 9.f) * S, 6.f * S, bInRange ? 2.f * S : 1.f * S, Color);
-				const FString What = Aim.Target == EDeepHarpoonTarget::Submarine ? TEXT("SUB ") : (Aim.Target == EDeepHarpoonTarget::Monster ? TEXT("SERPENT ") : TEXT(""));
-				const FString Label = bInRange ? FString::Printf(TEXT("%s%.0f m"), *What, Aim.DistanceCm / 100.f)
+				const FString Label = bInRange ? FString::Printf(TEXT("%.0f m"), Aim.DistanceCm / 100.f)
 					: FString::Printf(TEXT("%.0f m - out of range"), Aim.DistanceCm / 100.f);
 				float W = 0.f, H = 0.f;
 				Hud->GetTextSize(Label, W, H, Font, S * 0.55f);
