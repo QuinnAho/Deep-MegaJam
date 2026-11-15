@@ -197,7 +197,8 @@ function Invoke-Build {
     $log = Join-Path $HarnessDir ('build-{0}.log' -f (New-Stamp))
     # -NoHotReloadFromIDE: an editor open on ANOTHER checkout holds the engine-wide Live Coding mutex and would block
     # this build. Get-ProjectEditors above already refuses when an editor has this checkout open.
-    $argLine = '/d /s /c ""{0}" DeepEditor Win64 Development -Project="{1}" -WaitMutex -NoHotReloadFromIDE"' -f $BuildBat, $UProject
+    # -DisableAdaptiveUnity: modified/untracked files otherwise compile alone and hide duplicate file-scope names that break once committed.
+    $argLine = '/d /s /c ""{0}" DeepEditor Win64 Development -Project="{1}" -WaitMutex -NoHotReloadFromIDE -DisableAdaptiveUnity"' -f $BuildBat, $UProject
     Write-Host ('build: DeepEditor Win64 Development, timeout {0} min' -f $TimeoutBuildMin)
     $r = Invoke-Proc 'cmd.exe' $argLine $log ($TimeoutBuildMin * 60)
     if (-not $r.Started) {

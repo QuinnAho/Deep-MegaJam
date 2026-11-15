@@ -26,7 +26,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepAudio, Log, All);
 
 namespace
 {
-	constexpr int32 MaxHistory = 64;
+	constexpr int32 MaxAudioHistory = 64;
 	/** A loop under this (0..1 of its fade) counts as silent: stopped and not reported. */
 	constexpr float SilentLoop = 0.001f;
 	/** A jump of the sub (GotoStop) bigger than this in one step is not driving. */
@@ -285,7 +285,7 @@ bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 
 	const EDeepSoundSource Source = Resolve(*Row);
 	const float Volume = RowVolume(*Row);
-	if (History.Num() >= MaxHistory)
+	if (History.Num() >= MaxAudioHistory)
 	{
 		History.RemoveAt(0);
 	}
