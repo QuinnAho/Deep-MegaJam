@@ -36,6 +36,17 @@ float UDeepRules::TetherLengthM(int32 Stop, const FDeepTetherTuning& Tuning)
 	return FMath::Max(0.f, Tuning.BaseLengthM + Tuning.LengthPerStopM * static_cast<float>(Extra));
 }
 
+float UDeepRules::RopeShownLengthCm(float StraightCm, float TetherLengthCm, bool bTaut, const FDeepRopeTuning& Rope)
+{
+	StraightCm = FMath::Max(0.f, StraightCm);
+	if (bTaut)
+	{
+		return StraightCm;
+	}
+	const float Slack = FMath::Min3(StraightCm * Rope.SlackShare, Rope.SlackMaxM * CmPerM, TetherLengthCm - StraightCm);
+	return StraightCm + FMath::Max(0.f, Slack);
+}
+
 FDeepTetherSolve UDeepRules::SolveTether(const FVector& AnchorCm, const FVector& WantedCm, float LengthM, const FDeepTetherTuning& Tuning)
 {
 	FDeepTetherSolve Out;
@@ -71,6 +82,11 @@ FDeepTetherSolve UDeepRules::SolveTether(const FVector& AnchorCm, const FVector&
 		Out.ClampedPositionCm = WantedCm;
 	}
 	return Out;
+}
+
+float UDeepRules::WinchSpeedMps(bool bCarryingRelic, const FDeepTetherTuning& Tuning)
+{
+	return FMath::Max(0.f, bCarryingRelic ? Tuning.RelicWinchSpeedMps : Tuning.WinchSpeedMps);
 }
 
 FVector UDeepRules::WinchStep(const FVector& DiverCm, const FVector& AnchorCm, float DeltaSeconds, const FDeepTetherTuning& Tuning)
@@ -571,3 +587,39 @@ bool UDeepRules::InHatchColumn(const FVector& LocalCm, const FDeepSubTuning& Tun
 	const double Half = Tuning.HatchHalfSizeM * CmPerM;
 	return FMath::Abs(LocalCm.X) <= Half && FMath::Abs(LocalCm.Y) <= Half;
 }
+
+float UDeepRules::LampNearScale(float DistM, const FDeepLampTuning& Tuning)
+{
+	return LampScaleForBrightest(LampSampleBrightness(DistM, 1.f, 1.f, Tuning), Tuning);
+}
+
+float UDeepRules::LampConeFalloff(float CosAngle, const FDeepLampTuning& Tuning)
+{
+	// As the engine's SpotAttenuation: Square(saturate((cos - cosOuter) / (cosInner - cosOuter))).
+	const float Outer = FMath::Clamp(Tuning.OuterConeDeg, 0.f, 89.f);
+	const float Inner = FMath::Clamp(Tuning.InnerConeDeg, 0.f, Outer);
+	const float CosOuter = FMath::Cos(FMath::DegreesToRadians(Outer));
+	const float CosInner = FMath::Cos(FMath::DegreesToRadians(Inner));
+	const float Span = FMath::Max(CosInner - CosOuter, 1e-4f);
+	return FMath::Square(FMath::Clamp((CosAngle - CosOuter) / Span, 0.f, 1.f));
+}
+
+float UDeepRules::LampSampleBrightness(float DistM, float CosOffAxis, float CosIncidence, const FDeepLampTuning& Tuning)
+{
+	if (DistM < 0.f || Tuning.NearFullM <= 0.f)
+	{
+		return 0.f;
+	}
+	const float D = FMath::Max(DistM, 0.01f);
+	return LampConeFalloff(CosOffAxis, Tuning) * FMath::Clamp(CosIncidence, 0.f, 1.f) * FMath::Square(Tuning.NearFullM / D);
+}
+
+float UDeepRules::LampScaleForBrightest(float Brightest, const FDeepLampTuning& Tuning)
+{
+	if (Brightest <= 1.f)
+	{
+		return 1.f;
+	}
+	return FMath::Clamp(1.f / Brightest, FMath::Clamp(Tuning.NearMinScale, 0.f, 1.f), 1.f);
+}
+

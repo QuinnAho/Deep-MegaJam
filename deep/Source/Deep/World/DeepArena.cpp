@@ -1,5 +1,7 @@
 #include "World/DeepArena.h"
 
+#include "Sim/DeepPilotRules.h"
+
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
 #include "EngineUtils.h"
@@ -7,8 +9,11 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArenaRoot.h"
+#include "World/DeepCavern.h"
+#include "World/DeepDressing.h"
 #include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepArena, Log, All);
@@ -203,17 +208,31 @@ namespace DeepArena
 
 		if (!FindFirst<ADeepAbyssFloor>(World))
 		{
-			const FVector FloorAt = Sub->GetActorLocation() - FVector(0.f, 0.f, Tuning.Arena.FloorBelowSubM * UDeepRules::CmPerM);
-			if (ADeepAbyssFloor* Floor = World->SpawnActor<ADeepAbyssFloor>(FloorAt, FRotator::ZeroRotator, SpawnParams()))
+			// The sea bed is built around the anchor, through every salvage spot's resting point (ADeepAbyssFloor).
+			if (ADeepAbyssFloor* Floor = World->SpawnActor<ADeepAbyssFloor>(ArenaAnchor(World), FRotator::ZeroRotator, SpawnParams()))
 			{
-				Floor->SetSizeM(Tuning.Arena.FloorSizeM);
 				HangFromRoot(World, Floor);
+			}
+		}
+
+		if (!FindFirst<ADeepCavern>(World))
+		{
+			// Rock walls and a roof round the arena, built round the same anchor and hung the same way (ADeepCavern).
+			if (ADeepCavern* Cavern = World->SpawnActor<ADeepCavern>(ArenaAnchor(World), FRotator::ZeroRotator, SpawnParams()))
+			{
+				HangFromRoot(World, Cavern);
 			}
 		}
 
 		if (!FindFirst<ADeepEnvironment>(World))
 		{
 			World->SpawnActor<ADeepEnvironment>(Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
+		}
+
+		// Rock and ruin from the packs (Content/Data/Dressing.csv), hung from the root; every machine reads the rows itself.
+		if (!FindFirst<ADeepDressing>(World))
+		{
+			World->SpawnActor<ADeepDressing>(FindArenaRoot(World)->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
 		}
 		ApplyStop(World, Stop);
 		return Sub;
@@ -228,9 +247,25 @@ namespace DeepArena
 		{
 			return;
 		}
-		// Deeper than the loaded stop: the world is above us, so the root goes up.
+		// Deeper than the loaded stop: the world is above us, so the root goes up. Steered to starboard in the cave
+		// shaft: the world slides to port (SubOffsetM, in the sub's frame).
 		const float OffsetM = State->SubDepthM - UDeepTuningSettings::Get().GetStop(State->Stop).SubDepthM;
-		Root->SetActorLocation(Sub->GetActorLocation() + FVector(0.f, 0.f, OffsetM * UDeepRules::CmPerM));
+		// Turned by the helm's rudder: the world turns the other way about the vertical through the sub (identity at yaw 0).
+		FQuat Turn;
+		const FVector At = UDeepPilotRules::HangLocationCm(Sub->GetActorLocation(), Sub->GetActorQuat(), State->SubOffsetM, OffsetM, State->SubYawDeg, Turn);
+		Root->SetActorLocationAndRotation(At, Turn);
+		if (ADeepShaft* Shaft = FindFirst<ADeepShaft>(World))
+		{
+			Shaft->Follow();
+		}
+	}
+
+	void MoveRoot(UWorld* World)
+	{
+		if (World && World->GetNetMode() != NM_Client)
+		{
+			PositionRoot(World);
+		}
 	}
 
 	void ApplyStop(UWorld* World, int32 Stop)
@@ -241,10 +276,16 @@ namespace DeepArena
 		}
 		PositionRoot(World);
 		EnsureRelic(World, Stop);
+		// The root may have re-based: dressing placed by absolute depth follows in the same frame.
+		if (ADeepDressing* Dressing = World ? FindFirst<ADeepDressing>(World) : nullptr)
+		{
+			Dressing->Refresh();
+		}
 		if (ADeepSubmarine* Sub = FindSubmarine(World))
 		{
 			const ADeepGameState* State = World->GetGameState<ADeepGameState>();
-			Sub->SetHatchOpen(!State || State->bParked);
+			// Parked off the stop's centre (the cave shaft), the sub glides home first; the hatch opens once it is there.
+			Sub->SetHatchOpen(!State || State->IsSettledAtStop());
 		}
 	}
 

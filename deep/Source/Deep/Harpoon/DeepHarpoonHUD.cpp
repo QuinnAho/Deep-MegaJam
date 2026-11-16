@@ -7,16 +7,17 @@
 #include "GameFramework/HUD.h"
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "Harpoon/DeepHarpoonSettings.h"
+#include "UI/DeepHudStyle.h"
 
 namespace
 {
-	const FLinearColor ReadyColor(0.35f, 1.f, 0.55f);
-	const FLinearColor SpentColor(0.55f, 0.6f, 0.62f, 0.9f);
-	const FLinearColor SubColor(1.f, 0.75f, 0.2f);
-	const FLinearColor TerrainColor(0.9f, 0.95f, 1.f);
-	const FLinearColor MonsterColor(1.f, 0.25f, 0.2f);
-	const FLinearColor FarColor(0.6f, 0.65f, 0.7f, 0.6f);
-	const FLinearColor Panel(0.f, 0.02f, 0.04f, 0.85f);
+	const FLinearColor ReadyColor = DeepHudStyle::Primary();
+	const FLinearColor SpentColor = DeepHudStyle::Secondary(DeepHudStyle::FarAlpha);
+	const FLinearColor SubColor = DeepHudStyle::Primary();
+	const FLinearColor TerrainColor = DeepHudStyle::Primary();
+	const FLinearColor MonsterColor = DeepHudStyle::Alert();
+	const FLinearColor FarColor = DeepHudStyle::Secondary(DeepHudStyle::FarAlpha);
+	const FLinearColor Panel = DeepHudStyle::PanelFill();
 
 	float Backed(AHUD* Hud, const FString& Text, const FLinearColor& Color, float X, float Y, UFont* Font, float Scale, bool bCentre)
 	{
@@ -36,6 +37,10 @@ namespace
 			{
 				const float X = CX + SX * Half;
 				const float Y = CY + SY * Half;
+				// The dark edge first (no panel behind the brackets), then the mark.
+				const FLinearColor Edge = DeepHudStyle::Shade(DeepHudStyle::OutlineAlpha * Color.A);
+				Hud->DrawLine(X + SX, Y, X - SX * (Arm + 1.f), Y, Edge, Thick + 2.f);
+				Hud->DrawLine(X, Y + SY, X, Y - SY * (Arm + 1.f), Edge, Thick + 2.f);
 				Hud->DrawLine(X, Y, X - SX * Arm, Y, Color, Thick);
 				Hud->DrawLine(X, Y, X, Y - SY * Arm, Color, Thick);
 			}
@@ -70,8 +75,7 @@ void DeepHarpoonHUD::Draw(AHUD* Hud, UCanvas* Canvas, const ADeepDiver* Diver, f
 				const FLinearColor Color = !bInRange ? FarColor
 					: (Aim.Target == EDeepHarpoonTarget::Submarine ? SubColor : (Aim.Target == EDeepHarpoonTarget::Monster ? MonsterColor : TerrainColor));
 				Brackets(Hud, CX, CY, (bInRange ? 14.f : 9.f) * S, 6.f * S, bInRange ? 2.f * S : 1.f * S, Color);
-				const FString What = Aim.Target == EDeepHarpoonTarget::Submarine ? TEXT("SUB ") : (Aim.Target == EDeepHarpoonTarget::Monster ? TEXT("SERPENT ") : TEXT(""));
-				const FString Label = bInRange ? FString::Printf(TEXT("%s%.0f m"), *What, Aim.DistanceCm / 100.f)
+				const FString Label = bInRange ? FString::Printf(TEXT("%.0f m"), Aim.DistanceCm / 100.f)
 					: FString::Printf(TEXT("%.0f m - out of range"), Aim.DistanceCm / 100.f);
 				float W = 0.f, H = 0.f;
 				Hud->GetTextSize(Label, W, H, Font, S * 0.55f);

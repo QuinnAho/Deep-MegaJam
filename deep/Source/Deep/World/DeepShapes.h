@@ -26,4 +26,7 @@ namespace DeepShapes
 
 	/** Gives the component a tinted dynamic instance of the basic shape material. Call at runtime (BeginPlay or later). */
 	DEEP_API void Tint(UStaticMeshComponent* Component, const FLinearColor& Color);
+
+	/** Worn painted steel (FDeepLookTuning::SteelMaterial) on any mesh: paint chipped by Wear (0..1) to bare metal, Rust (0..1) streaks. Falls back to Tint. Runtime only. */
+	DEEP_API void Steel(UStaticMeshComponent* Component, const FLinearColor& Paint, float Wear, float Rust, float PaintRough, float PaintMetal);
 }

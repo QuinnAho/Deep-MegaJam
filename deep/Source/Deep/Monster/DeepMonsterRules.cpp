@@ -93,6 +93,12 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		{
 			// Still shaken from the lamp: nothing brings it in yet.
 		}
+		else if (In.bFirstSightPending && (In.Noise >= Tuning.StalkNoise || !In.bDiverTethered || In.StateSeconds >= Tuning.FirstSightAfterS))
+		{
+			// Before its first hunt it shows itself once: a sound, then part of it at the edge of the lamp.
+			Out.Next = EDeepMonsterState::Pass;
+			Out.bPassStarted = true;
+		}
 		else if (!In.bDiverTethered)
 		{
 			Out.Next = EDeepMonsterState::Hunt;
@@ -113,6 +119,12 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		{
 			Out.Next = EDeepMonsterState::Hunt;
 		}
+		else if (In.TauntsLeft > 0 && In.TetherDistanceM <= Tuning.TauntStartM)
+		{
+			// Not yet: it shows itself and withdraws first, so the player feels watched before it strikes.
+			Out.Next = EDeepMonsterState::Taunt;
+			Out.bTauntStarted = true;
+		}
 		else if (In.TetherDistanceM <= Tuning.BiteReachM)
 		{
 			Out.Next = EDeepMonsterState::Bite;
@@ -121,6 +133,23 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		else if (In.Noise < Tuning.CalmNoise)
 		{
 			Out.Next = EDeepMonsterState::Lurk;
+		}
+		break;
+
+	case EDeepMonsterState::Taunt:
+		if (In.LitSeconds >= Tuning.TauntLitToRecoilS)
+		{
+			Out.Next = EDeepMonsterState::Recoil;
+			Out.bRepelled = true;
+		}
+		else if (!In.bDiverTethered)
+		{
+			Out.Next = EDeepMonsterState::Hunt;
+		}
+		else if (In.bTauntComplete || In.StateSeconds >= Tuning.TauntMaxS)
+		{
+			// Back into the dark, and still coming: the stalk goes on (a taunt never bites, never calms it).
+			Out.Next = EDeepMonsterState::Stalk;
 		}
 		break;
 
@@ -149,6 +178,20 @@ FDeepMonsterStep UDeepMonsterRules::NextState(const FDeepMonsterInputs& In, cons
 		{
 			Out.Next = EDeepMonsterState::Lurk;
 			Out.bStartCooldown = true;
+		}
+		break;
+
+	case EDeepMonsterState::Pass:
+		if (In.LitSeconds >= Tuning.PassLitToRecoilS)
+		{
+			// The lamp works here too: the first lesson.
+			Out.Next = EDeepMonsterState::Recoil;
+			Out.bRepelled = true;
+		}
+		else if (In.bPassComplete || In.StateSeconds >= Tuning.PassMaxS)
+		{
+			// Gone into the dark; normal hunting from here.
+			Out.Next = EDeepMonsterState::Lurk;
 		}
 		break;
 
@@ -243,6 +286,223 @@ FVector UDeepMonsterRules::TurnToward(const FVector& Heading, const FVector& Wan
 	return FQuat(Axis.GetSafeNormal(), MaxRad).RotateVector(H).GetSafeNormal();
 }
 
+namespace
+{
+	/** Out's direction, turned toward In until it is within the limit's angle of it (In is a unit vector). */
+	FVector BendClamped(const FVector& In, const FVector& Out, double CosLimit, double SinLimit)
+	{
+		const FVector Dir = Out.GetSafeNormal(UE_SMALL_NUMBER, In);
+		const double Cos = FVector::DotProduct(In, Dir);
+		if (Cos >= CosLimit)
+		{
+			return Dir;
+		}
+		FVector Perp = Dir - In * Cos;
+		if (!Perp.Normalize())
+		{
+			Perp = FVector::CrossProduct(In, FVector::UpVector);
+			if (!Perp.Normalize())
+			{
+				Perp = FVector::CrossProduct(In, FVector::RightVector).GetSafeNormal();
+			}
+		}
+		return In * CosLimit + Perp * SinLimit;
+	}
+
+	bool ChainIsSound(const FDeepSerpentChain& Chain)
+	{
+		const int32 N = Chain.Pos.Num();
+		return N >= 2 && Chain.Old.Num() == N && Chain.RestCm.Num() == N - 1;
+	}
+}
+
+void UDeepMonsterRules::LayChain(FDeepSerpentChain& Chain, const TArray<FVector>& PathCm, float StartCm)
+{
+	const int32 N = Chain.RestCm.Num() + 1;
+	Chain.Pos.SetNum(N);
+	float Along = StartCm;
+	for (int32 i = 0; i < N; ++i)
+	{
+		if (i > 0)
+		{
+			Along += Chain.RestCm[i - 1];
+		}
+		Chain.Pos[i] = PointAlongTrail(PathCm, Along);
+	}
+	Chain.Old = Chain.Pos;
+	Chain.CarryS = 0.f;
+}
+
+int32 UDeepMonsterRules::StepChain(FDeepSerpentChain& Chain, const FVector& PinCm, const FVector& PinForward, const TArray<FVector>& PathCm,
+	float StartCm, const FDeepSerpentChainTuning& Tuning, float DeltaSeconds)
+{
+	return StepChain(Chain, PinCm, PinForward, PathCm, StartCm, Tuning, DeltaSeconds, [](const FVector& P) { return P; });
+}
+
+int32 UDeepMonsterRules::StepChain(FDeepSerpentChain& Chain, const FVector& PinCm, const FVector& PinForward, const TArray<FVector>& PathCm,
+	float StartCm, const FDeepSerpentChainTuning& Tuning, float DeltaSeconds, TFunctionRef<FVector(const FVector&)> Keep)
+{
+	if (!ChainIsSound(Chain) || PinCm.ContainsNaN() || PinForward.ContainsNaN())
+	{
+		return 0;
+	}
+	const int32 N = Chain.Pos.Num();
+	TArray<FVector>& Pos = Chain.Pos;
+	TArray<FVector>& Old = Chain.Old;
+	const TArray<float>& Rest = Chain.RestCm;
+
+	// Fixed substeps; a long frame is clamped so a hitch never throws the body.
+	const float H = FMath::Max(0.001f, Tuning.SubstepS);
+	const float MaxFrame = FMath::Max(H, Tuning.MaxFrameS);
+	const float Dt = FMath::IsFinite(DeltaSeconds) ? FMath::Clamp(DeltaSeconds, 0.f, MaxFrame) : 0.f;
+	Chain.CarryS = FMath::Clamp(Chain.CarryS + Dt, 0.f, MaxFrame + H);
+	const int32 Steps = FMath::FloorToInt(Chain.CarryS / H);
+	Chain.CarryS -= Steps * H;
+	if (Steps <= 0)
+	{
+		// No substep this frame: the pin still follows the head, so the neck never lags a frame.
+		Pos[0] = PinCm;
+		Old[0] = PinCm;
+		return 0;
+	}
+
+	const FVector Back = -PinForward.GetSafeNormal(UE_SMALL_NUMBER, -(Pos[1] - Pos[0]).GetSafeNormal(UE_SMALL_NUMBER, -FVector::ForwardVector));
+	const double Limit = FMath::DegreesToRadians(FMath::Clamp(Tuning.BendLimitDeg, 1.f, 179.f));
+	const double CosL = FMath::Cos(Limit);
+	const double SinL = FMath::Sin(Limit);
+	const float Damp = FMath::Exp(-FMath::Max(0.f, Tuning.DragPerS) * H);
+	const float SideDamp = FMath::Exp(-FMath::Max(0.f, Tuning.SideDragPerS) * H);
+	const float Pull = PathCm.Num() > 0 ? 1.f - FMath::Exp(-FMath::Max(0.f, Tuning.TrailPullPerS) * H) : 0.f;
+	const int32 Iterations = FMath::Clamp(Tuning.Iterations, 1, 16);
+
+	// Where on the head's path each particle belongs (the path does not change within a frame).
+	TArray<FVector, TInlineAllocator<72>> Targets;
+	if (Pull > 0.f)
+	{
+		Targets.SetNum(N);
+		float Along = StartCm;
+		for (int32 i = 0; i < N; ++i)
+		{
+			Along += i > 0 ? Rest[i - 1] : 0.f;
+			Targets[i] = PointAlongTrail(PathCm, Along);
+		}
+	}
+
+	const FVector PinFrom = Pos[0];
+	for (int32 Step = 0; Step < Steps; ++Step)
+	{
+		// Verlet: x' = x + (x - x_old) * drag. Neutrally buoyant: no gravity.
+		for (int32 i = 1; i < N; ++i)
+		{
+			// Anisotropic water drag: little along the body, much more across it.
+			FVector Vel = Pos[i] - Old[i];
+			const FVector Front = i == 1 ? Pos[0] : Old[i - 1]; // the neighbour as it was before this step
+			const FVector Along = (Front - Pos[FMath::Min(i + 1, N - 1)]).GetSafeNormal();
+			const FVector VelAlong = Along * FVector::DotProduct(Vel, Along);
+			Vel = VelAlong * Damp + (Vel - VelAlong) * (Damp * SideDamp);
+			Old[i] = Pos[i];
+			Pos[i] += Vel;
+		}
+		Pos[0] = FMath::Lerp(PinFrom, PinCm, (Step + 1) / static_cast<float>(Steps));
+		Old[0] = Pos[0];
+
+		// A light pull onto the head's path: in a winding shaft the body goes where the head went.
+		if (Pull > 0.f)
+		{
+			for (int32 i = 1; i < N; ++i)
+			{
+				// Old moves with Pos: the pull drifts the body toward the path without adding speed, so it never springs past it.
+				const FVector Drift = (Targets[i] - Pos[i]) * Pull;
+				Pos[i] += Drift;
+				Old[i] += Drift;
+			}
+		}
+
+		// Relax the links (Jakobsen): each pair shares the correction; the pinned neck gives none.
+		for (int32 It = 0; It < Iterations; ++It)
+		{
+			for (int32 i = 0; i + 1 < N; ++i)
+			{
+				FVector Delta = Pos[i + 1] - Pos[i];
+				const double Len = Delta.Size();
+				const FVector Dir = Len > UE_SMALL_NUMBER ? Delta / Len : Back;
+				const FVector Corr = Dir * (Len - Rest[i]);
+				if (i == 0)
+				{
+					Pos[1] -= Corr;
+				}
+				else
+				{
+					Pos[i] += Corr * 0.5f;
+					Pos[i + 1] -= Corr * 0.5f;
+				}
+			}
+		}
+
+		// Head to tail: every joint within the bend limit, every link at its rest length, then out of the rock.
+		for (int32 i = 0; i + 1 < N; ++i)
+		{
+			const FVector In = i == 0 ? Back : (Pos[i] - Pos[i - 1]).GetSafeNormal(UE_SMALL_NUMBER, Back);
+			Pos[i + 1] = Pos[i] + BendClamped(In, Pos[i + 1] - Pos[i], CosL, SinL) * Rest[i];
+		}
+		for (int32 i = 1; i < N; ++i)
+		{
+			Pos[i] = Keep(Pos[i]);
+		}
+	}
+
+	for (int32 i = 0; i < N; ++i)
+	{
+		if (Pos[i].ContainsNaN() || Old[i].ContainsNaN())
+		{
+			TArray<FVector> Straight = { PinCm, PinCm + Back * 100.f };
+			LayChain(Chain, Straight, 0.f);
+			break;
+		}
+	}
+	return Steps;
+}
+
+void UDeepMonsterRules::KickChain(FDeepSerpentChain& Chain, const FVector& Up, float KickCmPerS, float WaveCm, float SubstepS)
+{
+	if (!ChainIsSound(Chain))
+	{
+		return;
+	}
+	const int32 N = Chain.Pos.Num();
+	float Total = 0.f;
+	for (const float R : Chain.RestCm)
+	{
+		Total += R;
+	}
+	float Along = 0.f;
+	for (int32 i = 1; i < N; ++i)
+	{
+		Along += Chain.RestCm[i - 1];
+		const FVector Link = Chain.Pos[i] - Chain.Pos[i - 1];
+		FVector Side = FVector::CrossProduct(Up, Link);
+		if (!Side.Normalize())
+		{
+			continue;
+		}
+		// A cosine, so the tail always gets the whole kick whatever the body length.
+		const float Wave = FMath::Cos(2.f * PI * Along / FMath::Max(1.f, WaveCm));
+		const float Kick = KickCmPerS * (Along / FMath::Max(1.f, Total)) * Wave;
+		Chain.Old[i] -= Side * (Kick * FMath::Max(0.f, SubstepS));
+	}
+}
+
+float UDeepMonsterRules::ChainBendDeg(const FDeepSerpentChain& Chain, int32 Joint, const FVector& PinForward)
+{
+	if (!ChainIsSound(Chain) || Joint < 0 || Joint + 1 >= Chain.Pos.Num())
+	{
+		return 0.f;
+	}
+	const FVector In = Joint == 0 ? -PinForward.GetSafeNormal() : (Chain.Pos[Joint] - Chain.Pos[Joint - 1]).GetSafeNormal();
+	const FVector Out = (Chain.Pos[Joint + 1] - Chain.Pos[Joint]).GetSafeNormal();
+	return FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(In, Out), -1.0, 1.0)));
+}
+
 FVector UDeepMonsterRules::PointAlongTrail(const TArray<FVector>& TrailCm, float DistanceCm)
 {
 	if (TrailCm.Num() == 0)
@@ -279,8 +539,82 @@ FString UDeepMonsterRules::StateName(EDeepMonsterState State)
 	case EDeepMonsterState::Recoil: return TEXT("Recoil");
 	case EDeepMonsterState::Bite: return TEXT("Bite");
 	case EDeepMonsterState::Hunt: return TEXT("Hunt");
+	case EDeepMonsterState::Pass: return TEXT("Pass");
+	case EDeepMonsterState::Taunt: return TEXT("Taunt");
 	}
 	return TEXT("Unknown");
+}
+
+// ---------------------------------------------------------------- hearing, voice, taunt (lane G, Nov 15)
+
+float UDeepMonsterRules::NoiseForEvent(FName Event, float ImpactMps, const FDeepMonsterTuning& Tuning)
+{
+	if (Event == FName(TEXT("sonar_ping")))
+	{
+		return Tuning.PingNoise;
+	}
+	if (Event == FName(TEXT("harpoon_fired")))
+	{
+		return Tuning.HarpoonNoise;
+	}
+	if (Event == FName(TEXT("hull_hit")))
+	{
+		return Tuning.HullKnockNoise + Tuning.HullKnockNoisePerMps * FMath::Max(0.f, ImpactMps);
+	}
+	return 0.f;
+}
+
+float UDeepMonsterRules::HelmNoise(float DriveSpeedMps, float FullSpeedMps, float DeltaSeconds, const FDeepMonsterTuning& Tuning)
+{
+	if (FullSpeedMps <= KINDA_SMALL_NUMBER || DeltaSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	const float Throttle = FMath::Clamp(FMath::Abs(DriveSpeedMps) / FullSpeedMps, 0.f, 1.f);
+	return Tuning.HelmNoisePerS * Throttle * DeltaSeconds;
+}
+
+bool UDeepMonsterRules::ShouldAnswer(float HeardNoise, float SinceLastCallS, const FDeepMonsterTuning& Tuning)
+{
+	return HeardNoise >= Tuning.AnswerNoise && SinceLastCallS >= Tuning.AnswerCooldownS;
+}
+
+float UDeepMonsterRules::VoiceGain(float DistanceM, float InnerM, float FalloffM)
+{
+	if (DistanceM <= InnerM)
+	{
+		return 1.f;
+	}
+	if (FalloffM <= KINDA_SMALL_NUMBER)
+	{
+		return 0.f;
+	}
+	return FMath::Clamp(1.f - (DistanceM - InnerM) / FalloffM, 0.f, 1.f);
+}
+
+float UDeepMonsterRules::ClickEveryS(EDeepMonsterState State, float Threat01, const FDeepMonsterTuning& Tuning)
+{
+	const bool bClose = State == EDeepMonsterState::Stalk || State == EDeepMonsterState::Taunt || State == EDeepMonsterState::Bite
+		|| State == EDeepMonsterState::Hunt || State == EDeepMonsterState::Pass;
+	const float Near = bClose ? 1.f : FMath::Clamp(Threat01, 0.f, 1.f);
+	return FMath::Lerp(Tuning.ClickEveryCalmS, Tuning.ClickEveryNearS, Near);
+}
+
+void UDeepMonsterRules::TauntPath(const FVector& DiverCm, const FVector& BitePointCm, const FVector& ViewForward, float Side,
+	const FDeepMonsterTuning& Tuning, TArray<FVector>& OutPoints)
+{
+	OutPoints.Reset();
+	FVector F = ViewForward;
+	F.Z = 0.f;
+	F = F.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+	const FVector R = FVector::CrossProduct(FVector::UpVector, F).GetSafeNormal() * (Side >= 0.f ? 1.f : -1.f);
+	// 1. The edge of the light: ahead and to the side, at TauntEdgeM, where the lamp's cone ends and the dark begins.
+	OutPoints.Add(DiverCm + (F * 0.8f + R * 0.6f).GetSafeNormal() * (Tuning.TauntEdgeM * CmPerM));
+	// 2. The brush: across the line, TauntBrushM off the bite point on the other side, never inside the bite reach.
+	const float BrushM = FMath::Max(Tuning.TauntBrushM, Tuning.BiteReachM + 1.f);
+	OutPoints.Add(BitePointCm - R * (BrushM * CmPerM));
+	// 3. Back into the dark, away on the far side.
+	OutPoints.Add(DiverCm + (-R * 0.8f - F * 0.6f).GetSafeNormal() * (Tuning.TauntWithdrawM * CmPerM));
 }
 
 void UDeepMonsterRules::ReportDiverNoise(UObject* WorldContextObject, FVector LocationCm, float Loudness, AActor* Instigator)
@@ -290,4 +624,127 @@ void UDeepMonsterRules::ReportDiverNoise(UObject* WorldContextObject, FVector Lo
 		// MaxRange 0: the listener's HearingRange (scaled by loudness) decides who hears it.
 		UAISense_Hearing::ReportNoiseEvent(WorldContextObject, LocationCm, Loudness, Instigator, 0.f, TEXT("DeepNoise"));
 	}
+}
+
+// ---------------------------------------------------------------- the well
+
+bool UDeepMonsterRules::IsInWell(const FDeepWell& Well, const FVector& PointCm, double MarginCm)
+{
+	if (!Well.bValid)
+	{
+		return false;
+	}
+	const double Off = FVector2D::Distance(FVector2D(PointCm.X, PointCm.Y), Well.AxisCm);
+	return Off <= Well.RadiusCm - MarginCm && PointCm.Z >= Well.FloorZCm && PointCm.Z <= Well.TopZCm;
+}
+
+float UDeepMonsterRules::WellAxisDistanceM(const FDeepWell& Well, const FVector& PointCm)
+{
+	return static_cast<float>(FVector2D::Distance(FVector2D(PointCm.X, PointCm.Y), Well.AxisCm) / CmPerM);
+}
+
+FVector UDeepMonsterRules::KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning, float WallClearM)
+{
+	if (!Well.bValid)
+	{
+		return AimCm;
+	}
+	const double MaxOff = FMath::Max(0.0, Well.RadiusCm - (WallClearM >= 0.f ? WallClearM : Tuning.WellWallClearM) * CmPerM);
+	FVector2D Off = FVector2D(AimCm.X, AimCm.Y) - Well.AxisCm;
+	if (Off.Size() > MaxOff)
+	{
+		Off = Off.GetSafeNormal() * MaxOff;
+	}
+	const double Z = FMath::Max(AimCm.Z, Well.FloorZCm + Tuning.WellFloorClearM * CmPerM);
+	return FVector(Well.AxisCm.X + Off.X, Well.AxisCm.Y + Off.Y, Z);
+}
+
+float UDeepMonsterRules::WellHoldBelowM(float RiseMps, const FDeepMonsterTuning& Tuning)
+{
+	const float Stalk = FMath::Max(0.1f, Tuning.StalkSpeedMps);
+	const float OpenWaterApproachS = FMath::Max(0.f, Tuning.LurkRadiusM - Tuning.BiteReachM) / Stalk;
+	const float Closing = FMath::Clamp(Stalk - FMath::Max(0.f, RiseMps), 0.f, Stalk);
+	return FMath::Clamp(Tuning.BiteReachM + OpenWaterApproachS * Closing, 2.f * Tuning.BiteReachM, FMath::Max(2.f * Tuning.BiteReachM, Tuning.LurkRadiusM));
+}
+
+FVector UDeepMonsterRules::WellAimPoint(EDeepMonsterState State, const FDeepWell& Well, const FVector& HeadCm, const FVector& DiverCm,
+	const FVector& OpenWaterAimCm, const FVector2D& SideDir, float RiseMps, const FDeepMonsterTuning& Tuning)
+{
+	if (!Well.bValid)
+	{
+		return OpenWaterAimCm;
+	}
+	FVector Aim = OpenWaterAimCm;
+	switch (State)
+	{
+	case EDeepMonsterState::Lurk:
+	{
+		// Below the diver at the hold depth, circling the axis slowly: the head keeps turning up into the edge of the beam.
+		const double HoldZ = DiverCm.Z - WellHoldBelowM(RiseMps, Tuning) * CmPerM;
+		FVector2D Rel = FVector2D(HeadCm.X, HeadCm.Y) - Well.AxisCm;
+		if (Rel.IsNearlyZero())
+		{
+			Rel = FVector2D(1.0, 0.0);
+		}
+		const double Angle = FMath::Atan2(Rel.Y, Rel.X) + FMath::DegreesToRadians(60.0);
+		const FVector2D On = Well.AxisCm + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * (Tuning.WellLurkCircleM * CmPerM);
+		Aim = FVector(On.X, On.Y, HoldZ);
+		break;
+	}
+	case EDeepMonsterState::Stalk:
+	{
+		// Up the shaft from below, head first, to the diver's end of the line, a little to one side of it.
+		const FVector2D Side = SideDir.GetSafeNormal() * (Tuning.WellStalkSideM * CmPerM);
+		Aim = FVector(DiverCm.X + Side.X, DiverCm.Y + Side.Y, DiverCm.Z - 0.5 * CmPerM);
+		break;
+	}
+	case EDeepMonsterState::Recoil:
+	{
+		// Back down the shaft, not through its wall: the head turns down and it dives for the bottom of the axis. A fixed
+		// point, so it arrives and stops there; an aim that moved with the head made it circle at 10 m/s at the floor and
+		// swing a third of the body into the stone (DEEPWELL log, Nov 15).
+		Aim = FVector(Well.AxisCm.X, Well.AxisCm.Y, Well.FloorZCm);
+		break;
+	}
+	default:
+		break;
+	}
+	return KeepInWell(Well, Aim, Tuning);
+}
+
+FVector UDeepMonsterRules::ChainPoint(const FDeepSerpentChain& Chain, float DistanceCm)
+{
+	const TArray<FVector>& P = Chain.Pos;
+	const int32 N = P.Num();
+	if (N == 0)
+	{
+		return FVector::ZeroVector;
+	}
+	if (N < 2 || Chain.RestCm.Num() != N - 1)
+	{
+		return PointAlongTrail(P, DistanceCm);
+	}
+	if (DistanceCm <= 0.f)
+	{
+		return P[0] + (P[0] - P[1]).GetSafeNormal() * -DistanceCm;
+	}
+	float Left = DistanceCm;
+	for (int32 i = 0; i + 1 < N; ++i)
+	{
+		const float Rest = FMath::Max(1.f, Chain.RestCm[i]);
+		if (Left <= Rest)
+		{
+			const float T = Left / Rest;
+			// Uniform Catmull-Rom; the end tangents mirror the last link.
+			const FVector& P1 = P[i];
+			const FVector& P2 = P[i + 1];
+			const FVector P0 = i > 0 ? P[i - 1] : P1 - (P2 - P1);
+			const FVector P3 = i + 2 < N ? P[i + 2] : P2 + (P2 - P1);
+			const float T2 = T * T;
+			const float T3 = T2 * T;
+			return 0.5f * ((2.f * P1) + (P2 - P0) * T + (2.f * P0 - 5.f * P1 + 4.f * P2 - P3) * T2 + (3.f * P1 - P0 - 3.f * P2 + P3) * T3);
+		}
+		Left -= Rest;
+	}
+	return P[N - 1] + (P[N - 1] - P[N - 2]).GetSafeNormal() * Left;
 }

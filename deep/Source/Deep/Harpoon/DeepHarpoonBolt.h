@@ -6,6 +6,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+class UDeepRopeComponent;
+
 #include "DeepHarpoonBolt.generated.h"
 
 class UStaticMeshComponent;
@@ -39,5 +41,8 @@ protected:
 	TObjectPtr<UStaticMeshComponent> Tip;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> Line;
+	TObjectPtr<UDeepRopeComponent> Line;
+
+	/** The frame the line last stepped: PlaceBolt and Tick both lay it, and only one may advance it. */
+	uint64 LastLineFrame = 0;
 };

@@ -209,7 +209,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldGreyBoxTest, "Deep.World.GreyBoxLight
 bool FDeepWorldGreyBoxTest::RunTest(const FString& Parameters)
 {
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	TestTrue(TEXT("Grey box is on by default"), FDeepArenaTuning().bGreyBox);
+	// The polish pass (D-033) turns the water look on; the grey box stays as a switch.
+	TestFalse(TEXT("The water look is on by default"), FDeepArenaTuning().bGreyBox);
 	TestTrue(TEXT("Backdrop fog is near zero"), FDeepArenaTuning().GreyBoxBackdropFogDensity <= 0.001f);
 	TestTrue(TEXT("Key light brighter than fill"), FDeepArenaTuning().GreyBoxKeyLux > FDeepArenaTuning().GreyBoxFillLux && FDeepArenaTuning().GreyBoxFillLux > 0.f);
 
@@ -222,6 +223,114 @@ bool FDeepWorldGreyBoxTest::RunTest(const FString& Parameters)
 	FDeepStopTuning Black;
 	Black.FogColor = FLinearColor::Black;
 	TestTrue(TEXT("A black water colour gives white light"), ADeepEnvironment::GreyBoxTint(Black, FDeepArenaTuning()).Equals(FLinearColor::White));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldLookBlendTest, "Deep.World.LookBlend",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDeepWorldLookBlendTest::RunTest(const FString& Parameters)
+{
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	TestEqual(TEXT("Three presets: 100, 300, 500 m"), Look.Presets.Num(), 3);
+	if (Look.Presets.Num() != 3)
+	{
+		return false;
+	}
+	// The presets hold at their depths and clamp beyond the ends.
+	TestEqual(TEXT("100 m fog"), ADeepEnvironment::BlendLook(Look, 100.f).FogDensity, Look.Presets[0].FogDensity);
+	TestEqual(TEXT("Above 100 m clamps"), ADeepEnvironment::BlendLook(Look, 0.f).DownlightLux, 2.f);
+	TestEqual(TEXT("300 m exposure"), ADeepEnvironment::BlendLook(Look, 300.f).ExposureBias, 1.5f);
+	TestEqual(TEXT("Below 500 m clamps, no downlight"), ADeepEnvironment::BlendLook(Look, 700.f).DownlightLux, 0.f);
+	// Driving blends continuously: halfway between stops is halfway between their numbers.
+	const FDeepLookPreset Mid = ADeepEnvironment::BlendLook(Look, 200.f);
+	TestTrue(TEXT("200 m fog is halfway"), FMath::IsNearlyEqual(Mid.FogDensity, (Look.Presets[0].FogDensity + Look.Presets[1].FogDensity) * 0.5f, 1e-4f));
+	TestTrue(TEXT("200 m exposure is halfway"), FMath::IsNearlyEqual(Mid.ExposureBias, 0.75f, 1e-4f));
+	// Darker with depth; the 500 m far fog is black (style guide 3).
+	TestTrue(TEXT("500 m water is black"), Look.Presets[2].FogColor.Equals(FLinearColor(0.f, 0.f, 0.f, 1.f)));
+	TestTrue(TEXT("Light falls with depth"), Look.Presets[0].DownlightLux > Look.Presets[1].DownlightLux && Look.Presets[1].DownlightLux > Look.Presets[2].DownlightLux);
+	TestNotNull(TEXT("Deep.RayTracing is registered"), IConsoleManager::Get().FindConsoleObject(TEXT("Deep.RayTracing")));
+	// At 500 m the sub's lights stop lighting the water, so it stays black with the lamp off.
+	TestEqual(TEXT("500 m: sub lights do not light the fog"), ADeepEnvironment::BlendLook(Look, 500.f).SubLightFog, 0.f);
+	TestTrue(TEXT("Sub lights dim with depth"), Look.Presets[0].SubLightScale > Look.Presets[1].SubLightScale && Look.Presets[1].SubLightScale > Look.Presets[2].SubLightScale);
+
+	// The lamp up close: full in open water and past NearFullM; inverse-square compensation below it, with a floor.
+	FDeepLampTuning Lamp;
+	Lamp.NearFullM = 6.f;
+	Lamp.NearMinScale = 0.05f;
+	TestEqual(TEXT("Lamp: nothing ahead, full"), UDeepRules::LampNearScale(-1.f, Lamp), 1.f);
+	TestEqual(TEXT("Lamp: 10 m, full"), UDeepRules::LampNearScale(10.f, Lamp), 1.f);
+	TestTrue(TEXT("Lamp: 3 m, a quarter"), FMath::IsNearlyEqual(UDeepRules::LampNearScale(3.f, Lamp), 0.25f, 1e-4f));
+	TestEqual(TEXT("Lamp: touching, the floor"), UDeepRules::LampNearScale(0.1f, Lamp), 0.05f);
+
+	// The shipped tuning holds the lit spot at its NearFullM brightness from 0.5 m out (the pit floor at 1 m burnt
+	// three times over when the floor stopped the curve at 1.7 m).
+	const FDeepLampTuning Shipped;
+	for (const float D : { 0.5f, 1.f, 2.f, 4.f })
+	{
+		const float Lit = UDeepRules::LampNearScale(D, Shipped) * FMath::Square(Shipped.NearFullM / D);
+		TestTrue(*FString::Printf(TEXT("Lamp: a facing surface at %.1f m on the axis is lit as at NearFullM (%.3f)"), D, Lit), FMath::IsNearlyEqual(Lit, 1.f, 1e-3f));
+	}
+	// The cone: full inside the inner cone, nothing outside the outer, between them weaker; facing counts.
+	const auto CosDeg = [](float Deg) { return FMath::Cos(FMath::DegreesToRadians(Deg)); };
+	TestEqual(TEXT("Lamp cone: on the axis, full"), UDeepRules::LampConeFalloff(1.f, Shipped), 1.f);
+	TestTrue(TEXT("Lamp cone: at the inner edge, full"), FMath::IsNearlyEqual(UDeepRules::LampConeFalloff(CosDeg(Shipped.InnerConeDeg - 0.01f), Shipped), 1.f, 1e-3f));
+	TestEqual(TEXT("Lamp cone: past the outer edge, nothing"), UDeepRules::LampConeFalloff(CosDeg(Shipped.OuterConeDeg + 1.f), Shipped), 0.f);
+	const float Halfway = UDeepRules::LampConeFalloff(CosDeg((Shipped.InnerConeDeg + Shipped.OuterConeDeg) * 0.5f), Shipped);
+	TestTrue(TEXT("Lamp cone: halfway out, weaker"), Halfway > 0.1f && Halfway < 0.6f);
+	TestTrue(TEXT("Lamp: a surface at a graze is lit less than one facing"),
+		UDeepRules::LampSampleBrightness(2.f, 1.f, 0.3f, Shipped) < UDeepRules::LampSampleBrightness(2.f, 1.f, 1.f, Shipped));
+	TestEqual(TEXT("Lamp: nothing there, no light"), UDeepRules::LampSampleBrightness(-1.f, 1.f, 1.f, Shipped), 0.f);
+	// The scale answers the brightest sample: a near wall at the cone's edge dims less than the same wall on the axis.
+	const float EdgeScale = UDeepRules::LampScaleForBrightest(UDeepRules::LampSampleBrightness(1.f, CosDeg(Shipped.OuterConeDeg - 3.f), 1.f, Shipped), Shipped);
+	TestTrue(TEXT("Lamp: a wall at the cone's edge dims less than on the axis"), EdgeScale > UDeepRules::LampNearScale(1.f, Shipped));
+	TestEqual(TEXT("Lamp: dim samples leave it at full"), UDeepRules::LampScaleForBrightest(0.5f, Shipped), 1.f);
+	// rescope/light: a usable pool (at least 30 degrees out), forward-scattering water that does not milk the eye.
+	TestTrue(TEXT("Lamp: a wide pool, not a pencil beam"), Shipped.OuterConeDeg >= 30.f && Shipped.InnerConeDeg >= 12.f);
+	const FDeepLookTuning ShippedLook = UDeepTuningSettings::Get().Look;
+	TestTrue(TEXT("Fog: forward scattering, little back at the lamp holder"), ShippedLook.FogScatteringDistribution >= 0.6f && ShippedLook.FogScatteringDistribution < 0.95f);
+	TestTrue(TEXT("Fog: starts clear of the eye"), ShippedLook.VolumetricStartM >= 1.f);
+	TestTrue(TEXT("Fog: a moving beam does not trail (history weight under the engine's 0.9)"), ShippedLook.FogHistoryWeight > 0.f && ShippedLook.FogHistoryWeight < 0.9f);
+	for (const FDeepLookPreset& P : ShippedLook.Presets)
+	{
+		TestTrue(*FString::Printf(TEXT("Fog at %.0f m: the volume covers the lamp's reach"), P.DepthM), P.VolumetricDistanceM >= Shipped.RangeM);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepWorldSeabedTest, "Deep.World.Seabed",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+
+bool FDeepWorldSeabedTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
+	TestEqual(TEXT("A resting point per salvage spot plus the relic"), Rest.Num(), Tuning.Arena.SalvageSpots.Num() + 1);
+	// Salvage lies on the bed: at each resting point the bed is within 25 cm of it.
+	for (const FVector4& R : Rest)
+	{
+		const float Below = ADeepAbyssFloor::SeabedBelowM(FVector2D(R.X, R.Y), Rest, Tuning.Look);
+		TestTrue(*FString::Printf(TEXT("Bed meets the salvage at (%.0f, %.0f): %.2f vs %.2f m"), R.X, R.Y, Below, R.Z), FMath::Abs(Below - R.Z) < 0.25f);
+	}
+	// The hatch column is clear: under the anchor the bed is well below the hull, and it falls away into the dark.
+	TestTrue(TEXT("Bed is at least 6 m under the anchor"), ADeepAbyssFloor::SeabedBelowM(FVector2D::ZeroVector, Rest, Tuning.Look) > 6.f);
+	TestTrue(TEXT("Bed falls away far out"), ADeepAbyssFloor::SeabedBelowM(FVector2D(150.f, 0.f), Rest, Tuning.Look) > 40.f);
+	// The relic's sinkhole has a floor a diver can stand at, not a funnel: 2 m out the bed is within 0.3 m of the
+	// relic's floor (it was 2.6 m up, and a diver at the relic had the slope in his face).
+	for (const FVector4& R : Rest)
+	{
+		if (R.W < 0.f)
+		{
+			for (const float Angle : { 0.f, 90.f, 200.f })
+			{
+				const FVector2D Out = FVector2D(R.X, R.Y) + FVector2D(2.f, 0.f).GetRotated(Angle);
+				const float Rise = R.Z - ADeepAbyssFloor::SeabedBelowM(Out, Rest, Tuning.Look);
+				TestTrue(*FString::Printf(TEXT("Pit floor flat 2 m from the relic (%.0f deg: %.2f m up)"), Angle, Rise), Rise < 0.3f);
+			}
+		}
+	}
+	// A scanned material can be slotted in by path; the made one is the default.
+	TestEqual(TEXT("Seabed material by path"), Tuning.Look.SeabedMaterial.ToString(), FString(TEXT("/Game/Deep/Look/M_Silt.M_Silt")));
 	return true;
 }
 

@@ -1,0 +1,4 @@
+"package","why"
+"/Game/DragonCave/Meshes/SM_DragonPose04","The sea serpent's head: loaded by path from DEEP Monster Body.MeshHead.Mesh (ADeepSerpent::SetupMeshHead)"
+"/Game/DragonCave/Meshes/SM_StoneworksSphere01","the relic (Arena.RelicMesh, loaded by path in DeepSalvage)"
+"/Game/DragonCave/Materials/MI_Sphere01","the relic skin takes the Stoneworks textures from it (Arena.RelicTextures)"

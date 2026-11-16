@@ -154,6 +154,47 @@ namespace
 		return X;
 	}
 
+	/** The helm sonar's sweep ping (Sonar lane): a clean transmit tone, then a long reverberant tail and two returns. */
+	TArray<float> SonarPing()
+	{
+		TArray<float> X = Make(2.4f);
+		float Phase = 0.f;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float F = 1480.f - 40.f * FMath::Min(T, 1.f);
+			Phase += TwoPi * F / SampleRate;
+			// A held 60 ms transmit, then the ring of the transducer dying away.
+			const float Body = Ramp(T, 0.f, 0.006f) * (T < 0.06f ? 1.f : FMath::Exp(-(T - 0.06f) / 0.45f));
+			X[I] = Body * (FMath::Sin(Phase) + 0.08f * FMath::Sin(3.f * Phase));
+		}
+		// Returns off the walls: later and softer.
+		const int32 First = Samples(0.42f);
+		const int32 Second = Samples(0.95f);
+		for (int32 I = X.Num() - 1; I >= Second; --I)
+		{
+			X[I] += 0.32f * X[I - First] + 0.16f * X[I - Second];
+		}
+		for (int32 I = Second - 1; I >= First; --I)
+		{
+			X[I] += 0.32f * X[I - First];
+		}
+		return X;
+	}
+
+	/** The sonar's proximity beep: short and dry so it can repeat fast. */
+	TArray<float> SonarTick()
+	{
+		TArray<float> X = Make(0.11f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Env = Ramp(T, 0.f, 0.004f) * (1.f - Ramp(T, 0.05f, 0.05f));
+			X[I] = Env * (FMath::Sin(TwoPi * 1150.f * T) + 0.2f * FMath::Sin(TwoPi * 2300.f * T));
+		}
+		return X;
+	}
+
 	TArray<float> Harpoon()
 	{
 		TArray<float> X = Make(0.6f);
@@ -195,6 +236,61 @@ namespace
 				}
 			}
 			X[I] = V;
+		}
+		return X;
+	}
+
+	/** The radio chain on noise: band 450..3200 Hz (style guide 9) and a light crush (hold at 8 kHz, 6 bits). */
+	struct FRadioBand
+	{
+		FLowPass Low{ 450.f };
+		FLowPass High{ 3200.f };
+		float Held = 0.f;
+		int32 Hold = 0;
+
+		float Step(float X)
+		{
+			const float Band = High.Step(X) - Low.Step(X);
+			if (Hold-- <= 0)
+			{
+				Hold = SampleRate / 8000 - 1;
+				Held = FMath::RoundToFloat(Band * 32.f) / 32.f;
+			}
+			return Held;
+		}
+	};
+
+	/** The Captain keys his mic: a click, a burst of squelch, a short hiss. */
+	TArray<float> SquelchOn()
+	{
+		TArray<float> X = Make(0.45f);
+		FRandomStream Rng(71);
+		FRadioBand Band;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Band.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Burst = T < 0.09f ? 1.f - Ramp(T, 0.06f, 0.03f) : 0.f;
+			const float Hiss = 0.22f * (1.f - Ramp(T, 0.12f, 0.33f));
+			const float Click = Decay(T, 0.006f, 0.0005f) * FMath::Sin(TwoPi * 1400.f * T);
+			X[I] = 2.5f * (Burst + Hiss) * Noise + 0.6f * Click;
+		}
+		return X;
+	}
+
+	/** He lets go: a short burst and the click of the key. */
+	TArray<float> SquelchOff()
+	{
+		TArray<float> X = Make(0.22f);
+		FRandomStream Rng(73);
+		FRadioBand Band;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Band.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Burst = Ramp(T, 0.f, 0.01f) * (1.f - Ramp(T, 0.07f, 0.05f));
+			const float Click = Decay(T - 0.12f, 0.005f, 0.0005f) * FMath::Sin(TwoPi * 1100.f * (T - 0.12f));
+			X[I] = 2.5f * Burst * Noise + 0.5f * Click;
 		}
 		return X;
 	}
@@ -265,6 +361,32 @@ namespace
 		return X;
 	}
 
+	/** Scared (Deep.Music): a panicked heart at 120 bpm, lub-dub, each beat a falling low thump with a little body noise. */
+	TArray<float> Heartbeat()
+	{
+		const float PeriodS = 0.5f;
+		TArray<float> X = MakeLoop(3.f);
+		FRandomStream Rng(73);
+		FLowPass Body(140.f);
+		auto Thump = [](float Dt, float Amp) -> float
+		{
+			if (Dt < 0.f || Dt > 0.2f)
+			{
+				return 0.f;
+			}
+			const float F = 58.f - 18.f * Dt / 0.2f;
+			return Amp * FMath::Sin(TwoPi * F * Dt) * FMath::Exp(-Dt / 0.05f);
+		};
+		auto Env = [](float Dt) { return Dt < 0.f || Dt > 0.2f ? 0.f : FMath::Exp(-Dt / 0.04f); };
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float Ph = FMath::Fmod(TimeOf(I), PeriodS);
+			const float Noise = Body.Step(Rng.FRandRange(-1.f, 1.f));
+			X[I] = Thump(Ph, 1.f) + Thump(Ph - 0.16f, 0.7f) + 3.f * Noise * (Env(Ph) + 0.7f * Env(Ph - 0.16f));
+		}
+		return X;
+	}
+
 	TArray<float> Winch()
 	{
 		TArray<float> X = MakeLoop(2.f);
@@ -331,6 +453,75 @@ namespace
 		return X;
 	}
 
+	// ---- The serpent's own voice (lane G): spatialised at its head by ADeepSerpent ----
+
+	/** A call: a low growl that swells, glides down into a moan and dies. Three seeds and contours = three variations. */
+	TArray<float> SerpentCall(float StartHz, float EndHz, float Seconds, int32 Seed)
+	{
+		TArray<float> X = Make(Seconds);
+		FRandomStream Rng(Seed);
+		FLowPass Breath(600.f);
+		FLowPass Body(180.f);
+		float Phase = 0.f;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float U = T / Seconds;
+			const float Hz = FMath::Lerp(StartHz, EndHz, U * U) * (1.f + 0.04f * FMath::Sin(TwoPi * 5.5f * T));
+			Phase += TwoPi * Hz / SampleRate;
+			const float Rough = 0.55f + 0.45f * FMath::Sin(TwoPi * 31.f * T);
+			const float Voice = Rough * (FMath::Sin(Phase) + 0.6f * FMath::Sin(2.f * Phase) + 0.35f * FMath::Sin(3.f * Phase) + 0.2f * FMath::Sin(5.f * Phase));
+			const float Env = FMath::Square(FMath::Sin(PI * FMath::Min(1.f, U * 1.15f))) * FMath::Min(1.f, T / 0.25f);
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			X[I] = Env * (Voice + 2.f * Breath.Step(Noise) + 3.f * Body.Step(Noise));
+		}
+		return X;
+	}
+
+	/** A click train: a burst of sharp, slightly ringing clicks that speed up (echolocation). */
+	TArray<float> SerpentClick()
+	{
+		TArray<float> X = Make(0.35f);
+		FRandomStream Rng(83);
+		FLowPass Lp(3200.f);
+		const float Times[] = { 0.f, 0.07f, 0.125f, 0.17f, 0.205f, 0.235f, 0.26f };
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			const float Bright = Noise - Lp.Step(Noise);
+			float Y = 0.f;
+			for (int32 K = 0; K < UE_ARRAY_COUNT(Times); ++K)
+			{
+				const float Since = T - Times[K];
+				if (Since >= 0.f && Since < 0.03f)
+				{
+					const float Amp = 1.f - 0.08f * K;
+					Y += Amp * FMath::Exp(-Since / 0.0025f) * (0.6f * Bright + FMath::Sin(TwoPi * 1900.f * Since));
+				}
+			}
+			X[I] = Y;
+		}
+		return X;
+	}
+
+	/** The presence drone: two low sines beating against each other under dark filtered noise. */
+	TArray<float> SerpentDrone()
+	{
+		TArray<float> X = MakeLoop(6.f);
+		FRandomStream Rng(89);
+		FLowPass Lp(140.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			// Whole cycles in 6 s on both, so the loop seam crossfade lines up.
+			const float Beat = FMath::Sin(TwoPi * 36.f * T) + FMath::Sin(TwoPi * (36.f + 1.f / 3.f) * T);
+			const float Swell = 0.7f + 0.3f * FMath::Sin(TwoPi * T / 6.f);
+			X[I] = Swell * (0.8f * Beat + 0.3f * FMath::Sin(TwoPi * 72.5f * T) + 4.f * Lp.Step(Rng.FRandRange(-1.f, 1.f)));
+		}
+		return X;
+	}
+
 	struct FBuiltin
 	{
 		const TCHAR* Name;
@@ -350,6 +541,14 @@ namespace
 			{ TEXT("click"), false, 0.06f, &Click },
 			{ TEXT("harpoon"), false, 0.6f, &Harpoon },
 			{ TEXT("chime"), false, 1.4f, &Chime },
+			{ TEXT("squelch_on"), false, 0.45f, &SquelchOn },
+			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
+			{ TEXT("sonar_ping"), false, 2.4f, &SonarPing },
+			{ TEXT("sonar_tick"), false, 0.11f, &SonarTick },
+			{ TEXT("serpent_call_a"), false, 2.2f, [] { return SerpentCall(70.f, 44.f, 2.2f, 97); } },
+			{ TEXT("serpent_call_b"), false, 2.6f, [] { return SerpentCall(55.f, 82.f, 2.6f, 101); } },
+			{ TEXT("serpent_call_c"), false, 1.8f, [] { return SerpentCall(95.f, 38.f, 1.8f, 103); } },
+			{ TEXT("serpent_click"), false, 0.35f, &SerpentClick },
 			{ TEXT("drone_out"), true, 8.f, &DroneOut },
 			{ TEXT("drone_in"), true, 6.f, &DroneIn },
 			{ TEXT("breath"), true, 8.f, [] { return Breath(4.f, 8.f, 61); } },
@@ -357,6 +556,9 @@ namespace
 			{ TEXT("winch"), true, 2.f, &Winch },
 			{ TEXT("serpent"), true, 8.f, &Serpent },
 			{ TEXT("hum"), true, 4.f, &Hum },
+			{ TEXT("breath_panic"), true, 4.8f, [] { return Breath(1.2f, 4.8f, 71); } },
+			{ TEXT("heartbeat"), true, 3.f, &Heartbeat },
+			{ TEXT("serpent_drone"), true, 6.f, &SerpentDrone },
 		};
 		return Builtins;
 	}

@@ -30,6 +30,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Shot", meta = (ClampMin = "1"))
 	float BoltSpeedMps = 60.f;
 
+	/** The shove back from a shot (opposite the aim), at full strength at once. About 3.5 m/s; a sprint is about 6. */
+	UPROPERTY(Config, EditAnywhere, Category = "Recoil", meta = (ClampMin = "0"))
+	float RecoilMps = 3.5f;
+
+	/** The shove fades linearly to nothing over this time, so it carries the diver RecoilMps * RecoilSeconds / 2 (~0.9 m). */
+	UPROPERTY(Config, EditAnywhere, Category = "Recoil", meta = (ClampMin = "0"))
+	float RecoilSeconds = 0.5f;
+
 	/** Latched to the submarine: reel speed up into the hatch. */
 	UPROPERTY(Config, EditAnywhere, Category = "Reel", meta = (ClampMin = "0.1"))
 	float SubReelSpeedMps = 10.f;

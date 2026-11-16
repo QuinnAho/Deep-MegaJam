@@ -1,4 +1,8 @@
-// HUD drawn on the canvas in code: status lines, the Captain's Patience bar or the bailout timer, the airlock
+// The HUD. By default a Slate widget (UI/SDeepHud) painted from one FDeepHudFrame gathered here each frame,
+// with the panels chosen in one place, DeepHudModel::PanelsFor (see UI/). The old canvas HUD stays behind
+// the console variable Deep.HUD.Legacy 1, off by default, for debugging.
+//
+// Legacy: HUD drawn on the canvas in code: status lines, the Captain's Patience bar or the bailout timer, the airlock
 // marker when cut, prompts, the Captain's subtitle, and full-screen panels for death, settlement and descent.
 // Also the run's frame: the title screen, the first dive's controls card, the pause menu and the win review.
 
@@ -11,6 +15,10 @@
 class ADeepDiver;
 class UDeepRunComponent;
 class UFont;
+class SDeepHud;
+class SWidget;
+class UDeepSonarComponent;
+struct FDeepHudFrame;
 
 UCLASS()
 class DEEP_API ADeepHUD : public AHUD
@@ -18,9 +26,38 @@ class DEEP_API ADeepHUD : public AHUD
 	GENERATED_BODY()
 
 public:
+	ADeepHUD();
+
 	virtual void DrawHUD() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** The helm sonar: local to this player, works while their diver is seated at the helm (Sonar lane). */
+	UDeepSonarComponent* GetSonar() const;
 
 private:
+	/** The old canvas HUD (Deep.HUD.Legacy 1). */
+	void DrawLegacy();
+	/** Fills the frame the widget paints, and raises feedback cues on the frame a state changes. */
+	void GatherFrame(FDeepHudFrame& Frame);
+	void ShowWidget(bool bShow);
+
+	UPROPERTY(VisibleAnywhere, Category = "Sonar")
+	TObjectPtr<UDeepSonarComponent> Sonar;
+
+	TSharedPtr<SDeepHud> Widget;
+	TSharedPtr<SWidget> WidgetRoot;
+	double LastRealTime = -1.0;
+
+	// Last frame's state, for the cues.
+	int32 PrevCargo = -1;
+	bool bPrevWinching = false;
+	uint8 PrevState = 255;
+	uint8 PrevHarpoonPhase = 0;
+	float PrevHarpoonSince = 1e6f;
+	float PrevGateTime = -100.f;
+	float PrevFeeTime = -100.f;
+	bool bPrevParked = true;
+
 	void TextAt(const FString& String, const FLinearColor& Color, float X, float Y, UFont* InFont = nullptr, float TextScale = 1.f);
 	/** Draws centred horizontally; returns the text height. */
 	float TextCentered(const FString& String, const FLinearColor& Color, float Y, UFont* InFont = nullptr, float TextScale = 1.f);

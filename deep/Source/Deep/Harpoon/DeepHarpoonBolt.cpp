@@ -4,6 +4,8 @@
 #include "Diver/DeepDiver.h"
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "Harpoon/DeepHarpoonSettings.h"
+#include "Sim/DeepTuningSettings.h"
+#include "World/DeepRopeComponent.h"
 #include "World/DeepShapes.h"
 
 ADeepHarpoonBolt::ADeepHarpoonBolt()
@@ -33,24 +35,19 @@ ADeepHarpoonBolt::ADeepHarpoonBolt()
 	Tip->SetRelativeScale3D(FVector(0.12f, 0.12f, 0.16f));
 	Tip->SetCastShadow(false);
 
-	Line = DeepShapes::CreateShape(this, TEXT("Line"), DeepShapes::Cylinder);
+	// The line is the tether's rope, thinner (World/DeepRopeComponent), driven from the gun to the bolt's tail.
+	Line = CreateDefaultSubobject<UDeepRopeComponent>(TEXT("Line"));
 	Line->SetupAttachment(Root);
-	Line->SetUsingAbsoluteLocation(true);
-	Line->SetUsingAbsoluteRotation(true);
-	Line->SetUsingAbsoluteScale(true);
-	Line->SetCastShadow(false);
-	Line->SetVisibility(false);
-	// Like the tether: lit by the scene's key and fill only, not the helmet lamp right beside it (first shot: it glowed).
-	Line->SetLightingChannels(false, true, false);
 }
 
 void ADeepHarpoonBolt::BeginPlay()
 {
 	Super::BeginPlay();
-	// Bright on purpose: a pale steel line (the tether is dull yellow) and a red bolt that reads in the dark.
+	// A red bolt that reads in the dark; the line is a dull cord like the tether, seen where light lands on it.
 	DeepShapes::Tint(Shaft, FLinearColor(0.9f, 0.15f, 0.1f));
 	DeepShapes::Tint(Tip, FLinearColor(1.f, 0.3f, 0.1f));
-	DeepShapes::Tint(Line, FLinearColor(0.7f, 0.78f, 0.85f));
+	const FDeepRopeTuning& Rope = UDeepTuningSettings::Get().Rope;
+	Line->Configure(Rope.HarpoonPoints, UDeepHarpoonSettings::Get().LineThicknessCm, Rope.HarpoonColor, false);
 }
 
 void ADeepHarpoonBolt::PlaceBolt(const FVector& TipCm, const FVector& Direction)
@@ -72,21 +69,22 @@ void ADeepHarpoonBolt::UpdateLine()
 	{
 		if (Line)
 		{
-			Line->SetVisibility(false);
+			Line->HideRope();
 		}
 		return;
 	}
 	const FVector Start = UDeepHarpoonComponent::GunLocation(Diver);
 	const FVector End = GetActorLocation() - GetActorForwardVector() * UDeepHarpoonSettings::Get().BoltLengthCm;
-	const FVector Span = End - Start;
-	const float Length = static_cast<float>(Span.Size());
+	const float Length = static_cast<float>(FVector::Dist(Start, End));
 	if (Length < 1.f)
 	{
-		Line->SetVisibility(false);
+		Line->HideRope();
 		return;
 	}
-	const float Thickness = UDeepHarpoonSettings::Get().LineThicknessCm / DeepShapes::ShapeSizeCm;
-	Line->SetVisibility(true);
-	Line->SetWorldLocationAndRotation((Start + End) * 0.5, FRotationMatrix::MakeFromZ(Span / Length).Rotator());
-	Line->SetWorldScale3D(FVector(Thickness, Thickness, Length / DeepShapes::ShapeSizeCm));
+	// Paid out a little longer than the straight line, so it hangs in a shallow curve and trails the bolt in flight.
+	const FDeepRopeTuning& Rope = UDeepTuningSettings::Get().Rope;
+	const UWorld* World = GetWorld();
+	const float DeltaSeconds = (World && LastLineFrame != GFrameCounter) ? World->GetDeltaSeconds() : 0.f;
+	LastLineFrame = GFrameCounter;
+	Line->Drive(DeltaSeconds, &Start, &End, Length * (1.f + Rope.SlackShare * 0.5f), Rope.SinkCmS2);
 }

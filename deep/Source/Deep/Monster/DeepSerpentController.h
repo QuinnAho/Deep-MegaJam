@@ -34,6 +34,17 @@ public:
 	/** Jumps to a state with fresh timers (no events fire). */
 	void ForceState(EDeepMonsterState NewState);
 
+	/**
+	 * The first sight now (cheat, tests): fires the first sound, lays out the pass across the focus diver's lamp and
+	 * enters Pass. Counts as this run's first sight. False if there is no diver.
+	 */
+	bool StartFirstSight();
+	bool IsFirstSightDone() const { return bFirstSightDone; }
+	/** Where on this diver's tether it means to bite (shots and tests). */
+	FVector GetBitePoint(const ADeepDiver* Diver) const;
+	/** Closest the head came to the focus diver during the last pass (m); 0 before any pass. */
+	float GetPassClosestM() const { return PassClosestM; }
+
 	EDeepMonsterState GetState() const { return State; }
 	float GetNoise() const { return Noise; }
 	float GetLitSeconds() const { return LitSeconds; }
@@ -67,6 +78,12 @@ private:
 	float LurkRadiusCm(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const;
 	bool IsHeadLit(const TArray<ADeepDiver*>& Divers, const FDeepMonsterTuning& Tuning) const;
 	void EnterState(EDeepMonsterState NewState, const FDeepMonsterTuning& Tuning);
+	/** Lays out the first-sight pass across this diver's lamp and puts the head at its start (out of view). */
+	bool BeginPass(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning);
+	/** Where on the tether it means to bite: BiteFromDiverM up the line from the diver. */
+	FVector BitePoint(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const;
+	/** The first sight has not happened, the settings allow it, the brain spawned it itself, and a player is there to see it. */
+	bool IsFirstSightPending(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning) const;
 	void Steer(const FDeepMonsterTuning& Tuning, float DeltaSeconds);
 
 	TWeakObjectPtr<ADeepDiver> Focus;
@@ -84,4 +101,71 @@ private:
 	float Threat01 = 0.f;
 	/** Where on the tether (0 anchor .. 1 diver) the bite holds. */
 	float BiteAlpha = 0.5f;
+
+	// ---- The first sight ----
+	bool bFirstSightDone = false;
+	TArray<FVector> PassPoints;
+	int32 PassLeg = 0;
+	float PassClosestM = 0.f;
+
+	// ---- The staged bite: the side it strikes from, fixed once it is close ----
+	FVector BiteSide = FVector::ZeroVector;
+	bool bBiteCommit = false;
+
+	// ---- Hearing and the taunt (lane G) ----
+	/** Lays out the taunt's beats round this diver (offsets in the arena root's frame, so a turning world carries them). */
+	bool BeginTaunt(const ADeepDiver* Diver, const FDeepMonsterTuning& Tuning);
+	/** A taunt beat in world cm now. */
+	FVector TauntPoint(int32 Index) const;
+	/** The serpent calls (replicated to every machine) and logs DEEPMONSTER_CALL with distance and the voice's level there. */
+	void Call(uint8 Kind, const TCHAR* Why, const FDeepMonsterTuning& Tuning);
+	void LogTauntBeat(const TCHAR* Beat, const FDeepMonsterTuning& Tuning) const;
+	int32 TauntsLeft = 0;
+	int32 TauntLeg = 0;
+	int32 TauntsDone = 0;
+	TArray<FVector> TauntOffsets;
+	TWeakObjectPtr<const ADeepDiver> TauntDiver;
+	float SinceCallS = 1000.f;
+	/** The loudest single sound heard since the last step, and where. */
+	float HeardLoudest = 0.f;
+	FVector HeardAt = FVector::ZeroVector;
+	FVector TurnToward = FVector::ZeroVector;
+	float HeardTurnLeftS = 0.f;
+	FQuat RootRotation() const;
+
+public:
+	int32 GetTauntsLeft() const { return TauntsLeft; }
+	int32 GetTauntsDone() const { return TauntsDone; }
+	int32 GetTauntLeg() const { return TauntLeg; }
+	float GetHeardTurnLeftS() const { return HeardTurnLeftS; }
+	/** Sets the taunts left (cheats, tests). */
+	void SetTauntsLeft(int32 N) { TauntsLeft = FMath::Max(0, N); }
+
+private:
+
+	// ---- The well (the last ascent): steering kept inside the relic's shaft while the focus diver is in it ----
+	/** Enters the well mode, or leaves it, for this step; places the head in the shaft below the diver on entry. */
+	void UpdateWell(const ADeepDiver* Target, const FDeepMonsterTuning& Tuning, float DeltaSeconds);
+	/** Shots and logs: Deep.Monster.WellLog and Deep.Monster.Watch. */
+	void DebugWell(const ADeepDiver* Target, float DeltaSeconds);
+	FDeepWell Well;
+	bool bInWell = false;
+	/** The focus diver's rise (m/s), eased over about half a second. */
+	float RiseMps = 0.f;
+	/** Which side of the line it comes up on (unit, horizontal). */
+	FVector2D WellSide = FVector2D(1.0, 0.0);
+
+	// ---- The cavern: every path stays in its clear space (ADeepCavern::KeepClearCm), except in the well ----
+	TWeakObjectPtr<class ADeepCavern> Cavern;
+	/** The stop whose rock the whole trail was last kept clear of; 0 forces it again (a placed body, the well left). */
+	int32 CaveStopKept = 0;
+	float WellLogAccumS = 0.f;
+	float WellClockS = 0.f;
+	double LastDiverZ = 0.0;
+	bool bHaveLastDiverZ = false;
+	float EnterWaitS = 0.f;
+
+public:
+	/** True while it steers inside the relic's shaft (tests, logs). */
+	bool IsInWellMode() const { return bInWell; }
 };

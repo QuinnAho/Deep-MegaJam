@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Debug/DeepStateReport.h"
 #include "Diver/DeepDiver.h"
+#include "Diver/DeepLamp.h"
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/World.h"
@@ -12,7 +13,9 @@
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
 #include "World/DeepArena.h"
+#include "World/DeepRopeComponent.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepSubmarine.h"
 #include "GameFramework/Controller.h"
 #include "HAL/IConsoleManager.h"
 #include "Sim/DeepTuningSettings.h"
@@ -124,6 +127,40 @@ namespace
 				Diver->TeleportDiver(FVector(FCString::Atof(*Args[0]), FCString::Atof(*Args[1]), FCString::Atof(*Args[2])));
 				DeepStateReport::LogState(World);
 			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HoverCommand(
+		TEXT("Deep.Hover"),
+		TEXT("Deep.Hover <metres>: moves the diver along its view so the first surface it looks at is that far from the eye (shots: the lamp at a known distance)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Hover"));
+			AController* Controller = Diver ? Diver->GetController() : nullptr;
+			if (!Diver || !Controller || Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Usage: Deep.Hover <metres> (needs a controlled diver)"));
+				return;
+			}
+			const FVector Eye = Diver->GetPawnViewLocation();
+			const FVector Dir = Controller->GetControlRotation().Vector();
+			// The first of: anything with collision, and the sea bed's own surface (a trace from inside the bed misses it).
+			FHitResult Hit;
+			FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHover), true, Diver);
+			float HitCm = World->LineTraceSingleByChannel(Hit, Eye, Eye + Dir * 10000.f, ECC_Visibility, Params) ? static_cast<float>(Hit.Distance) : -1.f;
+			const float BedCm = DeepLamp::RayToBedCm(World, Eye, Dir, 10000.f);
+			if (BedCm >= 0.f && (HitCm < 0.f || BedCm < HitCm))
+			{
+				HitCm = BedCm;
+			}
+			if (HitCm < 0.f)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Hover: no surface within 100 m along the view"));
+				return;
+			}
+			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Hover: surface %.2f m along the view (%s)"), HitCm / 100.f, HitCm == BedCm ? TEXT("the bed's height field") : TEXT("collision"));
+			const FVector NewEye = Eye + Dir * HitCm - Dir * (FCString::Atof(*Args[0]) * 100.f);
+			Diver->TeleportDiver(Diver->GetActorLocation() + (NewEye - Eye));
+			DeepStateReport::LogState(World);
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs LookCommand(
@@ -486,5 +523,105 @@ namespace
 			}
 			Player->SetPauseMenu(Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0);
 			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs RopeStageCommand(
+		TEXT("Deep.Rope.Stage"),
+		TEXT("Deep.Rope.Stage <out_m> <down_m> [hatch|mid|diver] [yaw]: shots. Moves the diver out_m from the anchor (along yaw, default the view's) and down_m below it, then turns the view to the hatch, the rope's middle, or back along the line from the hatch (diver)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Rope.Stage"));
+			UDeepTetherComponent* Tether = Diver ? Diver->GetTether() : nullptr;
+			AController* Controller = Diver ? Diver->GetController() : nullptr;
+			if (!Tether || !Controller || !Tether->HasAnchor())
+			{
+				return;
+			}
+			const float OutM = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 12.f;
+			const float DownM = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 6.f;
+			const FString Look = Args.Num() > 2 ? Args[2].ToLower() : FString(TEXT("hatch"));
+			const float Yaw = Args.Num() > 3 ? FCString::Atof(*Args[3]) : Controller->GetControlRotation().Yaw;
+			const FVector Anchor = Tether->GetAnchorLocation();
+			Diver->TeleportDiver(Anchor + FRotator(0.f, Yaw, 0.f).Vector() * (OutM * 100.f) - FVector(0.f, 0.f, DownM * 100.f));
+			const FVector Eye = Diver->GetPawnViewLocation();
+			FVector Target = Anchor;
+			if (Look == TEXT("mid"))
+			{
+				Target = (Anchor + Diver->GetTetherAttachLocation()) * 0.5 - FVector(0.f, 0.f, 100.f);
+			}
+			else if (Look == TEXT("diver"))
+			{
+				Target = Eye + (Eye - Anchor);
+			}
+			Controller->SetControlRotation((Target - Eye).Rotation());
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorld RopeLookCutCommand(
+		TEXT("Deep.Rope.LookCut"),
+		TEXT("Deep.Rope.LookCut: shots. Turns the view to where the tether parted (between the two loose ends)."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Rope.LookCut"));
+			UDeepTetherComponent* Tether = Diver ? Diver->GetTether() : nullptr;
+			const UDeepRopeComponent* Rope = Tether ? Tether->GetLineRope() : nullptr;
+			AController* Controller = Diver ? Diver->GetController() : nullptr;
+			if (!Rope || !Controller)
+			{
+				return;
+			}
+			const FDeepRopeSim& Sim = Rope->GetSim();
+			for (int32 i = 0; i < Sim.NumLinks(); ++i)
+			{
+				if (!Sim.IsLinked(i))
+				{
+					const FVector Target = (Sim.Pos[i] + Sim.Pos[i + 1]) * 0.5;
+					Controller->SetControlRotation((Target - Diver->GetPawnViewLocation()).Rotation());
+					UE_LOG(LogDeepCheats, Display, TEXT("Deep.Rope.LookCut: link %d, %.1f m away"), i, FVector::Dist(Target, Diver->GetPawnViewLocation()) / 100.0);
+					return;
+				}
+			}
+			UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Rope.LookCut: the rope is whole"));
+		}));
+
+	FAutoConsoleCommandWithWorld RopeStateCommand(
+		TEXT("Deep.Rope.State"),
+		TEXT("Deep.Rope.State: logs the tether rope (points, joined links, shown length, cut)."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Rope.State"));
+			UDeepTetherComponent* Tether = Diver ? Diver->GetTether() : nullptr;
+			const UDeepRopeComponent* Rope = Tether ? Tether->GetLineRope() : nullptr;
+			if (!Rope)
+			{
+				return;
+			}
+			const FDeepRopeSim& Sim = Rope->GetSim();
+			int32 Parted = INDEX_NONE;
+			for (int32 i = 0; i < Sim.NumLinks(); ++i)
+			{
+				if (!Sim.IsLinked(i))
+				{
+					Parted = i;
+					break;
+				}
+			}
+			UE_LOG(LogDeepCheats, Display, TEXT("DEEPROPE {\"points\":%d,\"linked\":%d,\"links\":%d,\"parted\":%d,\"shown_m\":%.2f,\"visible\":%s}"),
+				Sim.Pos.Num(), Sim.CountLinked(), Sim.NumLinks(), Parted, Tether->GetShownLengthCm() / 100.f, Rope->IsShown() ? TEXT("true") : TEXT("false"));
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HullCommand(
+		TEXT("Deep.Hull"),
+		TEXT("Deep.Hull <0|1>: hides (0) or shows (1) the submarine's outside dress and lamp housings (frame-time A/B; visual only)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const bool bShow = Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0;
+			int32 Count = 0;
+			for (TActorIterator<ADeepSubmarine> It(World); It; ++It)
+			{
+				It->SetHullDressVisible(bShow);
+				++Count;
+			}
+			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Hull: dress %s on %d sub(s)"), bShow ? TEXT("shown") : TEXT("hidden"), Count);
 		}));
 }

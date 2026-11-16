@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Sim/DeepPilotRules.h"
 #include "Sim/DeepTuningTypes.h"
 #include "Story/DeepEventBus.h"
 #include "DeepRunComponent.generated.h"
@@ -75,9 +76,30 @@ public:
 
 	// ---- Requests from the owning player (routed to the server) ----
 	void RequestCut();
+	/** Unclip the air line by choice (the tether component's key): bailout air, free re-clip at the hatch. */
+	void RequestUnclip();
 	void RequestContinue();
 	/** The helm control: > 0 descends, < 0 ascends (sent to the server when it changes). */
 	void SetHelmInput(float Input);
+	/** The cave shaft's sideways steer at the helm, in the sub's frame: X forward (W/S), Y starboard (D/A). */
+	void SetHelmSteer(FVector2D Steer);
+	/** Server: the sideways speed in the shaft (m/s, the sub's frame). */
+	FVector2D GetSteerVelocityMps() const { return SteerVelMps; }
+
+	// ---- Real sub controls at the helm (Sim/DeepPilotRules; state on the game state so every machine sees it) ----
+	/** W/S: one throttle notch ahead (Dir > 0) or astern (Dir < 0). The lever stays where it is left. */
+	void StepThrottle(int32 Dir);
+	/** Held controls: ballast input (> 0 floods with C, < 0 blows with Space) and rudder (-1 port .. 1 starboard). */
+	void SetPilotHold(float BallastInput, float Rudder);
+	/** X: throttle to stop, ballast to neutral. */
+	void AllStop();
+	/** For the HUD, on any machine: throttle notch (- astern, 0 stop, + ahead), ballast lever (-1 blown .. 1 flooded), speeds. */
+	int32 GetThrottleNotch() const;
+	float GetBallast() const;
+	float GetSpeedMps() const;
+	float GetSurgeMps() const;
+	/** Server: the sub's motion under the pilot (stop frame). */
+	const FDeepPilotMotion& GetPilotMotion() const { return PilotMotion; }
 
 	// ---- Server ----
 	/** Advances the state machine. Ticks call it; tests call it with chosen steps. */
@@ -86,6 +108,10 @@ public:
 	void CutTether(bool bRequested);
 	/** Tethered -> Cut, announcing why (cut_patience, cut_requested, cut_bite). The one Cut path. */
 	void CutTetherFor(const TCHAR* Event);
+	/** Tethered -> Cut by the diver's own hand (tether_unclip): no re-tether fee at the hatch. */
+	void Unclip();
+	/** Off the line by choice (an unclip, not a cut): the line hangs whole from the hatch. */
+	bool IsUnclipped() const { return bUnclipped; }
 	/**
 	 * Banks the cargo at the console: settles it, pays credits, buys the next gate if affordable, opens the settlement
 	 * screen (or wins, with the relic). A diver still in the water is brought aboard first (cheats and tests).
@@ -150,12 +176,27 @@ protected:
 	bool ReachedHatch(bool bArrivalOnly) const;
 	void StepAboard(float DeltaSeconds);
 	void StepHelm(float DeltaSeconds);
-	void Park(int32 Stop);
+	/** The helm's depth: input or autopilot, the limit, parking. */
+	void StepHelmDepth(float DeltaSeconds);
+	/**
+	 * The cave shaft between stops (Sim/DeepCaveRules): steer sideways with inertia (the autopilot follows the centre),
+	 * pushed out of the rock in substeps; a hit or a scrape dents the hull, a breach kills the diver aboard.
+	 */
+	void StepShaft(float DeltaSeconds, bool bAutopilot);
+	void DentHull(int32 Points, const TCHAR* Event, float ImpactMps);
+	/** Real sub controls (server): one step of the throttle, rudder and ballast, the walls, the limit and parking. */
+	void StepPilot(float DeltaSeconds);
+	/** The old direct controls are in use (tests, cheats, the autopilot, a sideways drift still settling). */
+	bool UsesDirectHelm() const;
+	/** Parks at Stop: snaps to its depth, or (bGlide, the pilot) leaves the game state to glide there. */
+	void Park(int32 Stop, bool bGlide = false);
 	/** relic_seen, once per run, the first time the relic is near or in view. */
 	void StepRelicSeen();
 	/** Banking the relic: the run is won, the review goes up. */
 	void Win();
 	void Die(bool bByMonster = false);
+	/** Die, firing Event (death_air, death_monster, hull_breach). */
+	void DieFor(const TCHAR* Event, bool bByMonster);
 	void Respawn();
 	void ChargeFee(int32 Fee);
 	void SetState(EDeepRunState NewState);
@@ -167,10 +208,25 @@ protected:
 	void ServerRequestCut();
 
 	UFUNCTION(Server, Reliable)
+	void ServerRequestUnclip();
+
+	UFUNCTION(Server, Reliable)
 	void ServerRequestContinue();
 
 	UFUNCTION(Server, Unreliable)
 	void ServerSetHelmInput(float Input);
+
+	UFUNCTION(Server, Unreliable)
+	void ServerSetHelmSteer(FVector2D Steer);
+
+	UFUNCTION(Server, Reliable)
+	void ServerStepThrottle(int32 Dir);
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetPilotHold(float BallastInput, float Rudder);
+
+	UFUNCTION(Server, Reliable)
+	void ServerAllStop();
 
 	UFUNCTION(Client, Reliable)
 	void ClientEvent(FName Event, const FDeepEventPayload& Payload);
@@ -183,6 +239,10 @@ protected:
 
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
 	float BailoutAirSeconds = 0.f;
+
+	/** The diver unclipped (Cut by choice); cleared by any other state. */
+	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
+	bool bUnclipped = false;
 
 	/** Seconds left in a timed state (Dead, Settling's input lock, Descending). */
 	UPROPERTY(Replicated, VisibleAnywhere, Category = "Deep")
@@ -208,6 +268,20 @@ protected:
 	float AutopilotDepthM = -1.f;
 	bool bWasDriving = false;
 	float IdleSeconds = 0.f;
+
+	/** Server: the cave shaft. Steer input, sideways speed, and the clock its cooldowns run on (seconds driven). */
+	FVector2D HelmSteer = FVector2D::ZeroVector;
+	FVector2D SteerVelMps = FVector2D::ZeroVector;
+	double ShaftClock = 0.0;
+	double LastHitClock = -1000.0;
+	double LastScrapeClock = -1000.0;
+	float ScrapeSeconds = 0.f;
+
+	/** Server: the pilot's held controls, the sub's motion and the ballast detent. */
+	float PilotBallastInput = 0.f;
+	float PilotRudder = 0.f;
+	float BallastDetentLeftS = 0.f;
+	FDeepPilotMotion PilotMotion;
 
 	UPROPERTY(Replicated)
 	float LastRefillFraction = 0.f;

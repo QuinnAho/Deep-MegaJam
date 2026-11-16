@@ -34,6 +34,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Tether")
 	FDeepTetherTuning Tether;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Tether")
+	FDeepRopeTuning Rope;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Diver")
 	FDeepWeightTuning Weight;
 
@@ -43,6 +46,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Diver")
 	FDeepLampTuning Lamp;
 
+	/** The sea at each depth, the marine snow, the sub's flood and the hatch water (style guide 5). */
+	UPROPERTY(Config, EditAnywhere, Category = "Look")
+	FDeepLookTuning Look;
+
+	/** Rock walls and a roof round each stop's arena (ADeepCavern). */
+	UPROPERTY(Config, EditAnywhere, Category = "Look")
+	FDeepCavernTuning Cavern;
+
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepPatienceTuning Patience;
 
@@ -51,6 +62,9 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Bailout")
 	FDeepBailoutTuning Bailout;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Air line")
+	FDeepAirLineTuning AirLine;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Salvage")
 	TArray<FDeepSalvageKind> SalvageKinds;
@@ -64,6 +78,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
 	FDeepSubTuning Sub;
 
+	/** The cave shaft between stops: its shape, the helm's steering and the wall's hits (Sim/DeepCaveRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Cave")
+	FDeepCaveTuning Cave;
+
+	/** Real sub controls at the helm: throttle notches, rudder, ballast lever, parking (Sim/DeepPilotRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Pilot")
+	FDeepPilotTuning Pilot;
+
 	/** Displayed depth of each stop (Stops[i].SubDepthM), shallowest first. */
 	TArray<float> StopDepthsM() const;
 
@@ -72,4 +94,14 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Director")
 	FDeepReviewTuning Review;
+
+	/** Shakes, the footage look, the sonar pulse made visible, interference (Camera/). */
+	UPROPERTY(Config, EditAnywhere, Category = "Camera")
+	FDeepCameraTuning Camera;
+	/** The helm's sonar (Sonar lane). */
+	UPROPERTY(Config, EditAnywhere, Category = "Sonar")
+	FDeepSonarTuning Sonar;
+	/** The room's dressing: materials, clear zones, caged lights (World/DeepRoomDress). */
+	UPROPERTY(Config, EditAnywhere, Category = "RoomDress")
+	FDeepRoomDressTuning RoomDress;
 };

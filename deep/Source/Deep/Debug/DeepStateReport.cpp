@@ -1,6 +1,7 @@
 #include "Debug/DeepStateReport.h"
 
 #include "Audio/DeepAudioSubsystem.h"
+#include "Camera/DeepCameraSubsystem.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Dom/JsonObject.h"
@@ -14,6 +15,9 @@
 #include "Sim/DeepRules.h"
 #include "Diver/DeepRunComponent.h"
 #include "Harpoon/DeepHarpoonComponent.h"
+#include "Monster/DeepMonsterBrain.h"
+#include "Monster/DeepMonsterRules.h"
+#include "Monster/DeepSerpent.h"
 #include "Story/DeepCaptain.h"
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
@@ -111,6 +115,15 @@ namespace DeepStateReport
 		Json->SetBoolField(TEXT("seated"), Run && Run->IsSeated());
 		Json->SetNumberField(TEXT("sub_depth_m"), State ? State->SubDepthM : 0.f);
 		Json->SetNumberField(TEXT("depth_limit_m"), State ? State->DepthLimitM() : 0.f);
+		// The cave shaft: the sideways offset from the stops' axis (sub frame, m) and the hull left before a breach.
+		Json->SetNumberField(TEXT("sub_offset_x_m"), State ? State->SubOffsetM.X : 0.f);
+		Json->SetNumberField(TEXT("sub_offset_y_m"), State ? State->SubOffsetM.Y : 0.f);
+		// The helm's levers and the sub's heading (Sim/DeepPilotRules): notch -2..3, ballast -1 blown .. 1 flooded.
+		Json->SetNumberField(TEXT("sub_yaw_deg"), State ? State->SubYawDeg : 0.f);
+		Json->SetNumberField(TEXT("throttle_notch"), State ? State->HelmThrottleNotch : 0);
+		Json->SetNumberField(TEXT("ballast"), State ? State->HelmBallast : 0.f);
+		Json->SetNumberField(TEXT("helm_speed_mps"), State ? State->HelmSpeedMps : 0.f);
+		Json->SetNumberField(TEXT("hull_integrity"), State ? State->GetHullIntegrity01() : 1.f);
 		Json->SetBoolField(TEXT("has_flashlight"), State && State->HasFlashlight());
 		Json->SetBoolField(TEXT("hull_upgraded"), State && State->IsHullUpgraded());
 		Json->SetNumberField(TEXT("parked_stop"), State ? State->ParkedStop() : 0);
@@ -134,6 +147,26 @@ namespace DeepStateReport
 		Json->SetNumberField(TEXT("relic_distance_m"), Relic && Diver ? FVector::Dist(Relic->GetActorLocation(), Diver->GetActorLocation()) / 100.0 : -1.0);
 		Json->SetBoolField(TEXT("carrying_relic"), Run && Run->CarriesRelic());
 
+		// The serpent, for scripted players that aim the lamp at it: state, head position, the bite alarm left.
+		if (const UDeepMonsterBrain* Brain = World ? World->GetSubsystem<UDeepMonsterBrain>() : nullptr)
+		{
+			if (const ADeepSerpent* Serpent = Brain->GetSerpent())
+			{
+				const TSharedRef<FJsonObject> SerpentJson = MakeShared<FJsonObject>();
+				SerpentJson->SetStringField(TEXT("state"), UDeepMonsterRules::StateName(Brain->GetState()));
+				const FVector Head = Serpent->GetHeadLocation();
+				SerpentJson->SetArrayField(TEXT("head_cm"), {
+					MakeShared<FJsonValueNumber>(FMath::RoundToDouble(Head.X)),
+					MakeShared<FJsonValueNumber>(FMath::RoundToDouble(Head.Y)),
+					MakeShared<FJsonValueNumber>(FMath::RoundToDouble(Head.Z)) });
+				SerpentJson->SetNumberField(TEXT("diver_distance_m"), Brain->GetDiverDistanceM());
+				SerpentJson->SetNumberField(TEXT("tether_distance_m"), Brain->GetTetherDistanceM());
+				SerpentJson->SetNumberField(TEXT("noise"), Brain->GetNoise());
+				SerpentJson->SetNumberField(TEXT("bite_alarm_s"), Run ? Run->GetBiteAlarmLeft() : 0.f);
+				Json->SetObjectField(TEXT("serpent"), SerpentJson);
+			}
+		}
+
 		int32 SalvageCount = 0;
 		if (World)
 		{
@@ -146,6 +179,10 @@ namespace DeepStateReport
 		if (const UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(World))
 		{
 			Json->SetObjectField(TEXT("audio"), Audio->BuildStateJson());
+		}
+		if (const UDeepCameraSubsystem* Camera = UDeepCameraSubsystem::Get(World))
+		{
+			Json->SetObjectField(TEXT("camera"), Camera->BuildStateJson());
 		}
 
 		const FVector Pos = Diver ? Diver->GetActorLocation() : FVector::ZeroVector;

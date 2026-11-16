@@ -6,11 +6,13 @@
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Engine/Engine.h"
+#include "AIController.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Game/DeepGameMode.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -150,7 +152,8 @@ bool FDeepSubHatchTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("dive_start fired"), W.Bus->CountOf(DeepEvent::DiveStart), 1);
 	W.Run->StepRun(0.5f);
 	TestEqual(TEXT("Not straight back in"), W.Run->GetState(), EDeepRunState::Tethered);
-	TestTrue(TEXT("Patience runs in the water"), W.Run->GetPatienceFraction() < 1.f);
+	// The air line (rescope, Nov 15): clipped on, Patience no longer drains.
+	TestEqual(TEXT("Patience holds on the air line"), W.Run->GetPatienceFraction(), 1.f, 0.0001f);
 
 	// Rising up through the hatch: on the deck, walking.
 	W.Diver->TeleportDiver(W.Sub->GetHatchLocation() - FVector(0.f, 0.f, 20.f));
@@ -182,14 +185,47 @@ bool FDeepSubHatchTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubHelmLimitsTest, "Deep.World.SubHelmLimits", DEEP_SUB_TEST_FLAGS)
-bool FDeepSubHelmLimitsTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubAboardPitchTest, "Deep.World.SubAboardPitch", DEEP_SUB_TEST_FLAGS)
+bool FDeepSubAboardPitchTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepSubTest;
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	FSubWorld W;
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
-	const float Deepest = Tuning.GetStop(Tuning.NumStops()).SubDepthM + 100.f;
+	AAIController* Controller = W.World->SpawnActor<AAIController>();
+	UTEST_NOT_NULL(TEXT("A controller"), Controller);
+	Controller->Possess(W.Diver);
+
+	// Fall through the hatch, then come back pitched steeply up: the view is levelled on arrival, yaw kept.
+	W.Diver->TeleportDiver(W.Sub->GetHatchLocation() - FVector(0.f, 0.f, (Tuning.Sub.DropBelowDeckM + 0.2f) * UDeepRules::CmPerM));
+	W.Run->StepRun(0.05f);
+	UTEST_EQUAL(TEXT("In the water"), W.Run->GetState(), EDeepRunState::Tethered);
+	Controller->SetControlRotation(FRotator(60.f, 123.f, 5.f));
+	W.Run->EnterSub();
+	const FRotator View = Controller->GetControlRotation();
+	TestEqual(TEXT("Aboard"), W.Run->GetState(), EDeepRunState::Aboard);
+	TestEqual(TEXT("Pitch is the tuned level"), FRotator::NormalizeAxis(View.Pitch), (double)Tuning.Arena.AboardPitchDeg, 0.01);
+	TestEqual(TEXT("Yaw unchanged"), FRotator::NormalizeAxis(View.Yaw), 123.0, 0.01);
+	TestEqual(TEXT("No roll"), View.Roll, 0.0, 0.01);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubHelmLimitsTest, "Deep.World.SubHelmLimits", DEEP_SUB_TEST_FLAGS)
+bool FDeepSubHelmLimitsTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepSubTest;
+	// The depth limits on the straight drive: the cave shaft off, so 100 s of holding the helm down meets no rock.
+	struct FShaftOff
+	{
+		IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Cave.Shaft"));
+		int32 Before = Var ? Var->GetInt() : -1;
+		FShaftOff() { if (Var) { Var->Set(0, ECVF_SetByCode); } }
+		~FShaftOff() { if (Var) { Var->Set(Before, ECVF_SetByCode); } }
+	} ShaftOff;
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	FSubWorld W;
+	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
+	const float Deepest =Tuning.GetStop(Tuning.NumStops()).SubDepthM + 100.f;
 
 	for (int32 Gates = 0; Gates <= 2; ++Gates)
 	{

@@ -2,3 +2,6 @@
 "deep-claude-brain/05 - Log/Devlog.md" merge=union
 *.uasset binary
 *.umap binary
+# Lists that several lanes append to: keep both sides.
+deep/Content/Data/PackAssets.csv merge=union
+deep/Content/Data/Credits.csv merge=union

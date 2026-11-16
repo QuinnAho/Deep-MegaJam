@@ -11,6 +11,10 @@
 #include "Monster/DeepSerpent.h"
 #include "Monster/DeepSerpentController.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Story/DeepEventBus.h"
+#include "Sim/DeepRules.h"
+#include "World/DeepAbyssFloor.h"
+#include "World/DeepArena.h"
 #include "World/DeepSubmarine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepMonster, Log, All);
@@ -46,11 +50,27 @@ void UDeepMonsterBrain::Tick(float DeltaTime)
 	{
 		return;
 	}
+	if (!BusHandle.IsValid())
+	{
+		if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+		{
+			BusHandle = Bus->OnEvent.AddUObject(this, &UDeepMonsterBrain::HandleBusEvent);
+		}
+	}
 	Step(DeltaTime);
+	HearHelm(DeltaTime);
 }
 
 void UDeepMonsterBrain::Deinitialize()
 {
+	if (BusHandle.IsValid())
+	{
+		if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+		{
+			Bus->OnEvent.Remove(BusHandle);
+		}
+		BusHandle.Reset();
+	}
 	Serpent.Reset();
 	Super::Deinitialize();
 }
@@ -96,14 +116,15 @@ FString UDeepMonsterBrain::BuildStateJson() const
 {
 	const ADeepSerpentController* Mind = GetSerpentController();
 	return FString::Printf(
-		TEXT("{\"present\":%s,\"state\":\"%s\",\"noise\":%.2f,\"heard\":%.2f,\"lit_s\":%.2f,\"cooldown_s\":%.2f,\"tether_distance_m\":%.2f,\"diver_distance_m\":%.2f,\"threat\":%.3f,\"stop\":%d}"),
+		TEXT("{\"present\":%s,\"state\":\"%s\",\"noise\":%.2f,\"heard\":%.2f,\"lit_s\":%.2f,\"cooldown_s\":%.2f,\"tether_distance_m\":%.2f,\"diver_distance_m\":%.2f,\"threat\":%.3f,\"stop\":%d,\"first_sight_done\":%s}"),
 		Mind ? TEXT("true") : TEXT("false"),
 		*UDeepMonsterRules::StateName(GetState()),
 		GetNoise(),
 		Mind ? Mind->GetHeardTotal() : 0.f,
 		Mind ? Mind->GetLitSeconds() : 0.f,
 		Mind ? Mind->GetCooldownSeconds() : 0.f,
-		GetTetherDistanceM(), GetDiverDistanceM(), GetThreat01(), CurrentStop());
+		GetTetherDistanceM(), GetDiverDistanceM(), GetThreat01(), CurrentStop(),
+		Mind && Mind->IsFirstSightDone() ? TEXT("true") : TEXT("false"));
 }
 
 int32 UDeepMonsterBrain::CurrentStop() const
@@ -208,6 +229,12 @@ void UDeepMonsterBrain::ForceState(EDeepMonsterState NewState)
 	{
 		Mind->ForceState(NewState);
 	}
+}
+
+bool UDeepMonsterBrain::StartFirstSight()
+{
+	ADeepSerpentController* Mind = GetSerpentController();
+	return Mind && Mind->StartFirstSight();
 }
 
 ADeepSerpent* UDeepMonsterBrain::SpawnSerpent(bool bForced)
@@ -315,4 +342,82 @@ void UDeepMonsterBrain::ResetForRun()
 	Serpent.Reset();
 	CutDivers.Reset();
 	bForcedSpawn = false;
+}
+
+FDeepWell UDeepMonsterBrain::GetWell() const
+{
+	FDeepWell Well;
+	const UWorld* World = GetWorld();
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	if (!World || CurrentStop() != Tuning.Arena.RelicStop)
+	{
+		return Well;
+	}
+	// The shaft is cut round the relic's spot (ADeepAbyssFloor::RestPointsFromTuning, negative radius); its floor is that
+	// point's depth below the anchor, its rim the bed just outside it.
+	const FVector Anchor = DeepArena::ArenaAnchor(World);
+	const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
+	const FVector4* Pit = Rest.FindByPredicate([](const FVector4& R) { return R.W < 0.f; });
+	if (!Pit)
+	{
+		return Well;
+	}
+	const double RadiusM = -Pit->W;
+	const FVector2D RimM(Pit->X + RadiusM * 1.6, Pit->Y);
+	const double RimBelowM = ADeepAbyssFloor::SeabedBelowM(RimM, Rest, Tuning.Look);
+	Well.AxisCm = FVector2D(Anchor.X + Pit->X * CmPerM, Anchor.Y + Pit->Y * CmPerM);
+	Well.FloorZCm = Anchor.Z - Pit->Z * CmPerM;
+	Well.TopZCm = Anchor.Z - RimBelowM * CmPerM;
+	Well.RadiusCm = RadiusM * CmPerM;
+	Well.bValid = Well.TopZCm > Well.FloorZCm + 5.0 * CmPerM;
+	return Well;
+}
+
+// ---------------------------------------------------------------- what it hears beyond the divers (lane G)
+
+void UDeepMonsterBrain::HandleBusEvent(FName Event, const FDeepEventPayload& Payload)
+{
+	UWorld* World = GetWorld();
+	if (!World || World->GetNetMode() == NM_Client || !Serpent.IsValid())
+	{
+		return;
+	}
+	const float Loudness = UDeepMonsterRules::NoiseForEvent(Event, Payload.ImpactMps, UDeepMonsterSettings::Get().GetTuning(CurrentStop()));
+	if (Loudness <= 0.f)
+	{
+		return;
+	}
+	// Where it happened: the actor it is about, else the sub (a hull knock, the helm's sonar).
+	AActor* Where = Payload.Source.Get();
+	if (!Where)
+	{
+		Where = DeepArena::FindSubmarine(World);
+	}
+	if (Where)
+	{
+		UDeepMonsterRules::ReportDiverNoise(World, Where->GetActorLocation(), Loudness, Where);
+	}
+}
+
+void UDeepMonsterBrain::HearHelm(float DeltaSeconds)
+{
+	UWorld* World = GetWorld();
+	ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+	if (!Sub || !Serpent.IsValid())
+	{
+		return;
+	}
+	HelmNoiseAccum += UDeepMonsterRules::HelmNoise(Sub->GetDriveSpeedMps(), UDeepTuningSettings::Get().Sub.DriveSpeedMps, DeltaSeconds,
+		UDeepMonsterSettings::Get().GetTuning(CurrentStop()));
+	// Reported in lumps once a second: the hearing sense hears events, not a trickle.
+	HelmClockS += DeltaSeconds;
+	if (HelmClockS >= 1.f)
+	{
+		if (HelmNoiseAccum > 0.f)
+		{
+			UDeepMonsterRules::ReportDiverNoise(World, Sub->GetActorLocation(), HelmNoiseAccum, Sub);
+		}
+		HelmNoiseAccum = 0.f;
+		HelmClockS = 0.f;
+	}
 }

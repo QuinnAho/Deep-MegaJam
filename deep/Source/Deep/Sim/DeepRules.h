@@ -1,4 +1,4 @@
-// DEEP's rules as pure static functions. No world, no actors, no globals: every input is a parameter.
+﻿// DEEP's rules as pure static functions. No world, no actors, no globals: every input is a parameter.
 // Actors gather inputs, call one of these, and apply the result. Each rule has an automation test in
 // Private/Tests/DeepRulesTests.cpp.
 
@@ -36,9 +36,34 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static float TetherLengthM(int32 Stop, const FDeepTetherTuning& Tuning);
 
+	/** Lamp intensity scale for a facing surface DistM ahead on the beam's axis (negative = nothing ahead): (d / NearFullM)^2 clamped to [NearMinScale, 1]. */
+	static float LampNearScale(float DistM, const FDeepLampTuning& Tuning);
+
+	/** The engine's spot cone falloff at CosAngle off the axis: 1 inside the inner cone, 0 outside the outer, a squared ramp in cosine between. */
+	static float LampConeFalloff(float CosAngle, const FDeepLampTuning& Tuning);
+
+	/**
+	 * How bright the lamp lights a point, relative to a facing surface at NearFullM on the axis: cone falloff times facing
+	 * (cosine of incidence, clamped to [0, 1]) times (NearFullM / d)^2. Negative distance = nothing there (0).
+	 */
+	static float LampSampleBrightness(float DistM, float CosOffAxis, float CosIncidence, const FDeepLampTuning& Tuning);
+
+	/** The intensity scale that brings the brightest sample in the cone back to 1: 1 / Brightest, clamped to [NearMinScale, 1]. */
+	static float LampScaleForBrightest(float Brightest, const FDeepLampTuning& Tuning);
+
 	/** Where the diver may be if it wants to be at WantedCm on a line of LengthM from AnchorCm. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static FDeepTetherSolve SolveTether(const FVector& AnchorCm, const FVector& WantedCm, float LengthM, const FDeepTetherTuning& Tuning);
+
+	/**
+	 * Visual only: how long the drawn rope is (cm). Taut (winch, or at full length) = the straight line; otherwise the
+	 * straight line plus a share of slack, capped by SlackMaxM and by the line left on the reel.
+	 */
+	static float RopeShownLengthCm(float StraightCm, float TetherLengthCm, bool bTaut, const FDeepRopeTuning& Rope);
+
+	/** The winch's speed: RelicWinchSpeedMps while the relic is aboard, else WinchSpeedMps. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
+	static float WinchSpeedMps(bool bCarryingRelic, const FDeepTetherTuning& Tuning);
 
 	/** One winch step: moves toward the anchor at WinchSpeedMps, stopping WinchArriveM from it. Never moves away. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")

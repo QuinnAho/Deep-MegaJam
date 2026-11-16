@@ -53,6 +53,9 @@ public:
 	/** Divers in the water (their run lets them swim): dead, settling and descending divers are not prey. */
 	void GatherDivers(TArray<ADeepDiver*>& Out) const;
 
+	/** The relic's shaft at the relic's stop (from the arena's tuning and the bed's shape); bValid false at other stops. */
+	FDeepWell GetWell() const;
+
 	/** `{json}` with present, state, noise, heard, lit_s, cooldown_s, tether_distance_m, diver_distance_m, threat, stop. */
 	FString BuildStateJson() const;
 
@@ -81,6 +84,10 @@ public:
 	void SetDebugLit(float Seconds);
 	/** Jumps to a state with fresh timers (no events fire). */
 	void ForceState(EDeepMonsterState NewState);
+	/** The first sight now: a sound, then one slow pass across the diver's lamp (see ADeepSerpentController::StartFirstSight). */
+	bool StartFirstSight();
+	/** Spawned by a cheat or a test: it stays at any stop and skips the first sight (the old rules exactly). */
+	bool IsForcedSpawn() const { return bForcedSpawn; }
 	/** Spawn bookkeeping (stop 2 and deeper). Tick calls this; tests call it directly. */
 	void Step(float DeltaSeconds);
 	/** A new run: the serpent and its controller are removed and every tether counts as intact again. */
@@ -98,6 +105,14 @@ protected:
 
 private:
 	int32 CurrentStop() const;
+
+	/** Server: bus events it can hear (sonar_ping, harpoon_fired, hull_hit) become hearing stimuli where they happen. */
+	void HandleBusEvent(FName Event, const struct FDeepEventPayload& Payload);
+	/** Server: a sub driven hard at the helm is loud. */
+	void HearHelm(float DeltaSeconds);
+	FDelegateHandle BusHandle;
+	float HelmNoiseAccum = 0.f;
+	float HelmClockS = 0.f;
 
 	TWeakObjectPtr<ADeepSerpent> Serpent;
 	TSet<TWeakObjectPtr<const ADeepDiver>> CutDivers;

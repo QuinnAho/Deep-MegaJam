@@ -24,6 +24,41 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	float SubDepthM = 100.f;
 
+	/**
+	 * The sub's sideways place in the cave shaft (m, X = ahead, Y = starboard, relative to the stops' column). Zero at
+	 * every stop once parked (it glides home). The sub never moves; the arena root moves by -SubOffsetM. Sim/DeepCaveRules.
+	 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	FVector2D SubOffsetM = FVector2D::ZeroVector;
+
+	/**
+	 * The sub's heading in the stop's frame (degrees, + = turned to starboard; 0 as parked). The sub never turns; the
+	 * arena root turns by -SubYawDeg about the vertical through the sub (DeepArena::PositionRoot). Glides to 0 when parked.
+	 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	float SubYawDeg = 0.f;
+
+	/** The helm's levers, for every machine (World/DeepHelmLevers): throttle notch (- astern, 0 stop, + ahead), ballast -1 blown .. 1 flooded. */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	int32 HelmThrottleNotch = 0;
+
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	float HelmBallast = 0.f;
+
+	/** The sub's speed over all axes (m/s) and its speed along the heading (m/s, astern negative), for the HUD. */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	float HelmSpeedMps = 0.f;
+
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	float HelmSurgeMps = 0.f;
+
+	/** Parked, and the glide to the stop's frame is done (offset 0, yaw 0, the stop's depth): the hatch may open. */
+	bool IsSettledAtStop() const;
+
+	/** The hull for the HUD: 1 whole, 0 breached (HullDamage against Cave.HullBreachDamage). */
+	UFUNCTION(BlueprintPure, Category = "Deep")
+	float GetHullIntegrity01() const;
+
 	/** Parked at Stop's depth: the hatch is open. False while driving or hanging between stops. */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	bool bParked = true;
@@ -90,6 +125,9 @@ public:
 
 	/** The performance review from the run totals. Divers expended = written-off divers (DiverNumber - 1). */
 	FDeepRunReview BuildReview() const;
+
+	/** Server: parked off-centre, the sub glides home to the stop's centre (Cave.ParkGlideMps); with the shaft off the offset is cleared. */
+	void StepParkGlide(float DeltaSeconds);
 
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

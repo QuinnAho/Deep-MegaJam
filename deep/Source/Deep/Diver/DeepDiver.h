@@ -13,6 +13,7 @@ class UCameraComponent;
 class USpotLightComponent;
 class UStaticMeshComponent;
 class UDeepTetherComponent;
+class UDeepRopeComponent;
 class UDeepRunComponent;
 class UDeepHarpoonComponent;
 class ADeepSalvage;
@@ -36,6 +37,17 @@ public:
 	void Drop();
 	void SetWinching(bool bInWinching);
 	void ToggleLamp();
+	/** The diver's own sonar ping (in the water, every DiverPingCooldownS; no flashlight needed): sonar_ping on every
+	 * machine's bus from this diver, which the camera draws as a pulse out to DiverPingRangeM. True if it went out (on a
+	 * client: if it was sent to the server, which decides). */
+	bool Ping();
+
+	/** X at the helm: all stop (throttle to stop, ballast to neutral). Does nothing out of the seat. */
+	void AllStopKey();
+	/** In the water (tethered or cut loose), where the ping works. */
+	bool IsInWater() const;
+	/** Seconds until the next ping is allowed (server's count; 0 = ready). */
+	float GetPingWaitS() const;
 	/** Hold to ask the Captain to cut the tether (CutHoldSeconds). */
 	void SetCutHeld(bool bHeld) { bCutHeld = bHeld; }
 	/** The continue key on the settlement screen. */
@@ -60,6 +72,9 @@ public:
 	bool IsWinching() const { return bWinching; }
 	/** The lamp shines: switched on and the flashlight has been bought. */
 	bool IsLampOn() const;
+
+	/** The light is lit: the lamp is on and the diver is in the water (stowed aboard). */
+	bool ShowsLamp() const;
 	/** The flashlight has been bought (the lamp key works). */
 	bool HasFlashlight() const;
 	const TArray<FDeepCargoItem>& GetCargo() const { return Cargo; }
@@ -115,12 +130,26 @@ protected:
 	/** Keeps the movement mode and the view target in step with the run (aboard, seated) on the owning machine. */
 	void SyncAboardMode();
 	float LastHelmInputSent = 0.f;
+	FVector2D LastHelmSteerSent = FVector2D::ZeroVector;
+	/** The pilot's levers as last sent: the throttle key held (-1 S, 0, 1 W; a press is an edge), the ballast and rudder holds, X held. */
+	int32 LastThrottleAxis = 0;
+	FVector2D LastPilotHoldSent = FVector2D::ZeroVector;
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWinching(bool bInWinching);
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetLamp(bool bOn);
+
+	UFUNCTION(Server, Reliable)
+	void ServerPing();
+
+	/** Every machine hears the ping (its sound and its pulse). */
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPing(float RangeM);
+
+	/** Server: when the last ping went out (world seconds; -1 = never). */
+	float LastPingS = -1.f;
 
 	UFUNCTION()
 	void OnRep_Lamp();
@@ -135,7 +164,7 @@ protected:
 	TObjectPtr<UDeepTetherComponent> Tether;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> TetherLine;
+	TObjectPtr<UDeepRopeComponent> TetherLine;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UDeepRunComponent> Run;
@@ -151,6 +180,9 @@ protected:
 
 	UPROPERTY(ReplicatedUsing = OnRep_Lamp, VisibleAnywhere, Category = "Deep")
 	bool bLampOn = true;
+
+	/** Close-range dimming of the lamp, followed smoothly (UDeepRules::LampNearScale). Local look only. */
+	float LampNearScale = 1.f;
 
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	float VerticalInput = 0.f;

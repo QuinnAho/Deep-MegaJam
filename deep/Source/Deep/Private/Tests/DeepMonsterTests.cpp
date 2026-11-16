@@ -20,6 +20,7 @@
 #include "Monster/DeepSerpentController.h"
 #include "Perception/AIPerceptionSystem.h"
 #include "AI/AISystemBase.h"
+#include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepSubmarine.h"
 
@@ -597,8 +598,8 @@ bool FDeepMonsterLoopTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Threat is full during the bite"), Run->GetMonsterThreat01() >= 0.999f);
 	const float PatienceBefore = Run->GetPatienceSeconds();
 	StepAll(1.f);
-	TestEqual(TEXT("Patience drains twice as fast during a bite"), PatienceBefore - Run->GetPatienceSeconds(),
-		Tuning.Patience.DrainPerSecond * Tuning.Patience.HuntedMultiplier, 0.01f);
+	// The air line (rescope, Nov 15): Patience no longer drains, not even during a bite; the bite itself is the threat.
+	TestEqual(TEXT("Patience holds during a bite"), PatienceBefore - Run->GetPatienceSeconds(), 0.f, 0.01f);
 	int32 CutSteps = 0;
 	while (Run->GetState() == EDeepRunState::Tethered && CutSteps < 100)
 	{
@@ -661,4 +662,336 @@ bool FDeepMonsterLoopTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// The last ascent's budget, from the shipped numbers (the ending is winnable only while these hold):
+// winching the relic home from the sinkhole takes less time than the serpent needs to come back after one lamp repel
+// (turn, flee to its lurk ring, cooldown, close in again), so one well-aimed repel brings a careful player home;
+// and a cut diver who drops the relic can swim home from the bottom of the hole on bailout air.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterLastAscentTest, "Deep.Sim.Monster.LastAscent", DEEP_MONSTER_TEST_FLAGS)
+bool FDeepMonsterLastAscentTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Game = UDeepTuningSettings::Get();
+	const int32 Stop = Game.Arena.RelicStop;
+	const FDeepMonsterTuning Serpent = UDeepMonsterSettings::Get().GetTuning(Stop);
+	const float LineM = static_cast<float>(UDeepRules::RelicOffsetCm(Game.Arena, Game.GetStop(Stop).SubDepthM,
+		UDeepRules::TetherLengthM(Stop, Game.Tether)).Size()) / UDeepRules::CmPerM;
+	const float RelicWinchMps = UDeepRules::WinchSpeedMps(true, Game.Tether);
+	const float WinchS = LineM / FMath::Max(0.1f, RelicWinchMps);
+	const float ApproachS = (Serpent.LurkRadiusM - Serpent.BiteReachM) / FMath::Max(0.1f, Serpent.StalkSpeedMps);
+	const float FleeS = FMath::Min(Serpent.RecoilMaxS, Serpent.RecoilTurnS + (Serpent.LurkRadiusM - Serpent.BiteReachM) / FMath::Max(0.1f, Serpent.RecoilSpeedMps));
+	const float BackS = FleeS + Serpent.RecoilCooldownS + ApproachS;
+	AddInfo(FString::Printf(TEXT("Relic line %.1f m, winch %.1f m/s = %.1f s; serpent bites %.1f s after stalking, back %.1f s after a repel"),
+		LineM, RelicWinchMps, WinchS, ApproachS, BackS));
+	TestTrue(TEXT("The relic winches slower than the serpent stalks (it can catch the line)"), RelicWinchMps < Serpent.StalkSpeedMps);
+	TestTrue(TEXT("A player who ignores the serpent is bitten and cut before the winch is home"), WinchS > ApproachS + Serpent.BiteAlarmS);
+	TestTrue(TEXT("Two lamp repels are enough: the winch is home before the serpent's third approach"), WinchS < 2.f * BackS);
+	TestTrue(TEXT("The bite alarm leaves time to turn and aim (at least 3 s)"), Serpent.BiteAlarmS >= 3.f);
+	// A cut diver with the relic is overloaded and cannot swim up; without it, a plain swim home beats the air.
+	FDeepSalvageKind RelicKind;
+	TestTrue(TEXT("The relic is a salvage kind"), Game.FindSalvageKind(EDeepSalvageSize::Relic, RelicKind));
+	TestTrue(TEXT("The relic overloads the diver (winch only)"), UDeepRules::SolveWeight(RelicKind.Kg, Game.Weight).bOverloaded);
+	const float SwimHomeS = LineM / FMath::Max(0.1f, Game.Swim.SwimSpeedMps);
+	TestTrue(TEXT("Dropped, a cut diver swims home from the hole on bailout air with 5 s to spare"), SwimHomeS + 5.f <= Game.Bailout.AirSeconds);
+	return true;
+}
+
+// The last ascent's well: whatever the state, it steers for a place inside the shaft; it comes up from below; it
+// flees down; and it lurks at a depth from which a stalk takes as long as one from the lurk radius in open water.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterWellTest, "Deep.Sim.Monster.Well", DEEP_MONSTER_TEST_FLAGS)
+bool FDeepMonsterWellTest::RunTest(const FString& Parameters)
+{
+	const FDeepMonsterTuning Tuning = UDeepMonsterSettings::Get().GetTuning(UDeepTuningSettings::Get().Arena.RelicStop);
+	FDeepWell Well;
+	Well.AxisCm = FVector2D(1000.0, -500.0);
+	Well.FloorZCm = -10000.0;
+	Well.TopZCm = -3500.0;
+	Well.RadiusCm = 450.0;
+	Well.bValid = true;
+	const double InnerCm = Well.RadiusCm - Tuning.WellWallClearM * 100.0;
+	TestTrue(TEXT("The path keeps clear of the wall by less than the radius"), InnerCm > 100.0);
+
+	// A diver rising up the axis, 30 m above the floor; the open-water aims point far out into the rock.
+	const FVector Diver(1000.0, -500.0, -7000.0);
+	const FVector OpenWater(1000.0 + 4500.0, -500.0, -6000.0);
+	const FVector2D Side(0.0, 1.0);
+	const EDeepMonsterState States[] = { EDeepMonsterState::Lurk, EDeepMonsterState::Stalk, EDeepMonsterState::Recoil,
+		EDeepMonsterState::Bite, EDeepMonsterState::Hunt, EDeepMonsterState::Pass };
+	const FVector Heads[] = { FVector(1100.0, -500.0, -9000.0), FVector(1000.0, -300.0, -7300.0), FVector(5000.0, 3000.0, -12000.0) };
+	for (const EDeepMonsterState State : States)
+	{
+		for (const FVector& Head : Heads)
+		{
+			const FVector Aim = UDeepMonsterRules::WellAimPoint(State, Well, Head, Diver, OpenWater, Side, 4.f, Tuning);
+			const double Off = FVector2D::Distance(FVector2D(Aim.X, Aim.Y), Well.AxisCm);
+			TestTrue(FString::Printf(TEXT("%s: the aim is inside the shaft (%.0f cm off the axis)"), *UDeepMonsterRules::StateName(State), Off), Off <= InnerCm + 1.0);
+			TestTrue(FString::Printf(TEXT("%s: the aim is above the floor"), *UDeepMonsterRules::StateName(State)), Aim.Z >= Well.FloorZCm + Tuning.WellFloorClearM * 100.0 - 1.0);
+		}
+	}
+	const FVector Below(1000.0, -500.0, -9000.0);
+	const FVector StalkAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Stalk, Well, Below, Diver, OpenWater, Side, 4.f, Tuning);
+	TestTrue(TEXT("The stalk comes up to the diver from below"), StalkAim.Z < Diver.Z && StalkAim.Z > Below.Z);
+	const FVector RecoilAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Recoil, Well, FVector(1000.0, -400.0, -7300.0), Diver, OpenWater, Side, 4.f, Tuning);
+	TestTrue(TEXT("The recoil goes down the shaft"), RecoilAim.Z < -7300.0 - 1000.0);
+	const FVector LurkAim = UDeepMonsterRules::WellAimPoint(EDeepMonsterState::Lurk, Well, Below, Diver, OpenWater, Side, 4.f, Tuning);
+	TestTrue(TEXT("It lurks below the diver"), LurkAim.Z < Diver.Z - 2.f * Tuning.BiteReachM * 100.0);
+	TestTrue(TEXT("A point outside is moved in"), UDeepMonsterRules::IsInWell(Well, UDeepMonsterRules::KeepInWell(Well, OpenWater, Tuning)));
+	const FVector PathKept = UDeepMonsterRules::KeepInWell(Well, OpenWater, Tuning, Tuning.WellPathWallClearM);
+	TestTrue(TEXT("The path is held off the wall by its own clearance"), FMath::IsNearlyEqual(FVector2D::Distance(FVector2D(PathKept.X, PathKept.Y), Well.AxisCm), Well.RadiusCm - Tuning.WellPathWallClearM * 100.0, 1.0));
+
+	// Timing kept: from the hold depth, closing at stalk speed less the rise, the stalk takes the open-water time.
+	const float OpenS = (Tuning.LurkRadiusM - Tuning.BiteReachM) / Tuning.StalkSpeedMps;
+	for (const float Rise : { 0.f, 2.f, 4.f })
+	{
+		const float HoldM = UDeepMonsterRules::WellHoldBelowM(Rise, Tuning);
+		const float Closing = Tuning.StalkSpeedMps - Rise;
+		AddInfo(FString::Printf(TEXT("Rise %.0f m/s: lurks %.1f m below, stalk %.1f s (open water %.1f s)"), Rise, HoldM, (HoldM - Tuning.BiteReachM) / Closing, OpenS));
+		TestTrue(TEXT("Never deeper than the lurk radius"), HoldM <= Tuning.LurkRadiusM + 0.01f);
+		if (HoldM > 2.f * Tuning.BiteReachM + 0.01f)
+		{
+			TestTrue(TEXT("The stalk from the hold takes the open-water time"), FMath::IsNearlyEqual((HoldM - Tuning.BiteReachM) / Closing, OpenS, 0.05f));
+		}
+	}
+	return true;
+}
+
+#endif
+
+#if WITH_DEV_AUTOMATION_TESTS
+namespace DeepChainTest
+{
+	// A body like the shipped one: 20 segments 70 cm apart, half a spacing at the neck and the tail; the neck 80 cm
+	// behind the head. The head swims; the test keeps its trail as ADeepSerpent does (a point every 10 cm).
+	constexpr int32 Segs = 20;
+	constexpr float SpacingCm = 70.f;
+	constexpr float HeadBackCm = 80.f;
+
+	struct FSwim
+	{
+		FDeepSerpentChain Chain;
+		FDeepSerpentChainTuning Tuning;
+		FVector Head = FVector::ZeroVector;
+		FVector Forward = FVector::ForwardVector;
+		TArray<FVector> Path;
+
+		FSwim()
+		{
+			Chain.RestCm.SetNum(Segs + 1);
+			for (int32 i = 0; i <= Segs; ++i)
+			{
+				Chain.RestCm[i] = (i == 0 || i == Segs) ? SpacingCm * 0.5f : SpacingCm;
+			}
+			Path = { Head, Head - Forward * 2000.f };
+			UDeepMonsterRules::LayChain(Chain, Path, HeadBackCm);
+		}
+
+		/** The head moves by Step along Forward (after turning Forward by YawDeg), then one frame of Dt. */
+		int32 Frame(float StepCm, float YawDeg, float Dt)
+		{
+			Forward = FRotator(0.f, YawDeg, 0.f).RotateVector(Forward).GetSafeNormal();
+			Head += Forward * StepCm;
+			if (FVector::Dist(Head, Path[0]) >= 10.f)
+			{
+				Path.Insert(Head, 0);
+			}
+			TArray<FVector> Full = Path;
+			Full.Insert(Head, 0);
+			return UDeepMonsterRules::StepChain(Chain, Head - Forward * HeadBackCm, Forward, Full, HeadBackCm, Tuning, Dt);
+		}
+
+		float WorstSpacing01() const
+		{
+			float Worst = 0.f;
+			for (int32 i = 0; i + 1 < Chain.Pos.Num(); ++i)
+			{
+				const float Len = static_cast<float>(FVector::Dist(Chain.Pos[i], Chain.Pos[i + 1]));
+				Worst = FMath::Max(Worst, FMath::Abs(Len - Chain.RestCm[i]) / Chain.RestCm[i]);
+			}
+			return Worst;
+		}
+
+		float WorstBendDeg() const
+		{
+			float Worst = 0.f;
+			for (int32 j = 0; j + 1 < Chain.Pos.Num(); ++j)
+			{
+				Worst = FMath::Max(Worst, UDeepMonsterRules::ChainBendDeg(Chain, j, Forward));
+			}
+			return Worst;
+		}
+
+		bool AnyNaN() const
+		{
+			for (int32 i = 0; i < Chain.Pos.Num(); ++i)
+			{
+				if (Chain.Pos[i].ContainsNaN() || Chain.Old[i].ContainsNaN())
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+	};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterChainStraightTest, "Deep.Sim.Monster.Chain.Straight", DEEP_MONSTER_TEST_FLAGS)
+
+bool FDeepMonsterChainStraightTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepChainTest;
+	FSwim Swim;
+	// 3 m/s straight ahead for 3 s at 60 fps.
+	float WorstOff = 0.f;
+	for (int32 f = 0; f < 180; ++f)
+	{
+		TestTrue(TEXT("Substeps run at 60 fps"), Swim.Frame(5.f, 0.f, 1.f / 60.f) >= 0);
+	}
+	for (const FVector& P : Swim.Chain.Pos)
+	{
+		WorstOff = FMath::Max(WorstOff, static_cast<float>(FMath::Abs(P.Y) + FMath::Abs(P.Z)));
+	}
+	AddInfo(FString::Printf(TEXT("Straight swim: worst off the line %.2f cm, spacing off by %.2f%%"), WorstOff, Swim.WorstSpacing01() * 100.f));
+	TestTrue(TEXT("A head moving straight leaves a straight body (within 1 cm)"), WorstOff < 1.f);
+	TestTrue(TEXT("Spacing holds within 2%"), Swim.WorstSpacing01() < 0.02f);
+	TestTrue(TEXT("The body moved with the head"), Swim.Chain.Pos.Last().X > 800.f - (HeadBackCm + Segs * SpacingCm) - 50.f);
+	// The drawn body passes through every particle: the smooth curve meets each joint.
+	float CurveMiss = 0.f;
+	float AlongCm = 0.f;
+	for (int32 i = 0; i < Swim.Chain.Pos.Num(); ++i)
+	{
+		AlongCm += i > 0 ? Swim.Chain.RestCm[i - 1] : 0.f;
+		CurveMiss = FMath::Max(CurveMiss, static_cast<float>(FVector::Dist(UDeepMonsterRules::ChainPoint(Swim.Chain, AlongCm), Swim.Chain.Pos[i])));
+	}
+	TestTrue(TEXT("The smooth body curve passes through every joint (within 1 cm)"), CurveMiss < 1.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterChainTurnTest, "Deep.Sim.Monster.Chain.Turn", DEEP_MONSTER_TEST_FLAGS)
+
+bool FDeepMonsterChainTurnTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepChainTest;
+	FSwim Swim;
+	const float Dt = 1.f / 60.f;
+	float WorstSpacing = 0.f;
+	float WorstBend = 0.f;
+	auto Track = [&]()
+	{
+		WorstSpacing = FMath::Max(WorstSpacing, Swim.WorstSpacing01());
+		WorstBend = FMath::Max(WorstBend, Swim.WorstBendDeg());
+	};
+	// 4 m straight at 3 m/s, then a 90 degree turn to the left at 90 deg/s (a 1.9 m radius), then on along +Y.
+	for (int32 f = 0; f < 80; ++f)
+	{
+		Swim.Frame(5.f, 0.f, Dt);
+		Track();
+	}
+	const FVector TailBefore = Swim.Chain.Pos.Last();
+	for (int32 f = 0; f < 60; ++f)
+	{
+		Swim.Frame(5.f, -1.5f, Dt);
+		Track();
+	}
+	TestTrue(TEXT("The head now swims along -Y (a left turn)"), FVector::DotProduct(Swim.Forward, FVector(0.f, -1.f, 0.f)) > 0.99f);
+	const FVector TailAtTurn = Swim.Chain.Pos.Last();
+	const FVector TailDirAtTurn = (Swim.Chain.Pos[Swim.Chain.Pos.Num() - 2] - TailAtTurn).GetSafeNormal();
+	AddInfo(FString::Printf(TEXT("As the head finishes the turn the tail points (%.2f, %.2f) and has moved %.0f cm in X, %.0f in Y"),
+		TailDirAtTurn.X, TailDirAtTurn.Y, TailAtTurn.X - TailBefore.X, TailAtTurn.Y - TailBefore.Y));
+	TestTrue(TEXT("The tail lags: as the head finishes turning, the tail still swims along +X"), TailDirAtTurn.X > 0.9f);
+	TestTrue(TEXT("The tail lags: it has not swung sideways yet"), FMath::Abs(TailAtTurn.Y - TailBefore.Y) < 50.f);
+	// 18 m on: the whole 14.8 m body has come round the corner.
+	for (int32 f = 0; f < 360; ++f)
+	{
+		Swim.Frame(5.f, 0.f, Dt);
+		Track();
+	}
+	const FVector Tail = Swim.Chain.Pos.Last();
+	const FVector TailDir = (Swim.Chain.Pos[Swim.Chain.Pos.Num() - 2] - Tail).GetSafeNormal();
+	const float CornerX = 400.f + 190.f;
+	AddInfo(FString::Printf(TEXT("After the turn the tail points (%.2f, %.2f) at x %.0f (corner about %.0f); worst spacing %.2f%%, worst bend %.1f deg"),
+		TailDir.X, TailDir.Y, Tail.X, CornerX, WorstSpacing * 100.f, WorstBend));
+	TestTrue(TEXT("Then the tail follows the turn: it swims along -Y"), TailDir.Y < -0.9f);
+	TestTrue(TEXT("It went round where the head went (within 1.5 m of the corner's x), not across"), FMath::Abs(Tail.X - CornerX) < 150.f);
+	TestTrue(TEXT("Spacing holds within 2% throughout"), WorstSpacing < 0.02f);
+	TestTrue(TEXT("No joint bends past the limit"), WorstBend <= Swim.Tuning.BendLimitDeg + 0.5f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterChainBendTest, "Deep.Sim.Monster.Chain.BendLimit", DEEP_MONSTER_TEST_FLAGS)
+
+bool FDeepMonsterChainBendTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepChainTest;
+	// The head whips round on the spot (180 deg/s while barely moving) and with no path to follow: the body still never
+	// folds past the limit at any joint, the neck included.
+	FSwim Swim;
+	Swim.Path.Reset();
+	float WorstBend = 0.f;
+	for (int32 f = 0; f < 120; ++f)
+	{
+		Swim.Forward = FRotator(0.f, 3.f, 0.f).RotateVector(Swim.Forward).GetSafeNormal();
+		Swim.Head += Swim.Forward * 1.f;
+		UDeepMonsterRules::StepChain(Swim.Chain, Swim.Head - Swim.Forward * HeadBackCm, Swim.Forward, TArray<FVector>(), HeadBackCm, Swim.Tuning, 1.f / 60.f);
+		WorstBend = FMath::Max(WorstBend, Swim.WorstBendDeg());
+	}
+	AddInfo(FString::Printf(TEXT("Spinning head: worst bend %.1f deg (limit %.0f), spacing off by %.2f%%"), WorstBend, Swim.Tuning.BendLimitDeg, Swim.WorstSpacing01() * 100.f));
+	TestTrue(TEXT("No joint bends past the limit"), WorstBend <= Swim.Tuning.BendLimitDeg + 0.5f);
+	TestTrue(TEXT("Spacing holds within 2%"), Swim.WorstSpacing01() < 0.02f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterChainStableTest, "Deep.Sim.Monster.Chain.Stable", DEEP_MONSTER_TEST_FLAGS)
+
+bool FDeepMonsterChainStableTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepChainTest;
+	FSwim Swim;
+	const TArray<FVector> Before = Swim.Chain.Pos;
+	TestEqual(TEXT("A frame of 0 s takes no substep"), Swim.Frame(0.f, 0.f, 0.f), 0);
+	TestFalse(TEXT("A frame of 0 s leaves no NaN"), Swim.AnyNaN());
+	TestTrue(TEXT("A frame of 0 s leaves the body where it was"), Swim.Chain.Pos.Last().Equals(Before.Last(), 0.01));
+
+	// Half a second in one frame, with the head jumping 10 m sideways: clamped, no NaN, the body still in one piece.
+	const int32 Steps = Swim.Frame(0.f, 0.f, 0.f);
+	Swim.Head += FVector(0.f, 1000.f, 0.f);
+	const int32 BigSteps = Swim.Frame(10.f, 40.f, 0.5f);
+	AddInfo(FString::Printf(TEXT("dt 0.5 s ran %d substeps (clamped to %.2f s)"), BigSteps, Swim.Tuning.MaxFrameS));
+	TestTrue(TEXT("A 0.5 s frame is clamped"), BigSteps <= FMath::CeilToInt(Swim.Tuning.MaxFrameS / Swim.Tuning.SubstepS) + 1 && Steps == 0);
+	TestFalse(TEXT("A 0.5 s frame leaves no NaN"), Swim.AnyNaN());
+	TestTrue(TEXT("Spacing holds after a 0.5 s frame"), Swim.WorstSpacing01() < 0.02f);
+	for (int32 f = 0; f < 10; ++f)
+	{
+		Swim.Frame(30.f, 0.f, 0.5f);
+	}
+	TestFalse(TEXT("Ten 0.5 s frames leave no NaN"), Swim.AnyNaN());
+
+	// The flinch's kick: the tail moves sideways, the neck stays pinned, nothing breaks.
+	FSwim Kicked;
+	UDeepMonsterRules::KickChain(Kicked.Chain, FVector::UpVector, 400.f, 700.f, Kicked.Tuning.SubstepS);
+	// The pull onto the trail swings it back, so look for the widest swing, not the last frame.
+	float MostSideways = 0.f;
+	for (int32 f = 0; f < 30; ++f)
+	{
+		Kicked.Frame(0.f, 0.f, 1.f / 60.f);
+		for (const FVector& P : Kicked.Chain.Pos)
+		{
+			MostSideways = FMath::Max(MostSideways, static_cast<float>(FMath::Abs(P.Y)));
+		}
+	}
+	AddInfo(FString::Printf(TEXT("Kick: the body swung at most %.0f cm sideways in 0.5 s"), MostSideways));
+	TestTrue(TEXT("The flinch's kick throws the body sideways"), MostSideways > 10.f);
+	TestFalse(TEXT("The kick leaves no NaN"), Kicked.AnyNaN());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepMonsterBodyShippedTest, "Deep.Sim.Monster.Chain.Shipped", DEEP_MONSTER_TEST_FLAGS)
+
+bool FDeepMonsterBodyShippedTest::RunTest(const FString& Parameters)
+{
+	const FDeepSerpentBodyTuning& Body = UDeepMonsterSettings::Get().Body;
+	TestTrue(TEXT("No swim stroke by default: the body moves by the head's path and the physics only"), Body.Chain.StrokeM == 0.f && Body.Chain.StrokeDeg == 0.f);
+	TestTrue(TEXT("Water resists sideways motion more than motion along the body"), Body.Chain.SideDragPerS > 0.f);
+	TestTrue(TEXT("Substeps of at most 1/60 s"), Body.Chain.SubstepS > 0.f && Body.Chain.SubstepS <= 1.f / 60.f);
+	TestTrue(TEXT("The bend limit lets it curl but not fold"), Body.Chain.BendLimitDeg > 5.f && Body.Chain.BendLimitDeg < 60.f);
+	TestTrue(TEXT("No pack head by default"), Body.MeshHead.Mesh.IsNull());
+	return true;
+}
 #endif

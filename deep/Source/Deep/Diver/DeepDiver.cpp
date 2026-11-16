@@ -1,11 +1,16 @@
 #include "Diver/DeepDiver.h"
 
 #include "Camera/CameraComponent.h"
+#include "Camera/DeepCameraRules.h"
+#include "Sonar/DeepSonarRules.h"
+#include "Story/DeepEventBus.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Diver/DeepLamp.h"
 #include "Diver/DeepRunComponent.h"
 #include "Diver/DeepTetherComponent.h"
+#include "World/DeepRopeComponent.h"
 #include "EngineUtils.h"
 #include "Game/DeepGameState.h"
 #include "GameFramework/PlayerController.h"
@@ -17,6 +22,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepShaft.h"
 #include "World/DeepShapes.h"
 
 namespace
@@ -50,27 +56,22 @@ ADeepDiver::ADeepDiver()
 
 	Lamp = CreateDefaultSubobject<USpotLightComponent>(TEXT("Lamp"));
 	Lamp->SetupAttachment(Camera);
-	// A little right of and below the eye, like a helmet lamp, so the beam reads in the fog.
-	Lamp->SetRelativeLocation(FVector(10.f, 18.f, -12.f));
 	Lamp->SetMobility(EComponentMobility::Movable);
-	Lamp->SetLightColor(FLinearColor(1.f, 0.95f, 0.85f));
-	// A plain spotlight: no light shafts.
-	Lamp->SetVolumetricScatteringIntensity(0.f);
+	// Hard shadows: a point source (style guide 1: the lamp is the main subject, hard shadows where it lands).
+	Lamp->SetCastShadows(true);
+	Lamp->SetSourceRadius(0.f);
+	Lamp->SetSoftSourceRadius(0.f);
+	// Offset, colour, beam strength and fog shadows come from FDeepLampTuning in BeginPlay.
 
 	Tether = CreateDefaultSubobject<UDeepTetherComponent>(TEXT("Tether"));
 	Run = CreateDefaultSubobject<UDeepRunComponent>(TEXT("Run"));
 	Harpoon = CreateDefaultSubobject<UDeepHarpoonComponent>(TEXT("Harpoon"));
 
-	TetherLine = DeepShapes::CreateShape(this, TEXT("TetherLine"), DeepShapes::Cylinder);
+	// The tether as a rope: a chain of short segments the tether component drives each frame (World/DeepRopeComponent).
+	// Lit like everything else outside, so it shows where the lamp or the sub's lights catch it and is dark elsewhere.
+	TetherLine = CreateDefaultSubobject<UDeepRopeComponent>(TEXT("TetherLine"));
 	TetherLine->SetupAttachment(GetCapsuleComponent());
-	TetherLine->SetUsingAbsoluteLocation(true);
-	TetherLine->SetUsingAbsoluteRotation(true);
-	TetherLine->SetUsingAbsoluteScale(true);
-	TetherLine->SetCastShadow(false);
-	// Lighting channel 1 only: lit by the scene's even key and fill (ADeepEnvironment), not by the helmet lamp right
-	// next to it, which made it glow.
-	TetherLine->SetLightingChannels(false, true, false);
-	Tether->SetLineMesh(TetherLine);
+	Tether->SetLineRope(TetherLine);
 }
 
 void ADeepDiver::BeginPlay()
@@ -83,14 +84,21 @@ void ADeepDiver::BeginPlay()
 	Lamp->SetInnerConeAngle(LampTuning.InnerConeDeg);
 	Lamp->SetOuterConeAngle(LampTuning.OuterConeDeg);
 	Lamp->SetAttenuationRadius(LampTuning.RangeM * UDeepRules::CmPerM);
+	// Off the eye axis (right and up), so the beam's edge and the shadows it throws read in the murk.
+	Lamp->SetRelativeLocation(FVector(LampTuning.OffsetForwardCm, LampTuning.OffsetRightCm, LampTuning.OffsetUpCm));
+	Lamp->SetLightColor(LampTuning.Color);
+	// The visible beam: the lamp lights the volumetric fog, and its own shadows cut the lit fog.
+	Lamp->SetVolumetricScatteringIntensity(LampTuning.VolumetricScattering);
+	Lamp->SetCastVolumetricShadow(LampTuning.bVolumetricShadow);
 	if (HasAuthority())
 	{
 		bLampOn = LampTuning.bStartsOn;
 	}
 	OnRep_Lamp();
 
-	// A dull yellow cable: reads against the dark water and the floor without glowing.
-	DeepShapes::Tint(TetherLine, FLinearColor(0.45f, 0.36f, 0.08f));
+	// A worn, dull yellow line: reads where light lands on it without glowing.
+	const UDeepTuningSettings& Settings = UDeepTuningSettings::Get();
+	TetherLine->Configure(Settings.Rope.TetherPoints, Settings.Tether.LineThicknessCm, Settings.Rope.TetherColor, true);
 }
 
 void ADeepDiver::ApplySwimTuning()
@@ -110,10 +118,23 @@ void ADeepDiver::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	// The lamp needs the flashlight (D-023): it shows only once it is bought.
-	if (Lamp->IsVisible() != IsLampOn())
+	if (Lamp->IsVisible() != ShowsLamp())
 	{
-		Lamp->SetVisibility(IsLampOn());
+		Lamp->SetVisibility(ShowsLamp());
 	}
+	if (Lamp->IsVisible())
+	{
+		// One slow, small breath in the light (style guide 5: 2% at 0.3 Hz). No flicker.
+		const FDeepLampTuning& LampTuning = UDeepTuningSettings::Get().Lamp;
+		const double T = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		// Up close anything in the cone would burn to white (inverse square): dim for the brightest thing the cone holds
+		// (the bed, salvage, the serpent, pack rock), keep the reach. Dims fast so a turn toward a wall never flashes.
+		const float WantNear = DeepLamp::WantNearScale(this, Lamp, LampTuning);
+		LampNearScale = FMath::FInterpTo(LampNearScale, WantNear, DeltaSeconds, WantNear < LampNearScale ? LampTuning.NearDimRate : LampTuning.NearFollowRate);
+		Lamp->SetIntensity(LampNearScale * LampTuning.Intensity * (1.f + LampTuning.WobbleFraction * FMath::Sin(UE_TWO_PI * LampTuning.WobbleHz * T)));
+	}
+	// The relic's warm glow goes with the diver who carries it (lamp on or off).
+	DeepLamp::UpdateCarriedGlow(*this);
 
 	// Movement input only comes from the controlling machine; character movement replicates the result.
 	if (!IsLocallyControlled())
@@ -125,20 +146,41 @@ void ADeepDiver::Tick(float DeltaSeconds)
 
 	if (Run->IsSeated())
 	{
-		// At the helm: no walking; down (C, S) and up (Space, W) drive the sub.
+		// At the helm, real sub controls: W/S step the throttle a notch a press (it stays where it is left), A/D hold the
+		// rudder, C floods and Space blows the ballast lever (it stays where it is left), X is all stop.
 		Movement->Velocity = FVector::ZeroVector;
-		const float Helm = FMath::Clamp(-VerticalInput - MoveInput.Y, -1.f, 1.f);
-		if (!FMath::IsNearlyEqual(Helm, LastHelmInputSent))
+		const int32 ThrottleAxis = MoveInput.Y > 0.5f ? 1 : (MoveInput.Y < -0.5f ? -1 : 0);
+		if (ThrottleAxis != LastThrottleAxis)
 		{
-			LastHelmInputSent = Helm;
-			Run->SetHelmInput(Helm);
+			LastThrottleAxis = ThrottleAxis;
+			if (ThrottleAxis != 0)
+			{
+				Run->StepThrottle(ThrottleAxis);
+			}
+		}
+		const FVector2D Hold(FMath::Clamp(-VerticalInput, -1.f, 1.f), FMath::Clamp(MoveInput.X, -1.f, 1.f));
+		if (!Hold.Equals(LastPilotHoldSent, 0.01f))
+		{
+			LastPilotHoldSent = Hold;
+			Run->SetPilotHold(Hold.X, Hold.Y);
 		}
 		return;
+	}
+	LastThrottleAxis = 0;
+	if (!LastPilotHoldSent.IsZero())
+	{
+		LastPilotHoldSent = FVector2D::ZeroVector;
+		Run->SetPilotHold(0.f, 0.f);
 	}
 	if (!FMath::IsNearlyZero(LastHelmInputSent))
 	{
 		LastHelmInputSent = 0.f;
 		Run->SetHelmInput(0.f);
+	}
+	if (!LastHelmSteerSent.IsZero())
+	{
+		LastHelmSteerSent = FVector2D::ZeroVector;
+		Run->SetHelmSteer(FVector2D::ZeroVector);
 	}
 	if (Run->IsInside() || Run->IsOnTitle())
 	{
@@ -485,6 +527,63 @@ void ADeepDiver::ToggleLamp()
 	}
 }
 
+bool ADeepDiver::IsInWater() const
+{
+	return Run && (Run->GetState() == EDeepRunState::Tethered || Run->GetState() == EDeepRunState::Cut);
+}
+
+void ADeepDiver::AllStopKey()
+{
+	if (Run && Run->IsSeated())
+	{
+		Run->AllStop();
+	}
+}
+
+float ADeepDiver::GetPingWaitS() const
+{
+	const UWorld* World = GetWorld();
+	return World ? DeepCameraRules::DiverPingWaitS(World->GetTimeSeconds(), LastPingS, UDeepTuningSettings::Get().Camera) : 0.f;
+}
+
+bool ADeepDiver::Ping()
+{
+	if (!HasAuthority())
+	{
+		if (!IsInWater())
+		{
+			return false;
+		}
+		ServerPing();
+		return true;
+	}
+	const UWorld* World = GetWorld();
+	const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+	if (!World || !DeepCameraRules::CanDiverPing(World->GetTimeSeconds(), LastPingS, IsInWater(), T))
+	{
+		return false;
+	}
+	LastPingS = World->GetTimeSeconds();
+	MulticastPing(T.DiverPingRangeM);
+	return true;
+}
+
+void ADeepDiver::ServerPing_Implementation()
+{
+	Ping();
+}
+
+void ADeepDiver::MulticastPing_Implementation(float RangeM)
+{
+	if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+	{
+		FDeepEventPayload Payload;
+		Payload.Source = this;
+		Payload.DepthM = RangeM;
+		Bus->Broadcast(FName(DeepSonarEvent::Ping), Payload);
+	}
+}
+
 void ADeepDiver::ServerSetLamp_Implementation(bool bOn)
 {
 	bLampOn = bOn;
@@ -493,7 +592,14 @@ void ADeepDiver::ServerSetLamp_Implementation(bool bOn)
 
 void ADeepDiver::OnRep_Lamp()
 {
-	Lamp->SetVisibility(IsLampOn());
+	Lamp->SetVisibility(ShowsLamp());
+}
+
+bool ADeepDiver::ShowsLamp() const
+{
+	// Aboard, the room light is enough and a torch at 40,000 blew a wall out to a white disc: the lamp is stowed in the
+	// dry room and comes back on at the hatch. Only the light is hidden; the switch (bLampOn) is kept.
+	return IsLampOn() && !(Run && Run->IsInside());
 }
 
 void ADeepDiver::AddCargo(const FDeepCargoItem& Item)

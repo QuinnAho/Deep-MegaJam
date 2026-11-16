@@ -65,6 +65,8 @@ public:
 	/** Metres to what the last out-of-range shot was aimed at. */
 	float GetLastOutOfRangeM() const { return LastOutOfRangeM; }
 	ADeepHarpoonBolt* GetBolt() const { return Bolt; }
+	/** True while the shot's shove is still carrying the diver back (server and owning client). */
+	bool IsKicking() const { return KickSeconds >= 0.f; }
 
 	/** What a ray from Origin along Direction meets within MaxCm: submarine, serpent or anything solid. */
 	FDeepHarpoonTrace TraceAim(const FVector& OriginCm, const FVector& Direction, float MaxCm) const;
@@ -92,6 +94,10 @@ protected:
 	void DestroyBolt(float AfterSeconds = 0.f);
 	void Fire(const TCHAR* Event);
 	double ServerNow() const;
+	/** The recoil: a shove straight back from Aim, swept on top of the diver's swimming (UDeepHarpoonRules::RecoilTravelM). */
+	void StartKick(const FVector& Aim);
+	void EndKick();
+	void StepKick(float DeltaSeconds);
 
 	UFUNCTION(Server, Reliable)
 	void ServerFire(FVector_NetQuantize OriginCm, FVector_NetQuantizeNormal Direction);
@@ -143,6 +149,9 @@ protected:
 	/** Something solid along the shot beyond range (for "out of range"), 0 if nothing. */
 	float BeyondRangeCm = 0.f;
 	float LatchSeconds = 0.f;
+	/** Seconds since the shot while its shove runs; -1 = no shove. Not replicated: the server and the owning client each run it. */
+	float KickSeconds = -1.f;
+	FVector KickAim = FVector::ForwardVector;
 	TWeakObjectPtr<UObject> BoundInputComponent;
 	FDelegateHandle BusHandle;
 };

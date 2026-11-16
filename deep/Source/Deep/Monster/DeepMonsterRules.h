@@ -85,6 +85,85 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FVector PointAlongTrail(const TArray<FVector>& TrailCm, float DistanceCm);
 
+	// ---- The body chain (pure; world cm; not Blueprint: FDeepSerpentChain is a plain struct) ----
+
+	/** Lays the chain along PathCm (PathCm[0] = the head) from StartCm back, at its rest lengths, at rest. */
+	static void LayChain(FDeepSerpentChain& Chain, const TArray<FVector>& PathCm, float StartCm);
+	/**
+	 * One frame of the chain: fixed substeps of Tuning.SubstepS (the frame clamped to MaxFrameS; 0 = no step). Each
+	 * substep pins Pos[0] (moving from where it was to PinCm across the frame), integrates the rest by Verlet with water
+	 * drag and no gravity, pulls each particle toward PathCm at StartCm + its rest distance back (TrailPullPerS), relaxes
+	 * the links Iterations times, then walks head to tail holding every link at its rest length and every joint within
+	 * BendLimitDeg (joint 0 against -PinForward), and moves each particle through Keep (the cave's clear space).
+	 * Returns the substeps taken. Never leaves a NaN: a broken chain is laid straight behind the pin.
+	 */
+	static int32 StepChain(FDeepSerpentChain& Chain, const FVector& PinCm, const FVector& PinForward, const TArray<FVector>& PathCm,
+		float StartCm, const FDeepSerpentChainTuning& Tuning, float DeltaSeconds, TFunctionRef<FVector(const FVector&)> Keep);
+	/** Same, with no rock. */
+	static int32 StepChain(FDeepSerpentChain& Chain, const FVector& PinCm, const FVector& PinForward, const TArray<FVector>& PathCm,
+		float StartCm, const FDeepSerpentChainTuning& Tuning, float DeltaSeconds);
+	/**
+	 * The flinch: a sideways kick into every free particle, KickCmPerS at the tail growing from 0 at the neck, as an S of
+	 * WaveCm along the body ("sideways" = across the body, level with Up). As velocity: Old moves back by the kick * SubstepS.
+	 */
+	static void KickChain(FDeepSerpentChain& Chain, const FVector& Up, float KickCmPerS, float WaveCm, float SubstepS);
+	/** Bend at joint i in degrees: between the link into it (joint 0: -PinForward) and the link out of it. */
+	static float ChainBendDeg(const FDeepSerpentChain& Chain, int32 Joint, const FVector& PinForward);
+	/** The point DistanceCm along the chain from its pinned end, on a Catmull-Rom curve through the particles, so the drawn body bends smoothly instead of creasing at each joint. Past either end it carries on straight. */
+	static FVector ChainPoint(const FDeepSerpentChain& Chain, float DistanceCm);
+
 	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
 	static FString StateName(EDeepMonsterState State);
+
+	// ---- Hearing, voice, taunt (lane G, Nov 15) ----
+
+	/** Noise units a bus event makes where it happens: sonar_ping, harpoon_fired, hull_hit (+ per m/s of impact). 0 = silent. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float NoiseForEvent(FName Event, float ImpactMps, const FDeepMonsterTuning& Tuning);
+
+	/** Noise the sub makes this step when driven at the helm: HelmNoisePerS at full speed, scaled by throttle. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float HelmNoise(float DriveSpeedMps, float FullSpeedMps, float DeltaSeconds, const FDeepMonsterTuning& Tuning);
+
+	/** It answers a heard sound with a call: loud enough, and its last call long enough ago. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static bool ShouldAnswer(float HeardNoise, float SinceLastCallS, const FDeepMonsterTuning& Tuning);
+
+	/** The voice's level by distance: 1 inside InnerM, then linear to 0 over FalloffM (the engine attenuation uses the same curve). */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float VoiceGain(float DistanceM, float InnerM, float FalloffM);
+
+	/** Seconds between click trains: slow while it circles, fast once it comes in. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Monster")
+	static float ClickEveryS(EDeepMonsterState State, float Threat01, const FDeepMonsterTuning& Tuning);
+
+	/**
+	 * The taunt's three beats (world cm): the edge of the light (TauntEdgeM ahead and to Side of the view), the brush
+	 * (TauntBrushM past the bite point on the other side, never inside BiteReachM), the withdraw (TauntWithdrawM out
+	 * into the dark behind the far side).
+	 */
+	static void TauntPath(const FVector& DiverCm, const FVector& BitePointCm, const FVector& ViewForward, float Side,
+		const FDeepMonsterTuning& Tuning, TArray<FVector>& OutPoints);
+
+	// ---- The well (pure; world cm; not Blueprint: FDeepWell is a plain struct) ----
+
+	/** Inside the shaft: within its radius less MarginCm of the axis, and between its floor and top. */
+	static bool IsInWell(const FDeepWell& Well, const FVector& PointCm, double MarginCm = 0.0);
+	/** Horizontal distance from the shaft's axis (m). */
+	static float WellAxisDistanceM(const FDeepWell& Well, const FVector& PointCm);
+	/** The point moved inside the shaft: at most radius - WellWallClearM off the axis, at least WellFloorClearM above its floor. */
+	static FVector KeepInWell(const FDeepWell& Well, const FVector& AimCm, const FDeepMonsterTuning& Tuning, float WallClearM = -1.f);
+	/**
+	 * How far below a diver who rises at RiseMps it lurks in the shaft (m): far enough that a stalk from there takes as
+	 * long as one from the lurk radius in open water ((LurkRadiusM - BiteReachM) / StalkSpeedMps) at the closing speed it
+	 * has from below (StalkSpeedMps - RiseMps). Never more than LurkRadiusM, never less than twice the bite reach.
+	 */
+	static float WellHoldBelowM(float RiseMps, const FDeepMonsterTuning& Tuning);
+	/**
+	 * Where it steers for in the shaft, by state, kept inside it. Lurk: a small circle round the axis at the hold depth
+	 * below the diver. Stalk: up from below to the diver's end of the line, WellStalkSideM to SideDir's side. Recoil:
+	 * the head turns down, then straight down the shaft. Bite, hunt, pass: the open-water aim, kept inside.
+	 */
+	static FVector WellAimPoint(EDeepMonsterState State, const FDeepWell& Well, const FVector& HeadCm, const FVector& DiverCm,
+		const FVector& OpenWaterAimCm, const FVector2D& SideDir, float RiseMps, const FDeepMonsterTuning& Tuning);
 };
