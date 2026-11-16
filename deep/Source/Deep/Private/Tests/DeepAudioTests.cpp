@@ -46,7 +46,7 @@ namespace DeepAudioTest
 		TArray<FName> Out = DeepEvent::AllFired();
 		for (const TCHAR* Name : { DeepHarpoonEvent::Fired, DeepHarpoonEvent::HitSub, DeepHarpoonEvent::HitTerrain,
 			DeepHarpoonEvent::HitMonster, DeepHarpoonEvent::Missed, DeepHarpoonEvent::Empty, DeepSonarEvent::Ping, DeepSonarEvent::Near,
-			DeepAirLine::TetherBitten, DeepAirLine::Unclip })
+			DeepAirLine::TetherBitten, DeepAirLine::Unclip, DeepEvent::AirlockCycle })
 		{
 			Out.AddUnique(FName(Name));
 		}

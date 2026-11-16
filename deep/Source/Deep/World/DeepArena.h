@@ -7,6 +7,7 @@
 
 class UWorld;
 class ADeepSubmarine;
+class ADeepSubRoom;
 class ADeepArenaRoot;
 class ADeepSalvage;
 struct FDeepSalvageKind;
@@ -14,6 +15,12 @@ struct FDeepSalvageKind;
 namespace DeepArena
 {
 	DEEP_API ADeepSubmarine* FindSubmarine(const UWorld* World);
+
+	/** The sub's room set (World/DeepSubRoom), or null. */
+	DEEP_API ADeepSubRoom* FindRoom(const UWorld* World);
+
+	/** Finds or spawns the room set at Sub.RoomSetLocationM. Every machine, server and client: it is not replicated. */
+	DEEP_API ADeepSubRoom* EnsureRoom(UWorld* World);
 
 	/** The one actor everything outside the sub hangs from. */
 	DEEP_API ADeepArenaRoot* FindArenaRoot(const UWorld* World);

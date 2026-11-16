@@ -66,6 +66,8 @@ protected:
 	void OnVertical(const FInputActionValue& Value);
 	void OnSprint(const FInputActionValue& Value);
 	void OnGrab();
+	/** The grab/use key let go (the airlock valve stops turning). */
+	void OnGrabStop();
 	void OnDrop();
 	void OnWinchStart();
 	void OnWinchStop();

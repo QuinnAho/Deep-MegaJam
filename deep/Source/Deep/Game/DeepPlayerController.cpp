@@ -155,6 +155,7 @@ void ADeepPlayerController::SetupInputComponent()
 	Input->BindAction(SprintAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnSprint);
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnSprint);
 	Input->BindAction(GrabAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnGrab);
+	Input->BindAction(GrabAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnGrabStop);
 	Input->BindAction(DropAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnDrop);
 	Input->BindAction(WinchAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnWinchStart);
 	Input->BindAction(WinchAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnWinchStop);
@@ -227,6 +228,15 @@ void ADeepPlayerController::OnGrab()
 	if (ADeepDiver* Diver = GetDiver())
 	{
 		Diver->Grab();
+	}
+}
+
+void ADeepPlayerController::OnGrabStop()
+{
+	// Aboard, the key is held on the airlock valve: letting go stops the wheel.
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->ReleaseUse();
 	}
 }
 

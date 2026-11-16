@@ -18,6 +18,8 @@
 #include "Story/DeepCaptain.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepShaft.h"
+#include "World/DeepArena.h"
+#include "World/DeepSubRoom.h"
 #include "World/DeepSubmarine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
@@ -934,8 +936,8 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 {
 	const UDeepRunComponent* Run = Diver->GetRun();
 	const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>();
-	const ADeepSubmarine* Sub = Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
-	if (!Run || !State || !Sub)
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	if (!Run || !State || !Room)
 	{
 		return;
 	}
@@ -945,9 +947,9 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 	const int32 NewStop = NewReachableStop(State);
 
 	// Labels on the three things in the room.
-	DrawMarker(Sub->GetHatchLocation(), bParked ? TEXT("HATCH - walk in to dive") : TEXT("HATCH - LOCKED"), bParked ? GoodColor : DangerColor);
-	DrawMarker(Sub->GetConsoleLocation() + FVector(0.f, 0.f, 40.f), bCargo ? TEXT("CONSOLE - bank here") : TEXT("CONSOLE"), bCargo ? CaptainColor : TextColor);
-	DrawMarker(Sub->GetHelmLocation() + FVector(0.f, 0.f, 60.f), TEXT("HELM - drive the sub"), NewStop > 0 || !bParked ? CaptainColor : TextColor);
+	DrawMarker(Room->GetValveLocation(), bParked ? TEXT("AIRLOCK - hold to dive") : TEXT("AIRLOCK - LOCKED"), bParked ? GoodColor : DangerColor);
+	DrawMarker(Room->GetConsoleLocation() + FVector(0.f, 0.f, 40.f), bCargo ? TEXT("CONSOLE - bank here") : TEXT("CONSOLE"), bCargo ? CaptainColor : TextColor);
+	DrawMarker(Room->GetHelmLocation() + FVector(0.f, 0.f, 60.f), TEXT("HELM - drive the sub"), NewStop > 0 || !bParked ? CaptainColor : TextColor);
 
 	// The one thing to do next.
 	FString Next;
@@ -962,6 +964,12 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 		Next = FString::Printf(TEXT("[%s]  USE THE CONSOLE"), *UseKey);
 		Why = TEXT("Credits and the next purchase. Bring salvage up to bank it here.");
 	}
+	else if (Run->IsNearValve() && bParked)
+	{
+		Next = FString::Printf(TEXT("HOLD [%s]  OPEN THE AIRLOCK"), *UseKey);
+		Why = TEXT("Keep holding until the wheel is open.");
+		Color = GoodColor;
+	}
 	else if (Run->IsNearHelm())
 	{
 		Next = FString::Printf(TEXT("[%s]  TAKE THE HELM"), *UseKey);
@@ -974,7 +982,7 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 	}
 	else if (!bParked)
 	{
-		Next = TEXT("THE HATCH IS LOCKED BETWEEN STOPS");
+		Next = TEXT("THE AIRLOCK IS LOCKED BETWEEN STOPS");
 		Why = TEXT("Take the helm and stop at 100, 300 or 500 m.");
 		Color = WarnColor;
 	}
@@ -985,8 +993,8 @@ void ADeepHUD::DrawAboard(const ADeepDiver* Diver)
 	}
 	else
 	{
-		Next = TEXT("DROP THROUGH THE HATCH TO DIVE");
-		Why = TEXT("Walk into the yellow square in the floor. Bring salvage back up the same way.");
+		Next = TEXT("OPEN THE AIRLOCK TO DIVE");
+		Why = FString::Printf(TEXT("Hold [%s] on the valve wheel in the floor. Swim back to the hatch with salvage."), *UseKey);
 		Color = GoodColor;
 	}
 	float Y = Canvas->ClipY * 0.62f;
@@ -1301,7 +1309,6 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 	const bool bTethered = State == EDeepRunState::Tethered;
 	const float Now = World->GetTimeSeconds();
 	const UDeepTetherComponent* TetherComp = Diver->GetTether();
-	const ADeepSubmarine* Sub = TetherComp ? TetherComp->GetSubmarine() : nullptr;
 	const UDeepHarpoonComponent* Harpoon = Diver->GetHarpoon();
 	const UDeepHarpoonSettings& HarpoonSettings = UDeepHarpoonSettings::Get();
 
@@ -1430,10 +1437,11 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 		}
 	}
 
-	// ---- aboard: prompts on the hatch, the console and the helm, only where they apply
+	// ---- aboard: prompts on the airlock valve, the console and the helm (in the room set), only where they apply
 	Frame.Credits = GameState->Credits;
 	const int32 NewStop = NewReachableStop(GameState);
-	if (Frame.Mode == EDeepHudMode::Aboard && Sub && Player)
+	const ADeepSubRoom* Room = DeepArena::FindRoom(World);
+	if (Frame.Mode == EDeepHudMode::Aboard && Room && Player && !Run->IsInAirlock())
 	{
 		const bool bCargo = Diver->GetCargo().Num() > 0;
 		const bool bParked = GameState->bParked;
@@ -1460,30 +1468,38 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 				? MakePrompt(TEXT("console"), UseKey, TEXT("BANK"), FString::Printf(TEXT("%d cr of cargo"), Diver->GetCargoValue()), EDeepHudTone::Primary)
 				: MakePrompt(TEXT("console"), UseKey, TEXT("CONSOLE"), FString::Printf(TEXT("%d cr"), GameState->Credits), EDeepHudTone::Primary);
 			Prompt.Detail2 = bGate ? FString::Printf(TEXT("Next: %s, %d cr. Bought when you can afford it."), *Gate.ToLower(), Price) : FString(TEXT("Flashlight and hull upgrade owned."));
-			Anchor(Prompt, Sub->GetConsoleLocation() + FVector(0.f, 0.f, 40.f));
+			Anchor(Prompt, Room->GetConsoleLocation() + FVector(0.f, 0.f, 40.f));
 		}
 		else if (bCargo)
 		{
-			Anchor(MakePrompt(TEXT("console"), FString(), TEXT("BANK CARGO"), FString::Printf(TEXT("%d cr"), Diver->GetCargoValue()), EDeepHudTone::Primary), Sub->GetConsoleLocation() + FVector(0.f, 0.f, 40.f));
+			Anchor(MakePrompt(TEXT("console"), FString(), TEXT("BANK CARGO"), FString::Printf(TEXT("%d cr"), Diver->GetCargoValue()), EDeepHudTone::Primary), Room->GetConsoleLocation() + FVector(0.f, 0.f, 40.f));
 		}
 		if (Run->IsNearHelm())
 		{
 			FDeepHudPrompt Prompt = MakePrompt(TEXT("helm"), UseKey, TEXT("TAKE THE HELM"), FString(), EDeepHudTone::Primary);
 			Prompt.Detail2 = NewStop > 0 ? FString::Printf(TEXT("You can now drive down to %.0f m."), Tuning.GetStop(NewStop).SubDepthM) : LimitReason(GameState);
-			Anchor(Prompt, Sub->GetHelmLocation() + FVector(0.f, 0.f, 60.f));
+			Anchor(Prompt, Room->GetHelmLocation() + FVector(0.f, 0.f, 60.f));
 		}
 		else if (!bCargo && (NewStop > 0 || !bParked))
 		{
 			Anchor(MakePrompt(TEXT("helm"), FString(), TEXT("HELM"), NewStop > 0 ? FString::Printf(TEXT("down to %.0f m"), Tuning.GetStop(NewStop).SubDepthM) : FString(TEXT("park at a stop")), EDeepHudTone::Primary),
-				Sub->GetHelmLocation() + FVector(0.f, 0.f, 60.f));
+				Room->GetHelmLocation() + FVector(0.f, 0.f, 60.f));
 		}
-		if (!bParked)
+		// The airlock valve: hold the use key to turn it; the hatch stays locked between stops.
+		if (!Run->CanCycleAirlock())
 		{
-			Anchor(MakePrompt(TEXT("hatch"), FString(), TEXT("HATCH LOCKED"), TEXT("between stops"), EDeepHudTone::Warning), Sub->GetHatchLocation());
+			Anchor(MakePrompt(TEXT("hatch"), FString(), TEXT("HATCH LOCKED"), TEXT("between stops"), EDeepHudTone::Warning), Room->GetValveLocation());
+		}
+		else if (Run->IsNearValve())
+		{
+			const float Turn = Run->GetValveTurn01();
+			FDeepHudPrompt Prompt = MakePrompt(TEXT("hatch"), FString::Printf(TEXT("HOLD %s"), *UseKey), TEXT("OPEN AIRLOCK"),
+				Turn > 0.f ? FString::Printf(TEXT("%d%%"), FMath::RoundToInt(Turn * 100.f)) : FString(TEXT("to dive")), EDeepHudTone::Primary);
+			Anchor(Prompt, Room->GetValveLocation());
 		}
 		else if (!bCargo && NewStop == 0)
 		{
-			Anchor(MakePrompt(TEXT("hatch"), FString(), TEXT("DIVE"), TEXT("drop through the hatch")), Sub->GetHatchLocation());
+			Anchor(MakePrompt(TEXT("hatch"), FString(), TEXT("DIVE"), TEXT("hold the valve to open the airlock")), Room->GetValveLocation());
 		}
 	}
 

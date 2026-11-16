@@ -143,6 +143,23 @@ namespace
 		return X;
 	}
 
+	/** The airlock floods or drains: a pressure hiss (band-passed noise) that swells fast and dies away. */
+	TArray<float> AirlockHiss()
+	{
+		TArray<float> X = Make(0.9f);
+		FRandomStream Rng(23);
+		FLowPass Top(4200.f);
+		FLowPass Bottom(900.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Band = Top.Step(Rng.FRandRange(-1.f, 1.f));
+			const float Hiss = Band - Bottom.Step(Band);
+			X[I] = Ramp(T, 0.f, 0.06f) * FMath::Exp(-T / 0.3f) * Hiss;
+		}
+		return X;
+	}
+
 	TArray<float> Click()
 	{
 		TArray<float> X = Make(0.06f);
@@ -538,6 +555,7 @@ namespace
 			{ TEXT("alarm"), false, 0.62f, &Alarm },
 			{ TEXT("clank"), false, 0.8f, &Clank },
 			{ TEXT("bubbles"), false, 1.f, &Bubbles },
+			{ TEXT("airlock_hiss"), false, 0.9f, &AirlockHiss },
 			{ TEXT("click"), false, 0.06f, &Click },
 			{ TEXT("harpoon"), false, 0.6f, &Harpoon },
 			{ TEXT("chime"), false, 1.4f, &Chime },

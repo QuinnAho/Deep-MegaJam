@@ -11,7 +11,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepShapes.h"
-#include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 namespace
 {
@@ -137,7 +137,7 @@ namespace
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			const bool bOn = Args.Num() == 0 || FCString::Atoi(*Args[0]) != 0;
-			for (TActorIterator<ADeepSubmarine> It(World); It; ++It)
+			for (TActorIterator<ADeepSubRoom> It(World); It; ++It)
 			{
 				It->SetRoomDressVisible(bOn);
 			}

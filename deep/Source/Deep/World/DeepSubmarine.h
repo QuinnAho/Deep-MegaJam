@@ -1,6 +1,6 @@
 // The Director's submarine: the fixed point of the game (D-022). It never moves; driving moves the arena root.
-// Its box hull is also the one room inside: a deck with an open hatch above the tether anchor, a console, a helm,
-// a ceiling light, and a helm camera mounted outside under the hull. Shapes are laid out from FDeepSubTuning.
+// Its box hull is what the water sees: a deck with an open hatch above the tether anchor, the window, the outside
+// dress and lights, and a helm camera under the hull. The room divers walk in is a fixed set (World/DeepSubRoom).
 // Placed in a map by art later, or spawned by DeepArena::EnsureArena when the map has none.
 
 #pragma once
@@ -38,23 +38,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep")
 	FTransform GetDiverStartTransform() const;
 
-	/** Where a diver stands at the start of a run and after a respawn: on the deck, facing the hatch and the helm. */
-	UFUNCTION(BlueprintPure, Category = "Deep")
-	FTransform GetRoomStartTransform() const;
-
-	/** Where a diver who comes up through the hatch is put (capsule centre on the deck). */
-	FVector GetEnterStandLocation() const;
-
 	/** World Z of the deck's top. */
 	double GetDeckTopZ() const;
 
-	/** Centre of the hatch opening on the deck's top. */
+	/** Centre of the hatch opening on the hull deck's top. */
 	FVector GetHatchLocation() const;
-	FVector GetConsoleLocation() const;
-	FVector GetHelmLocation() const;
-
-	/** Inside the room's box (world cm), above the deck's top minus Margin. */
-	bool IsInRoom(const FVector& WorldCm, double MarginCm = 0.0) const;
 
 	/** In the hatch opening (any height). */
 	bool IsInHatchColumn(const FVector& WorldCm) const;
@@ -64,9 +52,6 @@ public:
 	 * visible solid hull and nothing more. bHullOnly: the box hull (deck, walls, ceiling) without the tower on top.
 	 */
 	FBox GetSolidBoundsLocal(bool bHullOnly) const;
-
-	/** Horizontal distance to a deck point is within the use range. */
-	bool IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const;
 
 	/** Locked: a red cover closes the hatch (collision on). Open while parked at a stop. */
 	void SetHatchOpen(bool bOpen);
@@ -98,9 +83,6 @@ public:
 	/** Shows or hides the outside dress and the lamp housings (Deep.Hull, frame-time A/B). */
 	void SetHullDressVisible(bool bVisible);
 
-	/** Shows or hides the room's dressing and its lights (World/DeepRoomDress, `Deep.Room.Dress`). */
-	void SetRoomDressVisible(bool bVisible);
-
 	/** The trench shows to a local viewer: through the helm camera, or from inside the room while the sub is not parked (the window). */
 	static bool TrenchShows(bool bHelmView, bool bInRoomView, bool bParked);
 
@@ -114,8 +96,6 @@ protected:
 	float OutsideFog = 0.f;
 	float DriveSpeedMps = 0.f;
 	float LastDepthM = -1.f;
-	/** The console screen's glow fraction (eased): dims under the settlement card. */
-	float ConsoleGlowScale = 1.f;
 	bool bHelmManned = false;
 	bool bWasParked = true;
 	float SettleAge = 100.f;
@@ -171,18 +151,6 @@ protected:
 	TObjectPtr<USpotLightComponent> BellyFlood;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> Console;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> ConsoleScreen;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> HelmSeat;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> HelmPanel;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Window;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
@@ -191,20 +159,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Tower;
 
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UPointLightComponent> RoomLight;
-
 	/** The outside dress, one component per DeepHull::Parts entry (same order). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UStaticMeshComponent>> HullDress;
-
-	/** The room's dressing (DeepRoomDress::Pieces): one instanced mesh per shape and material, no collision. */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TArray<TObjectPtr<UInstancedStaticMeshComponent>> RoomDressMeshes;
-
-	/** The dressing's caged lights (DeepRoomDress::Lights). */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TArray<TObjectPtr<ULocalLightComponent>> RoomDressLights;
 
 	/** Work lights on the top rails amidships, aimed down each side (Look.HullLight*). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
@@ -214,36 +171,12 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UStaticMeshComponent>> BowHousings;
 
-	/** The helm window from inside: a bezel round the glass (top, bottom, port, starboard). */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TArray<TObjectPtr<UStaticMeshComponent>> WindowBezel;
-
 	/** Lights the water under the hatch (was the airlock light). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPointLightComponent> AirlockLight;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UCameraComponent> HelmCamera;
-
-	/** The helm's own screen, on the panel's face toward the seat. */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UStaticMeshComponent> HelmScreen;
-
-	/** Thin fixtures for the ceiling strips (they carry the strips' glow, so the light has a source). */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TArray<TObjectPtr<UStaticMeshComponent>> StripFixtures;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TArray<TObjectPtr<URectLightComponent>> Strips;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<URectLightComponent> ConsoleLight;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<URectLightComponent> HelmLight;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UPointLightComponent> HatchRed;
 
 	/** Ahead and down from under the nose: what the helm camera sees the sea move in. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
@@ -252,13 +185,6 @@ protected:
 	/** Red port, green starboard, blinking. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UPointLightComponent>> Markers;
-
-	/** The room's box: inside it the room keeps its own exposure. */
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UBoxComponent> RoomVolume;
-
-	UPROPERTY(VisibleAnywhere, Category = "Deep")
-	TObjectPtr<UPostProcessComponent> RoomGrade;
 
 	UPROPERTY(ReplicatedUsing = OnRep_Hatch)
 	bool bHatchOpen = true;

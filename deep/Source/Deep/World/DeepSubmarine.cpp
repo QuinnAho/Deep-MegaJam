@@ -20,7 +20,6 @@
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepHull.h"
-#include "World/DeepRoomDress.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/LocalLightComponent.h"
 #include "Sim/DeepCaveRules.h"
@@ -28,83 +27,15 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepShaft.h"
 #include "World/DeepShapes.h"
+#include "World/DeepArena.h"
+#include "World/DeepSubParts.h"
 
 namespace
 {
-	/** `Deep.Room.NoseStrip 0` hides the strip across the nose (before-and-after shots and frame time). */
-	int32 GNoseStrip = 1;
-	FAutoConsoleVariableRef CVarNoseStrip(
-		TEXT("Deep.Room.NoseStrip"),
-		GNoseStrip,
-		TEXT("Deep.Room.NoseStrip <0|1>: 1 (default) = the ceiling strip across the nose lights the helm end and the window; 0 = off."));
-
-	void Solid(UStaticMeshComponent* Shape)
-	{
-		Shape->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		Shape->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
-	}
-
-	/** Centre and size in cm, relative to the sub. */
-	void Place(UStaticMeshComponent* Shape, const FVector& CentreCm, const FVector& SizeCm)
-	{
-		Shape->SetRelativeLocation(CentreCm);
-		Shape->SetRelativeScale3D(SizeCm / DeepShapes::ShapeSizeCm);
-	}
-
-	// The helm window: an opening in the front wall (sub-local cm, centre height and half sizes).
-	constexpr double SubWinZ = 40.0;
-	constexpr double SubWinHalfW = 85.0;
-	constexpr double SubWinHalfH = 35.0;
-
-	/** Worn painted steel (M_WornSteel) with this paint; falls back to a flat tint if the asset is missing. */
-	struct FSubSteel
-	{
-		FLinearColor Paint;
-		float Wear = 0.22f;
-		float Rust = 0.3f;
-		float Wet = 0.f;
-		float PaintRough = 0.62f;
-		float PaintMetal = 0.f;
-	};
-
-	void SubSteel(UStaticMeshComponent* Shape, const FSubSteel& S, const FVector& PuddleCentre = FVector::ZeroVector, float PuddleRadius = 0.f)
-	{
-		UMaterialInterface* Base = Cast<UMaterialInterface>(UDeepTuningSettings::Get().Look.SteelMaterial.TryLoad());
-		if (!Shape || !Base)
-		{
-			DeepShapes::Tint(Shape, S.Paint);
-			return;
-		}
-		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Shape);
-		M->SetVectorParameterValue(TEXT("PaintColor"), S.Paint);
-		M->SetScalarParameterValue(TEXT("Wear"), S.Wear);
-		M->SetScalarParameterValue(TEXT("Rust"), S.Rust);
-		M->SetScalarParameterValue(TEXT("Wet"), S.Wet);
-		M->SetScalarParameterValue(TEXT("PaintRoughness"), S.PaintRough);
-		M->SetScalarParameterValue(TEXT("PaintMetal"), S.PaintMetal);
-		M->SetVectorParameterValue(TEXT("PuddleCentre"), FLinearColor(PuddleCentre.X, PuddleCentre.Y, PuddleCentre.Z));
-		M->SetScalarParameterValue(TEXT("PuddleRadius"), PuddleRadius);
-		Shape->SetMaterial(0, M);
-	}
-
-	/** One shared instance of the worn steel with this paint, or null when the asset is missing. */
-	UMaterialInstanceDynamic* SteelInstance(UObject* Outer, const FSubSteel& S)
-	{
-		UMaterialInterface* Base = Cast<UMaterialInterface>(UDeepTuningSettings::Get().Look.SteelMaterial.TryLoad());
-		if (!Base)
-		{
-			return nullptr;
-		}
-		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Outer);
-		M->SetVectorParameterValue(TEXT("PaintColor"), S.Paint);
-		M->SetScalarParameterValue(TEXT("Wear"), S.Wear);
-		M->SetScalarParameterValue(TEXT("Rust"), S.Rust);
-		M->SetScalarParameterValue(TEXT("Wet"), S.Wet);
-		M->SetScalarParameterValue(TEXT("PaintRoughness"), S.PaintRough);
-		M->SetScalarParameterValue(TEXT("PaintMetal"), S.PaintMetal);
-		M->SetScalarParameterValue(TEXT("PuddleRadius"), 0.f);
-		return M;
-	}
+	using namespace DeepSubParts;
+	constexpr double SubWinZ = WinZ;
+	constexpr double SubWinHalfW = WinHalfW;
+	constexpr double SubWinHalfH = WinHalfH;
 
 	/** The room's outer half extents (cm): the colliding box the dress is built round. */
 	FVector HullOuterCm(const FDeepSubTuning& T)
@@ -117,19 +48,6 @@ namespace
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 		return DeepHull::Parts(HullOuterCm(Tuning.Sub), Tuning.Sub.HatchHalfSizeM * UDeepRules::CmPerM, -Tuning.Arena.AnchorBelowSubM * UDeepRules::CmPerM);
-	}
-
-	void SubScreen(UStaticMeshComponent* Shape, float Glow)
-	{
-		UMaterialInterface* Base = Cast<UMaterialInterface>(UDeepTuningSettings::Get().Look.ScreenMaterial.TryLoad());
-		if (!Shape || !Base)
-		{
-			DeepShapes::Tint(Shape, FLinearColor(0.6f, 0.3f, 0.08f));
-			return;
-		}
-		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Shape);
-		M->SetScalarParameterValue(TEXT("Glow"), Glow);
-		Shape->SetMaterial(0, M);
 	}
 }
 
@@ -171,21 +89,11 @@ ADeepSubmarine::ADeepSubmarine()
 	// The one water surface: a black, near-mirror pool in the open hatch that reflects the lit room. No collision.
 	HatchWater = Make(TEXT("HatchWater"), DeepShapes::Cube, false);
 	HatchWater->SetCastShadow(false);
-	Console = Make(TEXT("Console"), DeepShapes::Cube, true);
-	ConsoleScreen = Make(TEXT("ConsoleScreen"), DeepShapes::Cube, false);
-	HelmSeat = Make(TEXT("HelmSeat"), DeepShapes::Cube, false);
-	HelmPanel = Make(TEXT("HelmPanel"), DeepShapes::Cube, true);
 	// The glass in the helm window: solid, so the opening is closed.
 	Window = Make(TEXT("Window"), DeepShapes::Cube, true);
 	// The nose and tower are only silhouette from the water; the nose has no collision so it cannot reach into the room.
 	NoseCone = Make(TEXT("NoseCone"), DeepShapes::Sphere, false);
 	Tower = Make(TEXT("Tower"), DeepShapes::Cube, true);
-
-	RoomLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("RoomLight"));
-	RoomLight->SetupAttachment(Root);
-	RoomLight->SetMobility(EComponentMobility::Movable);
-	RoomLight->SetLightColor(FLinearColor(1.f, 0.92f, 0.8f));
-	RoomLight->SetCastShadows(false);
 
 	AirlockLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("AirlockLight"));
 	AirlockLight->SetupAttachment(Root);
@@ -204,33 +112,7 @@ ADeepSubmarine::ADeepSubmarine()
 	HelmCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("HelmCamera"));
 	HelmCamera->SetupAttachment(Root);
 
-	HelmScreen = Make(TEXT("HelmScreen"), DeepShapes::Cube, false);
-	HelmScreen->SetCastShadow(false);
-	ConsoleScreen->SetCastShadow(false);
 	Window->SetCastShadow(false);
-	// A and B run along the room; C runs across the nose over the helm and the window, so that end is not a black hole.
-	for (const TCHAR* Name : { TEXT("StripFixtureA"), TEXT("StripFixtureB"), TEXT("StripFixtureC") })
-	{
-		StripFixtures.Add(Make(Name, DeepShapes::Cube, false));
-	}
-
-	auto MakeRect = [this](const TCHAR* Name)
-	{
-		URectLightComponent* Light = CreateDefaultSubobject<URectLightComponent>(Name);
-		Light->SetupAttachment(Root);
-		Light->SetMobility(EComponentMobility::Movable);
-		return Light;
-	};
-	Strips.Add(MakeRect(TEXT("StripA")));
-	Strips.Add(MakeRect(TEXT("StripB")));
-	Strips.Add(MakeRect(TEXT("StripC")));
-	ConsoleLight = MakeRect(TEXT("ConsoleLight"));
-	HelmLight = MakeRect(TEXT("HelmLight"));
-
-	HatchRed = CreateDefaultSubobject<UPointLightComponent>(TEXT("HatchRed"));
-	HatchRed->SetupAttachment(Root);
-	HatchRed->SetMobility(EComponentMobility::Movable);
-
 	for (const TCHAR* Name : { TEXT("BowLightPort"), TEXT("BowLightStarboard") })
 	{
 		USpotLightComponent* Light = CreateDefaultSubobject<USpotLightComponent>(Name);
@@ -281,12 +163,6 @@ ADeepSubmarine::ADeepSubmarine()
 		Shape->SetCastShadow(false);
 		BowHousings.Add(Shape);
 	}
-	for (const TCHAR* Name : { TEXT("WindowBezelTop"), TEXT("WindowBezelBottom"), TEXT("WindowBezelPort"), TEXT("WindowBezelStbd") })
-	{
-		UStaticMeshComponent* Shape = Make(Name, DeepShapes::Cube, false);
-		Shape->SetCastShadow(false);
-		WindowBezel.Add(Shape);
-	}
 
 	// The trench wall ahead of the helm: built at BeginPlay, shown only through the helm camera.
 	Trench = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Trench"));
@@ -296,20 +172,6 @@ ADeepSubmarine::ADeepSubmarine()
 	Trench->SetGenerateOverlapEvents(false);
 	Trench->bAffectDistanceFieldLighting = false;
 	Trench->SetVisibility(false);
-
-	RoomVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("RoomVolume"));
-	RoomVolume->SetupAttachment(Root);
-	RoomVolume->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	RoomVolume->SetGenerateOverlapEvents(false);
-	RoomVolume->SetHiddenInGame(true);
-	RoomGrade = CreateDefaultSubobject<UPostProcessComponent>(TEXT("RoomGrade"));
-	RoomGrade->SetupAttachment(RoomVolume);
-	RoomGrade->bUnbound = false;
-	RoomGrade->Priority = 10.f;
-	RoomGrade->BlendRadius = 40.f;
-
-	// The room's dressing: ribs, pipes, cables, gauges, lockers, bench, ladder, caged lights (World/DeepRoomDress).
-	DeepRoomDress::Create(this, Root, RoomDressMeshes, RoomDressLights);
 
 	LayOut();
 }
@@ -372,66 +234,13 @@ void ADeepSubmarine::LayOut()
 	Place(HatchWater, FVector(0.0, 0.0, DeckTop - Look.HatchWaterBelowDeckCm - 0.5), FVector(Hh * 2.0, Hh * 2.0, 1.0));
 	// Under the hull, ahead of the hatch so the diver's own column is not a white-out.
 	BellyFlood->SetRelativeLocation(FVector(150.0, 0.0, DeckZ - Th));
-
-	const FVector2D C = T.ConsoleM * M;
-	Place(Console, FVector(C.X, C.Y + 20.0, DeckTop + 55.0), FVector(120.0, 50.0, 110.0));
-	Place(ConsoleScreen, FVector(C.X, C.Y - 6.0, DeckTop + 100.0), FVector(90.0, 4.0, 45.0));
-
-	const FVector2D Hm = T.HelmM * M;
-	Place(HelmSeat, FVector(Hm.X - 60.0, Hm.Y, DeckTop + 25.0), FVector(55.0, 55.0, 50.0));
-	Place(HelmPanel, FVector(Hm.X + 30.0, Hm.Y, DeckTop + 45.0), FVector(35.0, 120.0, 90.0));
 	Place(Window, FVector(L + Th * 0.5, 0.0, SubWinZ), FVector(2.0, SubWinHalfW * 2.0, SubWinHalfH * 2.0));
-	const double HelmScreenX = Hm.X + 30.0 - 17.5 - 1.0;
-	Place(HelmScreen, FVector(HelmScreenX, Hm.Y, DeckTop + 62.0), FVector(2.0, 95.0, 45.0));
 
 	// The bow sits under the window line so the window looks out over it, not into it.
 	const double NoseTop = SubWinZ - SubWinHalfH - 15.0;
 	const double NoseBottom = -H * 0.5 - Th;
 	// Narrower than the hull: a chin fairing under the window, the stowed arm along its starboard side (DeepHull).
 	Place(NoseCone, FVector(OuterL + 140.0, 0.0, (NoseTop + NoseBottom) * 0.5), FVector(280.0, OuterW * 2.0 * 0.68, NoseTop - NoseBottom));
-
-	// Ceiling strips along the room, low and cool, aimed down; their fixtures are thin housings on the ceiling.
-	const double StripY = W - 45.0;
-	for (int32 Index = 0; Index < Strips.Num() && Index < StripFixtures.Num(); ++Index)
-	{
-		if (Index == 2)
-		{
-			// Across the nose, aft of the window: it rakes the window bezel and the helm from above.
-			const double NoseX = L - Look.NoseStripBackCm;
-			const double Span = W * 2.0 - 90.0;
-			Place(StripFixtures[Index], FVector(NoseX, 0.0, H * 0.5 - 4.0), FVector(14.0, Span + 20.0, 8.0));
-			Strips[Index]->SetRelativeLocation(FVector(NoseX, 0.0, H * 0.5 - 9.0));
-			// Yawed a quarter turn first, so pitched down its height axis runs across the room.
-			Strips[Index]->SetRelativeRotation(FRotator(-90.f, 90.f, 0.f));
-			Strips[Index]->SetSourceWidth(10.f);
-			Strips[Index]->SetSourceHeight(static_cast<float>(Span));
-			continue;
-		}
-		const double Y = Index == 0 ? StripY : -StripY;
-		// From 30 cm off the aft wall to 2 m forward of the hatch (opening pass: they ended 20 cm forward of the start
-		// spot, so the walls round it were black). Look.StripIntensity keeps the old brightness per metre.
-		const double AftX = -L + 30.0;
-		const double ForeX = 200.0;
-		const double MidX = (AftX + ForeX) * 0.5;
-		const double Len = ForeX - AftX;
-		Place(StripFixtures[Index], FVector(MidX, Y, H * 0.5 - 4.0), FVector(Len + 20.0, 14.0, 8.0));
-		Strips[Index]->SetRelativeLocation(FVector(MidX, Y, H * 0.5 - 9.0));
-		Strips[Index]->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
-		// Pitched down, the light's height axis runs along the room.
-		Strips[Index]->SetSourceWidth(10.f);
-		Strips[Index]->SetSourceHeight(static_cast<float>(Len));
-	}
-	// The practicals face out of their screens.
-	ConsoleLight->SetRelativeLocation(FVector(C.X, C.Y - 12.0, DeckTop + 100.0));
-	ConsoleLight->SetRelativeRotation(FRotator(-20.f, -90.f, 0.f));
-	ConsoleLight->SetSourceWidth(90.f);
-	ConsoleLight->SetSourceHeight(45.f);
-	HelmLight->SetRelativeLocation(FVector(HelmScreenX - 6.0, Hm.Y, DeckTop + 62.0));
-	HelmLight->SetRelativeRotation(FRotator(-10.f, 180.f, 0.f));
-	HelmLight->SetSourceWidth(95.f);
-	HelmLight->SetSourceHeight(45.f);
-	// Emergency red low on the far side of the hatch, raking its rim and the black pool.
-	HatchRed->SetRelativeLocation(FVector(0.0, -Hh - 60.0, DeckTop + 35.0));
 
 	// Bow lights under the chin, aimed ahead and down; hull markers high on each side.
 	for (int32 Index = 0; Index < BowLights.Num(); ++Index)
@@ -459,22 +268,8 @@ void ADeepSubmarine::LayOut()
 		HullDress[Index]->SetRelativeRotation(Parts[Index].Rotation);
 	}
 
-	// The window from inside: a bezel proud of the wall's inner face round the opening.
-	const double BezelX = L - 4.0;
-	const double BezelW = 12.0;
-	if (WindowBezel.Num() == 4)
-	{
-		Place(WindowBezel[0], FVector(BezelX, 0.0, SubWinZ + SubWinHalfH + BezelW * 0.5), FVector(8.0, 2.0 * (SubWinHalfW + BezelW), BezelW));
-		Place(WindowBezel[1], FVector(BezelX, 0.0, SubWinZ - SubWinHalfH - BezelW * 0.5), FVector(8.0, 2.0 * (SubWinHalfW + BezelW), BezelW));
-		Place(WindowBezel[2], FVector(BezelX, -(SubWinHalfW + BezelW * 0.5), SubWinZ), FVector(8.0, BezelW, 2.0 * SubWinHalfH));
-		Place(WindowBezel[3], FVector(BezelX, SubWinHalfW + BezelW * 0.5, SubWinZ), FVector(8.0, BezelW, 2.0 * SubWinHalfH));
-	}
-
-	RoomVolume->SetRelativeLocation(FVector::ZeroVector);
-	RoomVolume->SetBoxExtent(FVector(L, W, H * 0.5));
 	Place(Tower, FVector(100.0, 0.0, H * 0.5 + Th + 110.0), FVector(300.0, 140.0, 220.0));
 
-	RoomLight->SetRelativeLocation(FVector(-100.0, 0.0, H * 0.5 - 30.0));
 	HelmCamera->SetRelativeLocation(T.HelmCameraM * M);
 	HelmCamera->SetRelativeRotation(FRotator(T.HelmCameraPitchDeg, 0.f, 0.f));
 	HelmCamera->SetFieldOfView(T.HelmCameraFovDeg);
@@ -534,11 +329,6 @@ UProceduralMeshComponent* ADeepSubmarine::GetTrench() const
 bool ADeepSubmarine::TrenchShows(bool bHelmView, bool bInRoomView, bool bParked)
 {
 	return bHelmView || (bInRoomView && !bParked);
-}
-
-void ADeepSubmarine::SetRoomDressVisible(bool bVisible)
-{
-	DeepRoomDress::SetVisible(RoomDressMeshes, RoomDressLights, bVisible);
 }
 
 void ADeepSubmarine::SetHullDressVisible(bool bVisible)
@@ -742,8 +532,8 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	// Also through the window, for a local player standing in the room while the sub moves (the hatch is shut then, so
 	// no diver is outside to find the wall missing). Parked, the window shows the stop's open water.
 	const APlayerController* PC = World->GetFirstPlayerController();
-	const APawn* Viewer = PC ? PC->GetPawn() : nullptr;
-	const bool bInRoomView = Viewer && PC->GetViewTarget() == Viewer && IsInRoom(Viewer->GetActorLocation());
+	// The room is a fixed set now (World/DeepSubRoom) with a blank porthole: no trench through its window.
+	const bool bInRoomView = false;
 	const bool bLocalTrenchView = !bGreyBox && PC && TrenchShows(PC->GetViewTarget() == this, bInRoomView, bParked);
 	// The cave shaft (ADeepShaft) replaces the trench: the rock is all round the sub, not a cliff ahead.
 	const bool bLocalHelmView = bLocalTrenchView && !DeepShaft::IsOn();
@@ -845,23 +635,6 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	{
 		Light->SetVisibility(bOn && !UDeepTuningSettings::Get().Arena.bGreyBox);
 	}
-	if (Strips.IsValidIndex(2))
-	{
-		Strips[2]->SetVisibility(GNoseStrip != 0 && !UDeepTuningSettings::Get().Arena.bGreyBox);
-	}
-	// While a diver reads the settlement card, the console screen behind it dims, so its graph does not run through
-	// the numbers (the card sits over the screen from where a player stands to bank).
-	if (UMaterialInstanceDynamic* Screen = ConsoleScreen ? Cast<UMaterialInstanceDynamic>(ConsoleScreen->GetMaterial(0)) : nullptr)
-	{
-		bool bSettling = false;
-		for (TActorIterator<APawn> It(GetWorld()); It && !bSettling; ++It)
-		{
-			const UDeepRunComponent* Run = It->FindComponentByClass<UDeepRunComponent>();
-			bSettling = Run && Run->GetState() == EDeepRunState::Settling;
-		}
-		ConsoleGlowScale = FMath::FInterpTo(ConsoleGlowScale, bSettling ? Look.ScreenGlowUnderCard : 1.f, DeltaSeconds, 6.f);
-		Screen->SetScalarParameterValue(TEXT("Glow"), Look.ScreenGlow * ConsoleGlowScale);
-	}
 	TickHelmLook(DeltaSeconds);
 }
 
@@ -870,38 +643,13 @@ void ADeepSubmarine::ApplyLook()
 	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
 	const FDeepSubTuning& Sub = UDeepTuningSettings::Get().Sub;
 
-	// Surfaces (style guide 4): every value at most 35% saturation and 70% value; wet near the hatch.
-	FSubSteel Wall;
-	Wall.Paint = FLinearColor(0.046f, 0.054f, 0.05f);
-	Wall.Wear = 0.2f;
-	Wall.Rust = 0.32f;
-	Wall.Wet = 0.15f;
-	Wall.PaintRough = 0.55f;
-	FSubSteel Floor;
-	Floor.Paint = FLinearColor(0.035f, 0.036f, 0.036f);
-	Floor.Wear = 0.32f;
-	Floor.Rust = 0.25f;
-	Floor.Wet = 0.2f;
-	Floor.PaintRough = 0.5f;
-	FSubSteel Ceil = Wall;
-	Ceil.Paint = FLinearColor(0.03f, 0.033f, 0.032f);
-	Ceil.Wet = 0.f;
-	Ceil.PaintRough = 0.7f;
-	FSubSteel Rim;
-	Rim.Paint = FLinearColor(0.12f, 0.10f, 0.06f);
-	Rim.Wear = 0.38f;
-	Rim.Rust = 0.35f;
-	Rim.Wet = 0.4f;
-	FSubSteel Cover = Rim;
-	Cover.Paint = FLinearColor(0.10f, 0.05f, 0.045f);
-	FSubSteel Machine;
-	Machine.Paint = FLinearColor(0.03f, 0.032f, 0.034f);
-	Machine.Wear = 0.15f;
-	Machine.Rust = 0.15f;
-	Machine.PaintRough = 0.5f;
-	FSubSteel Seat = Machine;
-	Seat.Paint = FLinearColor(0.05f, 0.04f, 0.035f);
-	Seat.PaintRough = 0.8f;
+	// Surfaces (style guide 4): the paints the room uses too (World/DeepSubParts); wet near the hatch.
+	const FSubPaints SubPaints = DeepSubParts::Paints();
+	const FSubSteel& Wall = SubPaints.Wall;
+	const FSubSteel& Floor = SubPaints.Floor;
+	const FSubSteel& Ceil = SubPaints.Ceil;
+	const FSubSteel& Rim = SubPaints.Rim;
+	const FSubSteel& Cover = SubPaints.Cover;
 
 	const FVector Hatch = GetHatchLocation();
 	const float PuddleRadius = Sub.HatchHalfSizeM * UDeepRules::CmPerM * 3.2f;
@@ -919,18 +667,8 @@ void ADeepSubmarine::ApplyLook()
 		SubSteel(Shape, Rim);
 	}
 	SubSteel(HatchCover, Cover);
-	SubSteel(Console, Machine);
-	SubSteel(HelmPanel, Machine);
-	SubSteel(HelmSeat, Seat);
 	SubSteel(NoseCone, Wall);
 	SubSteel(Tower, Ceil);
-	for (UStaticMeshComponent* Shape : StripFixtures)
-	{
-		SubSteel(Shape, Machine);
-		Shape->SetCastShadow(false);
-	}
-	SubScreen(ConsoleScreen, Look.ScreenGlow);
-	SubScreen(HelmScreen, Look.ScreenGlow);
 
 	// The outside dress (style guide 4): one shared instance per paint. Saturation under 35%, value under 70%.
 	{
@@ -987,13 +725,6 @@ void ADeepSubmarine::ApplyLook()
 		{
 			Shape->SetMaterial(0, Shared[uint8(EDeepHullPaint::Frame)] ? Shared[uint8(EDeepHullPaint::Frame)] : Shape->GetMaterial(0));
 		}
-		// The bezel in the wall's paint, worn through at the edges so light finds bare metal.
-		FSubSteel Bezel = Wall;
-		Bezel.Wear = 0.45f;
-		for (UStaticMeshComponent* Shape : WindowBezel)
-		{
-			SubSteel(Shape, Bezel);
-		}
 	}
 	if (UMaterialInterface* Glass = Cast<UMaterialInterface>(Look.GlassMaterial.TryLoad()))
 	{
@@ -1009,42 +740,8 @@ void ADeepSubmarine::ApplyLook()
 		DeepShapes::Tint(Window, FLinearColor(0.01f, 0.015f, 0.018f));
 	}
 
-	// Lights (style guide 3): cool strips kept low, amber only at the screens, red at the hatch.
+	// Lights (style guide 3): outside only; the room keeps its own (World/DeepSubRoom).
 	const bool bGreyBox = UDeepTuningSettings::Get().Arena.bGreyBox;
-	for (int32 Index = 0; Index < Strips.Num(); ++Index)
-	{
-		URectLightComponent* Light = Strips[Index];
-		Light->SetLightColor(Look.StripColor);
-		Light->SetIntensity(Index == 2 ? Look.NoseStripIntensity : Look.StripIntensity);
-		Light->SetAttenuationRadius(500.f);
-		// Opened from 45 degrees (opening pass): at 45 the walls took no light and three of the four views round the
-		// room were black; wider doors let each strip wash down the walls from the ceiling and fade toward the floor.
-		Light->SetBarnDoorAngle(Look.StripBarnDoorDeg);
-		Light->SetBarnDoorLength(12.f);
-		Light->SetCastShadows(true);
-		Light->SetVisibility(!bGreyBox);
-	}
-	for (URectLightComponent* Light : { ConsoleLight.Get(), HelmLight.Get() })
-	{
-		Light->SetLightColor(Look.PracticalColor);
-		Light->SetIntensity(Look.PracticalIntensity);
-		Light->SetAttenuationRadius(450.f);
-		Light->SetBarnDoorAngle(70.f);
-		Light->SetBarnDoorLength(8.f);
-		Light->SetCastShadows(true);
-		Light->SetVisibility(!bGreyBox);
-	}
-	HatchRed->SetLightColor(Look.EmergencyColor);
-	HatchRed->SetIntensity(Look.EmergencyIntensity);
-	HatchRed->SetAttenuationRadius(320.f);
-	HatchRed->SetSourceRadius(4.f);
-	HatchRed->SetCastShadows(true);
-	HatchRed->SetVisibility(!bGreyBox);
-	if (!bGreyBox)
-	{
-		RoomLight->SetIntensity(Sub.RoomLightIntensity * Look.RoomFillScale);
-	}
-
 	// Outside: bow lights in the lamp's colour, markers red port and green starboard.
 	const FDeepLampTuning& Lamp = UDeepTuningSettings::Get().Lamp;
 	for (USpotLightComponent* Light : BowLights)
@@ -1073,16 +770,6 @@ void ADeepSubmarine::ApplyLook()
 		Markers[Index]->SetSourceRadius(3.f);
 	}
 
-	// The room keeps its own exposure at every depth (the sea outside goes to +2 EV at 500 m).
-	FPostProcessSettings& S = RoomGrade->Settings;
-	S.bOverride_AutoExposureMethod = true;
-	S.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
-	S.bOverride_AutoExposureApplyPhysicalCameraExposure = true;
-	S.AutoExposureApplyPhysicalCameraExposure = false;
-	S.bOverride_AutoExposureBias = true;
-	S.AutoExposureBias = Look.RoomExposureBias;
-	DeepRoomDress::Skin(RoomDressMeshes, RoomDressLights, bGreyBox);
-	RoomGrade->bEnabled = !bGreyBox;
 }
 
 void ADeepSubmarine::BeginPlay()
@@ -1105,14 +792,13 @@ void ADeepSubmarine::BeginPlay()
 			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 			World->SpawnActor<ADeepShaft>(GetActorLocation(), GetActorRotation(), Params);
 		}
+		// The room the crew walks in is a fixed set far above (World/DeepSubRoom); every machine has its own.
+		DeepArena::EnsureRoom(World);
 	}
 
 	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
-	const FDeepSubTuning& Sub = UDeepTuningSettings::Get().Sub;
 	AirlockLight->SetIntensity(Arena.SubLightIntensity);
 	AirlockLight->SetAttenuationRadius(Arena.SubLightRadiusM * UDeepRules::CmPerM);
-	RoomLight->SetIntensity(Sub.RoomLightIntensity);
-	RoomLight->SetAttenuationRadius(Sub.RoomLightRadiusM * UDeepRules::CmPerM);
 
 	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
 	const FDeepLampTuning& Lamp = UDeepTuningSettings::Get().Lamp;
@@ -1163,45 +849,9 @@ double ADeepSubmarine::GetDeckTopZ() const
 	return GetActorLocation().Z - UDeepTuningSettings::Get().Sub.RoomHeightM * UDeepRules::CmPerM * 0.5;
 }
 
-FTransform ADeepSubmarine::GetRoomStartTransform() const
-{
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	const FVector2D At = T.RoomStartM * UDeepRules::CmPerM;
-	const FVector Start = Local(At.X, At.Y, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 92.0);
-	return FTransform(FRotator(0.f, GetActorRotation().Yaw, 0.f), Start);
-}
-
-FVector ADeepSubmarine::GetEnterStandLocation() const
-{
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	const FVector2D At = T.EnterStandM * UDeepRules::CmPerM;
-	return Local(At.X, At.Y, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 92.0);
-}
-
 FVector ADeepSubmarine::GetHatchLocation() const
 {
 	return Local(0.0, 0.0, -UDeepTuningSettings::Get().Sub.RoomHeightM * UDeepRules::CmPerM * 0.5);
-}
-
-FVector ADeepSubmarine::GetConsoleLocation() const
-{
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	return Local(T.ConsoleM.X * UDeepRules::CmPerM, T.ConsoleM.Y * UDeepRules::CmPerM, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 100.0);
-}
-
-FVector ADeepSubmarine::GetHelmLocation() const
-{
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	return Local(T.HelmM.X * UDeepRules::CmPerM, T.HelmM.Y * UDeepRules::CmPerM, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 90.0);
-}
-
-bool ADeepSubmarine::IsInRoom(const FVector& WorldCm, double MarginCm) const
-{
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	const FVector P = GetActorTransform().InverseTransformPosition(WorldCm);
-	const double M = UDeepRules::CmPerM;
-	return FMath::Abs(P.X) <= T.RoomHalfLengthM * M && FMath::Abs(P.Y) <= T.RoomHalfWidthM * M
-		&& P.Z >= -T.RoomHeightM * M * 0.5 - MarginCm && P.Z <= T.RoomHeightM * M * 0.5;
 }
 
 bool ADeepSubmarine::IsInHatchColumn(const FVector& WorldCm) const
@@ -1223,11 +873,6 @@ FBox ADeepSubmarine::GetSolidBoundsLocal(bool bHullOnly) const
 		}
 	}
 	return Box;
-}
-
-bool ADeepSubmarine::IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const
-{
-	return FVector::DistXY(WorldCm, PointCm) <= UDeepTuningSettings::Get().Sub.UseRangeM * UDeepRules::CmPerM;
 }
 
 void ADeepSubmarine::SetHatchOpen(bool bOpen)

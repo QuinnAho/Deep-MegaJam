@@ -1,6 +1,7 @@
 #include "Diver/DeepDiver.h"
 
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Camera/DeepCameraRules.h"
 #include "Sonar/DeepSonarRules.h"
 #include "Story/DeepEventBus.h"
@@ -16,6 +17,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
@@ -143,6 +145,21 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	}
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	SyncAboardMode();
+	// The airlock: the view fades to black and back across the move (UDeepMovingSubRules::AirlockPhase).
+	if (APlayerController* Player = Cast<APlayerController>(GetController()); Player && Player->PlayerCameraManager)
+	{
+		const FDeepAirlockState Lock = Run->GetAirlockState();
+		if (Lock.Phase != EDeepAirlockPhase::Idle && Lock.Phase != EDeepAirlockPhase::Done)
+		{
+			Player->PlayerCameraManager->SetManualCameraFade(Lock.Fade01, FLinearColor::Black, false);
+			bAirlockFading = true;
+		}
+		else if (bAirlockFading)
+		{
+			Player->PlayerCameraManager->StopCameraFade();
+			bAirlockFading = false;
+		}
+	}
 
 	if (Run->IsSeated())
 	{
@@ -264,6 +281,11 @@ FDeepWeightResult ADeepDiver::GetWeight() const
 
 float ADeepDiver::GetDepthM() const
 {
+	// Aboard, the diver walks in the room set far above the dive: the depth is the sub's.
+	if (Run && Run->IsInside())
+	{
+		return Tether->GetAnchorDepthM();
+	}
 	return UDeepRules::DepthM(static_cast<float>(GetActorLocation().Z), static_cast<float>(Tether->GetAnchorLocation().Z), Tether->GetAnchorDepthM());
 }
 
@@ -364,6 +386,23 @@ void ADeepDiver::ServerUse_Implementation()
 	Run->Use();
 }
 
+void ADeepDiver::ReleaseUse()
+{
+	if (HasAuthority())
+	{
+		Run->ReleaseUse();
+	}
+	else
+	{
+		ServerReleaseUse();
+	}
+}
+
+void ADeepDiver::ServerReleaseUse_Implementation()
+{
+	Run->ReleaseUse();
+}
+
 void ADeepDiver::Grab()
 {
 	if (Run->IsInside())
@@ -444,12 +483,12 @@ void ADeepDiver::ResetToStart()
 
 void ADeepDiver::ResetToRoom()
 {
-	const ADeepSubmarine* Sub = Tether->GetSubmarine();
-	if (!Sub)
+	const ADeepSubRoom* Room = DeepArena::EnsureRoom(GetWorld());
+	if (!Room)
 	{
 		return;
 	}
-	const FTransform Start = Sub->GetRoomStartTransform();
+	const FTransform Start = Room->GetRoomStartTransform();
 	TeleportDiver(Start.GetLocation());
 	FRotator View = Start.Rotator();
 	View.Pitch = UDeepTuningSettings::Get().Sub.RoomStartPitchDeg;

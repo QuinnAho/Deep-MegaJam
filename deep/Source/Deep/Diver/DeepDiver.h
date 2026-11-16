@@ -30,10 +30,12 @@ public:
 	void SetMoveInput(const FVector2D& Move) { MoveInput = Move; }
 	void SetVerticalInput(float Up) { VerticalInput = Up; }
 	void SetSprinting(bool bInSprint) { bSprinting = bInSprint; }
-	/** Grab in the water; aboard it is the use key (console, helm). */
+	/** Grab in the water; aboard it is the use key (console, helm, the airlock valve). */
 	void Grab();
-	/** Aboard: stand up from the helm, or use the helm or the console in range. */
+	/** Aboard: stand up from the helm, use the helm or the console in range, or start turning the valve. */
 	void Use();
+	/** The grab/use key let go: the valve stops turning. */
+	void ReleaseUse();
 	void Drop();
 	void SetWinching(bool bInWinching);
 	void ToggleLamp();
@@ -127,6 +129,9 @@ protected:
 	UFUNCTION(Server, Reliable)
 	void ServerUse();
 
+	UFUNCTION(Server, Reliable)
+	void ServerReleaseUse();
+
 	/** Keeps the movement mode and the view target in step with the run (aboard, seated) on the owning machine. */
 	void SyncAboardMode();
 	float LastHelmInputSent = 0.f;
@@ -183,6 +188,9 @@ protected:
 
 	/** Close-range dimming of the lamp, followed smoothly (UDeepRules::LampNearScale). Local look only. */
 	float LampNearScale = 1.f;
+
+	/** The airlock is fading this player's view (local look only). */
+	bool bAirlockFading = false;
 
 	FVector2D MoveInput = FVector2D::ZeroVector;
 	float VerticalInput = 0.f;

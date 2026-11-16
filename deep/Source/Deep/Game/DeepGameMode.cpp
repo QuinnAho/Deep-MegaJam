@@ -13,6 +13,7 @@
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 ADeepGameMode::ADeepGameMode()
 {
@@ -66,11 +67,14 @@ void ADeepGameMode::StartPlay()
 void ADeepGameMode::RestartPlayer(AController* NewPlayer)
 {
 	// Players can log in before StartPlay, so the arena is built on demand here too.
-	if (ADeepSubmarine* Sub = EnsureArena())
+	if (EnsureArena())
 	{
-		// Every run starts aboard: on the deck, facing the hatch and the helm.
-		RestartPlayerAtTransform(NewPlayer, Sub->GetRoomStartTransform());
-		return;
+		// Every run starts aboard: on the room's deck (World/DeepSubRoom), facing the hatch and the helm.
+		if (const ADeepSubRoom* Room = DeepArena::EnsureRoom(GetWorld()))
+		{
+			RestartPlayerAtTransform(NewPlayer, Room->GetRoomStartTransform());
+			return;
+		}
 	}
 	Super::RestartPlayer(NewPlayer);
 }

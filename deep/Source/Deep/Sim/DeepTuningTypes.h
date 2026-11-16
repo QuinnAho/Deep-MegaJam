@@ -1532,8 +1532,8 @@ struct FDeepSubTuning
 
 /**
  * The airlock between the fixed room and the water (Sim/DeepMovingSubRules::AirlockPhase). Out: hold E on the valve,
- * a hiss, the view fades to black, the diver is moved under the hull's hatch and the view fades in. Back: the view
- * fades out at the hatch, the diver is moved into the room (the hiss plays) and the view fades in.
+ * a hiss, the view fades to black, the diver is moved under the hull's hatch and the view fades in. Back: the diver is
+ * moved into the room at once and the view starts black (the hiss plays), then fades in.
  */
 USTRUCT(BlueprintType)
 struct FDeepAirlockTuning

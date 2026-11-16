@@ -15,6 +15,7 @@
 #include "World/DeepArena.h"
 #include "World/DeepShapes.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepPilot, Log, All);
 
@@ -116,17 +117,18 @@ namespace DeepHelmLevers
 {
 	UDeepHelmLevers* Ensure(UWorld* World)
 	{
-		ADeepSubmarine* Sub = DeepArena::FindSubmarine(World);
-		if (!Sub)
+		// The levers stand beside the seat in the room set (World/DeepSubRoom), where the divers walk.
+		ADeepSubRoom* Room = DeepArena::EnsureRoom(World);
+		if (!Room)
 		{
 			return nullptr;
 		}
-		if (UDeepHelmLevers* Levers = Sub->FindComponentByClass<UDeepHelmLevers>())
+		if (UDeepHelmLevers* Levers = Room->FindComponentByClass<UDeepHelmLevers>())
 		{
 			return Levers;
 		}
-		UDeepHelmLevers* Levers = NewObject<UDeepHelmLevers>(Sub, TEXT("HelmLevers"));
-		Levers->SetupAttachment(Sub->GetRootComponent());
+		UDeepHelmLevers* Levers = NewObject<UDeepHelmLevers>(Room, TEXT("HelmLevers"));
+		Levers->SetupAttachment(Room->GetRootComponent());
 		Levers->RegisterComponent();
 		Levers->Build();
 		return Levers;

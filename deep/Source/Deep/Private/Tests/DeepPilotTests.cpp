@@ -22,6 +22,7 @@
 #include "World/DeepHelmLevers.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -81,7 +82,7 @@ namespace DeepPilotTest
 			Bus = UDeepEventBus::Get(World);
 			if (Sub)
 			{
-				Diver = World->SpawnActor<ADeepDiver>(Sub->GetRoomStartTransform().GetLocation(), FRotator::ZeroRotator);
+				Diver = World->SpawnActor<ADeepDiver>(DeepArena::EnsureRoom(World)->GetRoomStartTransform().GetLocation(), FRotator::ZeroRotator);
 			}
 			Run = Diver ? Diver->GetRun() : nullptr;
 			if (Run)
@@ -582,9 +583,9 @@ bool FDeepPilotLeversWorldTest::RunTest(const FString& Parameters)
 	FPilotWorld W;
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());
 	UDeepHelmLevers* Levers = DeepHelmLevers::Ensure(W.World);
-	UTEST_NOT_NULL(TEXT("Levers on the sub"), Levers);
+	UTEST_NOT_NULL(TEXT("Levers in the room"), Levers);
 	TestTrue(TEXT("Once only"), DeepHelmLevers::Ensure(W.World) == Levers);
-	TestTrue(TEXT("Attached to the sub"), Levers->GetAttachParent() == W.Sub->GetRootComponent());
+	TestTrue(TEXT("Attached to the room set"), Levers->GetAttachParent() == DeepArena::EnsureRoom(W.World)->GetRootComponent());
 	W.Run->TakeHelm();
 	W.Run->StepThrottle(1);
 	W.Run->StepThrottle(1);

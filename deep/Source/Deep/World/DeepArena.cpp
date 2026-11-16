@@ -15,6 +15,7 @@
 #include "World/DeepSalvage.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepArena, Log, All);
 
@@ -43,6 +44,25 @@ namespace DeepArena
 	ADeepSubmarine* FindSubmarine(const UWorld* World)
 	{
 		return World ? FindFirst<ADeepSubmarine>(World) : nullptr;
+	}
+
+	ADeepSubRoom* FindRoom(const UWorld* World)
+	{
+		return World ? FindFirst<ADeepSubRoom>(World) : nullptr;
+	}
+
+	ADeepSubRoom* EnsureRoom(UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		if (ADeepSubRoom* Room = FindRoom(World))
+		{
+			return Room;
+		}
+		const FVector At = UDeepTuningSettings::Get().Sub.RoomSetLocationM * UDeepRules::CmPerM;
+		return World->SpawnActor<ADeepSubRoom>(At, FRotator::ZeroRotator, SpawnParams());
 	}
 
 	ADeepArenaRoot* FindArenaRoot(const UWorld* World)
@@ -196,6 +216,7 @@ namespace DeepArena
 		{
 			return nullptr;
 		}
+		EnsureRoom(World);
 		if (!FindArenaRoot(World))
 		{
 			World->SpawnActor<ADeepArenaRoot>(Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());

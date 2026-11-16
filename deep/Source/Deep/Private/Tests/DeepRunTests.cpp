@@ -23,6 +23,8 @@
 #include "Story/DeepEventBus.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepArena.h"
+#include "World/DeepSubRoom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -310,7 +312,7 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Respawned aboard"), Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("Diver number goes up"), State->DiverNumber, DiverBefore + 1);
 	TestEqual(TEXT("respawn fired"), Bus->CountOf(DeepEvent::Respawn), 1);
-	TestTrue(TEXT("Respawned in the room"), Sub->IsInRoom(Diver->GetActorLocation()));
+	TestTrue(TEXT("Respawned in the room"), DeepArena::EnsureRoom(World)->IsInRoom(Diver->GetActorLocation()));
 	TestEqual(TEXT("Respawn refills Patience"), Run->GetPatienceFraction(), 1.f, 0.0001f);
 	Run->StepRun(10.f);
 	TestEqual(TEXT("Patience does not run aboard"), Run->GetPatienceFraction(), 1.f, 0.0001f);

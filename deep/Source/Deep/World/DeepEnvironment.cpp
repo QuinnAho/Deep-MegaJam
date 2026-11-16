@@ -20,6 +20,8 @@
 #include "World/DeepSalvage.h"
 #include "World/DeepShapes.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
+#include "World/DeepArena.h"
 
 namespace
 {
@@ -464,12 +466,15 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 	// Below a few cm of streak a speck keeps its tumble; above, it is a line along the world's vertical (the travel).
 	const bool bStreak = StreakCm > 1.0;
 	const FQuat Upright = FQuat::Identity;
+	// In the room set (far above the dive, World/DeepSubRoom) there is no water: no specks at all.
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	const bool bInRoom = Room && Room->IsInRoom(View, 100.0);
 
 	for (int32 i = 0; i < SnowHome.Num(); ++i)
 	{
 		const FVector P = Origin + SnowHome[i] + SnowDrift[i] * SnowTime;
 		const FVector At = View + FVector(Wrap(P.X - View.X, Box), Wrap(P.Y - View.Y, Box), Wrap(P.Z - View.Z, Box));
-		const bool bInHull = (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
+		const bool bInHull = bInRoom || (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
 			|| FVector::DistSquared(At, View) < ClearSq;
 		SnowXforms[i].SetLocation(At);
 		if (bInHull)

@@ -433,6 +433,24 @@ namespace
 			});
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs AirlockCommand(
+		TEXT("Deep.Airlock"),
+		TEXT("Deep.Airlock: cycles the airlock out, as a full turn of the valve (comes aboard first; needs the sub parked): hiss, fade, then the dive."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.Airlock"), [](UDeepRunComponent& Run)
+			{
+				AboardFirst(Run);
+				Run.LeaveHelm();
+				if (!Run.IsInside() || Run.IsLeavingByAirlock() || !Run.CanCycleAirlock())
+				{
+					UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Airlock: not aboard, already cycling, or the hatch is locked (the sub is not parked at a stop)"));
+					return;
+				}
+				Run.StartAirlock(true);
+			});
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs ConsoleCommand(
 		TEXT("Deep.Console"),
 		TEXT("Deep.Console: uses the console (comes aboard first): banks cargo, or shows the account and buys the next gate if affordable."),
