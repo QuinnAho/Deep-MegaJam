@@ -268,3 +268,46 @@ Frames (not committed), in `deep/Saved/CaveGen/round3/`, plain grey under the 15
   - `MeshBasicEditFunctions.h`, `MeshVoxelFunctions.h`, `MeshNormalsFunctions.h`.
 - Jacobson et al., "Robust Inside-Outside Segmentation using Generalized Winding Numbers", SIGGRAPH 2013. This is why the core, appended as water in the third solidify pass, always wins.
 - The smooth max and the rounded-rectangle distance follow Inigo Quilez's formulas: https://iquilezles.org/articles/smin/ and https://iquilezles.org/articles/distfunctions2d/
+
+## Round 4
+
+Goal: in plain grey under the spike lamp, nothing in A, T1, C1 or B reads as man-made. The joint contract is unchanged: one 9 m circle (D-055, D-058), the same CSV columns, the same chunk order and the same exits.
+
+### What changed and why
+- **Throats.** Necks now sit 1.3 m from each joint plane (they were 2.5 m), so the relief runs almost to the rim. A new `throat` section (a lopsided superellipse plus two wedges) flares raggedly from the neck into each big space. Relief fades out only 40–200 cm from the joint.
+- **Mouths onto big spaces.** B's end walls have four recesses beside its two mouths, under the lip, so the wall round each throat is overhung and broken.
+- **Round tubes.** The round sections in C1's exit and in T1's last run are now `phreatic`: a lens with a wedge floor. C1's exit run now has core slices from s = 1800, because the throat's superellipse had cut the core's corner.
+- **Doorways.** In T1's keyhole bend, three undercut bays break the far wall at different heights. The rift and keyhole sections have per-angle jagged blends (`Sections(..., seed)`). Grooves and ledges in `Rock.wall` vary in depth and die out along their length.
+- **Fingers.** Alcoves are now `bed_undercut`s that run along a bed and taper out at both ends.
+- **Open end.** There is a new **end chunk E** (Type `end`, one new row in `CaveChunks.csv`, same columns; exit columns 0). Its throat runs into a low bedding passage that bends 50° and pinches shut. B keeps its open exit, so B can still be reused mid-string. The string is A, T1, C1, B, E. The core in E covers only the hull's nose. `Core` caps a tube where its slices stop (`self.capped`), because the tube distance used to run on forever, which held E's pinch open.
+- **B's floor.** Breakdown blocks are flatter, half sunk in the silt, tilted ±8° (they were ±25°) and kept out of the throats.
+- **Cameras.** Every frame camera is in `Python/CaveCameras.csv`. That is the 10 round-3 views plus one view per joint from the helm 20 m before it, and `E_from_joint`.
+
+### Results (measured the round-3 way)
+| Check | Round 4 |
+|---|---|
+| Joint gap | 0.000 cm on all 4 joints, radius 450.0 |
+| Overlap away from joints | 0 |
+| Hull sweep | 0 / 999 contacts; min clearance: squeeze 87.5, neck 106.2, tunnel 109.4, cavern 112.5 cm |
+| Controls ±300 | 685 and 691 of 999 hit |
+| Core exposure (away from the necks) | 0 in every chunk; min A 22.7, T1 6.2, C1 9.9, B 14.7, E 10.9 cm |
+| C1 column | 21.97 m |
+| Sockets | Park gap 295.4 cm; Salvage 1–5 valid; Serpent in void |
+| Mesh audit | 1 component each; 2 border loops each, E 1 |
+| GPU, T1 squeeze (Nanite and throttling off, 40 samples) | 4.13 ms median, p95 4.38 (one noisy run gave 4.51 / 5.03); round 3: 4.40 / 4.71 |
+| GPU, C1 Park | 4.17 ms median, p95 4.46 (4.16 / 4.51 on a repeat); round 3: 4.20 / 4.48 |
+
+Frames (not committed) are in `deep/Saved/CaveGen/round4/`: the 10 round-3 views plus `Helm_A_T1`, `Helm_T1_C1`, `Helm_C1_B`, `Helm_B_E` and `E_from_joint`.
+
+### Gotchas
+- A section without core slices can cut into the core. Any new section near the hull's path needs `slices`.
+- An uncapped core tube reaches past the end of its path, so it holds space open and gives false exposure.
+- Snapping the roof to a bedding plane (`defs[...][3] = True`) holds a pinch flat and open. That is what made E's first end read as a slot.
+- Boxes do not read as rock (E's first curb blocks). E has no blocks.
+- `shot4.ps1 -Only` takes an array, so call it through `-Command "& .\shot4.ps1 -Only @(...)"`, not `-File`.
+
+### Still open
+- The C1→B and B→E mouths still read as roundish portholes from 20 m out. The 9 m circle shows through the throat, and it shows most where the wall around it is flat.
+- Straight horizontal beds on B's end walls and down E's passage still look tooled.
+- T1's squeeze keeps a flat lintel at the top.
+- E's far end is dark rock now (no bright disc), but its walls are smooth and its bend bays are big, plain shapes.

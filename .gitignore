@@ -47,3 +47,6 @@ audio-drop/
 
 # Free models Quinn downloads (D-049; the vault note Polish - Sub Assets), waiting to be imported. Never committed.
 asset-drop/
+
+# Python bytecode caches (editor Python, tools)
+__pycache__/

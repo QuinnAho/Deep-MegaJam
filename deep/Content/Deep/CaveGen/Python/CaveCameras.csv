@@ -1,0 +1,16 @@
+Name,X,Y,Z,Yaw,Pitch,Note
+String_overview,7000,5500,22000,90,-89.9,top down over the whole string
+T1_squeeze_helm,3900,0,100,0,0,helm at T1's rift squeeze (GPU view 1)
+C1_from_entry,8300,4900,-620,90,-8,C1 just inside its entry joint
+C1_from_Park,8300,7900,-2850,40,-8,from Park toward the exit (GPU view 2)
+T1_tunnel_body_helm,7656,222,54,32.7,-2,T1 tunnel body
+T1_keyhole_helm,5650,0,100,0,-2,down T1's keyhole to the bend's far wall
+Joint_A_T1,2700,250,150,8,0,3 m before the A-T1 joint
+Joint_T1_C1,8550,4500,-450,98,0,the T1-C1 joint
+Joint_C1_B,10811,9250,-2850,38,0,the C1-B joint into the hall
+C1_Park_up_column,8300,7800,-2850,90,72,up C1's sink column from Park
+Helm_A_T1,1000,0,100,0,0,helm 20 m before the A-T1 joint flying forward
+Helm_T1_C1,8300,2800,-443,90,-4,helm 20 m before the T1-C1 joint flying forward
+Helm_C1_B,9339.2,8400,-2900,30,0,helm 20 m before the C1-B joint flying forward
+Helm_B_E,11937.4,9900,-2900,30,0,helm 20 m before the B-E joint flying forward (where round 3 saw the bright disc)
+E_from_joint,13669.4,10900,-2900,30,0,at the B-E joint looking down E to where it closes

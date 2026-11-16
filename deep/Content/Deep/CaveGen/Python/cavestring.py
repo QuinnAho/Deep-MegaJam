@@ -21,7 +21,7 @@ GS_E = U.GeometryScript_MeshEdits
 GS_N = U.GeometryScript_Normals
 GS_S = U.GeometryScript_MeshSpatial
 
-STRING = ['A', 'T1', 'C1', 'B']
+STRING = ['A', 'T1', 'C1', 'B', 'E']    # E (type 'end') closes the string in rock: no exit joint
 HULL_HALF = (615.0, 165.0, 250.0)     # 12.3 x 3.3 x 5.0 m
 yaw_dirs = cg.yaw_dirs
 
@@ -93,7 +93,7 @@ def read_csv(path):
 def chunk_record(name):
     spec = cg.meta(name)
     bb = GS_Q.get_mesh_bounding_box(read_mesh(name, fresh=True))
-    ex = spec['exit']
+    ex = spec['exit'] or (0.0, 0.0, 0.0, 0.0)     # an end chunk has no exit: zeros
     return {'Name': name, 'Mesh': mesh_path(name), 'Type': spec['type'],
             'ExitX': float(ex[0]), 'ExitY': float(ex[1]), 'ExitZ': float(ex[2]), 'ExitYaw': float(ex[3]),
             'MinX': round(bb.min.x, 1), 'MinY': round(bb.min.y, 1), 'MinZ': round(bb.min.z, 1),
@@ -101,7 +101,7 @@ def chunk_record(name):
 
 
 def write_chunks_csv():
-    rows = [chunk_record(n) for n in ['A', 'B', 'T1', 'C1']]
+    rows = [chunk_record(n) for n in ['A', 'B', 'T1', 'C1', 'E']]
     p = os.path.join(data_dir(), 'CaveChunks.csv')
     write_csv(p, CHUNK_COLS, rows)
     return p, rows
@@ -201,9 +201,10 @@ def joint_checks(rows):
         (fx, fy), _ = yaw_dirs(r['ExitYaw'])
         m = read_mesh(n)
         ent = _loop(m, (0, 0, 0), (1, 0))
-        exl = _loop(m, (r['ExitX'], r['ExitY'], r['ExitZ']), (fx, fy))
+        end_chunk = r['Type'] == 'end'
+        exl = [] if end_chunk else _loop(m, (r['ExitX'], r['ExitY'], r['ExitZ']), (fx, fy))
         loops[n] = (ent, exl)
-        for tag, lp in (('entry', ent), ('exit', exl)):
+        for tag, lp in (('entry', ent),) + ((() if end_chunk else (('exit', exl),))):
             rs = [x[1] for x in lp]
             angs = [x[0] for x in lp]
             gaps = [angs[i + 1] - angs[i] for i in range(len(angs) - 1)] + [angs[0] + 2 * math.pi - angs[-1]]
