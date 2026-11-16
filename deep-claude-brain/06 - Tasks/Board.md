@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-16 01:15 EST
+updated: 2026-11-16 01:45 EST
 ---
 # Board
 
@@ -27,6 +27,8 @@ Jam entry submitted solo (D-054). The goal now is an enjoyable game. Caves are c
 | Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready |
 | Block out the slice map with CubeGrid, from [[Blockout Scale Card]]; settle the hull's size first ([[Cave Pipeline]]) | Quinn | todo |
 | Sounds for the slice | Colby | later (Quinn, 10:04 PM: not yet) |
+| Co-op: one at the helm, one on the tether (D-057); Steam sessions and proximity voice | agent, sonnet (research) | research done ([[Co-op - Steam and Voice]]); build after the cave |
+| Immersion pass: camera shake that reacts to the world (knocks, current, the engine, rock close by) and grain underwater. Quinn, Nov 16: after the cave. Part of the one planned look pass (D-028); look each effect up first | later | after the cave |
 
 On hold: `build/sight` (`.wt\voice`) and `build/helm` (`.wt\text`) wait for the still world and the sub kit. The runtime cave generator stays only as the stand-in until the map exists.
 

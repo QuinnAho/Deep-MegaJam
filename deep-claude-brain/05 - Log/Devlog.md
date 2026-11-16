@@ -1223,3 +1223,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 ### 1:00 AM, Nov 16  The jam entry goes in
 - Changed: Quinn submitted DEEP solo before the 2:00 AM EST cutoff (D-054). The video was recorded in one take at stop 2 on the jam build; the dev log is published as a Google Doc with 15 screenshots.
 - Next: moving-sub step 3.
+
+### 1:45 AM, Nov 16  Caves become chunks; two players
+- Changed: moving-sub step 3 (the still world behind a switch, `e1d4a06`) passed 177 of 177 tests. The cave spike started: two chunks joined both ways, with 9 m round necks as the joints and squeezes inside the chunks. Research found no 5.9 build of the ProceduralDungeon plugin, so DEEP will write its own small assembler.
+- Decided: Quinn chose Lethal Company-style caves, baked chunks strung together per dive (D-055). The Atlantic Explorer becomes a wreck (D-056). Quinn wants two players (D-057), and an immersion pass after the cave.
+- Next: the spike's frames, then moving-sub step 4's tests and frames.

@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 22:55 EST
+updated: 2026-11-16 01:45 EST
 ---
 # Decision Log
 
@@ -65,6 +65,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-054 | The jam entry went in solo | Decided (Quinn, about 1 AM EST Nov 16) |
 | D-055 | Caves are baked chunks, strung in a new order every dive | Decided (Quinn, about 1:05 AM Nov 16) |
 | D-056 | The Atlantic Explorer is wreckage | Decided (Quinn, about 1:10 AM Nov 16); the dive's goal and the upgrade loop are open |
+| D-057 | Two players: one drives the sub, one dives on the tether | Decided (Quinn, Nov 16), after the cave work; plugins open |
 
 ## Open
 
@@ -367,6 +368,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-057 Two players: one drives the sub, one dives on the tether
+- **Status:** Decided that DEEP is two-player co-op. The plugins are open.
+- **Date:** 2026-11-16
+- **Who:** Quinn decided; Claude proposes the voice idea.
+- **Quinn's words:** "then I do want this to be a game, where ones driving ones on the tether, so we should look into that, im thinking that theres some plugin that allows easy steam support proximity chat ect, i might =even have it saved but continue with the cave"
+- **Decided:** DEEP is a two-player co-op game, one player at the helm and one on the tether. It comes after the cave work.
+- **Open:** the session and voice plugins ([[Co-op - Steam and Voice]]); which plugin Quinn has saved; solo play, assumed to stay as the jam build plays, one person doing both jobs.
+- **Claude's proposal, not decided:** the tether carries the voice. It is clear over the line while the diver is clipped on, and close and muffled once they unclip or the line is cut. So a cut line also cuts the voice.
 
 ### D-056 The Atlantic Explorer is wreckage
 - **Status:** Decided that the model is a wreck. The dive's goal and the upgrade loop are open.
