@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-16 06:15 EST
+updated: 2026-11-16 07:15 EST
 ---
 # Devlog
 
@@ -1251,3 +1251,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Failed: every joint is the same 9 m circle, and it shows as ringed holes down the tunnels and a porthole where a joint meets a cavern. One bend and one opening read as doorways.
 - Decided: round 4 fixes what the joint rule allows. The joint shape itself is Quinn's call, because it changes D-055 and D-058.
 - Next: Quinn picks the joint shape and checks step 4 (frames page v23).
+
+### 7:15 AM, Nov 16  Cave round 4: the doorways are gone, the joints still show
+- Changed: round 4 (`41d0bc3` on `build/cavegen`) removed the doorway, the mine door and most finger ledges, and added an end chunk E that pinches shut. The frame cameras now live in `CaveCameras.csv`, so every round shoots the same views. All checks still pass.
+- Failed: the new helm views, 20 m before each joint, show all four joints as round tubes. Work inside the joint rule can't hide the 9 m circle.
+- Decided: round 5 waits for Quinn's joint call, and will also fix the lintel, straight beds, C1's entry rock and E's bays.
+- Next: Quinn picks the joint shape (frames page v24).
