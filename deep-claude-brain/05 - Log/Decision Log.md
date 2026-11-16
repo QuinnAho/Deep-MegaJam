@@ -62,6 +62,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-051 | The sub moves through a still world; the room is a fixed set; leaving is an airlock cycle | Decided (Quinn, 9:39 PM Nov 15); building on `build/moving-sub`; supersedes D-022's moving world |
 | D-052 | PCG and Geometry Script are on; caves are made with the editor's tools | Decided (Quinn, 9:43 and 10:04 PM Nov 15); `6917b6d` |
 | D-053 | The cave pipeline: a drawn skeleton, a Geometry Script shell, PCG dressing, a hand pass | **Proposed** (Claude, 10:55 PM Nov 15); waiting on Quinn |
+| D-054 | The jam entry went in solo | Decided (Quinn, about 1 AM EST Nov 16) |
 
 ## Open
 
@@ -364,6 +365,12 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-054 The jam entry went in solo
+- **Status:** Decided. Done. D-050's post-jam rules still stand; only its "passed without a submission" wording no longer holds.
+- **Date:** 2026-11-16, about 1 AM EST
+- **Who:** Quinn.
+- **What happened:** Quinn submitted DEEP to the 2026 Epic AI MegaJam as a solo entry, team name QuinnAho, because Colby did not have time to work on it. The cutoff was 2:00 AM EST (11 PM PST), later than the 8:59 PM EST the vault planned around. The build is `BuildsNoTag-2127` (tag `jam-final`), zipped as `QuinnAho_DEEP.zip`. The video is on YouTube. The dev log is a link-shared Google Doc with 15 screenshots; its text is in `devlog/itch-paste/DEEP-devlog.md`, with commit hashes and decision codes removed for outside readers. Modifiers: Solo Driver and Glass Box.
 
 ### D-052 PCG and Geometry Script are on; caves are made with the editor's tools
 - **Status:** Decided. Committed in `6917b6d` at 10:19 PM: the build passed, the editor mounts both plugins, and the sim tests pass 64 of 64. Quinn restarts the editor to load them.

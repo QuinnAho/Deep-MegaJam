@@ -1219,3 +1219,7 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: three research notes (UE 5.9's tools read from its headers, real caves and how others generate them, games to learn from) and a proposed pipeline, [[Cave Pipeline]] (D-053).
 - Failed: PCG's Spline To Mesh only extrudes a flat curve, so tunnels need a custom node; no cave plugin is confirmed for 5.9.
 - Also: two free CC BY subs measured. BT-01 is 6.15 m long as modelled, so it needs ×2; the Atlantic Explorer is about 8 m.
+
+### 1:00 AM, Nov 16  The jam entry goes in
+- Changed: Quinn submitted DEEP solo before the 2:00 AM EST cutoff (D-054). The video was recorded in one take at stop 2 on the jam build; the dev log is published as a Google Doc with 15 screenshots.
+- Next: moving-sub step 3.

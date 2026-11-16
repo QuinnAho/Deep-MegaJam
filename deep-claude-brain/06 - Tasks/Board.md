@@ -9,6 +9,8 @@ The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules 
 
 The jam is over; DEEP is a polished game now (rules in `CLAUDE.md`). The goal is the slice: the first ten minutes in a real map built in the editor ([[Slice Brief]]). Everything below this section is the jam's history.
 
+Jam entry submitted solo, Nov 16 about 1 AM EST (D-054). Next: review and test moving-sub step 3.
+
 | What | Who | Status |
 |---|---|---|
 | Push main, tag `jam-final`, move Unreal assets to Git LFS | orchestrator | done (`62c65b3`) |

@@ -1,6 +1,6 @@
 # DEEP dev log 1: Saturday night, the first five hours
 
-DEEP is a submarine horror game for the 2026 Epic AI MegaJam. You are a diver on a tether, a sarcastic AI captain takes a cut of everything you salvage, and a sea serpent hears you winching. Quinn and Colby are making it with Claude agents, in Unreal Engine 5.9. This post covers about 8 PM Saturday Nov 14 to 1 AM Sunday Nov 15: what got built, what went wrong, and what it cost. The jam opened on Nov 12, so we started on the evening of day three of four, with a deadline of Sunday 8:59 PM EST.
+DEEP is a submarine horror game for the 2026 Epic AI MegaJam. You are a diver on a tether, a sarcastic AI captain takes a cut of everything you salvage, and a sea serpent hears you winching. Quinn is making it solo, with Claude agents, in Unreal Engine 5.9. This post covers about 8 PM Saturday Nov 14 to 1 AM Sunday Nov 15: what got built, what went wrong, and what it cost. The jam opened on Nov 12, so we started on the evening of day three of four, with a deadline of Sunday 8:59 PM EST.
 
 ## How we work
 
