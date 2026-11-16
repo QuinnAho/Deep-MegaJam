@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-14 21:00 EST
+updated: 2026-11-15 22:55 EST
 ---
 # Devlog
 
@@ -1205,3 +1205,17 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
 - Why it matters: the bracket colour already tells target kinds apart, so the words were redundant text on screen. No test asserted the names, so no expectations changed.
 - Evidence: build PASS; Deep.UI 23/23, Deep.Sim.Harpoon 2/2, Deep.World.Harpoon 4/4 on branch rescope/notag. Not merged; Quinn decides.
 - Credits fix: Credits.csv row 4 said the Dragon Cave pack supplies the serpent head; it now says cave rocks, stones and the relic. Deep.UI.Settings 5/5.
+
+## After the jam
+
+Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what changed, what was decided, what failed.
+
+### 9:11 PM  The jam ends without a submission
+- Changed: the deadline passed at 9 PM. Quinn turned DEEP into a game to polish, made the traditional way: a real map built by hand, humans own the maps, agents write code and tools in their own folders, binaries in Git LFS (D-050).
+- Decided: the sub moves through a still world, undoing D-022's moving world (D-051); PCG and Geometry Script are on (D-052, `6917b6d`).
+- Evidence: tag `jam-final`; `b37b1c8`, `62c65b3`, `e7ed09f`.
+
+### 10:55 PM  A plan for real caves
+- Changed: three research notes (UE 5.9's tools read from its headers, real caves and how others generate them, games to learn from) and a proposed pipeline, [[Cave Pipeline]] (D-053).
+- Failed: PCG's Spline To Mesh only extrudes a flat curve, so tunnels need a custom node; no cave plugin is confirmed for 5.9.
+- Also: two free CC BY subs measured. BT-01 is 6.15 m long as modelled, so it needs ×2; the Atlantic Explorer is about 8 m.

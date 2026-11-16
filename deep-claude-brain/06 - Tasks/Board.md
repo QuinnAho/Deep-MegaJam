@@ -1,9 +1,9 @@
 ---
-updated: 2026-11-15 22:15 EST
+updated: 2026-11-15 22:55 EST
 ---
 # Board
 
-The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
+The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, the jam's runs in [[Agent Runs]] (no new rows since the jam). Status words: `todo`, `doing`, `blocked`, `done`.
 
 ## Now: the slice (from Nov 15, 10 PM)
 
@@ -13,13 +13,17 @@ The jam is over; DEEP is a polished game now (rules in `CLAUDE.md`). The goal is
 |---|---|---|
 | Push main, tag `jam-final`, move Unreal assets to Git LFS | orchestrator | done (`62c65b3`) |
 | Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
-| Turn on the PCG and Geometry Script plugins in the editor, then restart | Quinn | todo |
+| Turn on the PCG and Geometry Script plugins (D-052) | orchestrator | done (`6917b6d`); Quinn restarts the editor to load them |
 | Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
-| Moving sub: undo D-022 (the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan first, for Quinn's OK | agent, opus, `.wt\swim` on `build/moving-sub` | doing (plan) |
-| Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | doing |
+| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | doing: steps 1 and 2 (pure rules; room split and airlock) |
+| Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | done ([[Asset Shortlist - Slice]]) |
+| Cave research: UE 5.9's tools, real caves and methods, games to learn from | agents | done ([[Cave Gen - Engine Tools]], [[Cave Gen - Real Caves and Methods]], [[Games to Learn From]]) |
+| Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | proposed, waiting on Quinn ([[Cave Pipeline]]) |
+| Cave spike: one 60 m stretch in a scratch map; output only in `deep/Content/Deep/CaveGen/` | agent, opus | todo: needs Quinn's OK for the map and the beta interop plugin |
+| Subs: use both (Quinn, 10:04 PM). Proposed: BT-01 is ours (×2, 12.3 m) and the Atlantic Explorer is the wreck. Both CC BY 4.0, unpacked in `asset-drop/subs/` and measured | orchestrator | waiting on Quinn (roles, scale); then an import lane in `.wt\subs` |
 | Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready |
-| Block out the slice map with CubeGrid, from [[Blockout Scale Card]] | Quinn | todo |
-| Sounds for the slice | Colby | ask |
+| Block out the slice map with CubeGrid, from [[Blockout Scale Card]]; settle the hull's size first ([[Cave Pipeline]]) | Quinn | todo |
+| Sounds for the slice | Colby | later (Quinn, 10:04 PM: not yet) |
 
 On hold: `build/sight` (`.wt\voice`) and `build/helm` (`.wt\text`) wait for the still world and the sub kit. The runtime cave generator stays only as the stand-in until the map exists.
 

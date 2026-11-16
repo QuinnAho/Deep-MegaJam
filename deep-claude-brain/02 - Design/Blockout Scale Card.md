@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 22:05 EST
+updated: 2026-11-15 22:55 EST
 source: deep/Source/Deep/Sim/DeepTuningTypes.h and DeepTuningSettings.cpp (the tuning defaults on main 62c65b3)
 ---
 # Blockout Scale Card
@@ -16,6 +16,7 @@ Sizes and speeds for blocking out the slice map. The numbers come from the game'
 - **Hull:** plan for **12 m long, 5 m wide, 4 m tall**.
   - Today's placeholder is about 10 × 5 × 3.5 m (the room is 9 × 4.5 × 3 m).
   - The sub kit Quinn picks will set the final size.
+  - Proposed, waiting on Quinn: BT-01 at ×2 is **12.3 m long, 3.3 m wide, 5.0 m tall**, taller and narrower than this plan. Squeezes would then need to be 7 m tall. See [[Cave Pipeline]].
 - **Speeds:**
 
   | Move | Speed |

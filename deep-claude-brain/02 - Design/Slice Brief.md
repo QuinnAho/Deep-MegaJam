@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 22:10 EST
+updated: 2026-11-15 22:55 EST
 status: DRAFT by Claude for Quinn to edit (Nov 15 plan, 10:30 PM slot). Nothing here is decided until Quinn says so.
 ---
 # Slice Brief
@@ -44,4 +44,5 @@ The start pool and shaft mouth, the descent tunnel with one squeeze, the gallery
 ## Open questions for Quinn
 1. Is the air line kept, and if so, what makes it a choice?
 2. Does the slice end at the end card (beat 10), or carry on down to the next stop?
-3. Is Colby on sound tonight? If so, the slice needs about 12 sounds: hull groans, ballast flood, the airlock cycle, scrapes, serpent calls and knocks, and a radio crackle.
+3. Sound: **answered (Quinn, 10:04 PM): not yet, later.** When it starts, the slice needs about 12 sounds: hull groans, ballast flood, the airlock cycle, scrapes, serpent calls and knocks, and a radio crackle.
+4. The hull's size sets every clearance. BT-01 at ×2 is 12.3 × 3.3 × 5.0 m, taller and narrower than the Scale Card's 12 × 5 × 4 m. Settle it before blocking out ([[Cave Pipeline]]).
