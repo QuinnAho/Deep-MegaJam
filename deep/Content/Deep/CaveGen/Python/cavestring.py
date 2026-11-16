@@ -91,7 +91,7 @@ def read_csv(path):
 
 
 def chunk_record(name):
-    spec = cg.SPECS[name]()
+    spec = cg.meta(name)
     bb = GS_Q.get_mesh_bounding_box(read_mesh(name, fresh=True))
     ex = spec['exit']
     return {'Name': name, 'Mesh': mesh_path(name), 'Type': spec['type'],
@@ -176,7 +176,7 @@ def _loop(mesh, centre, fwd, tol=0.5):
         if abs(dx * fx + dy * fy) <= tol:
             lat = -dx * fy + dy * fx
             r = math.hypot(lat, dz)
-            if r > 50:
+            if 50 < r < cg.JOINT_R + 5.0:      # the rim
                 lp.append((math.atan2(dz, lat), r, (p.x, p.y, p.z)))
     lp.sort()
     return lp
@@ -293,12 +293,44 @@ def line(a, b):
     return (p.x, p.y, p.z), (n.x, n.y, n.z), act.get_actor_label() if act else None
 
 
+_VOID_CACHE = {}
+
+
 def in_void(name, local_pt):
-    om = U.DynamicMesh()
-    GS_E.append_mesh(om, read_mesh(name), U.Transform())
-    GS_N.flip_normals(om)
-    bvh = GS_S.build_bvh_for_mesh(om)[1]
+    if name not in _VOID_CACHE:
+        om = U.DynamicMesh()
+        GS_E.append_mesh(om, read_mesh(name), U.Transform())
+        GS_N.flip_normals(om)
+        _VOID_CACHE[name] = (om, GS_S.build_bvh_for_mesh(om)[1])
+    om, bvh = _VOID_CACHE[name]
     return GS_S.is_point_inside_mesh(om, bvh, U.Vector(*local_pt), U.GeometryScriptSpatialQueryOptions())[1]
+
+
+def mesh_audit(name):
+    """Components, open borders (a chunk should have two: its joints), degenerate triangles."""
+    _VOID_CACHE.pop(name, None)
+    m = read_mesh(name, fresh=True)
+    out = {'tris': GS_Q.get_num_triangle_i_ds(m), 'verts': GS_Q.get_vertex_count(m)}
+    for key, fn in (('components', 'get_num_connected_components'), ('border_edges', 'get_num_open_border_edges'),
+                    ('border_loops', 'get_num_open_border_loops'), ('closed', 'get_is_closed_mesh')):
+        f = getattr(GS_Q, fn, None)
+        if f is None:
+            out[key] = 'n/a'
+            continue
+        try:
+            r = f(m)
+            out[key] = r[0] if isinstance(r, tuple) else r
+        except Exception as e:
+            out[key] = 'err %s' % str(e)[:80]
+    f = getattr(GS_Q, 'get_all_degenerate_triangle_i_ds', None)
+    if f:
+        try:
+            r = f(m)
+            lst = r[1] if isinstance(r, tuple) else r
+            out['degenerate'] = len(lst) if isinstance(lst, (list, tuple)) else len(GS_L.convert_index_list_to_array(lst))
+        except Exception as e:
+            out['degenerate'] = 'err %s' % str(e)[:80]
+    return out
 
 
 # ---------------------------------------------------------------- C1 sockets
@@ -306,7 +338,7 @@ def c1_sockets(rows):
     """Park, Salvage (by trace onto ledges, floor and pile) and Serpent, in C1's frame."""
     places, end = string_places(rows)
     pl = dict(places)['C1']
-    spec = cg.spec_C1()
+    spec = cg.meta('C1')
     cx, cy = cg.C1_COL
     park = spec['sockets']['Park']
     rep = []
@@ -316,29 +348,29 @@ def c1_sockets(rows):
     floor_z = to_local(pl, h[0])[2]
     keel = park[2] - cg.HULL_HALF_Z if hasattr(cg, 'HULL_HALF_Z') else park[2] - HULL_HALF[2]
     rep.append('Park keel %.0f floor %.1f gap %.1f cm' % (keel, floor_z, keel - floor_z))
-    # salvage candidates: (label, local xy, start z)
-    cands = []
-    for k, (az, ztop, wid) in enumerate(spec['ledges']):
-        (ax, ay), _ = yaw_dirs(az)
-        r = cg.C1_COL_R + 450.0
-        cands.append(('ledge%d' % int(az), (cx + ax * r, cy + ay * r), ztop + 250.0))
-    cands.append(('floor', (cx + 650.0, cy + 450.0), park[2]))
-    cands.append(('pile', spec['pile'], park[2]))
-    cands.append(('pocket', (cx - 800.0, 1000.0), park[2]))
+    # salvage candidates from the spec: (label, local xy, start z); a start in rock steps
+    # toward the column axis, 1 m at a time, until it is in water
     sal = []
-    for lab, (x, y), z0 in cands:
-        start_l = (x, y, z0)
-        if not in_void('C1', start_l):
+    for lab, (x, y), z0 in spec['salvage']:
+        start_l = None
+        d0 = math.hypot(x - cx, y - cy)
+        for k in range(16):
+            f = max(0.0, 1.0 - 100.0 * k / d0) if d0 > 1.0 else 0.0
+            q = (cx + (x - cx) * f, cy + (y - cy) * f, z0)
+            if in_void('C1', q):
+                start_l = q
+                break
+        if start_l is None:
             rep.append('%s: start in rock, skipped' % lab)
             continue
         sw = compose(pl, start_l)
         h = line(sw, (sw[0], sw[1], sw[2] - 2500))
         if not h or h[1][2] < 0.5:
-            rep.append('%s: no floor-like hit' % lab)
+            rep.append('%s: no up-facing hit' % lab)
             continue
         hl = to_local(pl, h[0])
         d = math.dist(hl, park[:3])
-        if d > 2000.0:
+        if d > 2500.0:
             rep.append('%s: %.0f cm from Park, too far' % (lab, d))
             continue
         sal.append((lab, (hl[0], hl[1], hl[2] + 20.0), d, h[1][2]))
@@ -369,39 +401,52 @@ def write_sockets_csv(rows):
 
 
 # ---------------------------------------------------------------- the dive path and the hull sweep
+NECK_REACH = 900.0    # hull centres this close to a joint have part of the hull in the 9 m neck
+
+
 def dive_path(rows, step=25.0, turn_step=2.0):
-    """World samples (x, y, z, yaw) of the hull centre: level and nose first in tunnels,
-    a sink and an in-place turn in C1."""
-    places = dict(string_places(rows)[0])
+    """World samples (x, y, z, yaw, region) of the hull centre: level and nose first in
+    tunnels, a sink and an in-place turn in C1. Regions: neck, tunnel, squeeze, cavern."""
+    plist, end = string_places(rows)
+    places = dict(plist)
+    joints = [pl[:3] for n, pl in plist] + [end[:3]]
     byname = {r['Name']: r for r in rows}
     pts = []
 
-    def run(pl, a, b, z=0.0, yaw=0.0, x0=0.0, y0=0.0):
+    def add(w, region):
+        if min(math.dist(w[:3], j) for j in joints) < NECK_REACH:
+            region = 'neck'
+        pts.append(w + (region,))
+
+    def run(pl, a, b, yaw=0.0, region='tunnel'):
         L = math.dist(a, b)
         n = max(1, int(math.ceil(L / step)))
         for i in range(n + 1):
             t = i / n
-            pts.append(compose(pl, (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, yaw)))
+            q = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)
+            add(compose(pl, q + (yaw,)), region(q) if callable(region) else region)
     # A: straight
     run(places['A'], (0, 0, 0), (byname['A']['ExitX'], 0, 0))
-    # T1: its centreline
+    # T1: its centreline; the squeeze is where the hull's grown box reaches the rift
     p = cg.t1_path()
     n = int(math.ceil(p.length / step))
     for i in range(n + 1):
-        x, y, z, yaw = p.at(p.length * i / n)
-        pts.append(compose(places['T1'], (x, y, z, yaw)))
+        s = p.length * i / n
+        x, y, z, yaw = p.at(s)
+        add(compose(places['T1'], (x, y, z, yaw)), 'squeeze' if cg.t1_margin(s) < cg.M_BODY else 'tunnel')
     # C1: in to the column, sink, turn, out
     pl = places['C1']
     cx, cy = cg.C1_COL
-    run(pl, (0, 0, 0), (cx, cy, 0))
-    run(pl, (cx, cy, 0), (cx, cy, cg.C1_PARK_Z))
+    run(pl, (0, 0, 0), (cx, cy, 0), region=lambda q: 'tunnel' if q[0] < cx - 1600.0 else 'cavern')
+    run(pl, (cx, cy, 0), (cx, cy, cg.C1_PARK_Z), region='cavern')
     k = int(abs(cg.C1_EXIT_YAW) / turn_step)
     for i in range(1, k + 1):
-        pts.append(compose(pl, (cx, cy, cg.C1_PARK_Z, cg.C1_EXIT_YAW * i / k)))
+        add(compose(pl, (cx, cy, cg.C1_PARK_Z, cg.C1_EXIT_YAW * i / k)), 'cavern')
     ex = cg.c1_exit()
-    run(pl, (cx, cy, cg.C1_PARK_Z), ex[:3], yaw=cg.C1_EXIT_YAW)
-    # B: straight
-    run(places['B'], (0, 0, 0), (byname['B']['ExitX'], 0, 0))
+    run(pl, (cx, cy, cg.C1_PARK_Z), ex[:3], yaw=cg.C1_EXIT_YAW,
+        region=lambda q: 'tunnel' if math.hypot(q[0] - cx, q[1] - cy) > 2000.0 else 'cavern')
+    # B: straight, a hall between two necks
+    run(places['B'], (0, 0, 0), (byname['B']['ExitX'], 0, 0), region='cavern')
     return pts
 
 
@@ -427,13 +472,14 @@ def clearance(p, lo=0.0, hi=200.0, iters=7):
     return lo
 
 
-def sweep(pts, offset=0.0, clear_every=4):
-    """Box sweeps between consecutive samples. offset moves the path sideways (control)."""
+def sweep(pts, offset=0.0, clear_every=2):
+    """Box sweeps between consecutive samples, and the smallest clearance per region
+    (every clear_every-th sample). offset moves the path sideways (control)."""
     if offset:
         q = []
-        for x, y, z, yaw in pts:
-            _, (rx, ry) = yaw_dirs(yaw)
-            q.append((x + rx * offset, y + ry * offset, z, yaw))
+        for p in pts:
+            _, (rx, ry) = yaw_dirs(p[3])
+            q.append((p[0] + rx * offset, p[1] + ry * offset) + tuple(p[2:]))
         pts = q
     contacts = 0
     for i in range(len(pts) - 1):
@@ -443,12 +489,14 @@ def sweep(pts, offset=0.0, clear_every=4):
             b = (a[0] + 0.5, a[1], a[2], yaw)
         if _hits(a[:3], b[:3], yaw, HULL_HALF):
             contacts += 1
-    mins = []
+    per = {}
     if clear_every:
         for i in range(0, len(pts), clear_every):
-            mins.append((clearance(pts[i]), i))
-        mins.sort()
-    return contacts, len(pts) - 1, mins[:5]
+            c = clearance(pts[i])
+            r = pts[i][4] if len(pts[i]) > 4 else 'all'
+            if r not in per or c < per[r][0]:
+                per[r] = (round(c, 1), i, tuple(round(v) for v in pts[i][:3]))
+    return contacts, len(pts) - 1, per
 
 
 def column_check(rows, dirs=36, dz=100.0):

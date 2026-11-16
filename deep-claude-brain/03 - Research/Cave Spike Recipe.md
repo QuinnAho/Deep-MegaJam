@@ -1,6 +1,6 @@
 ---
-updated: 2026-11-16 03:10 EST
-status: Round 2 built and measured (cave agent, branch build/cavegen): Python generator, chunks A, B, T1, C1 and the string A-T1-C1-B. "Round 2" below overrides earlier sections where they differ. Look awaits Quinn.
+updated: 2026-11-16 06:00 EST
+status: Round 3 built and measured (cave agent, branch build/cavegen): the hull fits by construction (a clear core), passages change section, walls follow beds and joints, joint rims match vertex for vertex, and the PCG path is removed. "Round 3" below overrides earlier sections where they differ. Look awaits Quinn.
 ---
 # Cave Spike Recipe
 
@@ -22,7 +22,7 @@ A PCG graph, `PCG_CaveShell`, with one custom node:
 - The node finds its skeleton from the context: `GetContextHandle` -> `PCGBlueprintHelpers::GetComponentWithContext` -> the PCG component's owner. (`PCGBlueprintBaseElement.h`, `PCGBlueprintHelpers.h`)
 - The skeleton is an actor, `BP_CaveSkeleton`, with a spline (the passage), a box (the chamber volume) and the PCG component. So editing a spline point regenerates that chunk.
 - `Save Dynamic Mesh To Asset` takes `ExportParams` (`AssetName`, `AssetPath`, `bSaveOnExportEnded`, `bOpenSaveDialog` off) and `CopyMeshToAssetOptions` with `bApplyNaniteSettings` on. (`PCGSaveDynamicMeshToAsset.h`, `PCGAssetExporter.h`, `MeshAssetFunctions.h`)
-- Plugin: `PCGGeometryScriptInterop`, beta 0.2, off by default, enabled in `deep/Deep.uproject` (Quinn OK'd, Nov 16).
+- Plugin: `PCGGeometryScriptInterop`, beta 0.2, off by default, enabled in `deep/Deep.uproject` (Quinn OK'd, Nov 16). Removed again in round 3.
 - **Fallback** if the beta plugin misbehaves: the same Blueprint function called from an Editor Utility with a Build button.
 
 ## Skeleton
@@ -110,7 +110,7 @@ Frames: `deep/Saved/CaveSpike/` (not committed): `tube.png`, `joint_AB.png`, `ch
 Brief: dive shape D-058, tunnels that open into caverns. Level and nose-first in tunnels, a ballast sink in caverns, stops in caverns.
 
 ### What changed and why
-- **Generator moved to Python**: `deep/Content/Deep/CaveGen/Python/cavegen.py`. It still uses Geometry Script only: append shapes, solidify, close, plane cut, snap, flip, box-UV. Authoring a cavern as a Blueprint graph over MCP was impractical. The PCG skeleton actors (`CaveSkeleton_A/B`) are still in the level. With `Bake` on they would overwrite the A and B meshes, so leave it off.
+- **Generator moved to Python**: `deep/Content/Deep/CaveGen/Python/cavegen.py`. It still uses Geometry Script only: append shapes, solidify, close, plane cut, snap, flip, box-UV. Authoring a cavern as a Blueprint graph over MCP was impractical. The PCG skeleton actors (`CaveSkeleton_A/B`) are still in the level. With `Bake` on they would overwrite the A and B meshes, so leave it off. (Removed in round 3.)
 - **Shapes:** `tube` along a path of straights and arcs, with yaw-only ring frames, so the floor never banks. Plus `ellipsoid`, `vcyl`, oriented `obox` and a `heightfield` floor. A negative noise amplitude pushes only outward, which keeps squeezes at their size.
 - **Assembly and checks:** `cavestring.py`. It writes the CSVs, places the string from them, and checks joints and overlap. It also sweeps the hull and checks the sink column.
 - **Bake settings, applied automatically** (`apply_mesh_settings`):
@@ -166,3 +166,105 @@ Frames (not committed), in `deep/Saved/CaveGen/`: `T1_squeeze_helm.png`, `C1_fro
 - `UStaticMesh::RayTracingProxySettings` (`Engine\Source\Runtime\Engine\Classes\Engine\StaticMesh.h`) and `FMeshRayTracingProxySettings` (`EngineTypes.h`).
 - `EditorPerformanceSettings.h` and `EditorEngine.cpp` (background throttle).
 - Geometry Script headers, as listed above.
+
+## Round 3 (Nov 16, early morning): a hull that fits by construction, rock with structure
+Brief: in plain grey under the spike lamp, A, T1, C1 and B read as natural rock passages and a natural chamber, and the hull (12.3 x 3.3 x 5.0 m) fits by construction, not by luck in the sweep.
+
+### What changed and why
+- **A clear core in every chunk.** It is the hull's box swept along the flight path. The box is grown by 1.0 m in tunnels and caverns (`M_BODY`) and by 0.75 m wherever it reaches a squeeze (`M_SQUEEZE`). Another 15 cm (`CORE_E`) keeps the 35 cm corner rounding (`CORE_RHO`) from eating the margin.
+  - In tunnels, the core is one rounded rectangle per ring: the exact slab clip of every grown hull box within 9 m along the path (`core_slice`), so bends and drops are covered. A ring is clamped against its neighbours' slices too, because the core is lofted between rings and the loft cuts in where the margin steps. C1 adds boxes for the entry run, the sink and the exit run, and a vertical cylinder for the in-place turn at Park.
+  - The core works three ways. Each section radius is pushed out to at least 30 cm past the core along its ray (`BASE_GAP`, joined by a smooth max 60 cm wide, so no crease). Rock displacement toward the core is squeezed with tanh (`clamp2` in a ring plane, `clamp3` in 3D), so displaced rock stays at least 12 cm outside it (`DELTA`) and never lies flat on it. And the core is appended as water in a third solidify pass, so no block, ledge or pile can enter it.
+  - The necks stay exact: the core's rounded corner reaches 446 cm from the axis, inside the 450 cm neck.
+  - `core_exposure` counts final vertices within 4 cm of the core, away from the joints. Such a vertex would be a flat patch.
+- **Passage sections** (`section_defs`) change every 10 to 20 m and blend between anchors with a smoothstep:
+  - `canyon`: 8 m wide at the hull, stepping in to 6 m and then a 3.6 m slot, about 18 m tall, meandering;
+  - `keyhole`: a 9 m tube over a 2.6 m floor slot about 5 m deep, meandering;
+  - `widelow`: about 15 m wide and 9 m tall, its roof on a bedding plane;
+  - `rift`: the squeeze, a near-rectangular rift with a roof slot, its width set by the core;
+  - `round`: the occasional round tube; `hall`: B's chamber, about 22 m wide; `neck`: the 9 m circle.
+- **Rock structure** (`Rock`, one seeded rock mass per chunk):
+  - Beds are 55 to 210 cm thick and tilt 1.2 degrees, rising toward yaw 30. Two vertical joint families strike at yaw 25 and 110, 1.5 to 5 m apart.
+  - Each wall point moves along its horizontal normal by the sum of five terms:
+    - a per-bed offset of up to 45 cm, so hard beds stand out as ledges and weak ones recess under overhangs;
+    - a slow variation of 30 cm, stretched 3.5 times horizontally;
+    - a per-block offset of 25 cm between joints, which gives blocky faces with straight vertical edges;
+    - an 18 cm groove at each bedding plane;
+    - 10 cm of fine noise.
+  - Roofs snap up to the bedding plane above, which gives flat, stepped ceilings. Rock floors snap down to the bed below and are blocky. Silt floors only swell downward.
+- **Features** (`tunnel_features`, plus shapes placed by hand in B and C1):
+  - joint slots: where a joint plane crosses the passage, a straight slot along its strike, 45 to 90 cm wide and thinner at the top, reaching 1.5 to 4 m past the wall;
+  - alcoves, as notches along a bedding plane (round alcoves read as windows);
+  - `joint_dome`: stepped breakdown domes of 2 or 3 slabs. Each slab ends on a flat bedding-plane ceiling, is squared to a joint strike, and is smaller than the one below and offset from it. A single ellipsoid seen from below read as an eye: a round rim, with its bedding-snapped crown as the pupil;
+  - breakdown blocks of 1 to 4 m, tilted, kept out of the core: 12 in T1's wide-low run, 34 each in B and C1;
+  - in C1: the sink shaft (clear radius 9.5 m, relief only outward), 4 ledges on bedding planes starting 12.5 m from the column axis, a rubble pile, a floor heightfield, a roof dome, a stepped side dome, and the Serpent's pocket with a narrow mouth;
+  - in B: 5 lobes that break the hall's outline and 2 domes.
+- **Black specks: the cause, fixed at the source.** Each chunk was cut at its joints on its own, so each rim was its own polygon inscribed in the 9 m circle. Where one rim's edge cut inside the other's, a sliver up to about 0.3 cm wide opened, and the background showed through as a dashed hairline.
+  - `conform_rims` moves each rim vertex along the circle to the nearest of 720 canonical angles, counted from the joint's side axis `(-fy, fx)`. Rim edges that span several angles are split, and their triangle becomes a fan.
+  - The map keeps the vertex order, so no triangle flips. Both sides of a joint now share their rim edge for edge.
+  - The other source of specks was frames captured while the editor was throttled (see Gotchas).
+- **The PCG path is removed.**
+  - `CaveSkeleton_A/B` and `PCGWorldActor0` are gone from `L_CaveSpike`.
+  - `PCG_CaveShell`, `BP_CaveShellElement` and `BP_CaveSkeleton` were referenced only by each other and by those actors, so they are deleted.
+  - The `PCGGeometryScriptInterop` entry is gone from `deep/Deep.uproject`, and `tools\ue.ps1 build` passes.
+  - "Where it runs" and "Bake" above are now history. The generator is `cavegen.py`, using Geometry Script only.
+
+### Chunks (cell 25 cm, Nanite off)
+| Chunk | Sections | Features | Tris (static mesh) | Bake |
+|---|---|---|---|---|
+| A | neck, canyon, keyhole, neck | 2 slots, 2 alcoves, 1 dome | 104,644 | 5.7 s |
+| T1 | neck, canyon, rift squeeze, keyhole, canyon round the bend, wide-low down the drop, round, neck | 7 slots, 10 alcoves, 3 domes, 12 blocks | 280,158 | 15.6 s |
+| C1 | keyhole entry, chamber and sink, round then wide-low exit, neck | listed above; 34 blocks | 379,656 | 19.6 s |
+| B | neck, hall, neck | 5 lobes, 2 domes, 2 slots, 1 alcove, silt floor, 34 blocks | 115,764 | 7.7 s |
+
+In all, 880,222 triangles, up from about 572k in round 2. Each chunk is 1 component with 2 border loops.
+
+### Results (Nov 16, RTX 4080 Laptop GPU at about 2.0 GHz of 3.1, editor viewport, Nanite off)
+| Check | Result | Bar |
+|---|---|---|
+| Joints A-T1, T1-C1, C1-B | every rim vertex at r 450.00 cm, on the same 720-gon from both sides; largest gap 0.000 cm (round 2: 0.31) | gap < 1 cm, **pass** |
+| Overlap away from joints | 0 wall samples inside a neighbour (44,289, 78,669 and 58,004 tested) | 0, **pass** |
+| Hull sweep A-T1-C1-B, 1000 samples, 999 boxes | 0 contacts | 0, **pass** |
+| Least clearance by region | squeeze 92.2 cm (round 2: 34), neck 93.8, tunnel 106.2, cavern 123.4 | |
+| Control, the same path 3 m to each side | 650 and 693 of 999 hit | must hit, **pass** |
+| Flat patches (`core_exposure`) | 0 in A, T1 and B. 1 vertex in C1, 4.0 cm from the core, where its entry neck ends: the exact 9 m circle, by design | 0 away from the necks, **pass** |
+| C1 sink column | narrowest clear width 21.9 m | 16 m or more, **pass** |
+| GPU, Graphics queue, 40 samples, throttle off | T1 squeeze: median 4.40 ms, p95 4.71. C1 at the Park helm: median 4.20, p95 4.48 (round 2: 4.76 / 4.95 and 4.82 / 5.08) | 16.7 ms, **pass** |
+
+- **Nanite stays off.** It was not re-measured on. Round 2 found it a wash, and the Nanite-off numbers improved on round 2's even with 54% more triangles.
+- **Sockets** (`CaveChunkSockets.csv`, same columns): Park has a keel gap of 295.3 cm. C1 now has 5 salvage points, 10.7 to 23.4 m from Park, on rock facing up (nz 0.80 to 1.00): 3 ledges, the pile and the floor. The ledge at azimuth 160 was skipped, 25.4 m from Park. The Serpent is in the void, with rock 4.25 to 30.7 m away on its six sides.
+- **`CaveChunks.csv`** has the new bounds, with the same columns. The exits did not change.
+
+### Gotchas
+- **A mesh with no UVs crashes the editor.** If a DynamicMesh has no UV set, the static mesh build asserts on "NumUVs > 0" and takes the editor down. `finish` now makes sure there is one UV set before the box projection, and raises an error if there is still none. `get_num_uv_sets` is in `GeometryScript_MeshQueries`, not in `_UVs`.
+- **The Restore Packages modal blocks MCP.** After a crash, the restarted editor waits on "Restore Packages", and MCP answers "slow task" until it is closed. Closing the window (UIA `WindowPattern.Close`) skips the restore.
+- **Flanges did not cure the specks.** A thin flange behind each rim covered the sliver but left a dashed, unlit hairline. Matching the rim polygons is the cure.
+- **Collapsed rim edges leave degenerate triangles**, 85 to 593 per chunk, where two rim vertices land on the same canonical angle. The static mesh build drops them, which is why a static mesh has a few hundred fewer triangles than its DynamicMesh.
+- **Throttled captures show specks.** Frames captured while the editor was throttled in the background were speckled. Keep `bThrottleCPUWhenNotForeground` off for frames as well as for GPU numbers.
+- **The orange box in the overview** was the PostProcessVolume's brush. `ShowFlag.Volumes 0` hides it, along with `ShowFlag.Grid 0` and `ShowFlag.BillboardSprites 0`. These are console commands on the editor world, so restore them afterwards.
+- **`tools\ue.ps1 build` fails while an editor is open, and it does not take `Global\DeepUnrealSlot` itself.** Close the editor, take the slot, build, then release the slot.
+
+### Open
+- **The look awaits Quinn**, in plain grey only.
+- From Park, C1's exit reads as a round tube, with B's open end as a bright disc: an eye.
+- The wide-low bedding notches read as rounded fingers.
+- In T1's keyhole bend, a flat far wall with a straight notch reads as a doorway.
+- Thin dark lines show at concave edges. They are the lamp's shadows, because the lamp sits 40 cm below the camera.
+- The degenerate rim triangles could be welded in a later pass.
+- There is no real rock material yet.
+
+Frames (not committed), in `deep/Saved/CaveGen/round3/`, plain grey under the 1500 cd lamp:
+- the 4 round-2 views: `T1_squeeze_helm.png`, `C1_from_entry.png`, `C1_from_Park.png`, `String_overview.png`;
+- T1's tunnel body from the helm: `T1_tunnel_body_helm.png`;
+- C1 from Park up the column: `C1_Park_up_column.png`;
+- extras: `T1_keyhole_helm.png`, `Joint_A_T1.png`, `Joint_T1_C1.png`, `Joint_C1_B.png`.
+
+### Sources
+- Arthur N. Palmer, *Cave Geology*, Cave Books, 2007. Passages follow beds and joints. A canyon cut down from a tube gives a keyhole. Wide, low passages follow bedding planes. Breakdown domes rise in steps along joints and stop at a strong bed.
+- Derek Ford and Paul Williams, *Karst Hydrogeology and Geomorphology*, Wiley, 2007: conduit shapes and breakdown.
+- Geometry Script headers in `Engine\Plugins\Runtime\GeometryScripting\Source\GeometryScriptingCore\Public\GeometryScript\`:
+  - `MeshQueryFunctions.h` (`GetNumUVSets`);
+  - `MeshUVFunctions.h` (`SetNumUVSets`, box projection);
+  - `MeshRepairFunctions.h` (`CompactMesh`, `RemoveSmallComponents`);
+  - `MeshBasicEditFunctions.h`, `MeshVoxelFunctions.h`, `MeshNormalsFunctions.h`.
+- Jacobson et al., "Robust Inside-Outside Segmentation using Generalized Winding Numbers", SIGGRAPH 2013. This is why the core, appended as water in the third solidify pass, always wins.
+- The smooth max and the rounded-rectangle distance follow Inigo Quilez's formulas: https://iquilezles.org/articles/smin/ and https://iquilezles.org/articles/distfunctions2d/
