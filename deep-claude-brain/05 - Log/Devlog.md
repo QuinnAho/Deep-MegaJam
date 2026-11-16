@@ -671,6 +671,10 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - **Evidence:** `devlog/02-sunday.md` and `devlog/media/2026-11-15-rescope-*.jpg`; Agent Runs row 102.
 - **Left for Quinn:** Colby's part (a TODO in the post) and where both posts are published.
 
+### 9:35 PM  Sonar off and no tag pass the gate; the project turns from the jam to a polished game (orchestrator)
+- Quinn, 9:12 PM: "no tag and sonar off, continue looks like we are giong to miss it which is fine so focusing on building this out right is what we want". The helm sonar panel is off by default (`9b31ed2`) and merged with the reticle and credits fixes into integration `d2a53bf`. The gate passed (164 of 164 tests; S0, S1, S2, S5, S8; package, smoke, zip). Integration is pushed and the build is in `Builds\NoTag-2127`.
+- Quinn, about 9:30 PM, asked for a real map instead of one built from data, more human in the loop, and a lighter dev log from here on. The three build-out lanes branched at `d2a53bf` wait for the map direction. Checked before answering: the game starts in the engine's empty Entry map, Git LFS is not set up, and the moving world of D-022 runs through 33 source files.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.
