@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-16 03:45 EST
+updated: 2026-11-16 06:15 EST
 ---
 # Devlog
 
@@ -1245,3 +1245,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Failed: the tunnels still read as round pipes, with black specks at the tunnel mouths. Round 3 reshapes the rock with clearance built in.
 - Found: the orange lattice at the helm is the volumetric fog where it meets the cave shell. The `jam-final` build shows it at the same view, so the moving sub didn't cause it. Showing only the nearest stop's shell didn't remove it, so that change was reverted.
 - Next: Quinn checks step 4's frames (frames page v22); cave round 3's frames.
+
+### 6:15 AM, Nov 16  Cave round 3: the sub fits by design
+- Changed: round 3 (`bbb1a11` on `build/cavegen`) builds the hull's clear path into each chunk, so the sweep passes by construction (least clearance 92 cm, was 34). Beds, cracks and fallen blocks make the walls read as rock. Both sides of each joint share one rim polygon, which cured the specks. The PCG spike and its plugin line are gone.
+- Failed: every joint is the same 9 m circle, and it shows as ringed holes down the tunnels and a porthole where a joint meets a cavern. One bend and one opening read as doorways.
+- Decided: round 4 fixes what the joint rule allows. The joint shape itself is Quinn's call, because it changes D-055 and D-058.
+- Next: Quinn picks the joint shape and checks step 4 (frames page v23).
