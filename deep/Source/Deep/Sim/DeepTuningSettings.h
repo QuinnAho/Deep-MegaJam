@@ -86,6 +86,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Pilot")
 	FDeepPilotTuning Pilot;
 
+	/** The airlock between the room and the water: the valve hold, the hiss and the fades (Sim/DeepMovingSubRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
+	FDeepAirlockTuning Airlock;
+
+	/** The moving hull and its fixed room: depth datum, the room's faked motion, the porthole (Sim/DeepMovingSubRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
+	FDeepMovingSubTuning MovingSub;
+
 	/** Displayed depth of each stop (Stops[i].SubDepthM), shallowest first. */
 	TArray<float> StopDepthsM() const;
 

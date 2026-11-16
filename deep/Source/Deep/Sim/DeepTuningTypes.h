@@ -1517,6 +1517,122 @@ struct FDeepSubTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Helm")
 	float HelmCameraFovDeg = 95.f;
+
+	/**
+	 * Where the room's fixed set (ADeepSubRoom) stands, world metres. Far above everything a dive can reach, so no rock,
+	 * bed or cave light comes near it whichever way the world is placed.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	FVector RoomSetLocationM = FVector(0.f, 0.f, 700.f);
+
+	/** The airlock's valve wheel on the closed hatch in the room's deck (room metres, X ahead, Y starboard). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
+	FVector2D ValveM = FVector2D(0.f, 0.f);
+};
+
+/**
+ * The airlock between the fixed room and the water (Sim/DeepMovingSubRules::AirlockPhase). Out: hold E on the valve,
+ * a hiss, the view fades to black, the diver is moved under the hull's hatch and the view fades in. Back: the view
+ * fades out at the hatch, the diver is moved into the room (the hiss plays) and the view fades in.
+ */
+USTRUCT(BlueprintType)
+struct FDeepAirlockTuning
+{
+	GENERATED_BODY()
+
+	/** Hold E on the valve this long to start the cycle (a tap does nothing: leaving is a choice). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airlock")
+	float ValveHoldSeconds = 0.6f;
+
+	/** Going out: the hiss plays this long with the view still clear. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airlock")
+	float HissSeconds = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airlock")
+	float FadeOutSeconds = 0.35f;
+
+	/** Held black; the diver is moved at its start. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airlock")
+	float BlackSeconds = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Airlock")
+	float FadeInSeconds = 0.5f;
+};
+
+/**
+ * The moving hull and the fixed room it carries (Sim/DeepMovingSubRules): the depth datum and how the still room fakes
+ * the hull's motion (RoomSway). The room never tilts; only the view, the caged lights and the sound move.
+ */
+USTRUCT(BlueprintType)
+struct FDeepMovingSubTuning
+{
+	GENERATED_BODY()
+
+	/** World Z (m) of depth 0. Depth grows down from it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub")
+	float DepthDatumZM = 0.f;
+
+	/** The view's slow roll in the room: this much at rest, more per m/s of helm speed, never more than the max. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float SwayIdleDeg = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float SwayDegPerMps = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float SwayMaxDeg = 1.5f;
+
+	/** Cycles per second of that roll. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float SwayHz = 0.18f;
+
+	/** Speeding up ahead tips the view back (up) this much per m/s/s (slowing tips it forward), up to SwayMaxDeg. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float LeanDegPerMps2 = 0.6f;
+
+	/** The caged lights swing this much per m/s of speed and per m/s/s of acceleration, up to the max, at LightSwingHz. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float LightSwingDegPerMps = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float LightSwingDegPerMps2 = 3.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float LightSwingMaxDeg = 9.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
+	float LightSwingHz = 0.45f;
+
+	/** The engine hum is full at this helm speed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sound")
+	float HumFullSpeedMps = 4.f;
+
+	/** The hull creaks fully at this acceleration (m/s/s), or right after a knock. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sound")
+	float CreakFullAccelMps2 = 1.5f;
+
+	/** A knock shakes the view: degrees per m/s of impact (up to the max), dying away per second, at KnockShakeHz. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Knock")
+	float KnockShakeDegPerMps = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Knock")
+	float KnockShakeMaxDeg = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Knock")
+	float KnockShakeDecayPerS = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Knock")
+	float KnockShakeHz = 9.f;
+
+	/** The blank porthole: now and then a faint light drifts past outside, this often (s), taking this long. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Porthole")
+	float PortholeLightEveryS = 9.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Porthole")
+	float PortholeLightPassS = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Porthole")
+	float PortholeLightIntensity = 40.f;
 };
 
 /**
