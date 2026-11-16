@@ -61,8 +61,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-050 | The jam is over; DEEP becomes a polished game made the traditional way: humans own the maps, agents write code and tools | Decided (Quinn, 9:11 to 9:39 PM Nov 15) |
 | D-051 | The sub moves through a still world; the room is a fixed set; leaving is an airlock cycle | Decided (Quinn, 9:39 PM Nov 15); building on `build/moving-sub`; supersedes D-022's moving world |
 | D-052 | PCG and Geometry Script are on; caves are made with the editor's tools | Decided (Quinn, 9:43 and 10:04 PM Nov 15); `6917b6d` |
-| D-053 | The cave pipeline: a drawn skeleton, a Geometry Script shell, PCG dressing, a hand pass | **Proposed** (Claude, 10:55 PM Nov 15); waiting on Quinn |
+| D-053 | The cave pipeline: a drawn skeleton, a Geometry Script shell, PCG dressing, a hand pass | Decided (Quinn, about 1:05 AM Nov 16), with one change: the output is a chunk library strung together per dive (D-055). The spike is approved: the scratch map `L_CaveSpike` and the beta PCG Geometry Script Interop plugin. |
 | D-054 | The jam entry went in solo | Decided (Quinn, about 1 AM EST Nov 16) |
+| D-055 | Caves are baked chunks, strung in a new order every dive | Decided (Quinn, about 1:05 AM Nov 16) |
+| D-056 | The Atlantic Explorer is wreckage | Decided (Quinn, about 1:10 AM Nov 16); the dive's goal and the upgrade loop are open |
 
 ## Open
 
@@ -78,7 +80,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 ## Proposed
 
 ### D-053 The cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand
-- **Status:** Proposed by Claude, 10:55 PM Nov 15. Waiting on Quinn: the pick, and an OK for a scratch map for the spike. Nothing is built.
+- **Status:** Decided (Quinn, about 1:05 AM Nov 16), with one change: the output is a chunk library strung together per dive (D-055). The spike is approved: the scratch map `L_CaveSpike` and the beta PCG Geometry Script Interop plugin.
 - **Date:** 2026-11-15, 10:55 PM EST
 - **Who:** Quinn asked for the approach. The pipeline and the spike are Claude's.
 - **Quinn's words:** 10:04 PM: "we really should think through a pcg followed with genuiine cave generation to think of the best approach here to give use truley realistic immersive results" Then 10:07 PM: "also note in the plan if theres behavior from games we wnat to replicate or learn form we can use reverse enginerer anythign too, but continue"
@@ -365,6 +367,25 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-056 The Atlantic Explorer is wreckage
+- **Status:** Decided that the model is a wreck. The dive's goal and the upgrade loop are open.
+- **Date:** 2026-11-16, about 1:10 AM EST
+- **Who:** Quinn decided the wreck; Claude proposes the loop.
+- **Quinn's words:** "we can have it as wreckage honesltly maybe the move is that we are recoving stuff from the wreck or maybe we can upgrade the ship? not too sure"
+- **Decided:** the Atlantic Explorer model is a wreck in the cave, not the player's sub.
+- **Open, Quinn unsure:** the dive's goal is to recover salvage from wrecks, and the earnings upgrade the sub. Claude proposes the two as one loop: wrecks are what each dive goes down to, salvage from them pays the Company, and what's left buys sub upgrades. This goes into the [[Slice Brief]] once Quinn decides.
+- **Working assumption:** BT-01 at ×2 is the player's sub. Quinn hasn't confirmed the scale.
+
+### D-055 Caves are baked chunks, strung in a new order every dive
+- **Status:** Decided. The assembler is open; the research is [[Cave Gen - Chunk Assembly]].
+- **Date:** 2026-11-16, about 1:05 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "im thinking lethal company stylegenerate caves so yes chunks"
+- **What it changes:** the pipeline bakes a library of chunks with one standard joint profile, and a runtime assembler strings them together per dive from one replicated seed. The 60 m spike becomes two chunks joined both ways.
+- **Why:** every dive is different, and the rock still looks hand-shaped.
+- **Challenged:** D-053 had rejected modular kits because seams and repeats show. The answer: joints at restrictions with one fixed profile, rocks over each joint, and enough chunks. The spike tests the seam.
+- **Open:** the assembler; see [[Cave Gen - Chunk Assembly]].
 
 ### D-054 The jam entry went in solo
 - **Status:** Decided. Done. D-050's post-jam rules still stand; only its "passed without a submission" wording no longer holds.

@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 23:07 EST
+updated: 2026-11-16 01:15 EST
 ---
 # Board
 
@@ -9,7 +9,7 @@ The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules 
 
 The jam is over; DEEP is a polished game now (rules in `CLAUDE.md`). The goal is the slice: the first ten minutes in a real map built in the editor ([[Slice Brief]]). Everything below this section is the jam's history.
 
-Jam entry submitted solo, Nov 16 about 1 AM EST (D-054). Next: review and test moving-sub step 3.
+Jam entry submitted solo (D-054). The goal now is an enjoyable game. Caves are chunks strung per dive (D-055).
 
 | What | Who | Status |
 |---|---|---|
@@ -17,12 +17,13 @@ Jam entry submitted solo, Nov 16 about 1 AM EST (D-054). Next: review and test m
 | Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
 | Turn on the PCG and Geometry Script plugins (D-052) | orchestrator | done (`6917b6d`); Quinn restarts the editor to load them |
 | Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
-| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | steps 1 and 2 done on build/moving-sub (171 of 171 tests pass); doing: step 3, the still world behind Deep.World.Still (pure rules; room split and airlock) |
+| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | steps 1 to 3 done (step 3 `e1d4a06`: the still world behind Deep.World.Still, 177 of 177 tests); next: step 4 (switch on, tests, the room look, a playtest, frames for Quinn), after the cave spike's editor time |
 | Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | done ([[Asset Shortlist - Slice]]) |
 | Cave research: UE 5.9's tools, real caves and methods, games to learn from | agents | done ([[Cave Gen - Engine Tools]], [[Cave Gen - Real Caves and Methods]], [[Games to Learn From]]) |
-| Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | proposed, waiting on Quinn ([[Cave Pipeline]]) |
-| Cave spike: one 60 m stretch in a scratch map; output only in `deep/Content/Deep/CaveGen/` | agent, opus | todo: needs Quinn's OK for the map and the beta interop plugin |
-| Subs: use both (Quinn, 10:04 PM). Proposed: BT-01 is ours (×2, 12.3 m) and the Atlantic Explorer is the wreck. Both CC BY 4.0, unpacked in `asset-drop/subs/` and measured | orchestrator | waiting on Quinn (roles, scale); then an import lane in `.wt\subs` |
+| Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | decided with D-055 (chunks) ([[Cave Pipeline]]) |
+| Cave spike: two 30 m chunks (tube into restriction, breakdown chamber) joined both ways in `L_CaveSpike`; output only in `deep/Content/Deep/CaveGen/` | agent, opus, `.wt\cave` on `build/cavegen` | doing |
+| Subs: use both (Quinn, 10:04 PM). Proposed: BT-01 is ours (×2, 12.3 m) and the Atlantic Explorer is the wreck. Both CC BY 4.0, unpacked in `asset-drop/subs/` and measured | orchestrator | Atlantic Explorer = wreckage (D-056); BT-01 ×2 assumed; open: wreck salvage and sub upgrades loop |
+| Chunk assembly research: how Lethal Company-style interiors are built; UE 5.9 options | agent, sonnet | done ([[Cave Gen - Chunk Assembly]]) |
 | Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready |
 | Block out the slice map with CubeGrid, from [[Blockout Scale Card]]; settle the hull's size first ([[Cave Pipeline]]) | Quinn | todo |
 | Sounds for the slice | Colby | later (Quinn, 10:04 PM: not yet) |
