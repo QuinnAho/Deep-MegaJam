@@ -1341,8 +1341,7 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 				{
 					const bool bInRange = Aim.DistanceCm <= RangeCm;
 					Frame.AimKind = !bInRange ? 4 : (Aim.Target == EDeepHarpoonTarget::Submarine ? 2 : (Aim.Target == EDeepHarpoonTarget::Monster ? 3 : 1));
-					const TCHAR* What = Aim.Target == EDeepHarpoonTarget::Submarine ? TEXT("SUB ") : (Aim.Target == EDeepHarpoonTarget::Monster ? TEXT("SERPENT ") : TEXT(""));
-					Frame.AimLabel = bInRange ? FString::Printf(TEXT("%s%.0f m"), What, Aim.DistanceCm / 100.f) : FString::Printf(TEXT("%.0f m  OUT OF RANGE"), Aim.DistanceCm / 100.f);
+					Frame.AimLabel = bInRange ? FString::Printf(TEXT("%.0f m"), Aim.DistanceCm / 100.f) : FString::Printf(TEXT("%.0f m  OUT OF RANGE"), Aim.DistanceCm / 100.f);
 				}
 			}
 		}
