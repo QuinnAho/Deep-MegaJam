@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 22:55 EST
+updated: 2026-11-15 23:07 EST
 ---
 # Board
 
@@ -15,7 +15,7 @@ The jam is over; DEEP is a polished game now (rules in `CLAUDE.md`). The goal is
 | Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
 | Turn on the PCG and Geometry Script plugins (D-052) | orchestrator | done (`6917b6d`); Quinn restarts the editor to load them |
 | Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
-| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | doing: steps 1 and 2 (pure rules; room split and airlock) |
+| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | steps 1 and 2 done on build/moving-sub (171 of 171 tests pass); doing: step 3, the still world behind Deep.World.Still (pure rules; room split and airlock) |
 | Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | done ([[Asset Shortlist - Slice]]) |
 | Cave research: UE 5.9's tools, real caves and methods, games to learn from | agents | done ([[Cave Gen - Engine Tools]], [[Cave Gen - Real Caves and Methods]], [[Games to Learn From]]) |
 | Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | proposed, waiting on Quinn ([[Cave Pipeline]]) |
