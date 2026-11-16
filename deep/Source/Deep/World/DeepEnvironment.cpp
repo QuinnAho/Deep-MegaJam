@@ -221,6 +221,7 @@ FDeepLookPreset ADeepEnvironment::BlendLook(const FDeepLookTuning& Look, float D
 void ADeepEnvironment::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	FollowStillHull();
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	if (Tuning.Arena.bGreyBox)
 	{
@@ -502,4 +503,14 @@ void ADeepEnvironment::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADeepEnvironment, Stop);
+}
+
+void ADeepEnvironment::FollowStillHull()
+{
+	UWorld* World = GetWorld();
+	const ADeepSubmarine* Sub = DeepArena::IsWorldStill(World) ? DeepArena::FindSubmarine(World) : nullptr;
+	if (Sub && !GetActorLocation().Equals(Sub->GetActorLocation(), 0.01))
+	{
+		SetActorLocation(Sub->GetActorLocation());
+	}
 }

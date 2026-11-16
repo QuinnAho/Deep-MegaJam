@@ -14,6 +14,37 @@ double UDeepMovingSubRules::ZFromDepth(float DepthM, double DatumZCm)
 	return DatumZCm - static_cast<double>(DepthM) * UDeepRules::CmPerM;
 }
 
+FTransform UDeepMovingSubRules::StillMap(const FTransform& Home, const FVector2D& OffsetM, float DepthM, float YawDeg, double DatumZCm)
+{
+	// Where D-022 would put the root for the whole depth (not the depth below the loaded stop): stop S's content sits
+	// S's depth below that root's frame, and the still frame keeps it S's depth below the datum.
+	FQuat Turn;
+	const FVector At = UDeepPilotRules::HangLocationCm(Home.GetLocation(), Home.GetRotation(), OffsetM, DepthM, YawDeg, Turn);
+	const FTransform FullRoot(Turn, At);
+	const FTransform StillFrame(FQuat::Identity, FVector(Home.GetLocation().X, Home.GetLocation().Y, DatumZCm));
+	return FullRoot.Inverse() * StillFrame;
+}
+
+FTransform UDeepMovingSubRules::StillHull(const FTransform& Home, const FVector2D& OffsetM, float DepthM, float YawDeg, double DatumZCm)
+{
+	return Home * StillMap(Home, OffsetM, DepthM, YawDeg, DatumZCm);
+}
+
+FTransform UDeepMovingSubRules::StillStopFrame(const FTransform& Home, float StopDepthM, double DatumZCm)
+{
+	return FTransform(FQuat::Identity, FVector(Home.GetLocation().X, Home.GetLocation().Y, ZFromDepth(StopDepthM, DatumZCm)));
+}
+
+FTransform UDeepMovingSubRules::StillShaft(const FTransform& Home, double DatumZCm)
+{
+	return FTransform(Home.GetRotation(), FVector(Home.GetLocation().X, Home.GetLocation().Y, DatumZCm));
+}
+
+bool UDeepMovingSubRules::StillBedShows(float SubDepthM, float StopDepthM, const FDeepMovingSubTuning& T)
+{
+	return SubDepthM <= StopDepthM + FMath::Max(0.f, T.BedShowsBelowStopM);
+}
+
 FDeepWallHit UDeepMovingSubRules::ResolveWallHit(const FVector& VelocityMps, const FVector& WallNormal, const FDeepCaveTuning& Cave, const FDeepPilotTuning& Pilot)
 {
 	FDeepWallHit Hit;

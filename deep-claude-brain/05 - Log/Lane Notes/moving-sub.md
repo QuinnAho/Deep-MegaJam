@@ -2,7 +2,7 @@
 
 ## Actors
 - **`ADeepSubmarine`, the hull.** The server moves it and it replicates. It carries the shell collision, the dress, the floods, the bow lights, `HelmCamera` and the hatch with the tether anchor.
-- **`ADeepSubRoom`, new, the fixed set.** It holds the deck, the console, the seat, the levers, and the room's dress and lights. Still, at `Sub.RoomSetLocationM` (300 m above the depth datum).
+- **`ADeepSubRoom`, new, the fixed set.** It holds the deck, the console, the seat, the levers, and the room's dress and lights. Still, at `Sub.RoomSetLocationM` (700 m above the depth datum).
 - **`ADeepStopPoint`, new, replaces `ADeepArenaRoot`.** Placeable: where the hull parks at stop N; that stop's bed, cavern shell and salvage hang from it. A map without one gets three, at Z = -depth. The shaft is placed once.
 
 ## Sim
@@ -39,10 +39,10 @@
 ## Commits (each green and playable)
 1. Pure rules, tuning and tests. Behaviour unchanged.
 2. Room split and airlock, with D-022 still on.
-3. The still world behind `Deep.World.Still` (off): stop points, beds at their depth, the swept hull.
-4. Switch on, tests fixed, one playtest.
-5. Delete D-022 code: the root, the moving `Follow`, `StepShaft`, the trench. Update ARCHITECTURE.md and log a decision.
-6. Authored maps: placed stop points turn the generated cave off; a warning if one is off its tuned depth. The hull gets a `WorldPartitionStreamingSourceComponent`.
+3. The still world behind `Deep.World.Still` (off): a bed per stop at its own depth, and the hull placed each tick from the replicated depth, offset and yaw, with no sweep yet. `Deep.World.Still.SameGeometry` checks it against D-022.
+4. Switch on, tests fixed, the room look (`ADeepEnvironment` eases to it while the view is in the room), one playtest, frames for Quinn.
+5. Delete D-022 code: the root's movement (the actor goes in step 6), the moving `Follow`, `StepShaft`, the trench. Also: the lamp finds the loaded bed once per call, and `UpdateStillWorld` runs once a tick. Update ARCHITECTURE.md and log a decision.
+6. Stop points and authored maps: `ADeepStopPoint` replaces the arena root, the server sweeps the hull (see Collision), and placed stop points turn the generated cave off; a warning if one is off its tuned depth. The hull gets a `WorldPartitionStreamingSourceComponent`.
 
 ## Deferred
 - Real openings through the beds. Until then a bed hides once the sub leaves its stop.

@@ -14,6 +14,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningTypes.h"
 #include "World/DeepAbyssFloor.h"
+#include "World/DeepArena.h"
 #include "World/DeepDressing.h"
 
 namespace
@@ -143,6 +144,10 @@ float DeepLamp::WantNearScale(const AActor* Holder, const USpotLightComponent* L
 	// 1b. The sea bed and the well, from the bed's height field (also where a trace misses it: see MarchBed).
 	for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
 	{
+		if (*It != DeepArena::FindLoadedFloor(World))
+		{
+			continue;
+		}
 		const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
 		const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
 		const FTransform BedToWorld = It->GetActorTransform();
@@ -279,6 +284,10 @@ float DeepLamp::RayToBedCm(UWorld* World, const FVector& From, const FVector& Di
 	}
 	for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
 	{
+		if (*It != DeepArena::FindLoadedFloor(World))
+		{
+			continue;
+		}
 		FVector Normal;
 		return MarchBed(It->GetActorTransform(), ADeepAbyssFloor::RestPointsFromTuning(), UDeepTuningSettings::Get().Look, From, Dir.GetSafeNormal(), MaxCm, Normal);
 	}

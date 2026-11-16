@@ -1572,6 +1572,13 @@ struct FDeepMovingSubTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub")
 	float DepthDatumZM = 0.f;
 
+	/**
+	 * Deep.World.Still: a stop's sea bed and cave show (and collide) while the hull is no more than this far below the
+	 * stop's depth, so the hull and the helm camera never pass through a bed that shows.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub")
+	float BedShowsBelowStopM = 0.5f;
+
 	/** The view's slow roll in the room: this much at rest, more per m/s of helm speed, never more than the max. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Sway")
 	float SwayIdleDeg = 0.25f;

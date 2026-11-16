@@ -161,6 +161,31 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
 	static FDeepAirlockState AirlockPhase(float ElapsedS, bool bOut, const FDeepAirlockTuning& T);
 
+	/**
+	 * Deep.World.Still: the map from the world as D-022 places it (the hull fixed at Home, the arena root moved by the
+	 * game state's depth, offset and yaw) to the still world (the root at rest, every stop's content at its own depth
+	 * under the datum, the hull moved). Content of the loaded stop placed the D-022 way lands where this map puts it,
+	 * so the hull keeps exactly its place among the walls, the bed and the salvage. Rows: Moving * Map = Still.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static FTransform StillMap(const FTransform& Home, const FVector2D& OffsetM, float DepthM, float YawDeg, double DatumZCm);
+
+	/** Deep.World.Still: the hull's transform for the game state's depth, offset and yaw (Home * StillMap). */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static FTransform StillHull(const FTransform& Home, const FVector2D& OffsetM, float DepthM, float YawDeg, double DatumZCm);
+
+	/** Deep.World.Still: the frame a stop's content hangs in (where the arena root stood for it under D-022): under Home at the stop's depth. */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static FTransform StillStopFrame(const FTransform& Home, float StopDepthM, double DatumZCm);
+
+	/** Deep.World.Still: the cave shaft, placed once: its point at depth d is d below the datum, under Home. */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static FTransform StillShaft(const FTransform& Home, double DatumZCm);
+
+	/** Deep.World.Still: a stop's bed shows (and collides) while the hull is at or above it (BedShowsBelowStopM of slack). */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static bool StillBedShows(float SubDepthM, float StopDepthM, const FDeepMovingSubTuning& T);
+
 	/** How far the valve has turned, 0..1, after holding E for HeldS. At 1 the cycle starts. */
 	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
 	static float ValveTurn01(float HeldS, const FDeepAirlockTuning& T);

@@ -10,6 +10,7 @@ class ADeepSubmarine;
 class ADeepSubRoom;
 class ADeepArenaRoot;
 class ADeepSalvage;
+class ADeepAbyssFloor;
 struct FDeepSalvageKind;
 
 namespace DeepArena
@@ -24,6 +25,21 @@ namespace DeepArena
 
 	/** The one actor everything outside the sub hangs from. */
 	DEEP_API ADeepArenaRoot* FindArenaRoot(const UWorld* World);
+
+	/**
+	 * Deep.World.Still (CVar, default 0), latched on the game state when the arena is first built: the arena root stays
+	 * at identity and the hull moves through a still world instead (moving-sub step 3). False with the flag off.
+	 */
+	DEEP_API bool IsWorldStill(const UWorld* World);
+
+	/** Deep.World.Still: where the root sits relative to a stop's content, as if parked there (the hull's home over that stop's depth). */
+	DEEP_API FTransform StillStopFrame(const UWorld* World, int32 Stop);
+
+	/** The bed of the loaded stop (still: the floor whose BedStop is the game state's Stop), else the only one. */
+	DEEP_API ADeepAbyssFloor* FindLoadedFloor(const UWorld* World);
+
+	/** Deep.World.Still, every machine: shows each stop's bed, cave shell and shaft stretch for the hull's depth. No-op with the flag off. */
+	DEEP_API void UpdateStillWorld(UWorld* World);
 
 	/** The tether anchor as the arena sees it: the sub's anchor shifted by the arena root's offset (equal when parked). */
 	DEEP_API FVector ArenaAnchor(const UWorld* World);

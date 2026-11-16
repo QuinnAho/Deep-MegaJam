@@ -38,6 +38,16 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	float SubYawDeg = 0.f;
 
+	/**
+	 * Deep.World.Still, read once when the arena is built and fixed for the world's life (ResetRun keeps it): the arena
+	 * root stays still and the hull moves instead (DeepArena::IsWorldStill). Server sets it; every machine reads it.
+	 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	bool bWorldStill = false;
+
+	/** The arena was built and bWorldStill latched (server only). */
+	bool bWorldStillLatched = false;
+
 	/** The helm's levers, for every machine (World/DeepHelmLevers): throttle notch (- astern, 0 stop, + ahead), ballast -1 blown .. 1 flooded. */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	int32 HelmThrottleNotch = 0;

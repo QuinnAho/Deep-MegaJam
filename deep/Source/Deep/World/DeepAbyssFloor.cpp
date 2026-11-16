@@ -3,6 +3,7 @@
 #include "Engine/CollisionProfile.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Net/UnrealNetwork.h"
 #include "ProceduralMeshComponent.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -227,4 +228,10 @@ void ADeepAbyssFloor::Build(const TArray<FVector4>& RestM)
 	UE_LOG(LogTemp, Display, TEXT("DEEPLOOK seabed %d vertices, %d rest points, %.0f m wide, at %s, bounds %s, material %s, centre %.1f m below the anchor"),
 		Vertices.Num(), RestM.Num(), Half * 2.0, *GetActorLocation().ToString(), *Bed->Bounds.GetBox().ToString(),
 		*GetNameSafe(Bed->GetMaterial(0)), SeabedBelowM(FVector2D::ZeroVector, RestM, Look));
+}
+
+void ADeepAbyssFloor::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ADeepAbyssFloor, BedStop);
 }

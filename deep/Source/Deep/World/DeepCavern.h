@@ -97,6 +97,12 @@ public:
 	/** Shows the shell of the loaded stop when the cave is on and the bed shows; the rest hide and stop colliding. */
 	void UpdateShells(int32 Stop, bool bBedHidden);
 
+	/**
+	 * Deep.World.Still: every stop's shell at its own depth under this actor (which stands at stop 1's anchor), shown and
+	 * colliding while the hull is at or above that stop (UDeepMovingSubRules::StillBedShows).
+	 */
+	void UpdateShellsStill(float SubDepthM);
+
 	/** The shell component of a stop (1-based), or null. */
 	UProceduralMeshComponent* GetShell(int32 Stop) const;
 
@@ -104,6 +110,8 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+
+	static void ShowShell(UProceduralMeshComponent* Shell, bool bShow);
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UProceduralMeshComponent>> Shells;

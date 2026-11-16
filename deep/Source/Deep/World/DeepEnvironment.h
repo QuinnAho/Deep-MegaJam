@@ -30,6 +30,9 @@ public:
 
 	int32 GetStop() const { return Stop; }
 
+	/** Deep.World.Still: the water (fog, lights) goes where the hull is, as it stood round the still hull under D-022. Every machine. */
+	void FollowStillHull();
+
 	/** The light colour for a stop in grey-box mode: white leaning a little toward the stop's water colour. */
 	static FLinearColor GreyBoxTint(const FDeepStopTuning& StopTuning, const FDeepArenaTuning& Arena);
 

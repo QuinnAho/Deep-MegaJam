@@ -57,6 +57,18 @@ public:
 	void SetHatchOpen(bool bOpen);
 	bool IsHatchOpen() const { return bHatchOpen; }
 
+	/** Where the hull stood when the arena was built (server, once). Deep.World.Still moves the hull from it; D-022 never does. */
+	void SetHome(const FTransform& Home);
+
+	/** The home transform, or the hull's own until one is set. */
+	FTransform GetHomeTransform() const;
+
+	/**
+	 * Deep.World.Still: puts the hull where the game state's depth, offset and yaw say (UDeepMovingSubRules::StillHull).
+	 * Every machine does it from the replicated state; the hull's movement is not replicated. No-op with the flag off.
+	 */
+	void PlaceStill();
+
 	UCameraComponent* GetHelmCamera() const { return HelmCamera; }
 
 	/** Vertical speed of the sub (m/s, + = down), from the replicated depth, smoothed. 0 when parked. */
@@ -191,6 +203,15 @@ protected:
 
 	UFUNCTION()
 	void OnRep_Hatch();
+
+	UPROPERTY(Replicated)
+	FVector HomeLocation = FVector::ZeroVector;
+
+	UPROPERTY(Replicated)
+	FRotator HomeRotation = FRotator::ZeroRotator;
+
+	UPROPERTY(Replicated)
+	bool bHasHome = false;
 
 public:
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

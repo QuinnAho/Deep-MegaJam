@@ -23,6 +23,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/LocalLightComponent.h"
 #include "Sim/DeepCaveRules.h"
+#include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepShaft.h"
@@ -536,7 +537,7 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	const bool bInRoomView = false;
 	const bool bLocalTrenchView = !bGreyBox && PC && TrenchShows(PC->GetViewTarget() == this, bInRoomView, bParked);
 	// The cave shaft (ADeepShaft) replaces the trench: the rock is all round the sub, not a cliff ahead.
-	const bool bLocalHelmView = bLocalTrenchView && !DeepShaft::IsOn();
+	const bool bLocalHelmView = bLocalTrenchView && !DeepShaft::IsOn() && !DeepArena::IsWorldStill(World);
 	if (bLocalHelmView && Trench->GetNumSections() == 0)
 	{
 		BuildTrench();
@@ -558,7 +559,8 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	if (State)
 	{
 		const bool bBelowStop = DepthM > Tuning.GetStop(State->Stop).SubDepthM + 0.5f;
-		for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
+		// Deep.World.Still: every stop has its own bed, shown by its own depth (DeepArena::UpdateStillWorld).
+		for (TActorIterator<ADeepAbyssFloor> It(World); It && !DeepArena::IsWorldStill(World); ++It)
 		{
 			if (It->IsHidden() != bBelowStop)
 			{
@@ -635,6 +637,9 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	{
 		Light->SetVisibility(bOn && !UDeepTuningSettings::Get().Arena.bGreyBox);
 	}
+	// Deep.World.Still: every machine places the hull from the replicated depth, offset and yaw.
+	PlaceStill();
+	DeepArena::UpdateStillWorld(GetWorld());
 	TickHelmLook(DeltaSeconds);
 }
 
@@ -834,6 +839,35 @@ FVector ADeepSubmarine::GetAnchorLocation() const
 	return GetActorLocation() - FVector(0.f, 0.f, UDeepTuningSettings::Get().Arena.AnchorBelowSubM * UDeepRules::CmPerM);
 }
 
+void ADeepSubmarine::SetHome(const FTransform& Home)
+{
+	HomeLocation = Home.GetLocation();
+	HomeRotation = Home.Rotator();
+	bHasHome = true;
+}
+
+FTransform ADeepSubmarine::GetHomeTransform() const
+{
+	return bHasHome ? FTransform(HomeRotation, HomeLocation) : GetActorTransform();
+}
+
+void ADeepSubmarine::PlaceStill()
+{
+	UWorld* World = GetWorld();
+	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	if (!State || !bHasHome || !DeepArena::IsWorldStill(World))
+	{
+		return;
+	}
+	const double DatumCm = UDeepTuningSettings::Get().MovingSub.DepthDatumZM * UDeepRules::CmPerM;
+	const FTransform Hull = UDeepMovingSubRules::StillHull(GetHomeTransform(), State->SubOffsetM, State->SubDepthM, State->SubYawDeg, DatumCm);
+	if (!GetActorTransform().Equals(Hull, 0.001))
+	{
+		// Teleport: the hull is placed, not swept (its walls are the analytic shaft, UDeepCaveRules); nothing inside rides it.
+		SetActorTransform(Hull, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+}
+
 FTransform ADeepSubmarine::GetDiverStartTransform() const
 {
 	const FDeepArenaTuning& Arena = UDeepTuningSettings::Get().Arena;
@@ -902,4 +936,7 @@ void ADeepSubmarine::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADeepSubmarine, bHatchOpen);
+	DOREPLIFETIME(ADeepSubmarine, HomeLocation);
+	DOREPLIFETIME(ADeepSubmarine, HomeRotation);
+	DOREPLIFETIME(ADeepSubmarine, bHasHome);
 }

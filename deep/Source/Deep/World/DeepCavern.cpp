@@ -8,9 +8,11 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "ProceduralMeshComponent.h"
+#include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
+#include "World/DeepArena.h"
 #include "World/DeepCookKey.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepCave, Log, All);
@@ -250,6 +252,15 @@ int32 ADeepCavern::ShownStop() const
 	{
 		return 0;
 	}
+	const UWorld* World = GetWorld();
+	if (DeepArena::IsWorldStill(World))
+	{
+		// Deeper stops' rock shows too (the hull is above it): the loaded stop's is the one that counts here.
+		const ADeepGameState* State = World->GetGameState<ADeepGameState>();
+		const int32 Loaded = State ? State->Stop : 1;
+		const UProceduralMeshComponent* Shell = GetShell(Loaded);
+		return Shell && Shell->IsVisible() ? Loaded : 0;
+	}
 	for (int32 Index = 0; Index < Shells.Num(); ++Index)
 	{
 		if (Shells[Index] && Shells[Index]->IsVisible())
@@ -268,7 +279,9 @@ FVector ADeepCavern::KeepClearCm(const FVector& PointCm, float ClearM) const
 		return PointCm;
 	}
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	const FVector Anchor = GetActorLocation();
+	// The shell's own place: the actor's under D-022, its stop's depth under Deep.World.Still.
+	const UProceduralMeshComponent* Shell = GetShell(Stop);
+	const FVector Anchor = Shell ? Shell->GetComponentLocation() : GetActorLocation();
 	const double CmPerM = UDeepRules::CmPerM;
 	const FVector KeptM = KeepClearM((PointCm - Anchor) / CmPerM, ClearM, StopBaseRadiusM(Stop, Tuning), Tuning.Cavern);
 	return Anchor + KeptM * CmPerM;
@@ -530,7 +543,49 @@ void ADeepCavern::Build(bool bAsyncCook)
 
 	const UWorld* World = GetWorld();
 	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	if (DeepArena::IsWorldStill(World))
+	{
+		UpdateShellsStill(State ? State->SubDepthM : Tuning.GetStop(1).SubDepthM);
+		return;
+	}
 	UpdateShells(State ? State->Stop : 1, false);
+}
+
+void ADeepCavern::UpdateShellsStill(float SubDepthM)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const bool bOn = IsOn();
+	const float FirstM = Tuning.GetStop(1).SubDepthM;
+	for (int32 Index = 0; Index < Shells.Num(); ++Index)
+	{
+		UProceduralMeshComponent* Shell = Shells[Index];
+		if (!Shell)
+		{
+			continue;
+		}
+		// This actor stands at stop 1's anchor; each stop's shell lies that much deeper.
+		const float StopM = Tuning.GetStop(Index + 1).SubDepthM;
+		const FVector Below(0.0, 0.0, -double(StopM - FirstM) * UDeepRules::CmPerM);
+		if (!Shell->GetRelativeLocation().Equals(Below, 0.01))
+		{
+			Shell->SetRelativeLocation(Below);
+		}
+		ShowShell(Shell, bOn && UDeepMovingSubRules::StillBedShows(SubDepthM, StopM, Tuning.MovingSub));
+	}
+}
+
+void ADeepCavern::ShowShell(UProceduralMeshComponent* Shell, bool bShow)
+{
+	// Hidden rock must not block: the sonar and the lamp trace Visibility, and a diver must never meet a wall they cannot see.
+	if (Shell->IsVisible() != bShow)
+	{
+		Shell->SetVisibility(bShow);
+	}
+	const ECollisionEnabled::Type Want = bShow ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision;
+	if (Shell->GetCollisionEnabled() != Want)
+	{
+		Shell->SetCollisionEnabled(Want);
+	}
 }
 
 UProceduralMeshComponent* ADeepCavern::GetShell(int32 Stop) const
@@ -549,17 +604,7 @@ void ADeepCavern::UpdateShells(int32 Stop, bool bBedHidden)
 		{
 			continue;
 		}
-		// Hidden rock must not block: the sonar and the lamp trace Visibility, and a diver must never meet a wall they cannot see.
-		const bool bShow = bOn && !bBedHidden && Index == Shown;
-		if (Shell->IsVisible() != bShow)
-		{
-			Shell->SetVisibility(bShow);
-		}
-		const ECollisionEnabled::Type Want = bShow ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision;
-		if (Shell->GetCollisionEnabled() != Want)
-		{
-			Shell->SetCollisionEnabled(Want);
-		}
+		ShowShell(Shell, bOn && !bBedHidden && Index == Shown);
 	}
 }
 
@@ -568,6 +613,11 @@ void ADeepCavern::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	UWorld* World = GetWorld();
 	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	if (DeepArena::IsWorldStill(World))
+	{
+		UpdateShellsStill(State ? State->SubDepthM : UDeepTuningSettings::Get().GetStop(1).SubDepthM);
+		return;
+	}
 	// The cave goes with the stop's bed: the sub hides the bed while it is below the loaded stop (TickHelmLook).
 	bool bBedHidden = false;
 	for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)

@@ -785,6 +785,15 @@ void ADeepDressing::Refresh()
 		// The root re-bases when the loaded stop changes: re-place every piece for the new stop.
 		Build(Stop);
 	}
+	if (DeepArena::IsWorldStill(World) && GetAttachParentActor())
+	{
+		// Deep.World.Still: the root stays put, so the frame moves to the loaded stop's own depth instead.
+		const FTransform Frame = DeepArena::StillStopFrame(World, Stop).GetRelativeTransform(GetAttachParentActor()->GetActorTransform());
+		if (!GetRootComponent()->GetRelativeTransform().Equals(Frame, 0.01))
+		{
+			SetActorRelativeTransform(Frame);
+		}
+	}
 	const bool bBelowStop = State && State->SubDepthM > UDeepTuningSettings::Get().GetStop(Stop).SubDepthM + 0.5f;
 	const ADeepSubmarine* Sub = DeepArena::FindSubmarine(World);
 	const USceneComponent* Trench = Sub ? Sub->GetTrench() : nullptr;
