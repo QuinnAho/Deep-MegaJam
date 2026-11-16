@@ -1096,6 +1096,10 @@ Times are EST. Mark a time "about" when it comes from memory and not from a time
 - Quinn, 9:12 PM: "no tag and sonar off, continue looks like we are giong to miss it which is fine so focusing on building this out right is what we want". The helm sonar panel is off by default (`9b31ed2`) and merged with the reticle and credits fixes into integration `d2a53bf`. The gate passed (164 of 164 tests; S0, S1, S2, S5, S8; package, smoke, zip). Integration is pushed and the build is in `Builds\NoTag-2127`.
 - Quinn, about 9:30 PM, asked for a real map instead of one built from data, more human in the loop, and a lighter dev log from here on. The three build-out lanes branched at `d2a53bf` wait for the map direction. Checked before answering: the game starts in the engine's empty Entry map, Git LFS is not set up, and the moving world of D-022 runs through 33 source files.
 
+### 10:15 PM  After the jam: a real map, a moving sub, Git LFS (orchestrator)
+- Quinn agreed to work the traditional way: humans build the maps in the editor, agents write code and tools. Main now holds the jam's last build, tagged `jam-final`. Unreal assets and source art go through Git LFS (`62c65b3`). `CLAUDE.md` has the new rules.
+- D-022 (the world moves around a still sub) is being undone, because it breaks immersion and rules out a real map. An agent is writing the plan for Quinn's OK first. A second agent is shortlisting a sub kit and a cave kit. The slice brief and a blockout scale card are drafted for Quinn.
+
 ## Cut list
 
 The theme is Director's Cut, so we keep the list of what did not make the cut and why.

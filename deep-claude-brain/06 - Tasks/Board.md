@@ -1,11 +1,29 @@
 ---
-updated: 2026-11-15 16:20 EST
+updated: 2026-11-15 22:15 EST
 ---
 # Board
 
 The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
 
-## Handoff for a fresh orchestrator session (rewritten 7:00 AM Nov 15, updated 4:20 PM)
+## Now: the slice (from Nov 15, 10 PM)
+
+The jam is over; DEEP is a polished game now (rules in `CLAUDE.md`). The goal is the slice: the first ten minutes in a real map built in the editor ([[Slice Brief]]). Everything below this section is the jam's history.
+
+| What | Who | Status |
+|---|---|---|
+| Push main, tag `jam-final`, move Unreal assets to Git LFS | orchestrator | done (`62c65b3`) |
+| Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
+| Turn on the PCG and Geometry Script plugins in the editor, then restart | Quinn | todo |
+| Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
+| Moving sub: undo D-022 (the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan first, for Quinn's OK | agent, opus, `.wt\swim` on `build/moving-sub` | doing (plan) |
+| Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | doing |
+| Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready |
+| Block out the slice map with CubeGrid, from [[Blockout Scale Card]] | Quinn | todo |
+| Sounds for the slice | Colby | ask |
+
+On hold: `build/sight` (`.wt\voice`) and `build/helm` (`.wt\text`) wait for the still world and the sub kit. The runtime cave generator stays only as the stand-in until the map exists.
+
+## Jam-era handoff (history) (rewritten 7:00 AM Nov 15, updated 4:20 PM)
 
 A new session needs only `CLAUDE.md`, this note and `.claude/loop.md`. The history of the night is in [[Devlog]] and [[Agent Runs]]. This section holds only what is true now.
 

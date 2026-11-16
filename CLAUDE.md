@@ -1,6 +1,6 @@
-# DEEP (Epic AI MegaJam 2026)
+# DEEP
 
-Two-person jam team, Quinn and Colby, plus Claude agents. The build is due **Sunday Nov 15 2026 at 8:59 PM EST**.
+DEEP started as Quinn and Colby's entry for the Epic AI MegaJam 2026. The deadline passed on Nov 15 2026 without a submission. Since then it is a game they are polishing for real, with no deadline, built the traditional way: humans build maps and judge the feel, and Claude agents write code and tools. The jam's last build is tagged `jam-final`.
 
 ## Memory
 
@@ -10,26 +10,53 @@ Claude's memory for this project is the Obsidian vault `deep-claude-brain/`.
 - Open any other note only when the task touches it. Do not read the whole vault.
 - Write back what you learn: decisions to `05 - Log/Decision Log.md`, events to `05 - Log/Devlog.md`, task status to `06 - Tasks/Board.md`.
 
-The Google Doc linked from `02 - Design/GDD.md` holds the game design and the to-do list for the humans. It is not a copy of this memory.
+The Google Doc linked from `02 - Design/GDD.md` holds the game design and the to-do list for the humans. It is not a copy of this memory. The slice is planned in `02 - Design/Slice Brief.md`.
 
 ## Dev log
 
-**Keep the dev log. It is a prize entry (Glass Box), not paperwork.** Append to `deep-claude-brain/05 - Log/Devlog.md` while you work, not at the end: decisions, failures, things cut, first-times, test results and screenshot paths. Follow the entry format at the top of that note.
+Keep it light (Quinn, Nov 15 at about 9:30 PM): a few lines in `05 - Log/Devlog.md` per milestone, covering what changed, what was decided and what failed. No more Agent Runs rows.
 
-## Standing rules
+## Human in the loop
 
-- Quinn said go at about 9:12 PM Nov 14: code is allowed. Build what `06 - Tasks/Board.md` lists, in its order, and nothing from the Cut list in the GDD.
-- The Unreal project is `deep/Deep.uproject` (UE 5.9 MegaJam Preview, C++ module `Deep`). Quinn created it. Do not restructure it.
-- Build, test and package only through `tools/ue.ps1`. Only one agent builds or tests in the main checkout at a time.
-- Agents create no binary assets, with one exception for the polish pass (Quinn, Nov 15, about 2:47 AM, D-033): an agent may create materials and particle systems through the editor, only inside its own lane folder `deep/Content/Deep/<Lane>/`, one branch and one worktree per lane. No agent creates or saves a map, or saves anything outside its lane folder. Third-party packs sit in their own folders under `deep/Content/` (Dragon Cave is `deep/Content/DragonCave/`), each one listed in `.gitignore` so it stays outside git, and are read-only: no agent saves, moves or renames anything inside a pack. Text data goes in `deep/Content/Data`. Never touch a map a human has open.
-- **Look it up before building an effect or a material** (Quinn, same message: the feedback loop is slow, so do not infer). Read Epic's built-in skill for it (`03 - Research/Polish - Engine Skills and Toolsets.md`), then official documentation or a tutorial or breakdown, write the recipe and its sources down, and build it once. The bar is the best environment we can make: an AAA horror game's feel.
-- Never put secrets, tokens or partner perk codes in the repo or the vault.
-- **Commit and push are allowed** (Quinn, Nov 14, 9:35 PM: "full permission to commit and push"). Commit at each green checkpoint, on `main`, and push. Never commit a red build. Write messages a dev log reader can follow: what changed and why. Check for secrets before every push.
-- A task is done only when its validation gates pass and the evidence is in the report. See `03 - Research/Validation Loop.md`.
-- **Test adaptively** (Quinn, Nov 15, about 12:50 AM: "be adaptive, we can run all tests on merge"). Run what a change can break, once. Agents build and run only the tests for their own area (`tools\ue.ps1 test -Filter <prefix>`). The full suite runs once per branch, when the orchestrator merges it. Notes need no tests. Scripted playtests and packaging run at checkpoints, not per change. The table is in `.claude/loop.md` under "What to run".
-- **No half-done polish** (Quinn, Nov 15, about 1:10 AM). The main gameplay loop comes first. HUD, look, effects and other finish wait, and when they are done they are done in one planned pass to a professional standard (his words: "AAA professional sleek"). Do not patch placeholder visuals or the placeholder HUD in between. Fix function, not finish: a key that does not work is function; a label that overlaps is finish. See D-028.
-- **One style** (Quinn, Nov 15, about 1:45 AM: "a game will always look bad if there's a strong discrepancy in style"). Everything the player sees and hears follows one style: assets, HUD, effects, type, sound. A good asset that clashes is left out. Once Quinn picks the direction it is written down in `deep-claude-brain/02 - Design/Style Guide.md`, every polish brief links to it, and Quinn approves frames. See D-030.
+- Check with Quinn before starting a lane or changing direction. Quinn wants to be challenged when a plan hurts the game: say so, with the reason.
+- Nothing visual merges until Quinn has seen frames or a short clip and said OK.
 - Ask before anything irreversible: engine version changes, deleting human work, sharing or publishing.
-- The main session is the orchestrator: it plans, dispatches, checks evidence and writes no game code. Its tick procedure and dispatch rules are in `.claude/loop.md`.
-- Subagents run on the cheapest model that will pass the gate first time, and never above **Opus 5.5**: `opus` for critical-path gameplay code, `sonnet` for scripts, writing, playtests and the dev log, `haiku` for running a command and summarising it. Quinn asked for this on Nov 14. Set effort on every dispatch: `low` for haiku runners, `medium` for sonnet routine work, `high` for opus critical-path code. Start agents fresh with a tight brief and one vault link. Do not fork a long session.
-- Quinn wants to be challenged when a plan hurts the team's chances. Say so, with the reason.
+
+## Maps and assets
+
+- **Humans own the maps.** No agent creates, saves or changes a map unless Quinn says so for that map. Never touch a map a human has open.
+- **Agents make assets only in their lane's folder,** `deep/Content/Deep/<Lane>/`, with one branch and one worktree per lane. Assets include materials, particle systems, data assets and Blueprints. Nothing an agent saves goes outside its folder.
+- **Third-party packs are read-only.** Each sits in its own folder under `deep/Content/` and is listed in `.gitignore`, so it stays outside git. Each person installs it from Fab at the same path. No agent saves, moves or renames anything inside a pack.
+- Text data goes in `deep/Content/Data`.
+- **Binary files go through Git LFS** (`.gitattributes`): `.uasset`, `.umap`, source art and audio.
+- **Look it up before building an effect or a material.** Read Epic's built-in skill for it (`03 - Research/Polish - Engine Skills and Toolsets.md`), then official documentation or a breakdown. Write the recipe and its sources down, then build it once.
+- **Use the editor's tools for real results:** PCG, Geometry Script, Modeling Mode, Blueprints and Data Assets. Don't rebuild them in C++.
+
+## Style and polish
+
+- **One style** (D-030). Everything the player sees and hears follows `02 - Design/Style Guide.md`. A good asset that clashes is left out, and Quinn approves frames.
+- **Function before finish** (D-028). Fix what does not work at any time. Do look and HUD work in one planned pass, to a professional standard, and not as patches in between.
+
+## Code, builds and tests
+
+- The Unreal project is `deep/Deep.uproject` (UE 5.9, C++ module `Deep`). Quinn created it. Do not restructure it.
+- Build, test and package only through `tools/ue.ps1`. Only one Unreal process runs at a time, shared through the `Global\DeepUnrealSlot` mutex.
+- Test adaptively. Agents run only the tests for their own area (`tools\ue.ps1 test -Filter <prefix>`). The full suite runs once per branch when the orchestrator merges it. Playtests and packaging run at milestones. The table is in `.claude/loop.md` under "What to run".
+- A task is done only when its checks pass and the evidence is in the report. See `03 - Research/Validation Loop.md`.
+- **Commit and push are allowed** (Quinn, Nov 14). Commit at each green checkpoint on `main` and push. Never commit a red build.
+  - Write messages a reader can follow: what changed and why.
+  - Check for secrets before every push.
+  - Never put secrets, tokens or partner perk codes in the repo or the vault.
+
+## Agents
+
+- The main session orchestrates: it plans, dispatches, reviews, merges and keeps the vault. It writes no game code.
+- Subagents run on the cheapest model that will pass first time, and never above **Opus 5.5**:
+
+  | Model | Effort | Work |
+  |---|---|---|
+  | `opus` | `high` | Gameplay code on the critical path |
+  | `sonnet` | `medium` | Scripts, research, writing and playtests |
+  | `haiku` | `low` | Running a command and summarising it |
+
+- Start each agent fresh, with a tight brief and one vault link. Do not fork a long session.
