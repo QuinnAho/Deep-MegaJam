@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-15 22:55 EST
+updated: 2026-11-16 03:45 EST
 ---
 # Devlog
 
@@ -1239,3 +1239,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
   - The chamber measured 18 ms on the GPU, from 4 samples.
   - The look waits for the look pass. The chunk tool fixes the shadows and measures again.
 - Next: Quinn checks step 4's frames, and the chunk tool builds a stop cavern and a turning tunnel.
+
+### 3:45 AM, Nov 16  The caves fit; the lattice predates the moving sub
+- Changed: the chunk tool's second round (`d6bf75b` on `build/cavegen`) strings four chunks from CSV data: a tunnel, a tunnel that turns 90 degrees and drops through a squeeze, a stop cavern with a 24 m sink, and a chamber. The joints meet within 0.31 cm, the hull touches nothing along the string, and the GPU cost is about 5 ms. The 18 ms from the spike was the editor throttling itself in the background. The generator moved from the PCG node to editor Python driving Geometry Script.
+- Failed: the tunnels still read as round pipes, with black specks at the tunnel mouths. Round 3 reshapes the rock with clearance built in.
+- Found: the orange lattice at the helm is the volumetric fog where it meets the cave shell. The `jam-final` build shows it at the same view, so the moving sub didn't cause it. Showing only the nearest stop's shell didn't remove it, so that change was reverted.
+- Next: Quinn checks step 4's frames (frames page v22); cave round 3's frames.
