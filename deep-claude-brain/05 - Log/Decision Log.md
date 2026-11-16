@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-16 01:45 EST
+updated: 2026-11-16 02:35 EST
 ---
 # Decision Log
 
@@ -66,6 +66,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-055 | Caves are baked chunks, strung in a new order every dive | Decided (Quinn, about 1:05 AM Nov 16) |
 | D-056 | The Atlantic Explorer is wreckage | Decided (Quinn, about 1:10 AM Nov 16); the dive's goal and the upgrade loop are open |
 | D-057 | Two players: one drives the sub, one dives on the tether | Decided (Quinn, Nov 16), after the cave work; plugins open |
+| D-058 | The dive is tunnels that open into caverns | Decided (Quinn, Nov 16); replaces the vertical descent passage in [[Cave Gen - Chunk Assembly]] |
 
 ## Open
 
@@ -368,6 +369,20 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-058 The dive is tunnels that open into caverns
+- **Status:** Decided. The chunk tool builds a stop cavern and a turning tunnel next.
+- **Date:** 2026-11-16
+- **Who:** Quinn decided.
+- **Quinn's words:** "im thining itsi like tunnels with caverns closer to the first option"
+- **Decided:**
+  - **Tunnels:** the sub flies level and nose first through the 9 m round joints. Slopes stay gentle (about 11° at most near a joint), and 7 × 7 m squeezes sit inside chunks.
+  - **Caverns:** the sub sinks on ballast from the entry joint (high) to the exit joint (lower). A cavern keeps a clear column 16 m or more across, so the hull can turn in place.
+  - Stops are in caverns. The wreck of the Atlantic Explorer (D-056) is the cavern at the bottom.
+- **Why:**
+  - A level hull 12.3 m long can't pass a 9 m joint going down, so the descent happens in caverns rather than in vertical passages.
+  - It also suits two players (D-057): the diver can swim ahead through a squeeze and call the pilot through.
+- **What it changes:** it replaces the "descent passages, mostly vertical" chunk type in [[Cave Gen - Chunk Assembly]]. The [[Slice Brief]] is rewritten once the first cavern and tunnel exist.
 
 ### D-057 Two players: one drives the sub, one dives on the tether
 - **Status:** Decided that DEEP is two-player co-op. The plugins are open.

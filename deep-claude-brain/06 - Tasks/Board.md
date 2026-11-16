@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-16 01:45 EST
+updated: 2026-11-16 02:35 EST
 ---
 # Board
 
@@ -17,14 +17,15 @@ Jam entry submitted solo (D-054). The goal now is an enjoyable game. Caves are c
 | Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
 | Turn on the PCG and Geometry Script plugins (D-052) | orchestrator | done (`6917b6d`); Quinn restarts the editor to load them |
 | Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
-| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | steps 1 to 3 done (step 3 `e1d4a06`: the still world behind Deep.World.Still, 177 of 177 tests); next: step 4 (switch on, tests, the room look, a playtest, frames for Quinn), after the cave spike's editor time |
+| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | Step 4: built. `5a40577` on `build/moving-sub` is pushed. The still world is on by default, and the room has its own look. Tests: 178 of 178 pass. The S7 run was won in 47 s. It waits for Quinn's OK on the frames. An orange dot pattern at stop 1 is being checked first |
 | Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | done ([[Asset Shortlist - Slice]]) |
 | Cave research: UE 5.9's tools, real caves and methods, games to learn from | agents | done ([[Cave Gen - Engine Tools]], [[Cave Gen - Real Caves and Methods]], [[Games to Learn From]]) |
 | Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | decided with D-055 (chunks) ([[Cave Pipeline]]) |
-| Cave spike: two 30 m chunks (tube into restriction, breakdown chamber) joined both ways in `L_CaveSpike`; output only in `deep/Content/Deep/CaveGen/` | agent, opus, `.wt\cave` on `build/cavegen` | doing |
+| Cave spike: two 30 m chunks (tube into restriction, breakdown chamber) joined both ways in `L_CaveSpike`; output only in `deep/Content/Deep/CaveGen/` | agent, opus, `.wt\cave` on `build/cavegen` | done. `6db858d` on `build/cavegen` is pushed but not merged. The pipeline works: bakes take 3 to 4 s, the joints are exact, and a level hull passes with no contact. The look doesn't work yet: the shapes look like pipes, a borrowed rock texture stretches, and ray-traced shadows leave black patches. The chamber measured 18 ms on the GPU, from only 4 samples. The merge waits for Quinn's call on `EngineAssociation` in `deep/Deep.uproject`, and for a package check |
+| Chunk tool step 2: a stop cavern (C1); a tunnel that turns and drops, with a squeeze (T1); exit and socket data in `deep/Content/Data/CaveChunks.csv` and `CaveChunkSockets.csv`; the shadow fix and a new GPU measurement; a string of chunks placed from the data in `L_CaveSpike` (D-058) | agent, opus, `.wt\cave` on `build/cavegen` | in progress |
 | Subs: use both (Quinn, 10:04 PM). Proposed: BT-01 is ours (×2, 12.3 m) and the Atlantic Explorer is the wreck. Both CC BY 4.0, unpacked in `asset-drop/subs/` and measured | orchestrator | Atlantic Explorer = wreckage (D-056); BT-01 ×2 assumed; open: wreck salvage and sub upgrades loop |
 | Chunk assembly research: how Lethal Company-style interiors are built; UE 5.9 options | agent, sonnet | done ([[Cave Gen - Chunk Assembly]]) |
-| Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready |
+| Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready; to do: rewrite it for tunnels with caverns (D-058) once C1 and T1 exist |
 | Block out the slice map with CubeGrid, from [[Blockout Scale Card]]; settle the hull's size first ([[Cave Pipeline]]) | Quinn | todo |
 | Sounds for the slice | Colby | later (Quinn, 10:04 PM: not yet) |
 | Co-op: one at the helm, one on the tether (D-057); Steam sessions and proximity voice | agent, sonnet (research) | research done ([[Co-op - Steam and Voice]]); build after the cave |

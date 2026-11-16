@@ -114,6 +114,7 @@ I found no shipped game that documents how it hides cave joints. The sources abo
 ## 4. Recommendation for DEEP
 
 1. **Chunk types:** descent passages (the way between stops, mostly vertical, with bends); a chamber at each stop (where the sub parks and the diver exits); a wreck chamber at the bottom. Side pockets off passages, as dead-end caps, hold salvage.
+   - **Replaced by D-058 (Nov 16):** the descent passage is dropped. The sub sinks in caverns, and tunnels stay near level.
 2. **One joint profile:** a round tube section of 9 m diameter at the joint, set inside a restriction. BT-01 at x2 is 12.3 x 3.3 x 5.0 m; squeezes are 7 x 7 m, which leaves about 1 m above and below the hull and 1.85 m to each side. Open passages are wider; only the joint ends are fixed. If Quinn changes the scale, only this number changes.
 3. **Joints at restrictions:** every chunk begins and ends inside a squeeze, and a boulder or breakdown block is placed over each seam.
 4. **Spawn points:** every chunk carries named sockets for salvage and serpent lairs. Salvage goes in side pockets and the wreck chamber; serpent spawn and patrol sockets are in chambers and in long descents. The assembler places them with the same seeded stream.

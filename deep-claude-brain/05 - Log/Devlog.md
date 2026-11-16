@@ -1228,3 +1228,14 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: moving-sub step 3 (the still world behind a switch, `e1d4a06`) passed 177 of 177 tests. The cave spike started: two chunks joined both ways, with 9 m round necks as the joints and squeezes inside the chunks. Research found no 5.9 build of the ProceduralDungeon plugin, so DEEP will write its own small assembler.
 - Decided: Quinn chose Lethal Company-style caves, baked chunks strung together per dive (D-055). The Atlantic Explorer becomes a wreck (D-056). Quinn wants two players (D-057), and an immersion pass after the cave.
 - Next: the spike's frames, then moving-sub step 4's tests and frames.
+
+### Nov 16: the cave test works; the dive is tunnels with caverns
+- Changed:
+  - A test cave is baked from spline skeletons by PCG and Geometry Script. It has two chunks, each baked in 3 to 4 s, with joints round to the millimetre, and a level hull passed with no contact (`6db858d` on `build/cavegen`).
+  - Moving sub step 4 turned the still world on by default and gave the room its own look (`5a40577`). All 178 tests pass.
+- Decided: D-058. The dive is tunnels that open into caverns, and the sub sinks in the caverns, where the stops are.
+- Failed:
+  - The test cave looks like pipes, the borrowed rock texture stretched, and ray-traced shadows left black patches.
+  - The chamber measured 18 ms on the GPU, from 4 samples.
+  - The look waits for the look pass. The chunk tool fixes the shadows and measures again.
+- Next: Quinn checks step 4's frames, and the chunk tool builds a stop cavern and a turning tunnel.
