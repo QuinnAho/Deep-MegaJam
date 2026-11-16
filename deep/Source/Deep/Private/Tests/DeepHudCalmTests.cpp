@@ -257,14 +257,16 @@ bool FDeepHudCalmHelmTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("ballast row"), Ballast != nullptr);
 	TestTrue(TEXT("ballast is a lever that stays"), Ballast && Ballast->Detail.Contains(TEXT("stays")) && Ballast->Detail.Contains(TEXT("C floods")));
 
-	// Deep.Hud.HelmSonar 0: the helm loses its sonar panel and keeps the readout.
+	// Deep.Hud.HelmSonar: off by default; 1 shows the panel; 0 keeps the readout.
 	FDeepHudModeInputs In;
 	In.bSonar = true;
 	FDeepHudCalm Calm;
+	TestFalse(TEXT("sonar off by default"), Calm.Tuning.bHelmSonar);
 	FDeepHudFrame F = DeepHudCalmTest::Make(EDeepHudMode::Helm);
 	F.Panels = DeepHudModel::PanelsFor(EDeepHudMode::Helm, In);
+	Calm.Tuning.bHelmSonar = true;
 	Calm.Apply(F, 0.0);
-	TestTrue(TEXT("sonar on by default"), DeepHudCalmTest::Has(F, Sonar));
+	TestTrue(TEXT("sonar shows when turned on"), DeepHudCalmTest::Has(F, Sonar));
 	Calm.Tuning.bHelmSonar = false;
 	F.Panels = DeepHudModel::PanelsFor(EDeepHudMode::Helm, In);
 	Calm.Apply(F, 0.1);

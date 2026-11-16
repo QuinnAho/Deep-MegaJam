@@ -33,8 +33,8 @@ struct FDeepHudCalmTuning
 	float HelmUseM = 1.f;
 	/** A hint stays at least this long, so it can be read even when the controls are in use at once. */
 	float HintMinSeconds = 8.f;
-	/** The helm sonar panel shows (Deep.Hud.HelmSonar; Quinn may move the radar to the swimmer). */
-	bool bHelmSonar = true;
+	/** The helm sonar panel shows (Deep.Hud.HelmSonar 1). Off by default: the diver's ping is the radar. */
+	bool bHelmSonar = false;
 };
 
 namespace DeepHudCalm

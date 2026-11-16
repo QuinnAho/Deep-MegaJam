@@ -4,8 +4,8 @@
 
 static TAutoConsoleVariable<int32> CVarDeepHudHelmSonar(
 	TEXT("Deep.Hud.HelmSonar"),
-	1,
-	TEXT("1 shows the helm sonar panel, 0 hides it (Quinn is weighing moving the radar to the swimmer)."),
+	0,
+	TEXT("0 hides the helm sonar panel (default, Quinn: sonar off; the diver's ping on V stays), 1 shows it."),
 	ECVF_Default);
 
 namespace DeepHudCalm
