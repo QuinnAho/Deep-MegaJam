@@ -1,0 +1,5 @@
+Name,Mesh,Type,ExitX,ExitY,ExitZ,ExitYaw,MinX,MinY,MinZ,MaxX,MaxY,MaxZ
+A,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_A.SM_CaveChunk_A,tunnel,3000,0,0,0,0,-608,-478.2,3000,591.7,528.3
+B,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_B.SM_CaveChunk_B,cavern,3000,0,0,0,0,-954.3,-547,3000,1045.2,678
+T1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_T1.SM_CaveChunk_T1,tunnel,5300,4800,-600,90,0,-619.2,-1199,5899.8,4800,625.5
+C1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_C1.SM_CaveChunk_C1,stop,4600,-2771.281,-2400,-60,0,-2996.2,-2964.8,5153.9,1832.3,909

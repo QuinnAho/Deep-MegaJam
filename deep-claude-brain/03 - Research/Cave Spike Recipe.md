@@ -1,6 +1,6 @@
 ---
-updated: 2026-11-16 02:30 EST
-status: Built and measured (cave-spike agent, branch build/cavegen). "As built" and Results below override the plan where they differ. Look awaits Quinn.
+updated: 2026-11-16 03:10 EST
+status: Round 2 built and measured (cave agent, branch build/cavegen): Python generator, chunks A, B, T1, C1 and the string A-T1-C1-B. "Round 2" below overrides earlier sections where they differ. Look awaits Quinn.
 ---
 # Cave Spike Recipe
 
@@ -105,3 +105,64 @@ A PCG graph, `PCG_CaveShell`, with one custom node:
 - These come from the material, not the joints.
 
 Frames: `deep/Saved/CaveSpike/` (not committed): `tube.png`, `joint_AB.png`, `chamber.png`, `joint_BA.png`.
+
+## Round 2 (Nov 16 night): turning, dropping chunks and a cavern
+Brief: dive shape D-058, tunnels that open into caverns. Level and nose-first in tunnels, a ballast sink in caverns, stops in caverns.
+
+### What changed and why
+- **Generator moved to Python**: `deep/Content/Deep/CaveGen/Python/cavegen.py`. It still uses Geometry Script only: append shapes, solidify, close, plane cut, snap, flip, box-UV. Authoring a cavern as a Blueprint graph over MCP was impractical. The PCG skeleton actors (`CaveSkeleton_A/B`) are still in the level. With `Bake` on they would overwrite the A and B meshes, so leave it off.
+- **Shapes:** `tube` along a path of straights and arcs, with yaw-only ring frames, so the floor never banks. Plus `ellipsoid`, `vcyl`, oriented `obox` and a `heightfield` floor. A negative noise amplitude pushes only outward, which keeps squeezes at their size.
+- **Assembly and checks:** `cavestring.py`. It writes the CSVs, places the string from them, and checks joints and overlap. It also sweeps the hull and checks the sink column.
+- **Bake settings, applied automatically** (`apply_mesh_settings`):
+  - slot `Rock` with the grey placeholder `M_CaveGrey` (base 0.18, roughness 0.75);
+  - collision complex-as-simple;
+  - **Nanite off**. Measured against Nanite on with the fallback and the ray-tracing proxy both at 100% triangles, the cost was a wash, within about 2%. Without Nanite, ray tracing traces the same triangles as raster, by construction. The jagged black shards at C1's exit-tunnel ring disappeared. `nanite=True` keeps the 100% fallback and proxy path. No cvars were used.
+
+### Chunks (cell 25 cm)
+| Chunk | Type | Exit (cm, deg, entry frame) | Tris | Bake |
+|---|---|---|---|---|
+| A | tunnel | (3000, 0, 0), 0 | 40,996 | 2.3 s |
+| B | cavern-ish | (3000, 0, 0), 0 | 64,932 | 3.8 s |
+| T1 | tunnel | (5300, 4800, -600), +90 | 142,072 | 10.6 s (9.6 s of it the Nanite build) |
+| C1 | stop | (4600, -2771, -2400), -60 | about 324k | 7.6 to 30 s (voxel step 3.3 s, the rest the Nanite build) |
+
+- **T1:** a 3900 cm straight, then an R 1400 arc through 90 degrees, then a 3400 cm straight. A cosine drop of 600 cm runs over s = 3900 to 8400, about 11.8 degrees at most. The floor is deeper while it drops. The squeeze is r 350 (7 x 7 m) at s = 1260 to 2640, level and straight with a hull length either side.
+- **C1:** an entry tube, then a sink column at local (3000, 0), built from three stacked ellipsoids, lobes, a roof dome, ledges, a floor heightfield at -2950 and a rubble pile. The exit is 24 m lower, turned -60 degrees, through a level 9 m neck. A side pocket holds the Serpent.
+- **Bend radius**, derived from the box sweep: in a bend of centreline radius R, the outer corner of the level hull reaches sqrt((R+165)^2 + 615^2) - R sideways. With the corner 250 cm above or below the axis, it stays 0.5 m inside the 450 cm joint radius only if the lateral reach is at most sqrt(400^2 - 250^2) = 312 cm. That gives R >= about 1050 cm on the centreline. With zero margin the limit is 635 cm. T1 uses 1400.
+
+### Data
+- `deep/Content/Data/CaveChunks.csv`: Name, Mesh, Type, ExitX/Y/Z, ExitYaw, Min and Max XYZ. Entry frame: the joint centre at the origin, +X into the chunk, Z up, cm and degrees.
+- `deep/Content/Data/CaveChunkSockets.csv`: Chunk, Socket, X, Y, Z, Yaw. C1 has Park (keel gap 297 cm), Salvage1 to 4 (9.6 to 16.9 m from Park, on up-facing rock found by traces) and Serpent (in the void, 3.8 to 5 m from rock on five sides, open toward the mouth).
+
+### Results (Nov 16, RTX 4080 Laptop, editor viewport 1912 x 637)
+| Check | Result | Bar |
+|---|---|---|
+| Joints A-T1, T1-C1, C1-B | every loop vertex at r 450.00 cm; largest gap 0.31 cm (chord sag) | gap < 1 cm, **pass** |
+| Overlap away from joints | 0 wall samples inside a neighbour (19k, 55k, 45k tested) | 0, **pass** |
+| Hull sweep A-T1-C1-B, 999 boxes: level, yaw only, sink at Park, in-place turn of -60 degrees | 0 contacts; least clearance 34 cm (uniform box inflation), in T1's squeeze | 0, **pass** |
+| Control, the same path 3 m sideways | 616 of 999 hit | must hit, **pass** |
+| C1 sink column | narrowest clear width 24.0 m | 16 m or more, **pass** |
+| GPU, Graphics queue, 40 to 60 samples, Nanite off | T1 squeeze: median 4.76 ms, p95 4.95. C1 at the Park helm: median 4.82, p95 5.08. Clock 2.2 to 2.3 GHz (max 3.1) | 16.7 ms, **pass** |
+| GPU, Nanite on, 100% fallback and proxy | T1 4.85 / 5.12; C1 4.74 / 5.05 | |
+
+### Gotchas
+- **The editor throttles in the background.** `EditorPerformanceSettings.bThrottleCPUWhenNotForeground` disables viewport rendering when the editor lacks focus, and GPU samples then read 0 to 47 ms. Set it to False for the session through `get_default_object(load_class(None, '/Script/UnrealEd.EditorPerformanceSettings'))`, using the C++ name `bThrottleCPUWhenNotForeground` (the snake-case name fails), then restore it. Code: `EditorEngine.cpp`, around line 1870.
+- **Winding:** every appended shape gets a volume-sign check and a flip. Caps must wind the same way as their bands, or solidify drops whole parts. C1's entry tube vanished once for this reason.
+- **Plane cut** removes the +normal side.
+- **Python signatures:** `get_all_vertex_positions(mesh, skip_gaps)[1]`; `is_point_inside_mesh(...)[1]`; `build_bvh_for_mesh(mesh)[1]`. `Rotator` has no `rotate_vector`.
+- **T1's first drop** was too steep (13.3 degrees) over a flat floor, and the sweep found 16 contacts. Stretching the drop to 45 m and deepening the floor while it drops fixed it.
+- **The spike lamp** is now 1500 cd, down from 9000, which blew out walls that close.
+
+### Open
+- **Small black specks** near the tunnel lips in T1 and C1, under ray-traced shadows. Possibly voxel slivers; not yet traced.
+- **T1's squeeze reads like a pipe:** the outward-only noise is small. C1 reads as a chamber with pockets, but only in grey.
+- **C1 has 4 salvage points, not 5.** The ledge at azimuth 120 started inside rock and was skipped.
+- **No real rock material yet.** The look pass and Quinn's frames come first.
+
+Frames (not committed), in `deep/Saved/CaveGen/`: `T1_squeeze_helm.png`, `C1_from_entry.png`, `C1_from_Park.png`, `String_overview.png` (top-down silhouette).
+
+### Sources
+- Nanite and ray tracing: https://dev.epicgames.com/documentation/en-us/unreal-engine/nanite-virtualized-geometry-in-unreal-engine (ray tracing uses the fallback mesh; Fallback Relative Error and Percent Triangles keep detail).
+- `UStaticMesh::RayTracingProxySettings` (`Engine\Source\Runtime\Engine\Classes\Engine\StaticMesh.h`) and `FMeshRayTracingProxySettings` (`EngineTypes.h`).
+- `EditorPerformanceSettings.h` and `EditorEngine.cpp` (background throttle).
+- Geometry Script headers, as listed above.
