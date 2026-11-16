@@ -1640,6 +1640,22 @@ struct FDeepMovingSubTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|Porthole")
 	float PortholeLightIntensity = 40.f;
+
+	/**
+	 * The Room look (ADeepEnvironment, each machine for its own view): while the local view is in the room set the water
+	 * look eases to this, thin dry-air haze with no volumetric fog and no snow, and back to the cave look outside. The
+	 * ease is no longer than the airlock's black (Airlock.BlackSeconds) or the seat's view blend, so a fade hides it.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|RoomLook")
+	float RoomLookEaseSeconds = 0.2f;
+
+	/** Height-fog density in the room (engine units: 0.05 = 0.005 per m, about 95% clear across the 10 m room). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|RoomLook")
+	float RoomFogDensity = 0.05f;
+
+	/** The room haze's colour: a dark, nearly neutral steel grey, no sea in it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MovingSub|RoomLook")
+	FLinearColor RoomFogColor = FLinearColor(FColor(0x10, 0x13, 0x15));
 };
 
 /**

@@ -12,6 +12,7 @@
 #include "Game/DeepGameState.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
+#include "Private/Tests/DeepTestCVar.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepPilotRules.h"
 #include "Sim/DeepRules.h"
@@ -354,7 +355,7 @@ bool FDeepPilotThrottleWorldTest::RunTest(const FString& Parameters)
 	W.HoldAt(Tuning.GetStop(1).SubDepthM + 50.f);
 	const FVector2D Start = W.State->SubOffsetM;
 	const FVector SubAt = W.Sub->GetActorLocation();
-	const FVector RootStart = W.Root()->GetActorLocation();
+	const FVector Ahead = W.Sub->GetActorForwardVector();
 
 	W.Run->StepThrottle(1);
 	W.Run->StepThrottle(1);
@@ -363,8 +364,9 @@ bool FDeepPilotThrottleWorldTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("The lever stays where it was left"), W.Run->GetThrottleNotch(), 2);
 	TestTrue(TEXT("Moving ahead along the heading"), W.State->SubOffsetM.X > Start.X + 0.5f && FMath::Abs(W.State->SubOffsetM.Y - Start.Y) < 0.05f);
 	TestTrue(TEXT("Speed reported"), W.Run->GetSpeedMps() > 0.5f && W.Run->GetSurgeMps() > 0.5f);
-	TestTrue(TEXT("The sub stays put"), W.Sub->GetActorLocation().Equals(SubAt, 0.01f));
-	TestTrue(TEXT("The world slides aft"), W.Root()->GetActorLocation().X < RootStart.X - 50.f);
+	// Deep.World.Still: the hull moves through a still world (D-022 slid the world aft past a fixed hull).
+	TestTrue(TEXT("The world stays put"), W.Root()->GetActorTransform().Equals(FTransform::Identity, 0.01));
+	TestTrue(TEXT("The hull moves ahead"), FVector::DotProduct(W.Sub->GetActorLocation() - SubAt, Ahead) > 50.0);
 
 	// All stop: throttle to stop; the sub coasts down.
 	W.Run->AllStop();
@@ -392,6 +394,8 @@ bool FDeepPilotRudderWorldTest::RunTest(const FString& Parameters)
 	W.HoldAt(Tuning.GetStop(1).SubDepthM + 50.f);
 	const FRotator SubRot = W.Sub->GetActorRotation();
 	TestTrue(TEXT("Yaw 0: the root is not turned"), W.Root()->GetActorQuat().Equals(FQuat::Identity, 1e-4f));
+	ADeepShaft* Shaft = W.Shaft();
+	const FTransform ShaftAt = Shaft ? Shaft->GetActorTransform() : FTransform::Identity;
 
 	W.Run->SetPilotHold(0.f, 1.f);
 	W.Fly(2.f);
@@ -399,11 +403,12 @@ bool FDeepPilotRudderWorldTest::RunTest(const FString& Parameters)
 	const float Yaw = W.State->SubYawDeg;
 	AddInfo(FString::Printf(TEXT("Two seconds of starboard rudder: %.1f deg"), Yaw));
 	TestTrue(TEXT("Turned to starboard"), Yaw > 10.f);
-	TestTrue(TEXT("The world turned the other way about the sub"), FMath::IsNearlyEqual(W.Root()->GetActorRotation().Yaw, -Yaw, 0.05f));
-	TestTrue(TEXT("The sub itself did not turn"), W.Sub->GetActorRotation().Equals(SubRot, 0.01f));
-	if (ADeepShaft* Shaft = W.Shaft())
+	// Deep.World.Still: the hull turns and the world stays (D-022 turned the world the other way about a fixed hull).
+	TestTrue(TEXT("The world did not turn"), W.Root()->GetActorQuat().Equals(FQuat::Identity, 1e-4f));
+	TestTrue(TEXT("The hull turned to starboard by the yaw"), FMath::IsNearlyEqual(FRotator::NormalizeAxis(W.Sub->GetActorRotation().Yaw - SubRot.Yaw), Yaw, 0.05f));
+	if (Shaft)
 	{
-		TestTrue(TEXT("The shaft turned with it"), FMath::IsNearlyEqual(FRotator::NormalizeAxis(Shaft->GetActorRotation().Yaw - SubRot.Yaw), -Yaw, 0.05f));
+		TestTrue(TEXT("The shaft stayed where it was placed"), Shaft->GetActorTransform().Equals(ShaftAt, 0.01));
 	}
 	W.Fly(1.f);
 	TestTrue(TEXT("Rudder amidships: it carried on a little, then held"), W.State->SubYawDeg > Yaw);
@@ -534,7 +539,10 @@ bool FDeepPilotParkWorldTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("In about two seconds"), T >= 1.f && T <= 4.f);
 	TestTrue(TEXT("At the stop's depth"), W.State->SubDepthM == StopDepth);
 	TestTrue(TEXT("Heading as parked"), W.State->SubYawDeg == 0.f);
-	TestTrue(TEXT("The root back on the old placement"), W.Root()->GetActorLocation().Equals(W.OldRootCm(), 0.01f) && W.Root()->GetActorQuat().Equals(FQuat::Identity, 1e-4f));
+	// Deep.World.Still: the hull parks in the stop's frame, over its home at the stop's depth (D-022 put the root back).
+	const FTransform Parked = DeepArena::StillStopFrame(W.World, 1);
+	TestTrue(TEXT("The hull parked in the stop's frame"), W.Sub->GetActorLocation().Equals(Parked.GetLocation(), 0.01) && W.Sub->GetActorQuat().Equals(W.Sub->GetHomeTransform().GetRotation(), 1e-4f));
+	TestTrue(TEXT("The world stays put"), W.Root()->GetActorTransform().Equals(FTransform::Identity, 0.01));
 	TestTrue(TEXT("The hatch opens"), W.Sub->IsHatchOpen());
 
 	// Casting off (ballast) unparks and shuts the hatch.
@@ -551,6 +559,8 @@ bool FDeepPilotHangWorldTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepPilotTest;
 	DeepPilotTest::FShaftScope On(1);
+	// D-022's own placement of the root and the shaft (Deep.World.Still.SameGeometry checks the still world against it).
+	DeepTest::FCVarScope D022(TEXT("Deep.World.Still"), 0);
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	FPilotWorld W;
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());

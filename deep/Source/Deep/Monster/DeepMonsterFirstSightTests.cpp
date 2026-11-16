@@ -187,6 +187,8 @@ bool FDeepMonsterFirstSightWorldTest::RunTest(const FString& Parameters)
 	};
 
 	GameMode->GotoStop(2);
+	// Deep.World.Still: the hull went down to stop 2, so the diver starts under it there (D-022 left both in place).
+	Diver->TeleportDiver(Sub->GetDiverStartTransform().GetLocation());
 	StepAll(Dt);
 	ADeepSerpent* Serpent = Brain->GetSerpent();
 	ADeepSerpentController* Mind = Brain->GetSerpentController();

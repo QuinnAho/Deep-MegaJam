@@ -220,7 +220,8 @@ bool FDeepCavernSerpentInsideTest::RunTest(const FString& Parameters)
 		UTEST_EQUAL(FString::Printf(TEXT("Stop %d's rock shows"), Stop), Cavern->ShownStop(), Stop);
 		UProceduralMeshComponent* Shell = Cavern->GetShell(Stop);
 		UTEST_NOT_NULL(TEXT("Shell"), Shell);
-		const FVector AnchorCm = Cavern->GetActorLocation();
+		// The stop's own anchor is its shell's place (as KeepClearCm reads it): the actor's under D-022, the stop's depth under Deep.World.Still.
+		const FVector AnchorCm = Shell->GetComponentLocation();
 		const FDeepMonsterTuning Monster = UDeepMonsterSettings::Get().GetTuning(Stop);
 		const float PathClearM = Monster.CaveWallClearM + Monster.CaveBodyReachM;
 		const float BaseM = ADeepCavern::StopBaseRadiusM(Stop, Tuning);
@@ -338,7 +339,9 @@ bool FDeepCavernSerpentInsideTest::RunTest(const FString& Parameters)
 	const FDeepWell Well = Brain->GetWell();
 	if (Well.bValid)
 	{
-		const FVector AnchorCm = Cavern->GetActorLocation();
+		// The last stop's anchor is its shell's place, as above.
+		const UProceduralMeshComponent* LastShell = Cavern->GetShell(LastStop);
+		const FVector AnchorCm = LastShell ? LastShell->GetComponentLocation() : Cavern->GetActorLocation();
 		const float BaseM = ADeepCavern::StopBaseRadiusM(LastStop, Tuning);
 		double Least = TNumericLimits<double>::Max();
 		for (int32 i = 0; i <= 10; ++i)

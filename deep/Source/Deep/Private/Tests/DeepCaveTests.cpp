@@ -344,7 +344,8 @@ bool FDeepCaveTubeTest::RunTest(const FString& Parameters)
 	// The other two procedural bodies in the same world, each with its own cook key (World/DeepCookKey.h): before the
 	// keys they all shared one cached collision mesh in the editor, and only one of them answered traces.
 	ADeepAbyssFloor* Floor = nullptr;
-	for (TActorIterator<ADeepAbyssFloor> It(W.World); It && !Floor; ++It) { Floor = *It; }
+	// Deep.World.Still: a bed per stop, and only those at or below the hull show and collide (here, half way down, not stop 1's).
+	for (TActorIterator<ADeepAbyssFloor> It(W.World); It && !Floor; ++It) { Floor = It->GetActorEnableCollision() ? *It : nullptr; }
 	ADeepCavern* Cavern = nullptr;
 	for (TActorIterator<ADeepCavern> It(W.World); It && !Cavern; ++It) { Cavern = *It; }
 	UTEST_NOT_NULL(TEXT("The arena's sea bed is in the shaft's world"), Floor);
@@ -437,7 +438,7 @@ bool FDeepCaveHitTest::RunTest(const FString& Parameters)
 	W.HoldAt(0.5f * (Tuning.GetStop(1).SubDepthM + Tuning.GetStop(2).SubDepthM));
 	const FVector2D Start = W.State->SubOffsetM;
 
-	// Steering moves the sub across the passage (the world slides the other way).
+	// Steering moves the sub across the passage (Deep.World.Still: the hull moves; D-022 slid the world the other way).
 	W.Run->SetHelmSteer(FVector2D(0.f, 1.f));
 	W.Run->StepRun(1.f);
 	TestTrue(TEXT("A second to starboard: it moved starboard"), W.State->SubOffsetM.Y > Start.Y + 1.f);

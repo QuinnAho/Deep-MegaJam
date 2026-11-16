@@ -23,8 +23,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepArena, Log, All);
 
 static TAutoConsoleVariable<int32> CVarDeepWorldStill(
 	TEXT("Deep.World.Still"),
-	0,
-	TEXT("1: the arena root stays still and the hull moves through it (moving-sub step 3); 0: D-022, the hull fixed and the root moved. Read when the arena is built, fixed for the world's life."),
+	1,
+	TEXT("1 (default since moving-sub step 4): the arena root stays still and the hull moves through it; 0: D-022, the hull fixed and the root moved. Read when the arena is built, fixed for the world's life."),
 	ECVF_Default);
 
 namespace DeepArena
@@ -472,8 +472,9 @@ namespace DeepArena
 			{
 				Root->SetActorTransform(FTransform::Identity);
 			}
+			// The hull is placed now, so the server's sim reads it this step. The beds, shells, shaft and water follow in
+			// the sub's own tick (ADeepSubmarine::Tick -> UpdateStillWorld), once a frame on every machine.
 			Sub->PlaceStill();
-			UpdateStillWorld(World);
 			return;
 		}
 		// Deeper than the loaded stop: the world is above us, so the root goes up. Steered to starboard in the cave
@@ -518,6 +519,8 @@ namespace DeepArena
 			// Parked off the stop's centre (the cave shaft), the sub glides home first; the hatch opens once it is there.
 			Sub->SetHatchOpen(!State || State->IsSettledAtStop());
 		}
+		// Still: the beds, shells and shaft show for the new depth and stop at once, not a frame late (no-op with the flag off).
+		UpdateStillWorld(World);
 	}
 
 	void ApplySubDepth(UWorld* World)

@@ -13,6 +13,7 @@
 #include "Game/DeepGameState.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
+#include "Private/Tests/DeepTestCVar.h"
 #include "ProceduralMeshComponent.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepMovingSubRules.h"
@@ -23,7 +24,9 @@
 #include "World/DeepArena.h"
 #include "World/DeepArenaRoot.h"
 #include "World/DeepCavern.h"
+#include "Camera/CameraComponent.h"
 #include "World/DeepDressing.h"
+#include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
@@ -35,30 +38,7 @@
 
 namespace DeepStillTest
 {
-	/** A console variable set for the scope's lifetime and restored when it ends, even when the test fails. */
-	struct FCVarScope
-	{
-		IConsoleVariable* Var = nullptr;
-		int32 Before = 0;
-
-		FCVarScope(const TCHAR* Name, int32 Value)
-		{
-			Var = IConsoleManager::Get().FindConsoleVariable(Name);
-			if (Var)
-			{
-				Before = Var->GetInt();
-				Var->Set(Value, ECVF_SetByCode);
-			}
-		}
-
-		~FCVarScope()
-		{
-			if (Var)
-			{
-				Var->Set(Before, ECVF_SetByCode);
-			}
-		}
-	};
+	using DeepTest::FCVarScope;
 
 	/** A game world with the arena and one diver in the room, as a run starts (as Deep.World.Pilot's). */
 	struct FStillWorld
@@ -560,6 +540,74 @@ bool FDeepStillRoomClearTest::RunTest(const FString& Parameters)
 	CheckClear(TEXT("Mid-descent"));
 	W.GameMode->GotoStop(2);
 	CheckClear(TEXT("Stop 2"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepStillRoomLookTest, "Deep.World.Still.RoomLook", DEEP_STILL_TEST_FLAGS)
+bool FDeepStillRoomLookTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepStillTest;
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepMovingSubTuning& MovingSub = Tuning.MovingSub;
+	UTEST_FALSE(TEXT("Not the grey box (it has no water look)"), Tuning.Arena.bGreyBox);
+	// The ease fits inside the airlock's held black, so the fade hides the switch.
+	TestTrue(TEXT("The Room look's ease is no longer than the airlock's black"), MovingSub.RoomLookEaseSeconds > 0.f && MovingSub.RoomLookEaseSeconds <= Tuning.Airlock.BlackSeconds);
+
+	FStillWorld W;
+	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run"), W.Valid());
+	UTEST_TRUE(TEXT("Still by default"), DeepArena::IsWorldStill(W.World));
+	ADeepEnvironment* Environment = W.First<ADeepEnvironment>();
+	const ADeepSubRoom* Room = DeepArena::EnsureRoom(W.World);
+	UTEST_NOT_NULL(TEXT("The environment"), Environment);
+	UTEST_NOT_NULL(TEXT("The room set"), Room);
+	W.TickSub();
+	const FVector InRoom = Room->GetActorLocation();
+	const FVector AtHelm = W.Sub->GetHelmCamera()->GetComponentLocation();
+	UTEST_TRUE(TEXT("The room's centre is in the room"), Room->IsInRoom(InRoom, 100.0));
+	UTEST_FALSE(TEXT("The helm camera is not in the room"), Room->IsInRoom(AtHelm, 100.0));
+	const float Step = 0.05f;
+	auto Hold = [&](const FVector& View, float Seconds)
+	{
+		for (float T = 0.f; T < Seconds; T += Step)
+		{
+			Environment->StepRoomLook(Step, View);
+		}
+	};
+	auto CheckCave = [&](const TCHAR* Where)
+	{
+		const FDeepLookPreset Cave = ADeepEnvironment::BlendLook(Tuning.Look, W.State->SubDepthM);
+		const FDeepLookPreset& Got = Environment->GetAppliedLook();
+		TestEqual(FString::Printf(TEXT("%s: no Room look"), Where), Environment->GetRoomBlend(), 0.f);
+		TestEqual(FString::Printf(TEXT("%s: the cave's fog density"), Where), Got.FogDensity, Cave.FogDensity, 1.e-4f);
+		TestTrue(FString::Printf(TEXT("%s: the cave's fog colour"), Where), Got.FogColor.Equals(Cave.FogColor, 1.e-4f));
+		TestEqual(FString::Printf(TEXT("%s: the cave's volumetric light"), Where), Got.DownlightVolumetric, Cave.DownlightVolumetric, 1.e-4f);
+		TestTrue(FString::Printf(TEXT("%s: volumetric fog on"), Where), Environment->IsVolumetricFogOn());
+	};
+
+	// Outside (the seat looks through the hull's helm camera): the cave look at the hull's depth.
+	Hold(AtHelm, 1.f);
+	CheckCave(TEXT("At the helm"));
+
+	// In the room: one step is partway (an ease, not a snap), then the Room look in full.
+	Environment->StepRoomLook(Step, InRoom);
+	const float Partway = Environment->GetRoomBlend();
+	TestTrue(FString::Printf(TEXT("Into the room: eases (%.2f after one step)"), Partway), Partway > 0.f && Partway < 1.f);
+	Hold(InRoom, MovingSub.RoomLookEaseSeconds + 0.2f);
+	const FDeepLookPreset& InLook = Environment->GetAppliedLook();
+	TestEqual(TEXT("In the room: the Room look"), Environment->GetRoomBlend(), 1.f);
+	TestEqual(TEXT("In the room: thin fog"), InLook.FogDensity, MovingSub.RoomFogDensity, 1.e-4f);
+	TestTrue(TEXT("In the room: the room's haze colour"), InLook.FogColor.Equals(MovingSub.RoomFogColor, 1.e-4f));
+	TestEqual(TEXT("In the room: no light in the fog"), InLook.DownlightVolumetric, 0.f, 1.e-4f);
+	TestFalse(TEXT("In the room: no volumetric fog"), Environment->IsVolumetricFogOn());
+	TestTrue(TEXT("The Room look's fog is thinner than the cave's"), MovingSub.RoomFogDensity < ADeepEnvironment::BlendLook(Tuning.Look, W.State->SubDepthM).FogDensity);
+
+	// Out through the airlock at stop 2: under the hull, the cave look at stop 2's depth again.
+	W.GameMode->GotoStop(2);
+	W.TickSub();
+	TestTrue(TEXT("Out by the valve: tethered"), W.OutByValve());
+	W.FinishAirlock();
+	Hold(W.Diver->GetActorLocation(), MovingSub.RoomLookEaseSeconds + 0.2f);
+	CheckCave(TEXT("Outside at stop 2"));
 	return true;
 }
 

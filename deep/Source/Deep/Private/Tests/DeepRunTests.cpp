@@ -260,7 +260,7 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	UTEST_NOT_NULL(TEXT("Diver"), Diver);
 	UDeepRunComponent* Run = Diver->GetRun();
 	UTEST_NOT_NULL(TEXT("Run component"), Run);
-	const FVector Anchor = Sub->GetAnchorLocation();
+	FVector Anchor = Sub->GetAnchorLocation();
 	const FVector Start = Sub->GetDiverStartTransform().GetLocation();
 
 	// A dive starts tethered with full Patience.
@@ -403,6 +403,8 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("descend_stop2 fired"), Bus->CountOf(DeepEvent::DescendStop2), 1);
 	Run->LeaveHelm();
 	TestTrue(TEXT("Through the hatch at stop 2"), Run->LeaveSub());
+	// Deep.World.Still: the hull went down to stop 2 with its hatch (D-022 kept the hull, and the anchor, in place).
+	Anchor = Sub->GetAnchorLocation();
 	Diver->GetTether()->UpdateTether(0.f);
 	TestEqual(TEXT("Tether is longer at stop 2"), Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(2, Tuning.Tether), 0.01f);
 

@@ -14,6 +14,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/AutomationTest.h"
+#include "Private/Tests/DeepTestCVar.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepEventBus.h"
@@ -357,6 +358,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubFixedTest, "Deep.World.SubFixedWorldMov
 bool FDeepSubFixedTest::RunTest(const FString& Parameters)
 {
 	using namespace DeepSubTest;
+	// D-022 itself: the fixed hull and the moving root (Deep.World.Still.* checks the still world).
+	DeepTest::FCVarScope D022(TEXT("Deep.World.Still"), 0);
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	FSubWorld W;
 	UTEST_TRUE(TEXT("World, game mode, state, sub, diver, run, bus"), W.Valid());

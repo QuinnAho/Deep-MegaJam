@@ -90,7 +90,8 @@ bool FDeepWorldArenaTest::RunTest(const FString& Parameters)
 	UTEST_NOT_NULL(TEXT("Submarine spawned in an empty map"), Sub);
 	TestEqual(TEXT("One submarine"), Count<ADeepSubmarine>(World), 1);
 	TestEqual(TEXT("One salvage piece per tuned spot"), Count<ADeepSalvage>(World), Tuning.Arena.SalvageSpots.Num());
-	TestEqual(TEXT("An abyss floor"), Count<ADeepAbyssFloor>(World), 1);
+	// Deep.World.Still: a bed per stop at its own depth (D-022 had one, moved with the root).
+	TestEqual(TEXT("An abyss floor per stop"), Count<ADeepAbyssFloor>(World), Tuning.NumStops());
 	TestEqual(TEXT("An environment"), Count<ADeepEnvironment>(World), 1);
 
 	GameMode->EnsureArena();

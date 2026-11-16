@@ -27,7 +27,7 @@ namespace DeepArena
 	DEEP_API ADeepArenaRoot* FindArenaRoot(const UWorld* World);
 
 	/**
-	 * Deep.World.Still (CVar, default 0), latched on the game state when the arena is first built: the arena root stays
+	 * Deep.World.Still (CVar, default 1 since step 4), latched on the game state when the arena is first built: the arena root stays
 	 * at identity and the hull moves through a still world instead (moving-sub step 3). False with the flag off.
 	 */
 	DEEP_API bool IsWorldStill(const UWorld* World);

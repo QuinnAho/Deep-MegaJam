@@ -40,9 +40,9 @@
 1. Pure rules, tuning and tests. Behaviour unchanged.
 2. Room split and airlock, with D-022 still on.
 3. The still world behind `Deep.World.Still` (off): a bed per stop at its own depth, and the hull placed each tick from the replicated depth, offset and yaw, with no sweep yet. `Deep.World.Still.SameGeometry` checks it against D-022.
-4. Switch on, tests fixed, the room look (`ADeepEnvironment` eases to it while the view is in the room), one playtest, frames for Quinn.
-5. Delete D-022 code: the root's movement (the actor goes in step 6), the moving `Follow`, `StepShaft`, the trench. Also: the lamp finds the loaded bed once per call, and `UpdateStillWorld` runs once a tick. Update ARCHITECTURE.md and log a decision.
-6. Stop points and authored maps: `ADeepStopPoint` replaces the arena root, the server sweeps the hull (see Collision), and placed stop points turn the generated cave off; a warning if one is off its tuned depth. The hull gets a `WorldPartitionStreamingSourceComponent`.
+4. **Done.** Switch on, tests fixed (pure D-022 tests pin `Deep.World.Still` to 0), the room look (`ADeepEnvironment` eases to it while the view is in the room), the lamp finds the loaded bed once per call, `UpdateStillWorld` runs once a tick, one playtest, frames for Quinn.
+5. Delete D-022 code: the root's movement (the actor goes in step 6), the moving `Follow`, `StepShaft`, the trench. Update ARCHITECTURE.md and log a decision.
+6. Stop points from baked chunks (D-055): stop points come from the stop-chamber chunks, and the hull sweeps against the baked chunk collision (see Collision). `UDeepCaveRules::Contact` retires with the noise shaft once the assembler lands. The hull gets a `WorldPartitionStreamingSourceComponent`.
 
 ## Deferred
 - Real openings through the beds. Until then a bed hides once the sub leaves its stop.
