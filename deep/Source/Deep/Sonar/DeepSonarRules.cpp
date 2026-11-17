@@ -69,6 +69,17 @@ bool UDeepSonarRules::PingDue(float PrevSweepDeg, float NewSweepDeg)
 	return Wrap360(NewSweepDeg) < Wrap360(PrevSweepDeg);
 }
 
+bool UDeepSonarRules::PingDueAt(double PrevClockS, double NewClockS, float PeriodS)
+{
+	const double P = FMath::Max(0.01, static_cast<double>(PeriodS));
+	return NewClockS > PrevClockS && FMath::FloorToDouble(NewClockS / P) > FMath::FloorToDouble(PrevClockS / P);
+}
+
+float UDeepSonarRules::PingPeriodFor(int32 Style, const FDeepSonarTuning& Tuning)
+{
+	return Style == 0 ? Tuning.SweepPeriodS : FMath::Max(Tuning.SweepPeriodS, Tuning.PingPeriodS);
+}
+
 bool UDeepSonarRules::SweptOver(float BearingDeg, float PrevSweepDeg, float NewSweepDeg)
 {
 	const float Prev = Wrap360(PrevSweepDeg);

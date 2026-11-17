@@ -1,6 +1,9 @@
 #include "Audio/DeepSynth.h"
 
+#include "HAL/IConsoleManager.h"
 #include "Math/RandomStream.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 namespace
 {
@@ -171,8 +174,55 @@ namespace
 		return X;
 	}
 
-	/** The helm sonar's sweep ping (Sonar lane): a clean transmit tone, then a long reverberant tail and two returns. */
+	/**
+	 * The helm sonar's ping (soft, Nov 17): a low round tone that swells in over 35 ms (no click), two voices a few
+	 * cents apart that beat slowly, a faint octave that dies first, then dim returns off rock, each darker and later.
+	 * Well under the Captain; nothing like the serpent's first ping (a bright 550 Hz chirp).
+	 */
 	TArray<float> SonarPing()
+	{
+		constexpr float Seconds = 3.4f;
+		constexpr float BaseHz = 392.f;
+		TArray<float> Dry = Make(Seconds);
+		float PhaseA = 0.f;
+		float PhaseB = 0.f;
+		for (int32 I = 0; I < Dry.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			// A slight droop, like the transducer settling.
+			const float F = BaseHz * (1.f - 0.012f * FMath::Min(T, 1.2f) / 1.2f);
+			PhaseA += TwoPi * F / SampleRate;
+			PhaseB += TwoPi * F * 1.0042f / SampleRate;
+			const float Swell = Ramp(T, 0.f, 0.035f);
+			Dry[I] = Swell * (FMath::Exp(-T / 0.62f) * (FMath::Sin(PhaseA) + 0.55f * FMath::Sin(PhaseB))
+				+ 0.1f * FMath::Exp(-T / 0.18f) * FMath::Sin(2.f * PhaseA));
+		}
+		// Returns off rock: later, softer and duller each time (a one-pole low-pass per return).
+		struct FTap { float DelayS; float Gain; float CutoffHz; };
+		const FTap Taps[] = { { 0.38f, 0.30f, 1400.f }, { 0.81f, 0.18f, 800.f }, { 1.37f, 0.10f, 450.f } };
+		TArray<float> X = Dry;
+		for (const FTap& Tap : Taps)
+		{
+			const int32 Delay = Samples(Tap.DelayS);
+			FLowPass Lp(Tap.CutoffHz);
+			for (int32 I = Delay; I < X.Num(); ++I)
+			{
+				X[I] += Tap.Gain * Lp.Step(Dry[I - Delay]);
+			}
+		}
+		// A faint dark wash under the returns: the water itself answering.
+		FRandomStream Rng(131);
+		FLowPass Wash(260.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			X[I] += 0.05f * Ramp(T, 0.25f, 0.4f) * FMath::Exp(-FMath::Max(0.f, T - 0.25f) / 0.9f) * Wash.Step(Rng.FRandRange(-1.f, 1.f));
+		}
+		return X;
+	}
+
+	/** The jam's helm ping (Deep.Sonar.Style 0, kept for comparison): a clean transmit tone, a long tail, two returns. */
+	TArray<float> SonarPingJam()
 	{
 		TArray<float> X = Make(2.4f);
 		float Phase = 0.f;
@@ -561,7 +611,8 @@ namespace
 			{ TEXT("chime"), false, 1.4f, &Chime },
 			{ TEXT("squelch_on"), false, 0.45f, &SquelchOn },
 			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
-			{ TEXT("sonar_ping"), false, 2.4f, &SonarPing },
+			{ TEXT("sonar_ping"), false, 3.4f, &SonarPing },
+			{ TEXT("sonar_ping_jam"), false, 2.4f, &SonarPingJam },
 			{ TEXT("sonar_tick"), false, 0.11f, &SonarTick },
 			{ TEXT("serpent_call_a"), false, 2.2f, [] { return SerpentCall(70.f, 44.f, 2.2f, 97); } },
 			{ TEXT("serpent_call_b"), false, 2.6f, [] { return SerpentCall(55.f, 82.f, 2.6f, 101); } },
@@ -688,4 +739,78 @@ namespace DeepSynth
 		}
 		return Out;
 	}
+}
+
+namespace DeepSynth
+{
+	TArray<int16> Repeat(const TArray<int16>& One, int32 Count, float SpacingS, float Gain)
+	{
+		TArray<int16> Out;
+		if (One.Num() == 0 || Count <= 0)
+		{
+			return Out;
+		}
+		const int32 Step = Samples(FMath::Max(0.f, SpacingS));
+		TArray<float> Mix;
+		Mix.SetNumZeroed(Step * (Count - 1) + One.Num());
+		for (int32 C = 0; C < Count; ++C)
+		{
+			for (int32 I = 0; I < One.Num(); ++I)
+			{
+				Mix[C * Step + I] += One[I] * Gain;
+			}
+		}
+		Out.SetNumUninitialized(Mix.Num());
+		for (int32 I = 0; I < Mix.Num(); ++I)
+		{
+			Out[I] = int16(FMath::Clamp(FMath::RoundToInt(Mix[I]), -32767, 32767));
+		}
+		return Out;
+	}
+
+	bool WriteWav(const TArray<int16>& Pcm, const FString& Path)
+	{
+		// A plain 16-bit mono PCM RIFF file.
+		TArray<uint8> Bytes;
+		auto U32 = [&Bytes](uint32 V) { for (int32 B = 0; B < 4; ++B) { Bytes.Add(uint8((V >> (8 * B)) & 0xFF)); } };
+		auto U16 = [&Bytes](uint16 V) { Bytes.Add(uint8(V & 0xFF)); Bytes.Add(uint8(V >> 8)); };
+		auto Tag = [&Bytes](const char* T) { for (int32 B = 0; B < 4; ++B) { Bytes.Add(uint8(T[B])); } };
+		const uint32 DataBytes = uint32(Pcm.Num()) * 2u;
+		Tag("RIFF"); U32(36u + DataBytes); Tag("WAVE");
+		Tag("fmt "); U32(16u); U16(1u); U16(1u); U32(uint32(SampleRate)); U32(uint32(SampleRate) * 2u); U16(2u); U16(16u);
+		Tag("data"); U32(DataBytes);
+		for (const int16 S : Pcm)
+		{
+			U16(uint16(S));
+		}
+		return FFileHelper::SaveArrayToFile(Bytes, *Path);
+	}
+}
+
+namespace
+{
+	FAutoConsoleCommand ExportCommand(
+		TEXT("Deep.Audio.Export"),
+		TEXT("Deep.Audio.Export <builtin> <path.wav> [count=1] [spacingS=0] [gain=1]: writes a built-in sound (repeated count times, spacingS apart, scaled by gain) to a wav file."),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (Args.Num() < 2)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Deep.Audio.Export <builtin> <path.wav> [count] [spacingS] [gain]"));
+				return;
+			}
+			const FName Name(*Args[0]);
+			const DeepSynth::FBuffer Buffer = DeepSynth::Generate(Name);
+			if (Buffer.Samples.Num() == 0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Deep.Audio.Export: no built-in %s"), *Args[0]);
+				return;
+			}
+			const int32 Count = Args.Num() > 2 ? FMath::Max(1, FCString::Atoi(*Args[2])) : 1;
+			const float SpacingS = Args.Num() > 3 ? FCString::Atof(*Args[3]) : 0.f;
+			const float Gain = Args.Num() > 4 ? FCString::Atof(*Args[4]) : 1.f;
+			const FString Path = FPaths::ConvertRelativePathToFull(Args[1]);
+			const bool bOk = DeepSynth::WriteWav(DeepSynth::Repeat(Buffer.Samples, Count, SpacingS, Gain), Path);
+			UE_LOG(LogTemp, Display, TEXT("DEEPAUDIO export %s x%d every %.2fs gain %.2f -> %s ok=%d"), *Args[0], Count, SpacingS, Gain, *Path, bOk ? 1 : 0);
+		}));
 }

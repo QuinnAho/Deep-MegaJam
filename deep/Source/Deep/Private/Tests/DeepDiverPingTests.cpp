@@ -46,15 +46,20 @@ bool FDeepCameraDiverPingRuleTest::RunTest(const FString& Parameters)
 	// On screen at 90 m (1707 px wide, 90 degree field: 2 * 9000 / 1707 = 10.5 cm a pixel): the band's trail is
 	// several pixels wide and the dots stay apart; near the diver the grid keeps its fine spacing.
 	const float CmPerPx = 2.f * 9000.f / 1707.f;
-	const float BandPx = DeepCameraRules::PulseBandCm(9000.f, D) / CmPerPx;
-	const float DotPx = DeepCameraRules::PulseDotSpacingCm(9000.f, D) / CmPerPx;
-	AddInfo(FString::Printf(TEXT("At 90 m: band %.1f px, dot spacing %.1f px"), BandPx, DotPx));
-	TestTrue(TEXT("Band at least 10 px wide at 90 m"), BandPx >= 10.f);
-	TestTrue(TEXT("Dots at least 8 px apart at 90 m"), DotPx >= 8.f);
-	TestEqual(TEXT("Near grid unchanged"), DeepCameraRules::PulseDotSpacingCm(500.f, D), D.PulseDotSpacingM * UDeepRules::CmPerM);
-	TestEqual(TEXT("Near band unchanged"), DeepCameraRules::PulseBandCm(500.f, D), D.PulseBandM * UDeepRules::CmPerM);
-	TestTrue(TEXT("Each doubling past the near distance doubles the grid"),
-		FMath::IsNearlyEqual(DeepCameraRules::PulseDotSpacingCm(D.PulseDotNearM * 400.f, D), 4.f * D.PulseDotSpacingM * UDeepRules::CmPerM, 1e-2f));
+	// Both looks; the soft one's thinner band still keeps 10 px at 90 m.
+	for (const int32 Style : { 0, 1 })
+	{
+		const FDeepPulseLook& L = DeepCameraRules::PulseLook(D, Style);
+		const float BandPx = DeepCameraRules::PulseBandCm(9000.f, L, D) / CmPerPx;
+		const float DotPx = DeepCameraRules::PulseDotSpacingCm(9000.f, L, D) / CmPerPx;
+		AddInfo(FString::Printf(TEXT("Style %d at 90 m: band %.1f px, dot spacing %.1f px"), Style, BandPx, DotPx));
+		TestTrue(FString::Printf(TEXT("Style %d: band at least 10 px wide at 90 m"), Style), BandPx >= 10.f);
+		TestTrue(FString::Printf(TEXT("Style %d: dots at least 8 px apart at 90 m"), Style), DotPx >= 8.f);
+		TestEqual(TEXT("Near grid unchanged"), DeepCameraRules::PulseDotSpacingCm(500.f, L, D), L.DotSpacingM * UDeepRules::CmPerM);
+		TestEqual(TEXT("Near band unchanged"), DeepCameraRules::PulseBandCm(500.f, L, D), L.BandM * UDeepRules::CmPerM);
+		TestTrue(TEXT("Each doubling past the near distance doubles the grid"),
+			FMath::IsNearlyEqual(DeepCameraRules::PulseDotSpacingCm(D.PulseDotNearM * 400.f, L, D), 4.f * L.DotSpacingM * UDeepRules::CmPerM, 1e-2f));
+	}
 	return true;
 }
 
