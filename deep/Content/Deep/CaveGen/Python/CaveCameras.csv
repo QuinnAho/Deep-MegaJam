@@ -1,0 +1,24 @@
+Name,X,Y,Z,Yaw,Pitch,Note
+String_overview,5361.6,3029.5,21007.2,120,-89.9,top down over the whole string
+T1_squeeze_helm,4145,0,100,0,0,helm at T1's rift squeeze (GPU view 1)
+C1_from_entry,8300,5150,-540,90,-8,C1 just inside its entry joint
+C1_from_Park,8300,7900,-2850,40,-8,from Park toward the exit (GPU view 2)
+T1_tunnel_body_helm,7656,222,54,32.7,-2,T1 tunnel body
+T1_keyhole_helm,5650,0,100,0,-2,down T1's keyhole to the bend's far wall
+T1_past_squeeze,4900,0,60,0,-2,inside the squeeze 8 m in: down its far half and the keyhole to the bend
+Joint_A_T1,2700,250,150,8,0,3 m before the A-T1 joint
+Joint_T1_C1,8550,4500,-450,98,0,the T1-C1 joint
+Joint_C1_B,10811,9250,-2850,38,0,the C1-B joint into the hall
+C1_Park_up_column,8300,7800,-2850,90,72,up C1's sink column from Park
+Helm_A_T1,1000,0,100,0,0,helm 20 m before the A-T1 joint flying forward
+Helm_T1_C1,8300,2825.2,-445.7,90,-4,helm 20 m before the T1-C1 joint flying forward
+Helm_C1_B,9339.2,8400,-2900,30,0,helm 20 m before the C1-B joint flying forward
+Helm_B_E,11937.3,9900,-2900,30,0,helm 20 m before the B-E joint flying forward (where round 3 saw the bright disc)
+E_from_joint,13799.3,10975,-2900,30,0,at the B-E joint looking down E to where it closes
+S_berth_helm,-4200,0,350,0,-3,S: helm at the berth looking ahead to the exit mouth (GPU view 3)
+S_diver_hatch_serpent,-4050,-350,-150,-35,6,S: diver eye outside the hatch toward the Serpent alcove
+S_diver_hatch_back,-4350,350,-150,145,6,S: diver eye outside the hatch toward the back of the cavern
+S_chimney_up,-4300,-350,300,80,72,S: up the roof chimney from beside the berth
+S_mouth_back,-1250,0,163,180,4,S: in the exit mouth looking back at the berth
+S_overview,-9500,-6500,6500,42.9,-33,S: high overview from outside the rock
+Helm_S_A,-1975,0,204.6,0,-6,helm 20 m before the S-A joint flying forward
