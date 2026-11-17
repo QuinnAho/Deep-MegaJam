@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 06:00 EST
+updated: 2026-11-17 06:22 EST
 ---
 # Devlog
 
@@ -1321,3 +1321,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: round 8b (`7d14fc3` on `build/cavegen`). A new check counts sharp creases near each rim, and all five read 0. T1's squeeze leans in and pinches, and E closes in tilted slabs. Round 8's checks all hold.
 - Failed: S's new ledges read as torn paper and a grille, and past the squeeze T1 is still a square duct. Both went back as round 8c.
 - Next: frames page v34 asks Quinn about round 8b. The caves go into the dive after round 8c and Quinn's OK.
+
+### 6:22 AM, Nov 17  BT-01's inside is fixed; caves round 8c is in
+- Changed: BT-01's inside (`f9b40cb`). The white patches and the floor blotches were the worn-steel paint's chips, about 55 cm across; one cap on the room's wear removes them. You spawn on the deck, and the lockers are solid. Caves round 8c (`4f2f44a`): T1's rough walls run its whole length, so it no longer reads as a square duct.
+- Failed: S's softer ledges read as a pipe, so S's mouth is back to round 7b's. The squeeze loosened to 119 cm at its tightest (88 in round 8); Quinn judges it by driving it.
+- Next: page v35 asks Quinn to OK both. The inside's merge gate is running; the caves get their own gate at the merge, then they go into the dive.
