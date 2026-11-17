@@ -14,3 +14,10 @@ Helm_T1_C1,8300,2800,-443,90,-4,helm 20 m before the T1-C1 joint flying forward
 Helm_C1_B,9339.2,8400,-2900,30,0,helm 20 m before the C1-B joint flying forward
 Helm_B_E,11937.4,9900,-2900,30,0,helm 20 m before the B-E joint flying forward (where round 3 saw the bright disc)
 E_from_joint,13669.4,10900,-2900,30,0,at the B-E joint looking down E to where it closes
+S_berth_helm,-4200,0,350,0,-3,S: helm at the berth looking ahead to the exit mouth (GPU view 3)
+S_diver_hatch_serpent,-4050,-350,-150,-35,6,S: diver eye outside the hatch toward the Serpent alcove
+S_diver_hatch_back,-4350,350,-150,145,6,S: diver eye outside the hatch toward the back of the cavern
+S_chimney_up,-4300,-350,300,80,72,S: up the roof chimney from beside the berth
+S_mouth_back,-1250,0,163,180,4,S: in the exit mouth looking back at the berth
+S_overview,-9500,-6500,6500,42.9,-33,S: high overview from outside the rock
+Helm_S_A,-2000,0,209,0,-6,helm 20 m before the S-A joint flying forward

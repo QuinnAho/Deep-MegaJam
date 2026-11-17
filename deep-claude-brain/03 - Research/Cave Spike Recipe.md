@@ -311,3 +311,89 @@ Frames (not committed) are in `deep/Saved/CaveGen/round4/`: the 10 round-3 views
 - Straight horizontal beds on B's end walls and down E's passage still look tooled.
 - T1's squeeze keeps a flat lintel at the top.
 - E's far end is dark rock now (no bright disc), but its walls are smooth and its bend bays are big, plain shapes.
+
+## Round 5 (Nov 17): joint types and the start cavern
+Goal: replace the 9 m round neck with irregular joint types (D-059), and add a start cavern S where every run begins. The string in L_CaveSpike is now S, A, T1, C1, B, E.
+
+### Joint types
+Each type is one irregular outline from real passage cross-sections. Sources: Palmer, *Cave Geology* (2007), ch. 7 on passage cross-sections; Ford and Williams, *Karst Hydrogeology and Geomorphology* (2007), ch. 7 on phreatic, vadose and keyhole forms.
+- **bed:** a bedding-plane slot. It is wide and low, its roof and floor dip 7°, and thin wings pinch out along the bed.
+- **rift:** tall and narrow, leaning about 10°, with a roof slot and a floor slot.
+- **key:** a keyhole. A wide phreatic tube sits over a leaning vadose trench.
+
+| Type | Width × height | Least margin outside the core's rectangle |
+|---|---|---|
+| bed | 17.17 × 9.59 m | 49.0 cm |
+| rift | 8.57 × 18.67 m | 57.2 cm |
+| key | 11.95 × 15.06 m | 49.6 cm |
+
+How the outlines work:
+- Each outline is a polar table over `ANG` with a fixed low-frequency jag. A type's seed is fixed, so its outline is identical in every chunk.
+- `conform_rims` snaps both sides of a joint to the same 720-vertex polygon. The core rectangle is the hull's 3.3 × 5.0 m section, plus the 1.0 m clearance and the core's extras.
+- `check_joint_types()` refuses an outline that comes within 40 cm of the core.
+- Each joint sits on a level stretch of path. The steepest slope near a joint is 9.3°, on S's run down.
+
+### Type graph
+`CaveChunks.csv` has two new columns, `InType` and `OutType`.
+
+| Chunk | In | Out |
+|---|---|---|
+| S | — | rift |
+| A | rift | key |
+| T1 | key | bed |
+| C1 | bed | rift |
+| B | rift | bed |
+| E | bed | — |
+
+- The edges are bed→rift, key→bed, rift→bed and rift→key. They form a cycle through rift.
+- `cavestring.type_check` raises an error on any mismatch, on a string that does not start with a start chunk, and on a dead end. It also prints a reachability check: the start's rift reaches bed, key and rift, and every reachable type reaches the end type, bed.
+- It refused S-A-C1 (key against bed), S-T1 (rift against key) and a string starting with A.
+
+### Start cavern S
+- **Berth:** Park is the chunk's origin. The sub's nose points down the exit path.
+- **Placement:** S is placed back from A by its own exit, at (-4200, 0, 250), so A stays at the world origin and the old cameras still match.
+- **Chamber:** one ellipsoid of 27 × 19 × 10 m radii, warped at low frequency by `warp_blob`.
+  - The first try was six overlapping ellipsoids, as in C1. Seen from the berth, their creases read as round holes in the walls.
+- **Floor:** a flat silt slab that eases down toward the mouth.
+- **Chimney:** `bent_tube`, a noisy tube along a 3D polyline. It narrows from 6.2 m to 3 m radius and bends sideways, so its end is out of sight from the berth.
+  - The first try, stacked `shaft`s, read as concentric target rings.
+- **Exit:** a wide, low passage starts inside the chamber at about 26 m from Park and runs down to the rift joint.
+  - Two warped blobs straddle the mouth, so the mouth is a ragged funnel, not the passage's section cut clean in the wall.
+- **Serpent:** its bay is off the -Y wall, 30.9 m from Park.
+- **Rock:** C1's bedded rock with the blocks worn down.
+
+### Results
+| Check | Round 5 |
+|---|---|
+| Type check | pass; 3 bad strings refused |
+| Joint gap | 0.000 cm on all 5 joints; outline error at most 0.001 cm |
+| Overlap away from joints | 0 |
+| Hull sweep, S's berth to E | 0 / 1168 contacts; least clearance: squeeze 87.5 (T1, as in round 4), neck 106.2, tunnel 112.5, cavern 112.5 cm |
+| Controls ±300 | 663 and 669 of 1168 hit |
+| Core exposure | 0 in every chunk |
+| S sockets | Park keel gap 307 cm; 4 Salvage 12.5–20.3 m from Park; Serpent in void, 30.9 m from Park |
+| C1 sockets | 5 Salvage; Serpent in void |
+| Clear column | S 28.9 m (keel to Park + 6 m); C1 22.0 m |
+| Tether from S's hatch | 2592 rays to 40 m; 0 leave the cave's water; nearest rock 2.8 m |
+| Mesh audit | 1 component each; S and E 1 border loop, the rest 2 |
+| GPU median / p95, 40 samples | S berth 3.96 / 4.98 ms; T1 squeeze 3.70 / 4.64; C1 Park 3.82 / 5.76 |
+
+Frames:
+- `devlog/media/2026-11-17-cave5-*.png`. Each view shown in both rounds is a round 4 | round 5 pair; new views are round 5 only.
+- The new views are `S_*` (berth helm, the diver at the hatch in two directions, the chimney, the mouth looking back, an overview) and `Helm_S_A`.
+
+### Gotchas
+- **Overlapping ellipsoids:** from inside they read as round holes. Warp one surface instead.
+- **Stacked shafts:** they read as target rings from below. Use `bent_tube`.
+- **A passage that starts inside a chamber:** it shows its own section as a clean "bathtub" mouth. Break it with blobs that straddle the wall.
+- **The floor slab:** it must stay below the core along the run down (`min(..., p.zf(x) - 500)`), or the core flattens it.
+- **Degenerate rim triangles:** S 675, A 901, B 1026, T1 213, C1 477, E 234. They come from collapsed rim edges, and the static mesh build drops them.
+- **The editor's MCP port** was 8000 this round, not 8031.
+- **The shared scratchpad:** another lane overwrote `py.ps1` in it. Keep this lane's helpers in their own subfolder.
+
+### Still open (Task 3, not done)
+- A lintel in A's squeeze.
+- Beds that are not straight. S's roof and B's end walls still show straight horizontal bands.
+- C1's clay-like entry rock.
+- E's plain bays.
+- S's mouth has a flat bedding-plane lintel over it.

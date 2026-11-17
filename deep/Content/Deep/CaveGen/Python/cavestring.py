@@ -1,9 +1,11 @@
 """DEEP cave string tools (editor Python): CSV data, placement, joint and
 overlap checks, the hull sweep, sockets and camera spots.
 
-Chunk frame: entry joint centre at the origin, +X into the chunk, Z up; cm, degrees.
+Chunk frame: entry joint centre at the origin (the start chunk S: its berth), +X into
+the chunk, Z up; cm, degrees. Joints are typed (D-059): InType and OutType in the CSV,
+and a string is valid only where each chunk's OutType is the next one's InType.
     import cavestring as cs
-    rows = cs.write_chunks_csv()[1]; cs.place_string(rows); cs.joint_checks(rows)
+    rows = cs.write_chunks_csv()[1]; cs.type_check(rows); cs.place_string(rows); cs.joint_checks(rows)
 Recipe and numbers: deep-claude-brain/03 - Research/Cave Spike Recipe.md
 """
 import math
@@ -21,7 +23,8 @@ GS_E = U.GeometryScript_MeshEdits
 GS_N = U.GeometryScript_Normals
 GS_S = U.GeometryScript_MeshSpatial
 
-STRING = ['A', 'T1', 'C1', 'B', 'E']    # E (type 'end') closes the string in rock: no exit joint
+STRING = ['S', 'A', 'T1', 'C1', 'B', 'E']   # S (type 'start') has no entry; E (type 'end') closes in rock: no exit
+CHUNKS = ['S', 'A', 'B', 'T1', 'C1', 'E']
 HULL_HALF = (615.0, 165.0, 250.0)     # 12.3 x 3.3 x 5.0 m
 yaw_dirs = cg.yaw_dirs
 
@@ -55,7 +58,7 @@ def verts(mesh):
 
 
 # ---------------------------------------------------------------- CSV
-CHUNK_COLS = ['Name', 'Mesh', 'Type', 'ExitX', 'ExitY', 'ExitZ', 'ExitYaw',
+CHUNK_COLS = ['Name', 'Mesh', 'Type', 'InType', 'OutType', 'ExitX', 'ExitY', 'ExitZ', 'ExitYaw',
               'MinX', 'MinY', 'MinZ', 'MaxX', 'MaxY', 'MaxZ']
 SOCKET_COLS = ['Chunk', 'Socket', 'X', 'Y', 'Z', 'Yaw']
 
@@ -95,13 +98,14 @@ def chunk_record(name):
     bb = GS_Q.get_mesh_bounding_box(read_mesh(name, fresh=True))
     ex = spec['exit'] or (0.0, 0.0, 0.0, 0.0)     # an end chunk has no exit: zeros
     return {'Name': name, 'Mesh': mesh_path(name), 'Type': spec['type'],
+            'InType': spec.get('in') or '', 'OutType': spec.get('out') or '',
             'ExitX': float(ex[0]), 'ExitY': float(ex[1]), 'ExitZ': float(ex[2]), 'ExitYaw': float(ex[3]),
             'MinX': round(bb.min.x, 1), 'MinY': round(bb.min.y, 1), 'MinZ': round(bb.min.z, 1),
             'MaxX': round(bb.max.x, 1), 'MaxY': round(bb.max.y, 1), 'MaxZ': round(bb.max.z, 1)}
 
 
 def write_chunks_csv():
-    rows = [chunk_record(n) for n in ['A', 'B', 'T1', 'C1', 'E']]
+    rows = [chunk_record(n) for n in CHUNKS]
     p = os.path.join(data_dir(), 'CaveChunks.csv')
     write_csv(p, CHUNK_COLS, rows)
     return p, rows
@@ -109,6 +113,51 @@ def write_chunks_csv():
 
 def load_chunks():
     return read_csv(os.path.join(data_dir(), 'CaveChunks.csv'))
+
+
+# ---------------------------------------------------------------- joint types
+def type_check(rows, names=STRING):
+    """Refuse a string whose joint types do not match, and check the type graph: every
+    type a run can reach from the start chunk can still reach an end chunk. Returns
+    report lines; raises ValueError on a mismatch or a dead end."""
+    byname = {r['Name']: r for r in rows}
+    rep = []
+    first, last = byname[names[0]], byname[names[-1]]
+    if first['InType']:
+        raise ValueError('string starts with %s, which has an entry joint (%s)' % (names[0], first['InType']))
+    if last['OutType']:
+        raise ValueError('string ends with %s, which has an exit joint (%s)' % (names[-1], last['OutType']))
+    for a, b in zip(names, names[1:]):
+        ta, tb = byname[a]['OutType'], byname[b]['InType']
+        if not ta or ta != tb:
+            raise ValueError('joint %s->%s does not match: %s out is %r, %s in is %r' % (a, b, a, ta, b, tb))
+        rep.append('joint %s->%s: %s' % (a, b, ta))
+    # the graph: a type is a node, each chunk with both joints an edge InType -> OutType
+    edges = {}
+    for r in rows:
+        if r['InType'] and r['OutType']:
+            edges.setdefault(r['InType'], set()).add(r['OutType'])
+    starts = {r['OutType'] for r in rows if not r['InType'] and r['OutType']}
+    ends = {r['InType'] for r in rows if r['InType'] and not r['OutType']}
+
+    def reach(t0):
+        seen, todo = {t0}, [t0]
+        while todo:
+            for u in edges.get(todo.pop(), ()):
+                if u not in seen:
+                    seen.add(u)
+                    todo.append(u)
+        return seen
+    live = set()
+    for s in starts:
+        live |= reach(s)
+    dead = sorted(t for t in live if not (reach(t) & ends))
+    rep.append('graph: %s; from start %s reach %s; end types %s; every reachable type reaches an end: %s' % (
+        ', '.join('%s->%s' % (a, b) for a in sorted(edges) for b in sorted(edges[a])), sorted(starts), sorted(live),
+        sorted(ends), not dead))
+    if dead:
+        raise ValueError('types %s can be reached from the start but cannot reach an end' % dead)
+    return rep
 
 
 # ---------------------------------------------------------------- frames
@@ -131,9 +180,16 @@ def to_local(place, p):
 
 
 def string_places(rows, names=STRING):
-    """World entry frame of each chunk: P_next = P + Rz(yaw) * exit, yaw_next = yaw + exit yaw."""
+    """World entry frame of each chunk: P_next = P + Rz(yaw) * exit, yaw_next = yaw + exit yaw.
+    The first real joint sits at the world origin, as before S existed: a start chunk
+    (no entry) is placed back from it by its own exit, which must be level and straight."""
     byname = {r['Name']: r for r in rows}
     place = (0.0, 0.0, 0.0, 0.0)
+    r0 = byname[names[0]]
+    if not r0['InType']:
+        if abs(r0['ExitYaw']) > 1e-6:
+            raise ValueError('start chunk %s exit yaw must be 0' % names[0])
+        place = (-r0['ExitX'], -r0['ExitY'], -r0['ExitZ'], 0.0)
     out = []
     for n in names:
         r = byname[n]
@@ -166,8 +222,9 @@ def chunk_actors():
 
 
 # ---------------------------------------------------------------- joint checks
-def _loop(mesh, centre, fwd, tol=0.5):
-    """Vertices on a joint plane, sorted by angle about the joint axis."""
+def _loop(mesh, centre, fwd, jtype, tol=0.5):
+    """Vertices on a joint plane, sorted by angle about the joint axis, with each one's
+    distance off the type's outline."""
     cx, cy, cz = centre
     fx, fy = fwd
     lp = []
@@ -176,8 +233,10 @@ def _loop(mesh, centre, fwd, tol=0.5):
         if abs(dx * fx + dy * fy) <= tol:
             lat = -dx * fy + dy * fx
             r = math.hypot(lat, dz)
-            if 50 < r < cg.JOINT_R + 5.0:      # the rim
-                lp.append((math.atan2(dz, lat), r, (p.x, p.y, p.z)))
+            th = math.atan2(dz, lat)
+            off = r - cg.joint_r(jtype, th)
+            if r > 50 and abs(off) < 5.0:      # the rim
+                lp.append((th, off, (p.x, p.y, p.z)))
     lp.sort()
     return lp
 
@@ -191,26 +250,28 @@ def _seg_dist(p, a, b):
 
 
 def joint_checks(rows):
-    """Radius of every joint loop, and the gap between each pair of loops that meet."""
+    """Every joint loop against its type's outline, and the gap between each pair of loops
+    that meet."""
     byname = {r['Name']: r for r in rows}
     places, end = string_places(rows)
     loops, rep = {}, []
-    rmin, rmax = 1e9, 0.0
+    worst_off = 0.0
     for n in sorted(set(STRING)):
         r = byname[n]
         (fx, fy), _ = yaw_dirs(r['ExitYaw'])
         m = read_mesh(n)
-        ent = _loop(m, (0, 0, 0), (1, 0))
-        end_chunk = r['Type'] == 'end'
-        exl = [] if end_chunk else _loop(m, (r['ExitX'], r['ExitY'], r['ExitZ']), (fx, fy))
+        ent = _loop(m, (0, 0, 0), (1, 0), r['InType']) if r['InType'] else []
+        exl = _loop(m, (r['ExitX'], r['ExitY'], r['ExitZ']), (fx, fy), r['OutType']) if r['OutType'] else []
         loops[n] = (ent, exl)
-        for tag, lp in (('entry', ent),) + ((() if end_chunk else (('exit', exl),))):
-            rs = [x[1] for x in lp]
+        for tag, t, lp in (('entry', r['InType'], ent), ('exit', r['OutType'], exl)):
+            if not t:
+                continue
+            offs = [abs(x[1]) for x in lp]
             angs = [x[0] for x in lp]
             gaps = [angs[i + 1] - angs[i] for i in range(len(angs) - 1)] + [angs[0] + 2 * math.pi - angs[-1]]
-            rmin, rmax = min(rmin, min(rs)), max(rmax, max(rs))
-            rep.append('%s %s: %d verts, r %.2f..%.2f, widest angle step %.1f deg' % (
-                n, tag, len(lp), min(rs), max(rs), math.degrees(max(gaps))))
+            worst_off = max(worst_off, max(offs))
+            rep.append('%s %s (%s): %d verts, max off the outline %.3f cm, widest angle step %.2f deg' % (
+                n, tag, t, len(lp), max(offs), math.degrees(max(gaps))))
     worst = 0.0
     for i in range(len(places) - 1):
         (na, pa), (nb, pb) = places[i], places[i + 1]
@@ -222,11 +283,12 @@ def joint_checks(rows):
             return max(min(_seg_dist(p, dst[k], dst[(k + 1) % nd]) for k in range(nd)) for p in src)
         g = max(gap(wa, wb), gap(wb, wa))
         worst = max(worst, g)
-        rep.append('joint %s->%s: max gap %.3f cm' % (na, nb, g))
-    return {'radius': (round(rmin, 2), round(rmax, 2)), 'worst_gap_cm': round(worst, 3)}, rep
+        rep.append('joint %s->%s (%s): max gap %.3f cm' % (na, nb, byname[na]['OutType'], g))
+    return {'max_off_outline_cm': round(worst_off, 3), 'worst_gap_cm': round(worst, 3)}, rep
 
 
 # ---------------------------------------------------------------- overlap check
+JOINT_REACH = 1000.0   # the joint outlines reach about 9.5 to 11.7 m from their centres
 def overlap_checks(rows, stride=4, joint_clear=300.0):
     """AABB test for every pair; for pairs whose boxes touch, test sampled wall
     vertices of each against the other's void (winding number), away from joints."""
@@ -247,7 +309,7 @@ def overlap_checks(rows, stride=4, joint_clear=300.0):
                 w = compose(pl, (x, y, 0))
                 xs.append(w[0]); ys.append(w[1])
         return (min(xs), min(ys), pl[2] + r['MinZ']), (max(xs), max(ys), pl[2] + r['MaxZ'])
-    joints = [places[0][1][:3]] + [p[1][:3] for p in places[1:]] + [end[:3]]
+    joints = [pl[:3] for n, pl in places if byname[n]['InType']] + [end[:3]]
     qo = U.GeometryScriptSpatialQueryOptions()
     rep, bad = [], 0
     for i in range(len(places)):
@@ -263,7 +325,7 @@ def overlap_checks(rows, stride=4, joint_clear=300.0):
                 pts = verts(read_mesh(src))
                 for k in range(0, len(pts), stride):
                     w = compose(ps, (pts[k].x, pts[k].y, pts[k].z))
-                    if min(math.dist(w, jt) for jt in joints) < joint_clear + cg.JOINT_R:
+                    if min(math.dist(w, jt) for jt in joints) < joint_clear + JOINT_REACH:
                         continue
                     tested += 1
                     if GS_S.is_point_inside_mesh(om, bvh, U.Vector(*to_local(pd, w)), qo)[1]:
@@ -334,21 +396,21 @@ def mesh_audit(name):
     return out
 
 
-# ---------------------------------------------------------------- C1 sockets
-def c1_sockets(rows):
-    """Park, Salvage (by trace onto ledges, floor and pile) and Serpent, in C1's frame."""
+# ---------------------------------------------------------------- sockets (S and C1)
+def chunk_sockets(rows, name):
+    """Park, Salvage (by trace onto floor, ledges and pile) and Serpent, in the chunk's frame."""
     places, end = string_places(rows)
-    pl = dict(places)['C1']
-    spec = cg.meta('C1')
-    cx, cy = cg.C1_COL
+    pl = dict(places)[name]
+    spec = cg.meta(name)
+    cx, cy = spec['col']
     park = spec['sockets']['Park']
     rep = []
     # keel-to-floor gap under Park
     pw = compose(pl, park[:3])
     h = line(pw, (pw[0], pw[1], pw[2] - 3000))
     floor_z = to_local(pl, h[0])[2]
-    keel = park[2] - cg.HULL_HALF_Z if hasattr(cg, 'HULL_HALF_Z') else park[2] - HULL_HALF[2]
-    rep.append('Park keel %.0f floor %.1f gap %.1f cm' % (keel, floor_z, keel - floor_z))
+    keel = park[2] - cg.HULL_HALF_Z
+    rep.append('%s Park keel %.0f floor %.1f gap %.1f cm' % (name, keel, floor_z, keel - floor_z))
     # salvage candidates from the spec: (label, local xy, start z); a start in rock steps
     # toward the column axis, 1 m at a time, until it is in water
     sal = []
@@ -358,7 +420,7 @@ def c1_sockets(rows):
         for k in range(16):
             f = max(0.0, 1.0 - 100.0 * k / d0) if d0 > 1.0 else 0.0
             q = (cx + (x - cx) * f, cy + (y - cy) * f, z0)
-            if in_void('C1', q):
+            if in_void(name, q):
                 start_l = q
                 break
         if start_l is None:
@@ -376,42 +438,52 @@ def c1_sockets(rows):
             continue
         sal.append((lab, (hl[0], hl[1], hl[2] + 20.0), d, h[1][2]))
     sal = sal[:5]
-    out = [{'Chunk': 'C1', 'Socket': 'Park', 'X': park[0], 'Y': park[1], 'Z': park[2], 'Yaw': park[3]}]
+    out = [{'Chunk': name, 'Socket': 'Park', 'X': park[0], 'Y': park[1], 'Z': park[2], 'Yaw': park[3]}]
     for i, (lab, p, d, nz) in enumerate(sal):
-        out.append({'Chunk': 'C1', 'Socket': 'Salvage%d' % (i + 1), 'X': round(p[0], 1), 'Y': round(p[1], 1),
+        out.append({'Chunk': name, 'Socket': 'Salvage%d' % (i + 1), 'X': round(p[0], 1), 'Y': round(p[1], 1),
                     'Z': round(p[2], 1), 'Yaw': float(round((i * 73) % 360))})
-        rep.append('Salvage%d (%s): %.0f cm from Park, surface nz %.2f' % (i + 1, lab, d, nz))
+        rep.append('%s Salvage%d (%s): %.0f cm from Park, surface nz %.2f' % (name, i + 1, lab, d, nz))
     sp = spec['sockets']['Serpent']
-    ok = in_void('C1', sp[:3])
+    ok = in_void(name, sp[:3])
     # how enclosed is the pocket: distance to rock in six directions
     sw = compose(pl, sp[:3])
     dists = []
     for dv in ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)):
         h = line(sw, (sw[0] + dv[0] * 4000, sw[1] + dv[1] * 4000, sw[2] + dv[2] * 4000))
         dists.append(round(math.dist(h[0], sw)) if h else -1)
-    rep.append('Serpent in void %s, rock at +-X +-Y +-Z (world) %s cm' % (ok, dists))
-    out.append({'Chunk': 'C1', 'Socket': 'Serpent', 'X': sp[0], 'Y': sp[1], 'Z': sp[2], 'Yaw': sp[3]})
+    rep.append('%s Serpent in void %s, %.0f cm from Park, rock at +-X +-Y +-Z (world) %s cm' % (
+        name, ok, math.dist(sp[:3], park[:3]), dists))
+    out.append({'Chunk': name, 'Socket': 'Serpent', 'X': sp[0], 'Y': sp[1], 'Z': sp[2], 'Yaw': sp[3]})
     return out, rep
 
 
+def c1_sockets(rows):
+    return chunk_sockets(rows, 'C1')
+
+
 def write_sockets_csv(rows):
-    srows, rep = c1_sockets(rows)
+    srows, rep = [], []
+    for n in ('S', 'C1'):
+        o, r = chunk_sockets(rows, n)
+        srows += o
+        rep += r
     p = os.path.join(data_dir(), 'CaveChunkSockets.csv')
     write_csv(p, SOCKET_COLS, srows)
     return p, srows, rep
 
 
 # ---------------------------------------------------------------- the dive path and the hull sweep
-NECK_REACH = 900.0    # hull centres this close to a joint have part of the hull in the 9 m neck
+NECK_REACH = 900.0    # hull centres this close to a joint have part of the hull in the joint's outline
 
 
 def dive_path(rows, step=25.0, turn_step=2.0):
-    """World samples (x, y, z, yaw, region) of the hull centre: level and nose first in
-    tunnels, a sink and an in-place turn in C1. Regions: neck, tunnel, squeeze, cavern."""
+    """World samples (x, y, z, yaw, region) of the hull centre: from S's berth out along its
+    passage, level and nose first in tunnels, a sink and an in-place turn in C1. Regions:
+    neck (near a joint), tunnel, squeeze, cavern."""
     plist, end = string_places(rows)
     places = dict(plist)
-    joints = [pl[:3] for n, pl in plist] + [end[:3]]
     byname = {r['Name']: r for r in rows}
+    joints = [pl[:3] for n, pl in plist if byname[n]['InType']] + [end[:3]]
     pts = []
 
     def add(w, region):
@@ -426,6 +498,13 @@ def dive_path(rows, step=25.0, turn_step=2.0):
             t = i / n
             q = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t)
             add(compose(pl, q + (yaw,)), region(q) if callable(region) else region)
+    # S: from the berth along its path, down to the rift joint
+    p = cg.s_path()
+    n = int(math.ceil(p.length / step))
+    for i in range(n + 1):
+        s = p.length * i / n
+        x, y, z, yaw = p.at(s)
+        add(compose(places['S'], (x, y, z, yaw)), 'cavern' if s < 3000.0 else 'tunnel')
     # A: straight
     run(places['A'], (0, 0, 0), (byname['A']['ExitX'], 0, 0))
     # T1: its centreline; the squeeze is where the hull's grown box reaches the rift
@@ -500,13 +579,17 @@ def sweep(pts, offset=0.0, clear_every=2):
     return contacts, len(pts) - 1, per
 
 
-def column_check(rows, dirs=36, dz=100.0):
-    """Narrowest clear diameter of C1's sink column, from the entry level to Park."""
-    pl = dict(string_places(rows)[0])['C1']
-    cx, cy = cg.C1_COL
+def column_check(rows, name='C1', z_top=0.0, z_bot=None, dirs=36, dz=100.0):
+    """Narrowest clear diameter of a chunk's column round Park, from z_top down to the
+    keel (C1: its sink column, from the entry level to Park)."""
+    pl = dict(string_places(rows)[0])[name]
+    spec = cg.meta(name)
+    cx, cy = spec['col']
+    if z_bot is None:
+        z_bot = spec['sockets']['Park'][2] - HULL_HALF[2]
     worst = (1e9, None)
-    z = 0.0
-    while z >= cg.C1_PARK_Z - HULL_HALF[2]:
+    z = z_top
+    while z >= z_bot:
         c = compose(pl, (cx, cy, z))
         rs = []
         for k in range(dirs):
@@ -520,3 +603,32 @@ def column_check(rows, dirs=36, dz=100.0):
             worst = (d, z)
         z -= dz
     return round(worst[0], 1), worst[1]
+
+
+def tether_check(rows, name='S', tether=4000.0, n_az=72, n_el=36):
+    """From the hatch (under the hull at Park), rays out to the tether's full length: how
+    many reach rock first, how many end in clear water, and how many end outside every
+    chunk's water (a leak: a diver there would be out of the cave). 0 leaks is the target."""
+    places, end = string_places(rows)
+    pl = dict(places)[name]
+    park = cg.meta(name)['sockets']['Park']
+    hatch = compose(pl, (park[0], park[1], park[2] - HULL_HALF[2] - 30.0))
+    rock = water = leak = 0
+    nearest = 1e9
+    for i in range(n_el):
+        el = -0.5 * math.pi + math.pi * (i + 0.5) / n_el
+        for k in range(n_az):
+            az = 2 * math.pi * k / n_az
+            d = (math.cos(el) * math.cos(az), math.cos(el) * math.sin(az), math.sin(el))
+            e = (hatch[0] + d[0] * tether, hatch[1] + d[1] * tether, hatch[2] + d[2] * tether)
+            h = line(hatch, e)
+            if h:
+                rock += 1
+                nearest = min(nearest, math.dist(h[0], hatch))
+                continue
+            if any(in_void(n, to_local(p, e)) for n, p in places):
+                water += 1
+            else:
+                leak += 1
+    return {'rays': rock + water + leak, 'rock_first': rock, 'clear_water_at_full_tether': water, 'leaks': leak,
+            'nearest_rock_cm': round(nearest, 1), 'hatch': tuple(round(c) for c in hatch)}

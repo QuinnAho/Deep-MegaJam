@@ -7,7 +7,7 @@ passes:
   3. plus the clear core: the hull's swept box along the flight path, grown by
      1.0 m (0.75 m in squeezes), so rock can come close but never into it.
 Then pinholes are closed, crumbs dropped, the ends cut on the joint planes and
-snapped onto the 9 m joint circle, the normals turned inward, and a static
+snapped onto the joint type's outline, the normals turned inward, and a static
 mesh baked in /Game/Deep/CaveGen/Meshes.
 
 Round 3 (rock that catches the lamp): passages change section along each
@@ -21,9 +21,14 @@ changes are ragged per direction; slots taper and lean instead of being boxes; b
 ledges and grooves die out along the bed; bed undercuts replace the ellipsoid alcoves;
 joints into big spaces sit back down a rough throat; the string ends in rock (chunk E).
 
-Frame of every chunk: the entry joint's centre is the origin, +X runs into the
-chunk, Z is up. Units are cm and degrees. Each chunk ends on a level, round,
-9 m joint whose transform (position + yaw) is recorded as the chunk's exit.
+Round 5 (typed joints, D-059): the 9 m round neck is gone. A joint has a type (bed, rift
+or key), each an irregular outline that holds the hull with 1 m clear; a chunk's entry
+and exit carry types, and chunks join only where they match. Runs start in chunk S, a
+calm cavern with the sub's berth at its origin and no entry joint.
+
+Frame of every chunk: the entry joint's centre is the origin (S: the berth, Park), +X
+runs into the chunk, Z is up. Units are cm and degrees. Each chunk ends on a level
+joint whose transform (position + yaw) is recorded as the chunk's exit.
 
 Run from the editor (Python, or the MCP execute_python tool):
     import cavegen; cavegen.bake('T1')
@@ -381,6 +386,104 @@ def jag(rnd, lobes=(2, 3, 4, 5), amp=0.3):
     return out
 
 
+# ---------------------------------------------------------------- joint types (D-059)
+# Round 4 joined every chunk on the same 9 m circle; from the helm each joint read as a
+# round tube. Now a joint has a type, and each type is its own irregular outline, taken
+# from real passage cross-sections (Palmer, Cave Geology; Ford and Williams, Karst
+# Hydrogeology and Geomorphology): a bedding-plane slot, a rift and a keyhole. Both sides
+# of a joint get the same outline vertex for vertex, so chunks join only where the types
+# match. Each outline is a polar radius about the joint centre (the hull's axis) and holds
+# the hull's 3.3 x 5.0 m section with 1.0 m clear on every side, plus the core's extras.
+JOINT_TYPES = ('bed', 'rift', 'key')
+JOINT_SLICE = (-(HULL_HALF[1] + M_BODY + CORE_E), HULL_HALF[1] + M_BODY + CORE_E,
+               -(HULL_HALF[2] + M_BODY + CORE_E), HULL_HALF[2] + M_BODY + CORE_E)
+JOINT_MIN_GAP = 40.0  # each outline stays at least this far (cm) outside the core's rounded rectangle
+
+
+def _rot(c, s, deg):
+    """Direction (c, s) seen in a shape turned by deg (counter-clockwise, u right, v up)."""
+    a = math.radians(deg)
+    ca, sa = math.cos(a), math.sin(a)
+    return c * ca + s * sa, s * ca - c * sa
+
+
+def _jt_bed(c, s):
+    """Bedding-plane slot: wide and low, its flat roof and floor dipping 7 degrees to the
+    right with the beds, running on into thin wings that pinch out along the bed."""
+    c1, s1 = _rot(c, s, -7.0)
+    r = r_sel(c1, s1, 700.0, 640.0, 440.0, 438.0, 3.4)
+    r = max(r, r_wedge(s1, c1, 170.0, 1080.0, 0.05))
+    r = max(r, r_wedge(s1, -c1, 125.0, 880.0, -0.06))
+    return r
+
+
+def _jt_rift(c, s):
+    """Rift: tall and narrow, leaning 11 degrees to the right, tapering up into a roof
+    slot and down into a floor slot."""
+    c1, s1 = _rot(c, s, -9.0)
+    r = r_sel(c1, s1, 385.0, 395.0, 600.0, 545.0, 3.2)
+    r = max(r, r_wedge(c1, s1, 205.0, 1380.0, 0.10))
+    r = max(r, r_wedge(c1, -s1, 150.0, 830.0, -0.12))
+    return r
+
+
+def _jt_key(c, s):
+    """Keyhole: a wide phreatic tube, lower on the left, over a narrow trench that leans
+    as it cuts down (a vadose canyon under the old tube)."""
+    r = r_sel(c, s, 620.0, 570.0, 505.0, 440.0, 2.4)
+    r = max(r, r_wedge(c, -s, 190.0, 1200.0, 0.2))
+    return r
+
+
+_JT_FN = {'bed': (_jt_bed, 71), 'rift': (_jt_rift, 72), 'key': (_jt_key, 73)}
+_JT_CACHE = {}
+
+
+def joint_outline(t):
+    """Radii over ANG for joint type t: its base shape with a fixed, low-frequency jag, so
+    the outline is irregular but identical in every chunk."""
+    if t not in _JT_CACHE:
+        fn, seed = _JT_FN[t]
+        j = jag(random.Random(seed), lobes=(3, 4, 6, 7), amp=0.06)
+        r = [fn(c, s) * (1.0 + j[k]) for k, (c, s) in enumerate(ANG)]
+        # round the slot tips over about 2 degrees, so no tip is thinner than a voxel
+        for _ in range(2):
+            r = [sum(r[(k + d) % NA] for d in range(-5, 6)) / 11.0 for k in range(NA)]
+        _JT_CACHE[t] = r
+    return _JT_CACHE[t]
+
+
+def joint_r(t, th):
+    """Outline radius of joint type t at angle th (radians from the joint's side axis,
+    counter-clockwise toward up), interpolated between the ANG samples."""
+    tab = joint_outline(t)
+    f = ((th + 0.5 * math.pi) / (2.0 * math.pi) * NA) % NA
+    i = int(f)
+    a = f - i
+    return tab[i % NA] * (1.0 - a) + tab[(i + 1) % NA] * a
+
+
+def joint_margins(t):
+    """Smallest gap (cm) between type t's outline and the core's rounded rectangle at a
+    level joint, and the outline's extent (u0, u1, v0, v1)."""
+    tab = joint_outline(t)
+    gap = min(r - ray_rrect(c, s, JOINT_SLICE) for r, (c, s) in zip(tab, ANG))
+    us = [r * c for r, (c, s) in zip(tab, ANG)]
+    vs = [r * s for r, (c, s) in zip(tab, ANG)]
+    return gap, (min(us), max(us), min(vs), max(vs))
+
+
+def check_joint_types():
+    out = {}
+    for t in JOINT_TYPES:
+        gap, ext = joint_margins(t)
+        if gap < JOINT_MIN_GAP:
+            raise RuntimeError('joint type %s comes within %.1f cm of the core' % (t, gap))
+        out[t] = {'gap_cm': round(gap, 1), 'width_m': round((ext[1] - ext[0]) / 100.0, 2),
+                  'height_m': round((ext[3] - ext[2]) / 100.0, 2)}
+    return out
+
+
 class Sections:
     """Section shapes along a path. anchors: [(s, name)]; between two anchors with
     different names the radii blend smoothly. defs: name -> (fn(s) -> radii, floor kind, amp, varies)."""
@@ -398,7 +501,7 @@ class Sections:
         opens late, which leaves a lip over the joint."""
         if i not in self.jags:
             j = jag(random.Random(self.seed * 1000 + i), amp=0.26)
-            bias = -0.14 if na == 'neck' else (0.14 if nb == 'neck' else 0.0)
+            bias = -0.14 if na.startswith('j_') else (0.14 if nb.startswith('j_') else 0.0)
             if bias:
                 j = [max(-0.3, min(0.3, v + bias * max(0.0, ANG[k][1]))) for k, v in enumerate(j)]
             self.jags[i] = j
@@ -868,6 +971,72 @@ def rock_ellipsoid(c, r, rock, kind='silt', res=45.0, rot_yaw=0.0, amp=1.0, fade
     return verts, tris
 
 
+def warp_blob(vt, c, amp, base, seed):
+    """Push each vertex of a closed shape (verts, tris) along its ray from c by a
+    low-frequency noise, so a smooth ellipsoid becomes an uneven, worn chamber whose
+    bays and bulges grow out of one surface (overlapping ellipsoids meet in creases that
+    read as round holes from inside)."""
+    verts, tris = vt
+    cx, cy, cz = c
+    out = []
+    for v in verts:
+        dx, dy, dz = v.x - cx, v.y - cy, v.z - cz
+        d = math.sqrt(dx * dx + dy * dy + dz * dz) or 1.0
+        k = 1.0 + amp * fbm(2000.0 * dx / d, 2000.0 * dy / d, 2000.0 * dz / d, seed, base)
+        out.append(U.Vector(cx + dx * k, cy + dy * k, cz + dz * k))
+    return out, tris
+
+
+def bent_tube(pts, radii, seed, res=45.0, step=50.0, amp=0.14):
+    """Closed tube of water along a 3D polyline pts with radii at each point (linear
+    between), its rings perpendicular to the line (parallel transport) and its radius
+    varied by low-frequency noise: a water-worn shaft that bends."""
+    import bisect
+    acc = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        acc.append(acc[-1] + math.dist(a, b))
+    L = acc[-1]
+
+    def at(s):
+        i = min(len(pts) - 2, max(0, bisect.bisect_right(acc, s) - 1))
+        t = (s - acc[i]) / ((acc[i + 1] - acc[i]) or 1.0)
+        a, b = pts[i], pts[i + 1]
+        return tuple(a[k] + (b[k] - a[k]) * t for k in range(3)), radii[i] + (radii[i + 1] - radii[i]) * t
+
+    def norm(v):
+        l = math.sqrt(sum(x * x for x in v)) or 1.0
+        return tuple(x / l for x in v)
+
+    def cross(a, b):
+        return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+    ns = max(2, int(L / step))
+    n = max(24, int(2 * math.pi * max(radii) / res))
+    rings, cents = [], []
+    u = None
+    for i in range(ns + 1):
+        s = L * i / ns
+        c, R = at(s)
+        c2, _ = at(min(L, s + 60.0)); c1, _ = at(max(0.0, s - 60.0))
+        t = norm(tuple(c2[k] - c1[k] for k in range(3)))
+        if u is None:
+            u = norm(cross((0.0, 1.0, 0.0) if abs(t[1]) < 0.9 else (1.0, 0.0, 0.0), t))
+        else:
+            d = sum(u[k] * t[k] for k in range(3))
+            u = norm(tuple(u[k] - d * t[k] for k in range(3)))
+        v = cross(t, u)
+        ring = []
+        for j in range(n):
+            th = 2 * math.pi * j / n
+            ox = tuple(u[k] * math.cos(th) + v[k] * math.sin(th) for k in range(3))
+            p0 = tuple(c[k] + R * ox[k] for k in range(3))
+            r = R * (1.0 + amp * fbm(p0[0], p0[1], p0[2], seed, 700.0) + 0.04 * fbm(p0[0], p0[1], p0[2], seed + 5, 180.0))
+            ring.append(U.Vector(*(c[k] + r * ox[k] for k in range(3))))
+        rings.append(ring)
+        cents.append(c)
+    return ring_tube(rings, cents)
+
+
 def shaft(cx, cy, z0, z1, R, rock, res=50.0, flute=28.0, seed=0):
     """Vertical shaft of water: radius R plus outward-only relief (bed ledges and
     vertical flutes), so its clear diameter never drops below 2R."""
@@ -1253,84 +1422,99 @@ def plane_cut(mesh, point, normal):
     GS_B.apply_mesh_plane_cut(mesh, U.Transform(U.Vector(*point), rot, U.Vector(1, 1, 1)), po)
 
 
-def joint_frames(exit_t):
-    """Entry joint, and the exit joint unless the chunk ends in rock (exit None)."""
-    if exit_t is None:
-        return [((0.0, 0.0, 0.0), (1.0, 0.0))]
-    ex, ey, ez, eyaw = exit_t
-    (fx, fy), _ = yaw_dirs(eyaw)
-    return [((0.0, 0.0, 0.0), (1.0, 0.0)), ((ex, ey, ez), (fx, fy))]
+def joint_frames(exit_t, entry=True):
+    """Entry joint (unless the chunk starts the string), and the exit joint unless the
+    chunk ends in rock (exit None)."""
+    out = [((0.0, 0.0, 0.0), (1.0, 0.0))] if entry else []
+    if exit_t is not None:
+        ex, ey, ez, eyaw = exit_t
+        (fx, fy), _ = yaw_dirs(eyaw)
+        out.append(((ex, ey, ez), (fx, fy)))
+    return out
 
 
-def snap_joints(mesh, exit_t):
-    """Blend vertices within SNAP of each joint plane onto the exact joint circle."""
+def spec_joints(spec):
+    """[(centre, forward, type, sign)] for the chunk's joints. sign is +1 at the entry
+    (the chunk lies along +forward) and -1 at the exit."""
+    js = []
+    if spec.get('in'):
+        js.append(((0.0, 0.0, 0.0), (1.0, 0.0), spec['in'], 1.0))
+    if spec['exit'] is not None:
+        ex, ey, ez, eyaw = spec['exit']
+        (fx, fy), _ = yaw_dirs(eyaw)
+        js.append(((ex, ey, ez), (fx, fy), spec['out'], -1.0))
+    return js
+
+
+def snap_joints(mesh, joints):
+    """Blend vertices within SNAP of each joint plane onto the joint type's outline, along
+    rays from the joint centre; vertices on the plane land exactly on it."""
     GS_R.compact_mesh(mesh)
     res = GS_Q.get_all_vertex_positions(mesh, False)
     pts = list(GS_L.convert_vector_list_to_array(res[1]))
-    frames = joint_frames(exit_t)
     moved = 0
     for i, p in enumerate(pts):
-        for (cx, cy, cz), (fx, fy) in frames:
+        for (cx, cy, cz), (fx, fy), t, sg in joints:
             dx, dy, dz = p.x - cx, p.y - cy, p.z - cz
-            along = dx * fx + dy * fy           # distance from the plane, + into the chunk at entry
-            if (cx, cy, cz) != (0.0, 0.0, 0.0):
-                along = -along                  # at the exit, + points back into the chunk
+            a0 = dx * fx + dy * fy
+            along = sg * a0                     # distance from the plane, + into the chunk
             if along > SNAP or along < -1.0:
                 continue
-            lx, ly = dx - along * (fx if (cx, cy, cz) == (0.0, 0.0, 0.0) else -fx), dy - along * (fy if (cx, cy, cz) == (0.0, 0.0, 0.0) else -fy)
-            r = math.sqrt(lx * lx + ly * ly + dz * dz)
-            if r < 1.0 or r > 900.0:
+            lat = -dx * fy + dy * fx
+            r = math.hypot(lat, dz)
+            if r < 1.0:
+                continue
+            R = joint_r(t, math.atan2(dz, lat))
+            if r > R + 450.0:
                 continue
             w = 1.0 - smooth(max(along, 0.0) / SNAP)
-            k = (r + (JOINT_R - r) * w) / r
-            base_x, base_y = cx + (dx - lx), cy + (dy - ly)
-            if along <= 0.5:
-                # exactly on the plane: put it on the plane too
-                base_x, base_y = cx, cy
-            pts[i] = U.Vector(base_x + lx * k, base_y + ly * k, cz + dz * k)
+            k = (r + (R - r) * w) / r
+            bx, by = (cx, cy) if along <= 0.5 else (cx + a0 * fx, cy + a0 * fy)
+            pts[i] = U.Vector(bx - fy * lat * k, by + fx * lat * k, cz + dz * k)
             moved += 1
             break
     GS_E.set_all_mesh_vertex_positions(mesh, GS_L.convert_array_to_vector_list(pts))
     return moved
 
 
-JOINT_N = 720         # rim vertices at every joint, evenly spaced: both chunks get the same polygon
+JOINT_N = 720         # rim vertices at every joint, evenly spaced in angle: both chunks get the same polygon
 
 
-def conform_rims(mesh, exit_t, n=JOINT_N, tol=0.5):
-    """Give every joint rim the same canonical polygon: n vertices evenly spaced on the
-    joint circle, counted from the joint's side axis.
+def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
+    """Give every joint rim the same canonical polygon: n vertices on the type's outline at
+    even angles, counted from the joint's side axis.
 
-    Each chunk is cut at its joints on its own, so its rim was its own polygon inscribed in
-    the 9 m circle. Where one rim's edge cut inside the other's, a sliver up to ~0.3 cm wide
-    opened, and the background (or, with a patch behind it, an unlit crack) showed through
-    as a dashed hairline round the joint. Here each rim vertex moves along the circle to the
-    nearest canonical angle (an order-keeping map, so no triangle flips), and each rim edge
-    that spans several canonical angles gets the missing vertices, its triangle becoming a
-    fan. Both sides of a joint then share their rim edge for edge. Returns the new mesh and
-    per-joint numbers; raises if a rim does not go once round the circle, one way."""
+    Each chunk is cut at its joints on its own, so its rim was its own polygon. Where one
+    rim's edge cut inside the other's, a sliver up to ~0.3 cm wide opened, and the
+    background showed through as a dashed hairline round the joint. Here each rim vertex
+    moves along the outline to the nearest canonical angle (an order-keeping map, so no
+    triangle flips), and each rim edge that spans several canonical angles gets the
+    missing vertices, its triangle becoming a fan. Both sides of a joint then share their
+    rim edge for edge. Returns the new mesh and per-joint numbers; raises if a rim does
+    not go once round, one way."""
     GS_R.compact_mesh(mesh)
     pts = [(q.x, q.y, q.z) for q in GS_L.convert_vector_list_to_array(GS_Q.get_all_vertex_positions(mesh, False)[1])]
     tris = [(t.x, t.y, t.z) for t in GS_L.convert_triangle_list_to_array(GS_Q.get_all_triangle_indices(mesh, False)[1])]
-    frames = joint_frames(exit_t)
     step = 2.0 * math.pi / n
 
     def canon(j, k):
-        (cx, cy, cz), (fx, fy) = frames[j]
+        (cx, cy, cz), (fx, fy), t, sg = joints[j]
         ang = k * step
-        c, s = JOINT_R * math.cos(ang), JOINT_R * math.sin(ang)
+        R = joint_r(t, ang)
+        c, s = R * math.cos(ang), R * math.sin(ang)
         return (cx - fy * c, cy + fx * c, cz + s)
 
     ring = {}
     for i, (x, y, z) in enumerate(pts):
-        for j, ((cx, cy, cz), (fx, fy)) in enumerate(frames):
+        for j, ((cx, cy, cz), (fx, fy), t, sg) in enumerate(joints):
             dx, dy, dz = x - cx, y - cy, z - cz
             if abs(dx * fx + dy * fy) > tol:
                 continue
             lat = -dx * fy + dy * fx
-            if abs(math.hypot(lat, dz) - JOINT_R) > 1.0:
+            th = math.atan2(dz, lat)
+            if abs(math.hypot(lat, dz) - joint_r(t, th)) > 1.0:
                 continue
-            ring[i] = (j, int(round(math.atan2(dz, lat) / step)) % n)
+            ring[i] = (j, int(round(th / step)) % n)
             break
     for i, (j, k) in ring.items():
         pts[i] = canon(j, k)
@@ -1344,11 +1528,11 @@ def conform_rims(mesh, exit_t, n=JOINT_N, tol=0.5):
                 d = (ring[v][1] - ring[u][1] + n // 2) % n - n // 2
                 rim.append((ring[u][0], u, v, d))
     stats = []
-    for j in range(len(frames)):
+    for j in range(len(joints)):
         ds = [d for (jj, u, v, d) in rim if jj == j]
         turn = sum(ds)
         back = sum(1 for d in ds if d * turn < 0)
-        st = {'ring_verts': sum(1 for (jj, k) in ring.values() if jj == j), 'rim_edges': len(ds),
+        st = {'type': joints[j][2], 'ring_verts': sum(1 for (jj, k) in ring.values() if jj == j), 'rim_edges': len(ds),
               'collapsed': ds.count(0), 'back': back, 'turn': turn}
         if abs(turn) != n or back:
             raise RuntimeError('joint %d rim is not one clean turn: %s' % (j, st))
@@ -1434,14 +1618,16 @@ def build_mesh(spec, cell):
     rs.min_triangle_count = 200
     GS_R.remove_small_components(m, rs)
     note('small')
-    plane_cut(m, (0, 0, 0), (-1, 0, 0))
+    if spec.get('in'):
+        plane_cut(m, (0, 0, 0), (-1, 0, 0))
     if spec['exit'] is not None:
         ex, ey, ez, eyaw = spec['exit']
         (fx, fy), _ = yaw_dirs(eyaw)
         plane_cut(m, (ex, ey, ez), (fx, fy, 0))
     note('cut')
-    moved = snap_joints(m, spec['exit'])
-    m, spec['rim'] = conform_rims(m, spec['exit'])
+    joints = spec_joints(spec)
+    moved = snap_joints(m, joints)
+    m, spec['rim'] = conform_rims(m, joints)
     finish(m)
     return m, time.time() - t0, moved
 
@@ -1452,7 +1638,7 @@ def core_exposure(mesh, spec, tol=4.0):
     core = spec['core']
     res = GS_Q.get_all_vertex_positions(mesh, False)
     pts = GS_L.convert_vector_list_to_array(res[1])
-    frames = joint_frames(spec['exit'])
+    frames = joint_frames(spec['exit'], bool(spec.get('in')))
     n = bad = 0
     mn = (1e9, None)
     for q in pts:
@@ -1472,12 +1658,12 @@ def core_exposure(mesh, spec, tol=4.0):
 
 
 # ---------------------------------------------------------------- chunk specs
-def joint_fade(p, exit_t, inner=40.0, outer=200.0):
+def joint_fade(p, exit_t, inner=40.0, outer=200.0, entry=True):
     """0 at either joint plane, 1 from 2 m in. Round 3 faded the rock out over 2.5 to
     6.5 m, which left a smooth ringed throat at every joint; the snap and the rim match
     only need the last 1.5 m."""
     best = 1.0
-    for (cx, cy, cz), (fx, fy) in joint_frames(exit_t):
+    for (cx, cy, cz), (fx, fy) in joint_frames(exit_t, entry):
         dx, dy, dz = p[0] - cx, p[1] - cy, p[2] - cz
         along = abs(dx * fx + dy * fy)
         lat = math.sqrt(max(0.0, dx * dx + dy * dy + dz * dz - along * along))
@@ -1492,6 +1678,9 @@ def section_defs(seed):
     ph = [rnd.uniform(0.0, 2 * math.pi) for _ in range(8)]
     return {
         'neck': (lambda s: sec_neck(), 'silt', 1.0, False),
+        'j_bed': (lambda s: joint_outline('bed'), 'silt', 1.0, False),
+        'j_rift': (lambda s: joint_outline('rift'), 'rock', 1.0, False),
+        'j_key': (lambda s: joint_outline('key'), 'rock', 1.0, False),
         'round': (lambda s: sec_round(), 'silt', 0.9, False),
         'phreatic': (lambda s: sec_phreatic(0.12 * math.sin(s / 600.0 + ph[7]), 0.85 + 0.25 * math.sin(s / 450.0 + ph[2])),
                      'silt', 1.0, True),
@@ -1519,15 +1708,15 @@ def straight_core(L, m=M_BODY):
 
 
 def spec_A(shapes=True):
-    """Straight 30 m tunnel: neck, canyon, keyhole, neck."""
+    """Straight 30 m tunnel: a rift joint, canyon, keyhole, a keyhole joint."""
     L = 3000.0
     ex = (L, 0.0, 0.0, 0.0)
-    spec = {'name': 'A', 'type': 'tunnel', 'exit': ex}
+    spec = {'name': 'A', 'type': 'tunnel', 'exit': ex, 'in': 'rift', 'out': 'key'}
     if not shapes:
         return spec
     p, s_list, slices, core = straight_core(L)
-    secs = Sections([(-EXT, 'neck'), (130.0, 'neck'), (650.0, 'canyon'), (1350.0, 'canyon'), (1750.0, 'keyhole'),
-                     (2300.0, 'keyhole'), (2870.0, 'neck'), (L + EXT, 'neck')], section_defs(11), seed=11)
+    secs = Sections([(-EXT, 'j_rift'), (100.0, 'j_rift'), (750.0, 'canyon'), (1350.0, 'canyon'), (1750.0, 'keyhole'),
+                     (2250.0, 'keyhole'), (2900.0, 'j_key'), (L + EXT, 'j_key')], section_defs(11), seed=11)
     rock = Rock(11)
     fade = lambda q: joint_fade(q, ex)
     sh = Shapes(11)
@@ -1540,17 +1729,17 @@ def spec_A(shapes=True):
 
 
 def spec_B(shapes=True):
-    """Straight 30 m wide, low chamber between two necks: breakdown on a silt floor, domes."""
+    """Straight 30 m wide, low chamber that flares from a rift joint and narrows to a
+    bedding-plane joint: breakdown on a silt floor, domes."""
     L = 3000.0
     ex = (L, 0.0, 0.0, 0.0)
-    spec = {'name': 'B', 'type': 'cavern', 'exit': ex}
+    spec = {'name': 'B', 'type': 'cavern', 'exit': ex, 'in': 'rift', 'out': 'bed'}
     if not shapes:
         return spec
     p, s_list, slices, core = straight_core(L)
     # each joint sits a few metres back down a rough throat that flares raggedly into the hall
-    secs = Sections([(-EXT, 'neck'), (60.0, 'neck'), (300.0, 'throat'), (430.0, 'throat'), (1250.0, 'hall'),
-                     (1750.0, 'hall'), (2570.0, 'throat'), (2700.0, 'throat'), (2940.0, 'neck'), (L + EXT, 'neck')],
-                    section_defs(22), seed=22)
+    secs = Sections([(-EXT, 'j_rift'), (80.0, 'j_rift'), (1150.0, 'hall'), (1800.0, 'hall'), (2920.0, 'j_bed'),
+                     (L + EXT, 'j_bed')], section_defs(22), seed=22)
     rock = Rock(22)
     fade = lambda q: joint_fade(q, ex)
     rnd = random.Random(22)
@@ -1573,7 +1762,8 @@ def spec_B(shapes=True):
     # silt floor: rock below about z = -500, rising to -470 over the last 4+ m before each neck
     def top(x, y):
         rise = 1.0 - min(sstep(350, 1000, x), 1.0 - sstep(2000, 2650, x))
-        return -505.0 + 35.0 * rise + 22.0 * fbm(x, y, 0, 23, 300.0)
+        slot = 1.0 - sstep(150.0, 950.0, x)
+        return -505.0 + 35.0 * rise - 420.0 * slot + 22.0 * fbm(x, y, 0, 23, 300.0)
     sh.add(heightfield(150, 2850, -1700, 1700, -1400, top), True)
     # breakdown: angular blocks, a few big ones at the sides, all clear of the core
     nb = 0
@@ -1635,7 +1825,7 @@ def spec_T1(shapes=True):
     p = t1_path()
     L = p.length
     ex = t1_exit()
-    spec = {'name': 'T1', 'type': 'tunnel', 'exit': ex, 'path': p, 'squeeze': T1_SQUEEZE}
+    spec = {'name': 'T1', 'type': 'tunnel', 'exit': ex, 'path': p, 'squeeze': T1_SQUEEZE, 'in': 'key', 'out': 'bed'}
     if not shapes:
         return spec
     q0, q1 = T1_SQUEEZE
@@ -1643,9 +1833,9 @@ def spec_T1(shapes=True):
     slices = [core_slice(p, s, t1_margin) for s in s_list]
     core = Core()
     core.add_tube(p, s_list, slices)
-    secs = Sections([(-EXT, 'neck'), (130.0, 'neck'), (700.0, 'canyon'), (1000.0, 'canyon'), (q0, 'rift'), (q1, 'rift'),
+    secs = Sections([(-EXT, 'j_key'), (100.0, 'j_key'), (750.0, 'canyon'), (1000.0, 'canyon'), (q0, 'rift'), (q1, 'rift'),
                      (2900.0, 'keyhole'), (3650.0, 'keyhole'), (4050.0, 'canyon'), (6050.0, 'canyon'), (6350.0, 'widelow'),
-                     (8200.0, 'widelow'), (8650.0, 'phreatic'), (9050.0, 'phreatic'), (L - 130.0, 'neck'), (L + EXT, 'neck')],
+                     (8200.0, 'widelow'), (8650.0, 'phreatic'), (9000.0, 'phreatic'), (L - 100.0, 'j_bed'), (L + EXT, 'j_bed')],
                     section_defs(33), seed=33)
     rock = Rock(33)
     fade = lambda q: joint_fade(q, ex)
@@ -1719,9 +1909,9 @@ def spec_C1(shapes=True):
     salvage.append(('pile', C1_PILE, C1_PARK_Z + 300.0))
     salvage.append(('floor', (cx + 700.0, cy + 600.0), C1_PARK_Z))
     salvage.append(('pocket', (cx - 900.0, 1000.0), C1_PARK_Z))
-    spec = {'name': 'C1', 'type': 'stop', 'exit': ex,
+    spec = {'name': 'C1', 'type': 'stop', 'exit': ex, 'in': 'bed', 'out': 'rift',
             'sockets': {'Park': (cx, cy, C1_PARK_Z, 0.0), 'Serpent': (cx + 400.0, -1750.0, -1500.0, 90.0)},
-            'salvage': salvage}
+            'salvage': salvage, 'col': C1_COL}
     if not shapes:
         return spec
     rnd = random.Random(44)
@@ -1732,15 +1922,14 @@ def spec_C1(shapes=True):
     defs = section_defs(44)
     # entry tunnel, level, opening into the chamber
     pin = Path().straight(cx)
-    secs_in = Sections([(-EXT, 'neck'), (130.0, 'neck'), (750.0, 'keyhole'), (cx, 'keyhole')], defs, seed=44)
+    secs_in = Sections([(-EXT, 'j_bed'), (100.0, 'j_bed'), (850.0, 'keyhole'), (cx, 'keyhole')], defs, seed=44)
     tv, info_in = tunnel(pin, secs_in, rock, ring_s(-EXT, cx), core=core, fade=fade)
     sh.add(tv)
     # exit tunnel from the column axis, level at Park height
     pout = Path(cx, cy, C1_EXIT_YAW).straight(C1_EXIT_RUN)
     pout.zf = lambda s: C1_PARK_Z
-    secs_out = Sections([(500.0, 'phreatic'), (1500.0, 'phreatic'), (1850.0, 'widelow'), (2150.0, 'widelow'),
-                         (C1_EXIT_RUN - 470.0, 'throat'), (C1_EXIT_RUN - 300.0, 'throat'),
-                         (C1_EXIT_RUN - 60.0, 'neck'), (C1_EXIT_RUN + EXT, 'neck')], defs, seed=45)
+    secs_out = Sections([(500.0, 'phreatic'), (1500.0, 'phreatic'), (1850.0, 'widelow'), (2250.0, 'widelow'),
+                         (C1_EXIT_RUN - 100.0, 'j_rift'), (C1_EXIT_RUN + EXT, 'j_rift')], defs, seed=45)
     # the mouth's lips stand inside the 9 m circle, so near the exit the wall keeps the same
     # uneven gap round the hull's swept box as the straight chunks do
     s_out = ring_s(500.0, C1_EXIT_RUN + EXT)
@@ -1824,7 +2013,7 @@ def spec_E(shapes=True):
     passage that closes down over 15 m, with a breakdown choke. One joint (its entry); no
     exit. The core covers only the hull's nose when the hull stands at B's exit."""
     L = E_LEN
-    spec = {'name': 'E', 'type': 'end', 'exit': None}
+    spec = {'name': 'E', 'type': 'end', 'exit': None, 'in': 'bed', 'out': None}
     if not shapes:
         return spec
     # the passage turns 50 degrees before it closes, so from the joint the eye meets the
@@ -1840,8 +2029,7 @@ def spec_E(shapes=True):
     defs = section_defs(55)
     # no snap of the roof to a bedding plane: it would hold the roof flat and open (a slot)
     defs['pinch'] = (lambda s: sec_pinch(max(0.0, min(1.0, (s - q0) / (q1 - q0)))), 'silt', 1.0, False)
-    secs = Sections([(-EXT, 'neck'), (60.0, 'neck'), (300.0, 'throat'), (430.0, 'throat'), (q0, 'pinch'), (L, 'pinch')],
-                    defs, seed=55)
+    secs = Sections([(-EXT, 'j_bed'), (80.0, 'j_bed'), (q0, 'pinch'), (L, 'pinch')], defs, seed=55)
     rock = Rock(55)
     fade = lambda q: joint_fade(q, None)
     sh = Shapes(55)
@@ -1869,7 +2057,85 @@ def spec_E(shapes=True):
     return spec
 
 
-SPECS = {'A': spec_A, 'B': spec_B, 'T1': spec_T1, 'C1': spec_C1, 'E': spec_E}
+S_LEN = 4200.0          # Park to the exit joint
+S_DROP = (900.0, 3300.0, -250.0)   # cosine drop of 2.5 m on the way out: 9.3 deg at most, level at the joint
+S_FLOOR = -545.0        # silt under the berth: keel gap 2.95 m, as in C1
+S_SERPENT = (2400.0, -1950.0, 100.0, 90.0)
+
+
+def s_path():
+    p = Path().straight(S_LEN)
+    d0, d1, dz = S_DROP
+
+    def zf(s):
+        if s <= d0: return 0.0
+        if s >= d1: return dz
+        return 0.5 * dz * (1.0 - math.cos(math.pi * (s - d0) / (d1 - d0)))
+    p.zf = zf
+    return p
+
+
+def spec_S(shapes=True):
+    """Start cavern: runs begin here, the sub at its berth (Park, the chunk's origin) with
+    its nose toward the way on. One calm chamber, no squeeze and no breakdown: smooth
+    water-worn walls, a flat silt floor, the chimney the sub came down in the roof above
+    the berth (it narrows and bends out of sight), a Serpent alcove far from the berth, and
+    the exit passage's mouth about 26 m ahead of the bow and a little lower, which runs
+    down to a rift joint. No entry joint."""
+    p = s_path()
+    L = p.length
+    ex = (S_LEN, 0.0, S_DROP[2], 0.0)
+    salvage = [('floor_ahead', (1050.0, 800.0), -300.0), ('floor_left', (-850.0, -750.0), -300.0),
+               ('floor_far', (1800.0, -650.0), -300.0), ('floor_back', (-450.0, 1250.0), -300.0)]
+    spec = {'name': 'S', 'type': 'start', 'exit': ex, 'in': None, 'out': 'rift', 'path': p,
+            'sockets': {'Park': (0.0, 0.0, 0.0, 0.0), 'Serpent': S_SERPENT}, 'salvage': salvage, 'col': (0.0, 0.0)}
+    if not shapes:
+        return spec
+    # the core: the hull at the berth and along the way out (capped behind the berth)
+    s_list = ring_s(-1000.0, L + EXT)
+    slices = [None if s < -880.0 else core_slice(p, s, lambda q: M_BODY) for s in s_list]
+    core = Core()
+    core.add_tube(p, s_list, slices)
+    # C1's bedded rock with its blocks worn down: water-worn, not blocky
+    rock = Rock(66, a_res=32.0, a_var=30.0, a_blk=8.0, a_notch=10.0, a_fine=8.0)
+    fade = lambda q: joint_fade(q, ex, entry=False)
+    sh = Shapes(66)
+    # chamber: one worn ellipsoid, warped at low frequency so its bays and bulges grow out
+    # of one surface (Round 5's first try, six overlapping ellipsoids, met in creases that
+    # read as round holes from inside)
+    sh.add(warp_blob(rock_ellipsoid((300.0, 0.0, 0.0), (2700.0, 1900.0, 1000.0), rock, 'silt', res=45.0, rot_yaw=6.0,
+                                    fade=fade, core=core), (300.0, 0.0, 0.0), 0.16, 1500.0, 661))
+    # the chimney over the berth: a worn shaft that narrows as it climbs and bends away,
+    # so from below its end is out of sight
+    sh.add(bent_tube([(-100.0, 150.0, 600.0), (-60.0, 180.0, 1500.0), (250.0, 450.0, 2250.0), (850.0, 800.0, 2700.0),
+                      (1350.0, 950.0, 2850.0)], [620.0, 540.0, 420.0, 330.0, 300.0], seed=67))
+    # the Serpent's bay off the -Y wall, far from the berth
+    sx, sy, sz, _ = S_SERPENT
+    sh.add(warp_blob(rock_ellipsoid((sx - 50.0, sy + 150.0, sz - 20.0), (780.0, 680.0, 470.0), rock, 'silt', res=40.0,
+                                    rot_yaw=-25.0, amp=0.6), (sx - 50.0, sy + 150.0, sz - 20.0), 0.14, 700.0, 662))
+    # the mouth: two worn blobs straddle the chamber wall and the passage's first metres, so
+    # the mouth is a ragged funnel and not the passage's section cut clean in the wall
+    for c, r, yaw, sd in (((2650.0, 180.0, -260.0), (750.0, 1150.0, 640.0), 12.0, 663),
+                          ((3250.0, -150.0, -330.0), (620.0, 820.0, 520.0), -18.0, 664)):
+        sh.add(warp_blob(rock_ellipsoid(c, r, rock, 'silt', res=40.0, rot_yaw=yaw, amp=0.6, core=core), c, 0.24, 600.0, sd))
+    # the way on: a wide, low passage that starts inside the chamber (so the chamber's wall
+    # makes its mouth) and narrows to the rift joint
+    s_t = ring_s(2300.0, L + EXT)
+    sl_t = [core_slice(p, s, lambda q: M_BODY) for s in s_t]
+    secs = Sections([(2300.0, 'widelow'), (3100.0, 'widelow'), (L - 100.0, 'j_rift'), (L + EXT, 'j_rift')],
+                    section_defs(66), seed=66)
+    tv, info = tunnel(p, secs, rock, s_t, slices=sl_t, fade=fade)
+    sh.add(tv)
+    # flat silt floor, easing down to the passage floor at the mouth
+    def top(x, y):
+        return min(S_FLOOR - 160.0 * sstep(800.0, 2400.0, x), p.zf(x) - 500.0) + 14.0 * fbm(x, y, 0, 67, 350.0)
+    sh.add(heightfield(-1800, 3600, -2200, 2200, -1600, top), True)
+    sh.core.extend(core.meshes())
+    spec.update({'shapes': sh, 'core': core, 'notes': {'rings': len(info)}})
+    return spec
+
+
+SPECS = {'S': spec_S, 'A': spec_A, 'B': spec_B, 'T1': spec_T1, 'C1': spec_C1, 'E': spec_E}
 
 
 def meta(name):
