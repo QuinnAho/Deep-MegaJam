@@ -4,6 +4,7 @@
 // sonar ping, as the V key does (in the water, after the cooldown).
 
 #include "CoreMinimal.h"
+#include "Camera/DeepCameraRules.h"
 #include "Camera/DeepCameraSubsystem.h"
 #include "Debug/DeepStateReport.h"
 #include "Diver/DeepDiver.h"
@@ -52,7 +53,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs TestPingCommand(
 		TEXT("Deep.Camera.TestPing"),
-		TEXT("Deep.Camera.TestPing [rangeM]: draws a sonar pulse from the sub (or the camera if there is no sub) over rangeM (default: the sonar range)."),
+		TEXT("Deep.Camera.TestPing [rangeM]: draws a sonar pulse from the sub (or the camera if there is no sub) over rangeM (default: the helm range of the current Deep.Sonar.Style)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			UDeepCameraSubsystem* Camera = UDeepCameraSubsystem::Get(World);
@@ -61,7 +62,9 @@ namespace
 				UE_LOG(LogTemp, Warning, TEXT("Deep.Camera.TestPing needs a game world"));
 				return;
 			}
-			const float RangeM = Args.Num() > 0 ? FCString::Atof(*Args[0]) : UDeepTuningSettings::Get().Sonar.RangeM;
+			const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+			const float RangeM = Args.Num() > 0 ? FCString::Atof(*Args[0])
+				: DeepCameraRules::HelmPulseRangeM(DeepCameraRules::PulseLook(Tuning.Camera, UDeepCameraSubsystem::GetSonarStyle()), Tuning.Sonar.RangeM, Tuning.Camera);
 			FVector Origin = FVector::ZeroVector;
 			TActorIterator<ADeepSubmarine> Sub(World);
 			if (Sub)

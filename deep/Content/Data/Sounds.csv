@@ -62,7 +62,7 @@
 "music_settlement","music","/Game/DeepAudio/Music/music_settlement","",0.8,1.0,1,"Settlement receipt"
 "music_sting_serpent","music","/Game/DeepAudio/Music/music_sting_serpent","",1.0,1.0,0,"Once, the first time the serpent is seen"
 "music_win","music","/Game/DeepAudio/Music/music_win","",1.0,1.0,0,"The relic banked"
-"sonar_ping","sfx","","sonar_ping",0.5,1.0,0,"Helm sonar: once per sweep (Sonar lane)"
+"sonar_ping","sfx","","sonar_ping",0.28,1.0,0,"Helm sonar: a soft ping every Sonar.PingPeriodS (Deep.Sonar.Style 0: every sweep); jam sound kept as builtin sonar_ping_jam"
 "sonar_near","ui","","sonar_tick",0.45,1.0,0,"Helm sonar: proximity beep, quicker and higher as a wall closes"
 "hull_damage","sfx","","clank",0.45,0.55,0,"Rock scraping along the hull in the cave shaft"
 "hull_hit","sfx","","clank",0.85,0.75,0,"Knocked into the shaft wall"

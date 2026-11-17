@@ -54,6 +54,35 @@ FDeepCameraTuning::FDeepCameraTuning()
 	// Handheld: well under a degree, about one drift every three seconds. Endless; eases in over a second.
 	Sway = Spec(0.6f, 0.35f, 0.35f, 0.f, 1.0f, 0.6f);
 	Sway.RollScale = 0.6f;
+
+	// The sonar pulse. The jam's look (D-041): amber, a hard bright band, a dense grid lingering 2 s, every sweep.
+	PulseJam.Color = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
+	PulseJam.Seconds = 1.5f;
+	PulseJam.BandM = 0.6f;
+	PulseJam.BandLead = 0.35f;
+	PulseJam.BandIntensity = 0.9f;
+	PulseJam.DotSpacingM = 0.35f;
+	PulseJam.DotIntensity = 0.35f;
+	PulseJam.DotFadeS = 2.f;
+	PulseJam.HelmRangeM = 0.f;
+	PulseJam.DiverGain = 1.f;
+	PulseJam.SerpentBandGain = 1.f;
+	PulseJam.RangeFade = 0.f;
+
+	// Soft (Nov 17): the sub's ambient strip colour (#BFE3EA, cool and low), a thin dim band with a soft front that
+	// loses strength as it travels, sparse faint dots gone in 0.8 s. The serpent's outline still catches the band.
+	PulseSoft.Color = FLinearColor(FColor(0xBF, 0xE3, 0xEA));
+	PulseSoft.Seconds = 1.5f;
+	PulseSoft.BandM = 0.35f;
+	PulseSoft.BandLead = 1.f;
+	PulseSoft.BandIntensity = 0.45f;
+	PulseSoft.DotSpacingM = 0.8f;
+	PulseSoft.DotIntensity = 0.16f;
+	PulseSoft.DotFadeS = 0.8f;
+	PulseSoft.HelmRangeM = 50.f;
+	PulseSoft.DiverGain = 1.6f;
+	PulseSoft.SerpentBandGain = 2.5f;
+	PulseSoft.RangeFade = 0.45f;
 }
 
 FDeepShakeSpec DeepCameraRules::ShakeForEvent(FName Event, const FDeepCameraTuning& Tuning)
@@ -164,15 +193,35 @@ FVector2D DeepCameraRules::FootageGrain(float DepthM, const FDeepCameraTuning& T
 		FMath::Lerp(Tuning.FootageGrainShadows.X, Tuning.FootageGrainShadows.Y, T));
 }
 
-float DeepCameraRules::PulseRadiusCm(float AgeS, float RangeM, const FDeepCameraTuning& Tuning)
+const FDeepPulseLook& DeepCameraRules::PulseLook(const FDeepCameraTuning& Tuning, int32 Style)
 {
-	const float T = Tuning.PulseSeconds > 0.f ? FMath::Clamp(AgeS / Tuning.PulseSeconds, 0.f, 1.f) : 1.f;
+	return Style == 0 ? Tuning.PulseJam : Tuning.PulseSoft;
+}
+
+float DeepCameraRules::HelmPulseRangeM(const FDeepPulseLook& Look, float SonarRangeM, const FDeepCameraTuning& Tuning)
+{
+	if (Look.HelmRangeM > 0.f)
+	{
+		return Look.HelmRangeM;
+	}
+	return SonarRangeM > 0.f ? SonarRangeM : Tuning.PulseRangeM;
+}
+
+float DeepCameraRules::PulseRadiusCm(float AgeS, float RangeM, const FDeepPulseLook& Look)
+{
+	const float T = Look.Seconds > 0.f ? FMath::Clamp(AgeS / Look.Seconds, 0.f, 1.f) : 1.f;
 	return T * FMath::Max(0.f, RangeM) * UDeepRules::CmPerM;
 }
 
-bool DeepCameraRules::IsPulseLive(float AgeS, const FDeepCameraTuning& Tuning)
+bool DeepCameraRules::IsPulseLive(float AgeS, const FDeepPulseLook& Look)
 {
-	return AgeS >= 0.f && AgeS < FMath::Max(0.f, Tuning.PulseSeconds) + FMath::Max(0.f, Tuning.PulseDotFadeS);
+	return AgeS >= 0.f && AgeS < FMath::Max(0.f, Look.Seconds) + FMath::Max(0.f, Look.DotFadeS);
+}
+
+float DeepCameraRules::PulseRangeFall(float DistanceM, float RangeM, const FDeepPulseLook& Look)
+{
+	const float T = RangeM > 0.f ? FMath::Clamp(DistanceM / RangeM, 0.f, 1.f) : 1.f;
+	return 1.f - FMath::Clamp(Look.RangeFade, 0.f, 1.f) * T * T;
 }
 
 bool DeepCameraRules::CanDiverPing(float NowS, float LastPingS, bool bInWater, const FDeepCameraTuning& Tuning)
@@ -185,17 +234,17 @@ float DeepCameraRules::DiverPingWaitS(float NowS, float LastPingS, const FDeepCa
 	return LastPingS < 0.f ? 0.f : FMath::Max(0.f, LastPingS + FMath::Max(0.f, Tuning.DiverPingCooldownS) - NowS);
 }
 
-float DeepCameraRules::PulseBandCm(float EyeCm, const FDeepCameraTuning& Tuning)
+float DeepCameraRules::PulseBandCm(float EyeCm, const FDeepPulseLook& Look, const FDeepCameraTuning& Tuning)
 {
 	const float FarCm = FMath::Max(1.f, Tuning.PulseBandFarM * UDeepRules::CmPerM);
-	return Tuning.PulseBandM * UDeepRules::CmPerM * FMath::Max(1.f, EyeCm / FarCm);
+	return Look.BandM * UDeepRules::CmPerM * FMath::Max(1.f, EyeCm / FarCm);
 }
 
-float DeepCameraRules::PulseDotSpacingCm(float EyeCm, const FDeepCameraTuning& Tuning)
+float DeepCameraRules::PulseDotSpacingCm(float EyeCm, const FDeepPulseLook& Look, const FDeepCameraTuning& Tuning)
 {
 	const float NearCm = FMath::Max(1.f, Tuning.PulseDotNearM * UDeepRules::CmPerM);
 	const float Tier = FMath::Exp2(FMath::Max(0.f, FMath::FloorToFloat(FMath::Log2(FMath::Max(EyeCm, 1.f) / NearCm))));
-	return Tuning.PulseDotSpacingM * UDeepRules::CmPerM * Tier;
+	return Look.DotSpacingM * UDeepRules::CmPerM * Tier;
 }
 
 float DeepCameraRules::InterferenceTarget(float SerpentDistanceM, bool bBiting, float BurstLeftS, const FDeepCameraTuning& Tuning)

@@ -45,9 +45,10 @@ if (max(q.x, max(q.y, q.z)) < 1.0)
 {
     return scene;
 }
-// The shell: a sharp leading edge, a short trail behind it; gone once the shell has reached its range.
+// The shell: a leading edge BandLead of the trail (0.35 hard, 1 soft), a trail behind it; gone once the shell has
+// reached its range.
 float ahead = d - RadiusCm;
-float band = ahead > 0.0 ? saturate(1.0 - ahead / (bandCm * 0.35)) : exp(ahead / bandCm);
+float band = ahead > 0.0 ? saturate(1.0 - ahead / (bandCm * max(BandLead, 0.05))) : exp(ahead / bandCm);
 band *= saturate((ShellS - AgeS) / 0.15) * saturate(RadiusCm / 200.0);
 // Lidar dots: a world grid on the surface's dominant plane, lit when the shell passes and fading after. Past DotNearCm
 // the grid doubles its spacing each time the distance doubles (PulseDotSpacingCm); the coarse grid is every other
@@ -67,7 +68,11 @@ float farFade = 1.0 - smoothstep(DotFarCm * 0.8, DotFarCm, depth);
 // The serpent writes custom depth: where it is the nearest surface it shows only the band, never the dots.
 float serpent = CustomDepth.r < depth + 5.0 ? 1.0 : 0.0;
 float dots = dotMask * dotFade * farFade * (1.0 - serpent);
-return scene + Color.rgb * Intensity * (band * BandIntensity + dots * DotIntensity);
+// The serpent's outline catches the band harder (SerpentBand); the shell loses strength as it travels (RangeFade).
+band *= lerp(1.0, SerpentBand, serpent);
+float travel = saturate(d / max(MaxRadiusCm, 1.0));
+float fall = 1.0 - saturate(RangeFade) * travel * travel;
+return scene + Color.rgb * Intensity * fall * (band * BandIntensity + dots * DotIntensity);
 """
 
 LENS_HLSL = r"""
@@ -162,6 +167,7 @@ def build_pulse():
     post_process(mat, 0)
     inputs = ["WP", "Depth", "CustomDepth", "Normal", "Scene", "Origin", "RadiusCm", "MaxRadiusCm", "StartCm", "BandCm",
               "AgeS", "ShellS", "SpeedCmPerS", "DotFadeS", "SpacingCm", "DotFarCm", "BandFarCm", "DotNearCm", "BandIntensity", "DotIntensity",
+              "BandLead", "SerpentBand", "RangeFade",
               "Intensity", "Color", "HullCentre", "HullX", "HullY", "HullZ"]
     pulse = custom(mat, PULSE_HLSL, unreal.CustomMaterialOutputType.CMOT_FLOAT3, inputs, "SonarPulse", -400, 0)
     wp = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -1400, -600)
@@ -176,6 +182,7 @@ def build_pulse():
                         ("AgeS", 100.0), ("ShellS", 1.5), ("SpeedCmPerS", 4000.0), ("DotFadeS", 2.0),
                         ("SpacingCm", 35.0), ("DotFarCm", 12000.0), ("BandFarCm", 2000.0), ("DotNearCm", 1200.0),
                         ("BandIntensity", 0.9), ("DotIntensity", 0.35),
+                        ("BandLead", 0.35), ("SerpentBand", 1.0), ("RangeFade", 0.0),
                         ("Intensity", 0.0)]:
         link(scalar(mat, name, value, -1100, y), "", pulse, name)
         y += 80
