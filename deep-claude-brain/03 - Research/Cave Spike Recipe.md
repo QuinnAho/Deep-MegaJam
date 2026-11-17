@@ -521,3 +521,61 @@ Frames: `devlog/media/2026-11-17-cave7b-*.png`, each a round 7 | round 7b pair.
 - **E's choke:** a few blocks are rounded and pale under the viewport light. The approach roof keeps a few smooth 2 m patches.
 - **S's mouth:** the funnel's walls beside the exit are plain again, as in round 6.
 - **Joint rims (keyhole, S–A and C1–B rings):** the relief fades to 0 at each joint plane (rock over 6.5 m, fine over 3.5 m), so the shared outline shows bare. The fix would be a displacement in the joint's own frame, shared by both sides. It must depend only on the joint type, clear the hull by 1 m in the neck, and it means reworking `conform_rims` and the joint checks and rebaking all six chunks.
+
+## Round 8 (Nov 17): rock runs through the joints, a natural keyhole
+Goal: joint rims without a ring, crease or bare band; a natural keyhole at A–T1; the hull sweep's box moved to BT-01's real centre. S's size and layout, the exits, the joint types and the string order are unchanged.
+
+### Causes found
+- **Bare joint rims:** each chunk's relief faded to 0 at the joint plane, so both sides met on the plain type outline (round 7b's still-open item).
+- **Doorway keyhole:** `_jt_key` was a round tube over a straight wedge, so from the helm it read as a cut doorway.
+- **Leftover degenerate triangles:** voxel triangles whose third vertex lies on the long edge. They have no short edge, so `collapse_slivers` (edges under 0.2 cm) never took them. Raising its bar to 2.5 cm only moved them and broke T1's rim rebuild, so that was dropped.
+- **Hull sweep:** BT-01's hull box is centred 94 cm aft of the sub's origin (the hatch), but the sweep centred the box on the origin.
+
+### What changed
+- **Joint relief (`cavegen.py`):** each joint type has its own relief J(θ, a), a radial offset in the joint's frame. θ is the angle about the joint centre and `a` the signed distance along the travel direction, so both chunks get the same value.
+  - J is a `Rock` seeded per type (`a_res 42, a_var 28, a_blk 14, a_notch 8, a_fine 5, a_sharp 5, a_warp 40`). Its `wall()` is read at the base outline point and divided by max(cos φ, 0.5) to turn it into a radius.
+  - It is soft-limited with tanh to 75 cm outward and to min(40, gap − 45) cm inward, so the outline never gets within 45 cm of the core.
+  - `tunnel()` adds it through `JointFade.relief()`, weighted by 1 − sstep(0, 650, |a|). The chunk's own rock fades in over the same distance.
+  - `joint_r` now returns the rim (base + J at a = 0). `conform_rims`, cavestring's `_loop` and `joint_margins` all use it, and `snap_joints` snaps to base + weighted J.
+  - The first pass (`a_blk 18, a_notch 16, a_fine 11, a_sharp 12`) made a jagged frame at S–A and C1–B that was rougher than the walls around it, so the fine terms were halved.
+- **Keyhole (`_jt_key`), sources: Palmer, *Cave Geology* ch. 7; Ford and Williams, *Karst Hydrogeology and Geomorphology* ch. 7; Jameson, GSA 2004 (entrenchment in the Greenbrier karst).**
+  - An older phreatic tube (superellipse, n = 2.5, 11.3–12 m wide) with a spring-line notch each side.
+  - Below it, a vadose trench from 3.8 to 11.5 m down. It leans and meanders, and each wall comes down in 5–6 stages: it steps in at a ledge, then recedes below it (an undercut). The floor is a narrow rounded slot.
+  - The outline is found by marching each ray from the centre and keeping the last point inside. Undercuts stay within what a ray can see, so the outline stays star-shaped.
+  - It is smoothed with half-width 1 (5 for the other types), because the trench walls run nearly along the rays.
+  - Gap to the core: 65.7 cm (bed 45.1, rift 54.0).
+- **Mesh repair:** `flip_flat` flips the long edge of every triangle under 0.01 cm high with its neighbour (quad b, c, a, d split on c–d; winding kept): 11–94 flips per chunk. `collapse_slivers` now also merges two rim vertices when they coincide (under 0.01 cm apart; the steeper key relief left one such pair).
+- **Hull sweep (`cavestring.py`):** `HULL_AFT = 94`. `_hits` moves each box centre 94 cm aft along its yaw. Set it to 0 to get round 7b's sweep.
+- Goal 3 (S's mouth funnel walls, E's pale blocks and smooth approach roof) was not started.
+
+### Results
+| Check | Round 7b | Round 8 |
+|---|---|---|
+| Joint gap / off outline | 0.000 / 0.001 cm | 0.000 / 0.003 cm (C1's exit; float32 at about 11 km, times the steeper rim) |
+| Overlap, core exposure | 0, 0 | 0, 0 |
+| Hull sweep (box 94 cm aft); controls ±300 | 0 / 1168; 648, 648 | 0 / 1168; 647, 657 |
+| Least clearance: squeeze, neck, tunnel, cavern | 87.5, 103.1, 115.6, 120.3 cm | 87.5, 103.1, **93.8**, 120.3 cm (box at the origin: 87.5, 103.1, 115.6, 120.3) |
+| Column S / C1; tether | 28.5 / 22.3 m; 0 leaks of 2592 (nearest 278 cm) | 28.5 / 22.2 m (2224.8 cm, was 2225.2); 0 leaks of 2592 (nearest 278 cm) |
+| Salvage sockets | 9 in water | 9 in water |
+| Cameras < 50 cm from rock | 0 of 22 (nearest 146 cm) | 0 of 22 (nearest 146 cm) |
+| Border edges | only on the rims | only on the rims (720 per rim) |
+| Degenerate triangles S, A, B, T1, C1, E | 4, 2, 3, 4, 5, 2 | 0, 0, 0, 0, 0, 0 |
+
+- **Moving the box aft** costs only on T1's bend, at (7657, 222, −46): 93.8 cm, against 115.6 with the box at the origin. The squeeze, the neck and the cavern are unchanged.
+- **GPU:** 7b's meshes, loaded from HEAD into a temporary `Scratch8` (since deleted), were measured against round 8's in the same session, 40 samples per view, at 1.7–1.95 GHz. They are equal within noise. Both sets read about 0.4 ms above round 7's figures, so the machine was running slower that day.
+
+  | View | Round 7b | Round 8 |
+  |---|---|---|
+  | S berth | 5.02/5.12, 5.01/5.24, 4.99/5.41 | 4.91/5.27, 5.07/5.48, 5.03/5.18 |
+  | T1 squeeze | 4.78/5.04, 4.76/5.09, 4.77/5.00 | 4.77/5.03, 4.80/5.00, 4.80/4.99 |
+  | C1 Park | 4.85/5.13, 4.91/5.08, 4.83/5.20 | 4.94/5.16, 4.93/5.26, 5.02/5.35 |
+
+  The round 8 columns before the last are from the first-pass relief; the triangle counts are within 0.5%.
+
+Frames: `devlog/media/2026-11-17-cave8-*.png` (10). Each is a round 7b | round 8 pair, except `A_keyhole_trench` (round 8 only, looking down the trench toward the joint).
+
+### Still open
+- **Joint lips:** S–A and A–T1 show a few small bright lips on the rim from the helm. Up close they are not fins. The joint still reads as a narrowing, now in rock, not a bare band. Quinn to judge.
+- **Keyhole:** from the helm's 3:1 frame you see the tube and the top of the trench; the trench shows when you look down (`A_keyhole_trench`).
+- **Goal 3 not done:** S's mouth funnel walls, and E's pale rounded blocks and smooth approach roof.
+- **C1's column rings:** unchanged.

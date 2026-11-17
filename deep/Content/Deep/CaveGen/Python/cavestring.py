@@ -26,6 +26,9 @@ GS_S = U.GeometryScript_MeshSpatial
 STRING = ['S', 'A', 'T1', 'C1', 'B', 'E']   # S (type 'start') has no entry; E (type 'end') closes in rock: no exit
 CHUNKS = ['S', 'A', 'B', 'T1', 'C1', 'E']
 HULL_HALF = (615.0, 165.0, 250.0)     # 12.3 x 3.3 x 5.0 m
+# round 8: BT-01's hull box is centred this far aft of the sub's origin (the hatch, which
+# follows the path), so the sweep's box moves back by it. Set to 0 for round 7b's sweep.
+HULL_AFT = 94.0
 yaw_dirs = cg.yaw_dirs
 
 
@@ -530,7 +533,16 @@ def dive_path(rows, step=25.0, turn_step=2.0):
     return pts
 
 
-def _hits(a, b, yaw, half):
+def _aft(p, yaw):
+    if not HULL_AFT:
+        return tuple(p)
+    (fx, fy), _ = yaw_dirs(yaw)
+    return (p[0] - fx * HULL_AFT, p[1] - fy * HULL_AFT, p[2])
+
+
+def _hits(a, b, yaw, half, yaw_a=None):
+    """Hits of the hull box swept from a to b (the sub's origin), its centre HULL_AFT aft."""
+    a, b = _aft(a, yaw if yaw_a is None else yaw_a), _aft(b, yaw)
     hs = U.SystemLibrary.box_trace_multi(world(), U.Vector(*a), U.Vector(*b), U.Vector(*half),
                                          U.Rotator(roll=0.0, pitch=0.0, yaw=yaw), CH, True, [], U.DrawDebugTrace.NONE)
     return [h for h in (hs or []) if h.to_tuple()[0] or h.to_tuple()[1]]
@@ -567,7 +579,7 @@ def sweep(pts, offset=0.0, clear_every=2):
         yaw = b[3]
         if a[:3] == b[:3]:
             b = (a[0] + 0.5, a[1], a[2], yaw)
-        if _hits(a[:3], b[:3], yaw, HULL_HALF):
+        if _hits(a[:3], b[:3], yaw, HULL_HALF, a[3]):
             contacts += 1
     per = {}
     if clear_every:

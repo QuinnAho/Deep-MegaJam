@@ -465,12 +465,94 @@ def _jt_rift(c, s):
     return r
 
 
+# Round 8: the keyhole's trench was a straight wedge, so from the helm it read as a doorway
+# cut in the rock. Real keyholes (Palmer, Cave Geology ch. 7; Ford and Williams ch. 7;
+# Jameson, GSA 2004, on entrenchment in the Greenbrier karst): an older phreatic tube whose
+# rounded floor survives as a shoulder each side, a vadose canyon cut down through it,
+# narrower than the tube, meandering, its walls broken by undercuts, notches and ledges in
+# groups at each stillstand of the stream, the outside of a bend overhung and the inside
+# stepped, the floor a narrow rounded slot. A spring-line notch marks the bedding plane the
+# tube grew along. Each trench wall here is a profile down from the tube floor: it narrows
+# with depth, and in each stage it recedes as it goes down (an undercut under a ledge) and
+# then steps in at the next ledge. Undercuts stay within what a ray from the joint centre
+# can see (a wall's outward slope under its distance over depth), so the outline stays
+# star-shaped for the rims.
+KEY_LINE = (20.0, 0.06, 20.0, 220.0)     # trench line: offset, lean (u per cm depth), meander amp, wavelength
+# each wall's stages, top down: (depth of the ledge that starts it, how far the wall steps
+# in at that ledge, how far it recedes below it). The outside of the bend (right) is
+# overhung, the inside (left) stepped
+KEY_RIGHT = (175.0, ((470.0, 0.0, 22.0), (585.0, 15.0, 24.0), (715.0, 20.0, 20.0), (835.0, 20.0, 16.0),
+                     (950.0, 25.0, 10.0), (1050.0, 25.0, 6.0)))
+KEY_LEFT = (150.0, ((470.0, 0.0, 14.0), (600.0, 25.0, 16.0), (720.0, 25.0, 14.0), (840.0, 20.0, 10.0),
+                    (960.0, 20.0, 8.0), (1060.0, 15.0, 4.0)))
+KEY_TOP, KEY_BOT = 380.0, 1150.0
+
+
+def _key_half(d, wall):
+    """Half width of one trench wall at depth d. Down the wall it steps in at each ledge;
+    below each ledge it recedes (an undercut) until, just above the next, it comes back in
+    over that ledge's sloping top. The recess stays within what a ray from the joint
+    centre sees, so the outline stays star-shaped."""
+    h, stages = wall
+    k = 0
+    while k + 1 < len(stages) and d >= stages[k + 1][0]:
+        k += 1
+    h -= sum(st[1] for st in stages[:k + 1])
+    d0, _, under = stages[k]
+    if d < d0:
+        return h
+    d1 = stages[k + 1][0] if k + 1 < len(stages) else KEY_BOT
+    t = (d - d0) / max(1.0, d1 - d0)
+    return h + under * (t / 0.8 if t < 0.8 else 1.0 - smooth((t - 0.8) / 0.2))
+
+
+def _key_notch(u, v, sg, vc, lean, h, ue, cap):
+    """A spring-line notch on side sg: a band of half height h along the bed (centre vc,
+    rising `lean` per cm out) to |u| = ue, ending in a round cap of half length cap."""
+    a = sg * u
+    if a < 0.0:
+        return False
+    w = vc + lean * a
+    if a <= ue:
+        return abs(v - w) < h
+    return ((a - ue) / cap) ** 2 + ((v - vc - lean * ue) / h) ** 2 < 1.0
+
+
+def _key_inside(u, v):
+    d = -v
+    # the tube: rounder on top, its floor wider and lower on the left
+    a = 600.0 if u >= 0 else 565.0
+    b = 520.0 if v >= 0 else (470.0 if u >= 0 else 485.0)
+    if (abs(u) / a) ** 2.5 + (abs(v) / b) ** 2.5 < 1.0:
+        return True
+    # notches along the bedding plane the tube grew on, deeper on the right
+    if _key_notch(u, v, 1, 40.0, 0.05, 48.0, 560.0, 110.0) or _key_notch(u, v, -1, -75.0, -0.03, 36.0, 500.0, 90.0):
+        return True
+    if d < KEY_TOP or d > KEY_BOT + 110.0:
+        return False
+    off, lean, amp, wl = KEY_LINE
+    cl = off + lean * (d - KEY_TOP) + amp * math.sin((d - KEY_TOP) / wl)
+    hr = _key_half(d, KEY_RIGHT)
+    hl = _key_half(d, KEY_LEFT)
+    if d > KEY_BOT:
+        # a rounded slot floor
+        e = (d - KEY_BOT) / 110.0
+        w = math.sqrt(max(0.0, 1.0 - e * e))
+        return cl - hl * w < u < cl + hr * w
+    return cl - hl < u < cl + hr
+
+
 def _jt_key(c, s):
-    """Keyhole: a wide phreatic tube, lower on the left, over a narrow trench that leans
-    as it cuts down (a vadose canyon under the old tube)."""
-    r = r_sel(c, s, 620.0, 570.0, 505.0, 440.0, 2.4)
-    r = max(r, r_wedge(c, -s, 190.0, 1200.0, 0.2))
-    return r
+    """Keyhole: a wide phreatic tube, lower on the left, with a notch along its spring line,
+    over a vadose trench cut down through its floor: a meandering canyon whose walls step
+    and undercut, and a rounded slot at the bottom."""
+    last = 0.0
+    q = 2.0
+    while q < 1500.0:
+        if _key_inside(q * c, q * s):
+            last = q
+        q += 2.0
+    return last
 
 
 _JT_FN = {'bed': (_jt_bed, 71), 'rift': (_jt_rift, 72), 'key': (_jt_key, 73)}
@@ -484,27 +566,103 @@ def joint_outline(t):
         fn, seed = _JT_FN[t]
         j = jag(random.Random(seed), lobes=(3, 4, 6, 7), amp=0.06)
         r = [fn(c, s) * (1.0 + j[k]) for k, (c, s) in enumerate(ANG)]
-        # round the slot tips over about 2 degrees, so no tip is thinner than a voxel
+        # round the slot tips over about 2 degrees, so no tip is thinner than a voxel (round 8:
+        # the keyhole's trench walls run nearly along the rays, where 2 degrees is a metre or
+        # more of wall and would blur its ledges, so it is smoothed over 0.4 degrees)
+        hw = 1 if t == 'key' else 5
         for _ in range(2):
-            r = [sum(r[(k + d) % NA] for d in range(-5, 6)) / 11.0 for k in range(NA)]
+            r = [sum(r[(k + d) % NA] for d in range(-hw, hw + 1)) / (2.0 * hw + 1.0) for k in range(NA)]
         _JT_CACHE[t] = r
     return _JT_CACHE[t]
 
 
-def joint_r(t, th):
-    """Outline radius of joint type t at angle th (radians from the joint's side axis,
-    counter-clockwise toward up), interpolated between the ANG samples."""
-    tab = joint_outline(t)
+def _tab_at(tab, th):
     f = ((th + 0.5 * math.pi) / (2.0 * math.pi) * NA) % NA
     i = int(f)
     a = f - i
     return tab[i % NA] * (1.0 - a) + tab[(i + 1) % NA] * a
 
 
+def joint_base_r(t, th):
+    """Type t's outline radius at angle th before its rock relief."""
+    return _tab_at(joint_outline(t), th)
+
+
+# Round 8: the joint's own rock. Rounds 6 to 7b faded every chunk's relief to nothing at
+# each joint plane (the rock over 6.5 m, the fine relief over 3.5 m), so both sides met
+# on the bare outline: from the helm each joint showed as a smooth band and a clean cut
+# ring. Now each joint type carries a relief of its own, fixed in the joint's frame (a
+# along the direction of travel, lat across it, z up), so the chunks either side of a
+# joint evaluate the same rock and it runs through the plane. It is a radial offset from
+# the joint centre, a function of angle and a only, so the rim (a = 0) is still one polar
+# outline, the same vertex for vertex on both sides. Bedded and jointed like the chunks'
+# rock; it hands over to the chunk's own relief over FADE_OUTER.
+JREL_OUT = 75.0       # the relief's soft limit outward (cm)
+JREL_IN = 40.0        # and inward, never closer than JREL_KEEP to the core
+JREL_KEEP = 45.0
+JREL_COS = 0.5        # a wall's offset along its normal becomes a radial offset of at most 1 / JREL_COS times it
+_JREL = {}
+
+
+def _jrel_geo(t):
+    """Per sample of type t's outline: the base point (lat, z), the cosine between the
+    ray and the outline's normal, the gap to the core, and the joint's rock."""
+    if t not in _JREL:
+        tab = joint_outline(t)
+        pts = [(r * c, r * s) for r, (c, s) in zip(tab, ANG)]
+        cs, gaps = [], []
+        for k, (c, s) in enumerate(ANG):
+            a, b = pts[k - 3], pts[(k + 3) % NA]
+            tu, tv = b[0] - a[0], b[1] - a[1]
+            tl = math.hypot(tu, tv) or 1.0
+            cs.append(abs(c * tv / tl - s * tu / tl))
+            gaps.append(tab[k] - ray_rrect(c, s, JOINT_SLICE))
+        rock = Rock(_JT_FN[t][1] + 100, a_res=42.0, a_var=28.0, a_blk=14.0, a_notch=8.0, a_fine=5.0, a_sharp=5.0,
+                    a_warp=40.0)
+        _JREL[t] = (pts, cs, gaps, rock)
+    return _JREL[t]
+
+
+def _jrel_k(t, k, a):
+    pts, cs, gaps, rock = _jrel_geo(t)
+    u, v = pts[k]
+    zb = rock.zb(a, u, v)
+    d = rock.wall(a, u, zb, rock.bed(zb)) / max(cs[k], JREL_COS)
+    if d >= 0.0:
+        return JREL_OUT * math.tanh(d / JREL_OUT)
+    lim = max(0.0, min(JREL_IN, gaps[k] - JREL_KEEP))
+    return -lim * math.tanh(-d / lim) if lim > 0.0 else 0.0
+
+
+def joint_relief(t, th, a):
+    """Radial offset (cm, + away from the water) of type t's rock at angle th, a cm along
+    the direction of travel from the joint plane."""
+    f = ((th + 0.5 * math.pi) / (2.0 * math.pi) * NA) % NA
+    i = int(f)
+    w = f - i
+    return _jrel_k(t, i % NA, a) * (1.0 - w) + _jrel_k(t, (i + 1) % NA, a) * w
+
+
+_RIM_CACHE = {}
+
+
+def joint_rim(t):
+    """Type t's rim over ANG: its outline plus its rock relief at the plane."""
+    if t not in _RIM_CACHE:
+        _RIM_CACHE[t] = [r + _jrel_k(t, k, 0.0) for k, r in enumerate(joint_outline(t))]
+    return _RIM_CACHE[t]
+
+
+def joint_r(t, th):
+    """Rim radius of joint type t at angle th (radians from the joint's side axis,
+    counter-clockwise toward up), interpolated between the ANG samples."""
+    return _tab_at(joint_rim(t), th)
+
+
 def joint_margins(t):
-    """Smallest gap (cm) between type t's outline and the core's rounded rectangle at a
-    level joint, and the outline's extent (u0, u1, v0, v1)."""
-    tab = joint_outline(t)
+    """Smallest gap (cm) between type t's rim (round 8: with its rock relief) and the core's
+    rounded rectangle at a level joint, and the rim's extent (u0, u1, v0, v1)."""
+    tab = joint_rim(t)
     gap = min(r - ray_rrect(c, s, JOINT_SLICE) for r, (c, s) in zip(tab, ANG))
     us = [r * c for r, (c, s) in zip(tab, ANG)]
     vs = [r * s for r, (c, s) in zip(tab, ANG)]
@@ -941,6 +1099,10 @@ def tunnel(path, secs, rock, s_list, slices=None, core=None, fade=None, n=RING_N
             if amp > 0.0:
                 dx, dy, dz = rock.displace(p0, (nu * rx, nu * ry, nv), kind)
                 du, dv = (dx * rx + dy * ry) * amp, dz * amp
+            jr = fade.relief(p0) if hasattr(fade, 'relief') else None
+            if jr:
+                # round 8: the joint's own rock, which both chunks share, as the chunk's fades
+                du, dv = du + jr[0] * rx + jr[1] * ry, dv + jr[2]
             jn = fade.near(p0) if hasattr(fade, 'near') else 0.0
             if jn > 0.0:
                 # fine relief along the ring's outward normal near a joint. Round 6 pushed it
@@ -1531,7 +1693,13 @@ def snap_joints(mesh, joints):
             r = math.hypot(lat, dz)
             if r < 1.0:
                 continue
-            R = joint_r(t, math.atan2(dz, lat))
+            th = math.atan2(dz, lat)
+            if along <= 0.5:
+                R = joint_r(t, th)
+            else:
+                # round 8: onto the outline plus the joint's own relief at this distance, as
+                # tunnel() lays it (the rim itself is joint_r)
+                R = joint_base_r(t, th) + (1.0 - sstep(0.0, FADE_OUTER, along)) * joint_relief(t, th, a0)
             if r > R + 450.0:
                 continue
             w = 1.0 - smooth(max(along, 0.0) / SNAP)
@@ -1651,8 +1819,10 @@ def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
         for j in range(len(joints)):
             stats[j]['welded'] = sum(1 for i in rep if ring[i][0] == j)
     pts, out, nsl = collapse_slivers(pts, out, joints)
+    out, nfl = flip_flat(pts, out)
     for st in stats:
         st['slivers'] = nsl
+        st['flipped'] = nfl
     buf = U.GeometryScriptSimpleMeshBuffers()
     buf.vertices = [U.Vector(*q) for q in pts]
     buf.triangles = [U.IntVector(*t) for t in out]
@@ -1661,6 +1831,61 @@ def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
     if GS_Q.get_num_triangle_i_ds(res) != len(out):
         raise RuntimeError('rim rebuild dropped triangles: %d of %d' % (GS_Q.get_num_triangle_i_ds(res), len(out)))
     return res, stats
+
+
+def _tri_h(pts, a, b, c):
+    """Height of triangle abc over its longest edge (cm), and that edge's index (0 ab, 1 bc, 2 ca)."""
+    P, Q, R = pts[a], pts[b], pts[c]
+    u = (Q[0] - P[0], Q[1] - P[1], Q[2] - P[2])
+    v = (R[0] - P[0], R[1] - P[1], R[2] - P[2])
+    cr = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+    ar2 = math.sqrt(cr[0] ** 2 + cr[1] ** 2 + cr[2] ** 2)
+    ls = (math.dist(P, Q), math.dist(Q, R), math.dist(R, P))
+    k = max(range(3), key=lambda i: ls[i])
+    return ar2 / max(ls[k], 1e-9), k
+
+
+def flip_flat(pts, tris, min_h=0.01):
+    """Flip away flat triangles (round 8). Some voxel triangles have their third vertex on
+    the long edge (zero area, so 'degenerate') without any short edge for collapse_slivers
+    to take. The long edge is flipped with the triangle across it: the quad b,c,a,d splits
+    on c-d instead, which keeps the surface and its winding, and the flat triangle goes.
+    Skipped where there is no neighbour (a rim), the edge c-d exists already, or a new
+    triangle would be flat too. Returns (tris, flips)."""
+    tris = [tuple(t) for t in tris]
+    edge = {}
+    for i, t in enumerate(tris):
+        for e in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            edge[e] = i
+    n = 0
+    for i in range(len(tris)):
+        t = tris[i]
+        h, k = _tri_h(pts, *t)
+        if h >= min_h:
+            continue
+        a, b, c = t[k], t[(k + 1) % 3], t[(k + 2) % 3]
+        j = edge.get((b, a))
+        if j is None or j == i:
+            continue
+        o = tris[j]
+        d = [x for x in o if x != a and x != b]
+        if len(d) != 1:
+            continue
+        d = d[0]
+        if (c, d) in edge or (d, c) in edge:
+            continue
+        n1, n2 = (b, c, d), (c, a, d)
+        if _tri_h(pts, *n1)[0] < min_h or _tri_h(pts, *n2)[0] < min_h:
+            continue
+        for tt in (t, o):
+            for e in ((tt[0], tt[1]), (tt[1], tt[2]), (tt[2], tt[0])):
+                edge.pop(e, None)
+        tris[i], tris[j] = n1, n2
+        for q, tt in ((i, n1), (j, n2)):
+            for e in ((tt[0], tt[1]), (tt[1], tt[2]), (tt[2], tt[0])):
+                edge[e] = q
+        n += 1
+    return tris, n
 
 
 def collapse_slivers(pts, tris, joints, min_edge=0.2, rim_tol=0.6):
@@ -1686,13 +1911,16 @@ def collapse_slivers(pts, tris, joints, min_edge=0.2, rim_tol=0.6):
     for t in tris:
         for u, v in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
             a, b = pts[u], pts[v]
-            if (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 >= m2:
+            d2 = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+            if d2 >= m2:
                 continue
             ru, rv = find(u), find(v)
             if ru == rv:
                 continue
             fu, fv = on_rim(ru), on_rim(rv)
-            if fu and fv:
+            if fu and fv and d2 > 1e-4:
+                # two rim vertices merge only when they coincide (round 8: the key's
+                # steep relief left a pair 0.000 cm apart with two zero-area triangles)
                 continue
             if fv:
                 ru, rv = rv, ru
@@ -1841,8 +2069,12 @@ class JointFade:
     the first metres past a joint from being plain while the big relief is still small
     (0 on the plane, so the rims still match)."""
 
-    def __init__(self, exit_t, entry=True):
+    def __init__(self, exit_t, entry=True, types=(None, None)):
         self.exit_t, self.entry = exit_t, entry
+        # (entry type, exit type), for the joint's own relief
+        self.frames = []
+        for (c, f), t in zip(joint_frames(exit_t, entry), [x for x, on in zip(types, (entry, exit_t is not None)) if on]):
+            self.frames.append((c, f, t))
 
     def __call__(self, p):
         return joint_fade(p, self.exit_t, entry=self.entry)
@@ -1853,6 +2085,27 @@ class JointFade:
             return 0.0
         # round 7: a slow ramp in and out (round 6 rose over 1.4 m and peaked there)
         return sstep(0.0, JFINE_REACH, a) * (1.0 - sstep(0.4 * JFINE_REACH, FADE_OUTER, a))
+
+    def relief(self, p):
+        """The nearest joint's own relief at p, weighted by 1 - fade, as a world offset
+        (dx, dy, dz), or None. Same frame and lateral reach as joint_along."""
+        best = None
+        for (cx, cy, cz), (fx, fy), t in self.frames:
+            dx, dy, dz = p[0] - cx, p[1] - cy, p[2] - cz
+            a0 = dx * fx + dy * fy
+            lat = -dx * fy + dy * fx
+            if t and math.hypot(lat, dz) < 1300.0 and (best is None or abs(a0) < abs(best[1])):
+                best = (t, a0, lat, dz, fx, fy)
+        if best is None:
+            return None
+        t, a0, lat, dz, fx, fy = best
+        w = 1.0 - sstep(0.0, FADE_OUTER, abs(a0))
+        if w <= 0.0:
+            return None
+        th = math.atan2(dz, lat)
+        d = w * joint_relief(t, th, a0)
+        c, s_ = math.cos(th), math.sin(th)
+        return (-fy * c * d, fx * c * d, s_ * d)
 
 
 def section_defs(seed):
@@ -1901,7 +2154,7 @@ def spec_A(shapes=True):
     secs = Sections([(-EXT, 'j_rift'), (100.0, 'j_rift'), (750.0, 'canyon'), (1350.0, 'canyon'), (1750.0, 'keyhole'),
                      (L, 'j_key'), (L + EXT, 'j_key')], section_defs(11), seed=11)
     rock = Rock(11)
-    fade = JointFade(ex)
+    fade = JointFade(ex, types=(spec['in'], spec['out']))
     sh = Shapes(11)
     tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade)
     sh.add(tv)
@@ -1924,7 +2177,7 @@ def spec_B(shapes=True):
     secs = Sections([(-EXT, 'j_rift'), (0.0, 'j_rift'), (1150.0, 'hall'), (1800.0, 'hall'), (L, 'j_bed'),
                      (L + EXT, 'j_bed')], section_defs(22), seed=22)
     rock = Rock(22)
-    fade = JointFade(ex)
+    fade = JointFade(ex, types=(spec['in'], spec['out']))
     rnd = random.Random(22)
     sh = Shapes(22)
     tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade)
@@ -2021,7 +2274,7 @@ def spec_T1(shapes=True):
                      (8200.0, 'widelow'), (8650.0, 'phreatic'), (L, 'j_bed'), (L + EXT, 'j_bed')],
                     section_defs(33), seed=33)
     rock = Rock(33)
-    fade = JointFade(ex)
+    fade = JointFade(ex, types=(spec['in'], spec['out']))
     sh = Shapes(33)
     tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade)
     sh.add(tv)
@@ -2102,7 +2355,7 @@ def spec_C1(shapes=True):
     # ledge salvage sockets stay level)
     rock = Rock(44, a_res=55.0, a_blk=34.0, a_fine=14.0, a_sharp=24.0, a_warp=0.0)
     core = c1_core()
-    fade = JointFade(ex)
+    fade = JointFade(ex, types=(spec['in'], spec['out']))
     sh = Shapes(44)
     defs = section_defs(44)
     # entry tunnel, level, opening into the chamber
@@ -2228,7 +2481,7 @@ def spec_E(shapes=True):
     # its rock-floor snap and outward-only relief crumpled the bays; now they carry the
     # passage's own relief and only open the wall out)
     rock_b = Rock(55, a_res=50.0, a_var=30.0, a_blk=22.0, a_notch=16.0, a_fine=10.0, a_sharp=10.0)
-    fade = JointFade(None)
+    fade = JointFade(None, types=(spec['in'], None))
     sh = Shapes(55)
     tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade)
     sh.add(tv)
@@ -2349,7 +2602,7 @@ def spec_S(shapes=True):
     rock = Rock(66, a_res=32.0, a_var=30.0, a_blk=8.0, a_notch=10.0, a_fine=8.0, a_sharp=6.0, roof_snap=0.35)
     # the same beds, broken: for the way out, whose mouth must read as broken rock
     rock_m = Rock(66, a_res=50.0, a_var=30.0, a_blk=30.0, a_notch=18.0, a_fine=10.0, a_sharp=16.0, roof_snap=0.8)
-    fade = JointFade(ex, entry=False)
+    fade = JointFade(ex, entry=False, types=(None, spec['out']))
     sh = Shapes(66)
     # chamber: one worn ellipsoid, warped at low frequency so its bays and bulges grow out
     # of one surface (Round 5's first try, six overlapping ellipsoids, met in creases that
