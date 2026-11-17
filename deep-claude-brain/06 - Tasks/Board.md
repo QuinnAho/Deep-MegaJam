@@ -1,25 +1,40 @@
 ---
-updated: 2026-11-15 22:15 EST
+updated: 2026-11-16 23:10 EST
 ---
 # Board
 
-The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, every run in [[Agent Runs]]. Status words: `todo`, `doing`, `blocked`, `done`.
+The agents' work queue. Design rules are in [[GDD]], dispatch and testing rules in `.claude/loop.md`, the jam's runs in [[Agent Runs]] (no new rows since the jam). Status words: `todo`, `doing`, `blocked`, `done`.
 
 ## Now: the slice (from Nov 15, 10 PM)
 
 The jam is over; DEEP is a polished game now (rules in `CLAUDE.md`). The goal is the slice: the first ten minutes in a real map built in the editor ([[Slice Brief]]). Everything below this section is the jam's history.
 
+Jam entry submitted solo (D-054). The goal now is an enjoyable game. Caves are chunks strung per dive (D-055).
+
 | What | Who | Status |
 |---|---|---|
 | Push main, tag `jam-final`, move Unreal assets to Git LFS | orchestrator | done (`62c65b3`) |
 | Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
-| Turn on the PCG and Geometry Script plugins in the editor, then restart | Quinn | todo |
+| Turn on the PCG and Geometry Script plugins (D-052) | orchestrator | done (`6917b6d`); Quinn restarts the editor to load them |
 | Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
-| Moving sub: undo D-022 (the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan first, for Quinn's OK | agent, opus, `.wt\swim` on `build/moving-sub` | doing (plan) |
-| Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | doing |
-| Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready |
-| Block out the slice map with CubeGrid, from [[Blockout Scale Card]] | Quinn | todo |
-| Sounds for the slice | Colby | ask |
+| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | Step 4: built. `5a40577` on `build/moving-sub` is pushed. The still world is on by default, and the room has its own look. Tests: 178 of 178 pass. The S7 run was won in 47 s. It waits for Quinn's OK on the frames (frames page v22). The orange lattice at stop 1 is not from this lane: the `jam-final` build shows it at the same view (`.wt\monster\deep\Saved\Harness\shots\jamfinal-stop1-helm-20261116-032115.png`). Turning off volumetric fog or the stop's cave shell removes it; shadows and props don't. Packaged for Quinn to play: `Builds\Step4-2309` (11:09 PM, Nov 16; package and smoke pass) |
+| Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | done ([[Asset Shortlist - Slice]]) |
+| Cave research: UE 5.9's tools, real caves and methods, games to learn from | agents | done ([[Cave Gen - Engine Tools]], [[Cave Gen - Real Caves and Methods]], [[Games to Learn From]]) |
+| Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | decided with D-055 (chunks) ([[Cave Pipeline]]) |
+| Cave spike: two 30 m chunks (tube into restriction, breakdown chamber) joined both ways in `L_CaveSpike`; output only in `deep/Content/Deep/CaveGen/` | agent, opus, `.wt\cave` on `build/cavegen` | done. `6db858d` on `build/cavegen` is pushed but not merged. The pipeline works: bakes take 3 to 4 s, the joints are exact, and a level hull passes with no contact. The look doesn't work yet: the shapes look like pipes, a borrowed rock texture stretches, and ray-traced shadows leave black patches. The chamber measured 18 ms on the GPU, from only 4 samples. The merge waits for Quinn's call on `EngineAssociation` in `deep/Deep.uproject`, and for a package check |
+| Chunk tool step 2: a stop cavern (C1); a tunnel that turns and drops, with a squeeze (T1); exit and socket data in `deep/Content/Data/CaveChunks.csv` and `CaveChunkSockets.csv`; the shadow fix and a new GPU measurement; a string of chunks placed from the data in `L_CaveSpike` (D-058) | agent, opus, `.wt\cave` on `build/cavegen` | done. `d6bf75b` on `build/cavegen` is pushed. Four chunks (A, T1, C1, B) are placed from the CSVs. The joints meet within 0.31 cm, the hull sweep touches nothing (least clearance 34 cm, in T1's squeeze), C1's sink is 24 m across, and the GPU cost is about 5 ms with Nanite off (the 18 ms was the editor throttling in the background). The generator is editor Python driving Geometry Script now, not the PCG node. The look doesn't work yet: the tunnels read as pipes, with black specks at the mouths |
+| Chunk tool round 3: rock shapes (canyons, keyholes, bedding ledges, joints, breakdown blocks), clearance built in around the hull's path, the specks fixed, the PCG spike and its plugin line removed | agent, opus, `.wt\cave` on `build/cavegen` | done. `bbb1a11` on `build/cavegen` is pushed. The hull's clear path is built into each chunk: 0 contacts, least clearance 92 cm in the squeeze (was 34). Both sides of each joint share one 720-point rim, so the specks are gone (gap 0.000 cm). Beds, cracks and fallen blocks read as rock. GPU about 4.4 ms with Nanite off. Still man-made: the 9 m round joints (ringed holes, a porthole), a doorway, a rectangular opening, fingers; no material |
+| Chunk tool round 4: no fingers, doorways or round tubes, flared mouths where a joint meets a cavern, an end to the string, and the frame views kept in code. The joint stays the 9 m circle | agent, opus, `.wt\cave` on `build/cavegen` | done. `41d0bc3` on `build/cavegen` is pushed. The doorway, the mine door and most fingers are gone; a new end chunk E pinches shut, so no view sees out; the camera views are in `CaveCameras.csv`. Checks pass: 0 contacts, least room 87 cm, gap 0.000 cm, GPU about 4.1–4.2 ms. From the helm 20 m out, all four joints still read as round tubes. Left: a lintel in the squeeze, straight beds, clay-like rock at C1's entry, E's plain bays |
+| The joint shape: one rock outline shared by every joint, with loose rocks over each joint (recommended), or two or three joint types that must match. Either changes D-055 and D-058 | Quinn | waits for Quinn (frames page v24: from the helm, all four joints read as round tubes) |
+| Chunk tool round 5: the joint shape Quinn picks, plus the lintel, straight beds, C1's entry rock and E's bays | agent, opus, `.wt\cave` on `build/cavegen` | waits for the joint call |
+| The orange lattice at the helm: volumetric fog where it meets cave rock, in `jam-final` too. Find the cause and fix it | agent, after step 4 merges | waits for Quinn's OK |
+| Subs: use both (Quinn, 10:04 PM). Proposed: BT-01 is ours (×2, 12.3 m) and the Atlantic Explorer is the wreck. Both CC BY 4.0, unpacked in `asset-drop/subs/` and measured | orchestrator | Atlantic Explorer = wreckage (D-056); BT-01 ×2 assumed; open: wreck salvage and sub upgrades loop |
+| Chunk assembly research: how Lethal Company-style interiors are built; UE 5.9 options | agent, sonnet | done ([[Cave Gen - Chunk Assembly]]) |
+| Slice brief: pillars, keep or cut, the opening beat by beat | Quinn + orchestrator | draft ready; to do: rewrite it for tunnels with caverns (D-058) once C1 and T1 exist |
+| Block out the slice map with CubeGrid, from [[Blockout Scale Card]]; settle the hull's size first ([[Cave Pipeline]]) | Quinn | todo |
+| Sounds for the slice | Colby | later (Quinn, 10:04 PM: not yet) |
+| Co-op: one at the helm, one on the tether (D-057); Steam sessions and proximity voice | agent, sonnet (research) | research done ([[Co-op - Steam and Voice]]); build after the cave |
+| Immersion pass: camera shake that reacts to the world (knocks, current, the engine, rock close by) and grain underwater. Quinn, Nov 16: after the cave. Part of the one planned look pass (D-028); look each effect up first | later | after the cave |
 
 On hold: `build/sight` (`.wt\voice`) and `build/helm` (`.wt\text`) wait for the still world and the sub kit. The runtime cave generator stays only as the stand-in until the map exists.
 

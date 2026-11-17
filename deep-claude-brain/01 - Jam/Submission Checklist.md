@@ -2,6 +2,8 @@
 updated: 2026-11-15 6:40 PM (dev log post 2 written and committed; at 6:30 PM: freeze package done and saved; itch draft, shot list and credits checked against the build)
 verified: Requirements from the itch.io jam page (Nov 14), status from the repo and from what the orchestrator reported on Nov 15. The Official Rules PDF has still not been read.
 ---
+Submitted solo, Nov 16 about 1 AM EST (D-054).
+
 # Submission Checklist
 
 Target: **submitted by 8:00 PM EST on Sunday Nov 15**, one hour before the 8:59 PM cutoff. Uploads fail and forms time out. Late is disqualified.
