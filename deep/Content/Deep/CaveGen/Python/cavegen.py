@@ -2708,28 +2708,52 @@ def t1_exit():
 # and width change along s. All of it is outward, so the 0.75 m margin still holds; less
 # T1_FLOOR, so where lean, lump and pinch are all small the wall still comes in to it and
 # the squeeze is no wider than before.
-T1_LEAN = 120.0       # cm the side walls lean out over the squeeze's height
-T1_LUMP = 80.0        # per-angle stand-off, 0 to this
-T1_PINCH = 110.0      # how far the walls stand back between pinches
-T1_PINCH_L = 520.0    # pinch spacing along s
-T1_FLOOR = 80.0       # taken off the sum, so the pinches still reach the core: the squeeze stays tight
+# Round 8c: past the squeeze T1 was still a square duct. The core's box (5.6 x 7.3 m, wider
+# round the bend) is bigger than the rift, canyon and low sections, so 40 to 85% of each
+# ring stood on the box plus 30 cm: a straight roof and vertical walls. The 8b gap only
+# lived at the squeeze, and there T1_FLOOR (80) ate the whole lump, so the narrowest wall
+# at every angle was the box again: seen end-on, a rectangle. Now the gap runs the whole
+# length, fading out 1.5 to 8 m from each joint (the rims stay as they are): the walls lean
+# one way and then the other along s, the per-angle stand-off is a blend of three lump
+# patterns that changes along s, and the pinches come at a different s for each angle.
+# Less a floor, so part of each ring still comes in to the box and the squeeze stays tight,
+# but which part changes with angle: the narrowest outline is no longer the box. All of it
+# is outward, so the 0.75 and 1.0 m margins hold.
+T1_LEAN = (120.0, 150.0)    # cm the side walls lean out over the passage height: squeeze, elsewhere
+T1_LUMP = (140.0, 150.0)    # per-angle stand-off, 0 to this
+T1_PINCH = (110.0, 100.0)   # how far the walls stand back between pinches
+T1_PINCH_L = (520.0, 900.0) # pinch spacing along s
+T1_FLOOR = (60.0, 35.0)     # taken off the sum, so some angles still reach the core
 
 
 def t1_gap():
     rnd = random.Random(331)
-    lump = jag(rnd, lobes=(3, 5, 7, 11), amp=1.0)
+    lump = [jag(rnd, lobes=(3, 5, 7, 11), amp=1.0), jag(rnd, lobes=(2, 4, 6, 9), amp=1.0),
+            jag(rnd, lobes=(3, 4, 7, 10), amp=1.0)]
     ph = jag(rnd, lobes=(2, 3), amp=math.pi)
+    ph2 = jag(rnd, lobes=(2, 3, 5), amp=math.pi)
+    a0, a1, a2, a3 = (rnd.uniform(0.0, 2 * math.pi) for _ in range(4))
     q0, q1 = T1_SQUEEZE
+    L = t1_path().length
 
     def g(s, k, c, sn, rc, sl):
-        w = sstep(q0 - 600.0, q0, s) * (1.0 - sstep(q1, q1 + 600.0, s))
+        w = sstep(150.0, 800.0, s) * (1.0 - sstep(L - 800.0, L - 150.0, s))
         if w <= 0.0:
             return 0.0
+        q = sstep(q0 - 600.0, q0, s) * (1.0 - sstep(q1, q1 + 600.0, s))   # 1 in the squeeze
         t = max(0.0, min(1.0, (rc * sn - sl[2]) / max(sl[3] - sl[2], 1.0)))   # 0 floor, 1 roof
-        lean = T1_LEAN * c * c * (t if c > 0.0 else 1.0 - t)
-        lmp = T1_LUMP * 0.5 * (1.0 + max(-1.0, min(1.0, lump[k])))
-        pinch = T1_PINCH * 0.5 * (1.0 - math.cos(2.0 * math.pi * (s - q0) / T1_PINCH_L + ph[k]))
-        return w * max(0.0, lean + lmp + pinch - T1_FLOOR)
+        # lean: in the squeeze the right wall out at the top, the left at the bottom (8b);
+        # elsewhere the lean swings from one way to the other every 20 m or so
+        la = q + (1.0 - q) * max(-1.0, min(1.0, 1.4 * math.sin(s / 650.0 + a0)))
+        lean = (q * T1_LEAN[0] + (1.0 - q) * T1_LEAN[1]) * abs(la) * c * c * (t if (c > 0.0) == (la > 0.0) else 1.0 - t)
+        wa = (0.6 + 0.5 * math.sin(s / 610.0 + a1), 0.6 + 0.5 * math.sin(s / 830.0 + a2),
+              0.6 + 0.5 * math.sin(s / 470.0 + a3))
+        v = sum(wi * li[k] for wi, li in zip(wa, lump)) / sum(wa)
+        lmp = (q * T1_LUMP[0] + (1.0 - q) * T1_LUMP[1]) * 0.5 * (1.0 + max(-1.0, min(1.0, 1.6 * v)))
+        p_sq = T1_PINCH[0] * 0.5 * (1.0 - math.cos(2.0 * math.pi * (s - q0) / T1_PINCH_L[0] + ph[k]))
+        p_el = T1_PINCH[1] * 0.5 * (1.0 - math.cos(2.0 * math.pi * s / T1_PINCH_L[1] + ph2[k]))
+        fl = q * T1_FLOOR[0] + (1.0 - q) * T1_FLOOR[1]
+        return w * max(0.0, lean + lmp + q * p_sq + (1.0 - q) * p_el - fl)
     return g
 
 
@@ -3176,43 +3200,14 @@ def spec_S(shapes=True):
     # (round 7 stood three masses of rock_m out of the funnel's walls to break the mouth's
     # outline; from the berth and the hatch they read as pale boulders, so round 7b took
     # them out and the mouth is round 6's again)
-    # round 8b: from the berth the funnel's side walls were still plain panels; rock_m's
-    # half-metre relief foreshortens to nothing at that grazing view. So the walls are cut
-    # back in courses: each bed in the walls' height dissolved back under the one above it
-    # in runs (bed_undercut: a wedge whose roof is the bedding plane, dying out at both
-    # ends; a first try cut square-ended boxes, which read as shelving), and a few worn
-    # joint recesses across them. All water (the walls only step back, so the core keeps
-    # its clearance and nothing stands out to read as a boulder), and all short of the
-    # exit's fade, so the rift joint is untouched
-    ss_t = [q[0] for q in info]
-    rl = random.Random(664)
-    nl = nj = 0
-    for side in (1, -1):
-        for k in range(len(rock_m.beds) - 1):
-            rel = rock_m.beds[k + 1] - p.zf(2650.0)
-            if not -300.0 < rel < 450.0 or rock_m.beds[k + 1] - rock_m.beds[k] < 90.0:
-                continue
-            x = 1850.0 + rl.uniform(0.0, 300.0)
-            while x < 3250.0:
-                ln = rl.uniform(450.0, 900.0)
-                i0 = bisect.bisect_left(ss_t, x)
-                i1 = min(len(info) - 1, bisect.bisect_left(ss_t, min(x + ln, 3450.0)))
-                x += ln + rl.uniform(200.0, 500.0)
-                if i1 - i0 >= 4:
-                    nl += bed_undercut(sh, info, i0, i1, side, k, rock_m, rl, None, depth=(180.0, 300.0))
-        for i in range(3):
-            xc = rl.uniform(2000.0, 3250.0)
-            v = rl.uniform(-80.0, 220.0)
-            _, (wx, wy, wz, wyaw), uv, _ = info[min(len(info) - 1, bisect.bisect_left(ss_t, xc))]
-            u = _ring_wall(uv, side, v, 60.0)
-            if u is None:
-                continue
-            _, (rx, ry) = yaw_dirs(wyaw)
-            dep, w, h = rl.uniform(160.0, 240.0), rl.uniform(90.0, 140.0), rl.uniform(170.0, 260.0)
-            c = (wx + rx * (u + side * 0.3 * dep), wy + ry * (u + side * 0.3 * dep), wz + v)
-            sh.add(rock_ellipsoid(c, (w, dep, h), rock_m, 'rock', res=35.0, rot_yaw=wyaw + side * rl.uniform(10.0, 35.0),
-                                  core=core, outward=True))
-            nj += 1    # flat silt floor, easing down to the passage floor at the mouth; it banks up against the
+    # (round 8b cut the funnel's walls back in courses of bed_undercut wedges and joint
+    # recesses: from the berth the mouth's edge read as torn paper and a patch beside it as a
+    # grille, and from S_A's helm both walls carried horizontal smears. Round 8c tried one
+    # soft bedding-plane notch per wall instead, after Palmer, Cave Geology (2007) and
+    # Slabe, Cave Rocky Relief (1995): a continuous, rounded re-entrant along one bed. From
+    # the berth the right one showed past the funnel's edge as a straight tube, a pipe and not
+    # rock. So the funnel walls are plain again and the mouth is round 7b's)
+    # flat silt floor, easing down to the passage floor at the mouth; it banks up against the
     # walls (round 5's met them in a straight, square crease) but not in the mouth
     def top(x, y):
         z = min(S_FLOOR - 160.0 * sstep(800.0, 2400.0, x), p.zf(x) - 500.0) + 14.0 * fbm(x, y, 0, 67, 350.0)
@@ -3222,7 +3217,7 @@ def spec_S(shapes=True):
         return z + max(0.0, bank)
     sh.add(heightfield(-2900, 3600, -2300, 2300, -1600, top), True)
     sh.core.extend(core.meshes())
-    spec.update({'shapes': sh, 'core': core, 'notes': {'rings': len(info), 'ledges': nl, 'recesses': nj}})
+    spec.update({'shapes': sh, 'core': core, 'notes': {'rings': len(info)}})
     return spec
 
 

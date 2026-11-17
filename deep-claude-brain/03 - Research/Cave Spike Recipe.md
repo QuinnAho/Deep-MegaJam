@@ -643,3 +643,36 @@ Frames: `devlog/media/2026-11-17-cave8b-*.png` (10). Each one is a round 7b | ro
 - **Squeeze clearance:** the squeeze is 7.8 cm wider than round 8's. Quinn to judge whether it still feels tight.
 - **C1's column rings:** unchanged.
 - **Doorway:** Helm_A_T1 still shows a roughly upright dark opening at the far end of the squeeze. It has rock edges and no notch.
+
+## Round 8c (Nov 17): T1 irregular along its whole length, S's mouth back to round 7b
+
+**T1.** The core's box (5.6 × 7.3 m, wider round the bend) is bigger than the rift, canyon and low sections. So 40–85% of each ring stood on the box plus 30 cm: a straight roof and vertical walls. Round 8b's gap only lived at the squeeze, and there its floor (80 cm) ate the whole lump, so seen end-on the narrowest wall at every angle was the box again.
+- `t1_gap` now runs the whole length and fades out 1.5–8 m from each joint, so the rims do not move:
+  - the walls lean one way and then the other along s;
+  - the per-angle stand-off is a blend of three lump patterns that changes along s;
+  - the pinches come at a different s for each angle.
+- A floor is still taken off the sum, so part of each ring still reaches the box, but which part changes with angle. All of it is outward.
+- Offline, rings on the box (wall within 55 cm of the core): squeeze 77% → 5%, keyhole 34% → 1%, canyon 57% → 2%. Angles on the box end-on in the squeeze: 91% → 24%.
+- **A was checked the same way:** its canyon and keyhole are set by their sections, with only 5–16% of each ring on the box. A is unchanged.
+
+**S.** One try at real bedding-plane notches. Sources: Palmer, *Cave Geology* (2007), on wall notches; Slabe, *Cave Rocky Relief* (1995). Where one bed dissolves faster than its neighbours, the wall gets a single soft re-entrant along it: continuous for metres, rounded in section, its roof the bedding plane, dying out gradually. The try was one notch per wall, made of overlapping flattened ellipsoids. From the berth the right one showed past the funnel's edge as a straight tube, which read as a pipe and not as rock. So the funnel block is gone and the mouth is round 7b's.
+
+**Checks**, against round 8b:
+- Lips 0 on all five rims, with matched edges unchanged (C1-B 716/720).
+- Joint gap 0.000 cm, off the outline 0.001 cm. Overlap 0, core exposure 0.
+- Hull sweep 0 / 1168.
+- Least clearance: squeeze **118.8** cm (was 95.3), neck 120.3 (was 114.1), tunnel 120.3 (was 93.8), cavern 120.3.
+- Tether 0 / 2592, nearest 277.7 cm. 9 sockets in water. Cameras nearest 146.3 cm. Degenerate triangles 0.
+- Triangles: T1 288546 (+5.4%), S 222704 (−1.5%). The others are unchanged.
+- **GPU**, with round 8b's meshes in a temporary `Scratch8` (since deleted). Two alternating runs of 40 samples; medians in ms:
+  - S berth: 5.00, 5.07 vs 5.06, 5.04.
+  - T1 squeeze: 4.78, 4.80 vs 4.85, 4.80.
+  - T1 past the squeeze: 4.81, 4.83 vs 4.89, 4.87.
+  - These are equal within noise.
+- C1's column rings are untouched.
+
+Frames: `devlog/media/2026-11-17-cave8c-*.png` (11), each a round 8b | round 8c pair. `T1_past_squeeze` (4900, 0, 60, yaw 0, pitch −2) is a new view.
+
+### Still open
+- **Squeeze width:** the squeeze is 23 cm wider at its least than round 8b's. To tighten it, raise `T1_FLOOR[0]`, which brings back some box.
+- **Joint_A_T1:** the far end of the squeeze, at about 20 m, still shows a dark opening with a fairly straight right edge.
