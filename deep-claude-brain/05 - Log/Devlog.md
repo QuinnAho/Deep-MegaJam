@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 04:17 EST
+updated: 2026-11-17 05:15 EST
 ---
 # Devlog
 
@@ -1311,3 +1311,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Found: the packaged game draws the soft band. At 0.8 s it sat between the near rock (lit at 0.5 s) and the far rocks (lit at 1.2 s), so that frame lit nothing. Neither BT-01 nor the wait explained it: the old hull and a 20 s wait gave the same empty frame.
 - Failed: the first packaged check took one moment of the pulse. A band this thin needs three (0.5, 0.8 and 1.2 s) to show.
 - Next: frames page v32 shows the packaged frames; both lanes' frames go to Quinn when they report.
+
+### 5:15 AM, Nov 17  BT-01's inside reports; its frames go to Quinn
+- Found: BT-01's own cabin is too tight to walk in (4.4 x 1.8 m, aisle 60-80 cm), so two divers could not pass. The room stays built in code, sized to BT-01's inside: 4.9 x 1.8 x 2.1 m, down from 9 x 4.5 x 3 m.
+- Changed: E acts on the nearest station in reach. In the small room the console was in reach from the valve, and `Still.Airlock` caught E at the valve opening the console. Main went into `build/sub-inside` cleanly (`ef1510b`).
+- Next: the agent fixes two white patches on the porthole panel, a 12 cm drop on spawn and lockers you can walk into; then the merge gate, and the merge with Quinn's OK (page v33).
