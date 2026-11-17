@@ -4,4 +4,4 @@ A,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_A.SM_CaveChunk_A,tunnel,rift,key,3000,0
 B,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_B.SM_CaveChunk_B,cavern,rift,bed,3000,0,0,0,0,-1593.4,-710,3000,1679.4,1844.3
 T1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_T1.SM_CaveChunk_T1,tunnel,key,bed,5300,4800,-600,90,0,-994.2,-1316.7,6231.6,4800,1641.6
 C1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_C1.SM_CaveChunk_C1,stop,bed,rift,4600,-2771.281,-2400,-60,0,-2988,-3110,5277.1,1809,2309.5
-E,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_E.SM_CaveChunk_E,end,bed,,0,0,0,0,0,-1247.9,-487.9,2849.7,1081.2,522.9
+E,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_E.SM_CaveChunk_E,end,bed,,0,0,0,0,0,-1017.2,-487.7,2574.5,1066.1,517.1

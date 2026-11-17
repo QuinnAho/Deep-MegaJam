@@ -382,9 +382,11 @@ def sec_throat():
 
 
 def sec_pinch(q):
-    """A bedding-plane passage that closes down: q from 0 (open, 14 m by 7 m) to 1 (shut)."""
-    h = max(0.0, 1.0 - q) ** 1.3
-    w = 1.0 - 0.45 * q
+    """A bedding-plane passage that closes down: q from 0 (open, 14 m by 7 m) to 1 (shut).
+    (Round 7b: it holds its height longer and narrows more, so it closes in the last
+    metres, where the breakdown choke fills it, not in one long smooth wedge.)"""
+    h = max(0.0, 1.0 - q) ** 0.7
+    w = 1.0 - 0.7 * q
     return [r_sel(c, s, 720.0 * w, 640.0 * w, max(8.0, 380.0 * h), max(8.0, 340.0 * h), 2.6) for c, s in ANG]
 
 
@@ -2215,7 +2217,10 @@ def spec_E(shapes=True):
     q0, q1 = 1000.0, L - 120.0
     defs = section_defs(55)
     # no snap of the roof to a bedding plane: it would hold the roof flat and open (a slot)
-    defs['pinch'] = (lambda s: sec_pinch(max(0.0, min(1.0, (s - q0) / (q1 - q0)))), 'silt', 1.0, False)
+    # (round 7b: the section varies along s. Rounds 4 to 7 marked it constant, so it was
+    # cached open at q0, the passage never closed and it ended in the tube's flat end cap:
+    # the smooth oval plug seen from the joint)
+    defs['pinch'] = (lambda s: sec_pinch(max(0.0, min(1.0, (s - q0) / (q1 - q0)))), 'silt', 1.0, True)
     secs = Sections([(-EXT, 'j_bed'), (0.0, 'j_bed'), (q0, 'pinch'), (L, 'pinch')], defs, seed=55)
     # (round 6: E's roof barely snaps, so no flat lintel shows through the bed joint from B)
     rock = Rock(55, roof_snap=0.3)
@@ -2248,8 +2253,54 @@ def spec_E(shapes=True):
         sh.add(warp_blob(rock_ellipsoid(c, (ax, ay, az), rock_b, 'silt', res=40.0, rot_yaw=yaw, fade=fade, core=core),
                          c, 0.14, 520.0, 560 + int(sb)))
         notes['bays'] = notes.get('bays', 0) + 1
+    # round 7b: the breakdown choke. Where the passage closes, angular blocks no more than
+    # 2 m across pile up from the floor toward the roof, half buried and overlapping (lone
+    # blocks on the silt read as boulders), with a few from the broken roof and walls, so
+    # it ends in broken rock and no smooth patch shows
+    rc = random.Random(557)
+    s_ch = L - 1150.0
+    nb = 0
+    for i in range(1200):
+        if nb >= 110:
+            break
+        t = math.sqrt(rc.random())
+        s = s_ch + (L - 40.0 - s_ch) * t
+        _, (x, y, z, yaw), uv, _ = info[min(len(info) - 1, bisect.bisect_left(ss, s))]
+        _, (rx, ry) = yaw_dirs(yaw)
+        sz = [rc.uniform(70.0, 200.0) for _ in range(3)]
+        sz[2] *= 0.75
+        k = rc.random()
+        hw = max(abs(q[0]) for q in uv)
+        if k < 0.7:           # the pile, rising toward the roof at the end
+            u = rc.uniform(-0.9, 0.9) * hw
+            v = _ring_floor(uv, u, 60.0)
+            rf = _ring_roof(uv, u, 60.0)
+            if v is None or rf is None:
+                continue
+            v += t * rc.uniform(0.0, 0.7) * (rf - v) + rc.uniform(-0.3, 0.1) * sz[2]
+        elif k < 0.88:        # from the roof
+            u = rc.uniform(-0.8, 0.8) * hw
+            v = _ring_roof(uv, u, 60.0)
+            if v is None:
+                continue
+            v -= rc.uniform(0.0, 0.3) * sz[2]
+        else:                 # off a wall
+            side = 1 if rc.random() < 0.5 else -1
+            v = rc.uniform(-0.4, 0.4) * (max(q[1] for q in uv) - min(q[1] for q in uv))
+            u = _ring_wall(uv, side, v, 60.0)
+            if u is None:
+                continue
+            u -= side * rc.uniform(0.0, 0.3) * sz[1]
+        c = (x + rx * u, y + ry * u, z + v)
+        rad = 0.5 * math.sqrt(sz[0] ** 2 + sz[1] ** 2 + sz[2] ** 2)
+        if core.sdf(c)[0] - rad < DELTA + 10.0:
+            continue
+        sh.add(obox(c, sz, yaw + rc.uniform(-60.0, 60.0), rc.uniform(-30.0, 30.0), rc.uniform(-30.0, 30.0), rc, 0.3), True)
+        nb += 1
+    notes['choke'] = nb
     sh.core.extend(core.meshes())
     spec.update({'shapes': sh, 'core': core, 'path': p, 'notes': notes})
+
     return spec
 
 
@@ -2359,24 +2410,9 @@ def spec_S(shapes=True):
                           ((-1500.0, -1650.0, 300.0), (600.0, 420.0, 380.0), 50.0, 674)):
         sh.add(warp_blob(rock_ellipsoid(c, r, rock, 'silt', res=40.0, rot_yaw=yaw, core=core),
                          c, 0.13, 600.0, sd))
-    # round 7: from the berth the funnel still closed to one hole in a flat end wall. Masses
-    # of the broken, bedded rock (rock_m, as the funnel's walls) stand out of its walls (a
-    # buttress each side and a shoulder above the right one), so the outline breaks and
-    # overlaps. Each is half set into the wall and pushed back into it until it
-    # clears the core. (First tries: worn ellipsoids with a strong warp read as lumps of foam
-    # floating in the mouth, as round 5's did; bare boxes read as concrete; a roof lobe
-    # floated clear of the roof)
-    for c, r, yaw, sd, out in (((2500.0, -1080.0, -280.0), (560.0, 340.0, 540.0), 22.0, 681, (0, -1, 0)),
-                               ((2300.0, 1120.0, -420.0), (500.0, 380.0, 330.0), -18.0, 682, (0, 1, 0)),
-                               ((2850.0, 1150.0, 180.0), (460.0, 330.0, 480.0), -12.0, 684, (0, 1, 0))):
-        for k in range(20):
-            vt = warp_blob(rock_ellipsoid(c, r, rock_m, 'silt', res=40.0, rot_yaw=yaw), c, 0.1, 900.0, sd)
-            if min(core.sdf((v.x, v.y, v.z))[0] for v in vt[0]) >= DELTA + 60.0:
-                break
-            c = (c[0] + 40.0 * out[0], c[1] + 40.0 * out[1], c[2] + 40.0 * out[2])
-        else:
-            raise RuntimeError('S mouth rock %d cannot clear the core' % sd)
-        sh.add(vt, True)
+    # (round 7 stood three masses of rock_m out of the funnel's walls to break the mouth's
+    # outline; from the berth and the hatch they read as pale boulders, so round 7b took
+    # them out and the mouth is round 6's again)
     # flat silt floor, easing down to the passage floor at the mouth; it banks up against the
     # walls (round 5's met them in a straight, square crease) but not in the mouth
     def top(x, y):

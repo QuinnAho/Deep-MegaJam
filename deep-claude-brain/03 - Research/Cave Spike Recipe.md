@@ -497,3 +497,27 @@ Frames: `devlog/media/2026-11-17-cave7-*.png`. Each is a round 6 | round 7 pair 
 - **S's mouth:** it now breaks on rock, but the masses are smooth and bright, and they may read as boulders. Quinn to judge.
 - **Joint T1–C1:** the rim area is smoother and plainer than in round 6.
 - **B–E:** the streak beyond the bed wing's right end is softer, but it is still there in `Helm_B_E`.
+
+## Round 7b (Nov 17): S's pale boulders out, E closes as rock
+Goal: two fixes on top of round 7; exits, joint types and S's size and layout unchanged.
+
+### Causes found
+- **S's pale boulders:** round 7's three `rock_m` masses (seeds 681, 682, 684). From the berth and the hatch they read as boulders, not wall.
+- **E's oval plug:** `sec_pinch` was registered with `varies=False` since round 4, so its radii were cached at the first s and the passage never closed. E ended in `ring_tube`'s flat end cap: a vertical oval about 6 m across.
+
+### What changed
+- **S:** the three masses are gone, so the mouth is round 6's again. Round 7's back bays (silt kind) stay, and they are what fixed the `S_mouth_back` notch.
+- **E's pinch:** `varies=True`. It holds its height longer (`(1-q)^0.7`, was `^1.3`) and narrows more (`w = 1 - 0.7q`, was `0.45q`), so it closes in the last metres, not as one long smooth wedge.
+- **E's breakdown choke:** 110 angular blocks (`obox`, 0.7–2 m, jitter 0.3, seed 557) over the last 11.5 m, denser toward the end. 70% pile up from the floor toward the roof, half buried; 18% hang from the roof and 12% come off the walls. A block is skipped if it would come within `DELTA + 10` of the core. E's side bays are unchanged. E is 2.75 m shorter (bounds max x 2574.5, was 2849.7); its entry and the joint are unchanged.
+- Tried and dropped: only fixing `varies` (a long smooth wedge slit), and fewer loose blocks on the silt (they read as boulders).
+
+### Results
+All round 7 checks are unchanged: joint gap 0.000 cm and off the outline 0.001 cm; overlap 0; core exposure 0; hull sweep 0 / 1168 (controls 648, 648); least clearance 87.5 / 103.1 / 115.6 / 120.3 cm; column S 28.5 m, C1 22.3 m; tether 0 leaks of 2592; 9 salvage sockets in water; border edges only on the rims; nearest camera 146 cm from rock (0 of 22 under 50 cm). Degenerate triangles: 4, 2, 3, 4, 5, 2 (E was 0; both of E's are collinear caps under 0.001 cm²).
+- **Flat patches in E** (any vertex whose 2.2 m disc is planar within 4 cm, past local x 1500): none in the choke; 24 of 3745 samples, all on the approach roof at x 1500–1800.
+
+Frames: `devlog/media/2026-11-17-cave7b-*.png`, each a round 7 | round 7b pair.
+
+### Still open
+- **E's choke:** a few blocks are rounded and pale under the viewport light. The approach roof keeps a few smooth 2 m patches.
+- **S's mouth:** the funnel's walls beside the exit are plain again, as in round 6.
+- **Joint rims (keyhole, S–A and C1–B rings):** the relief fades to 0 at each joint plane (rock over 6.5 m, fine over 3.5 m), so the shared outline shows bare. The fix would be a displacement in the joint's own frame, shared by both sides. It must depend only on the joint type, clear the hull by 1 m in the neck, and it means reworking `conform_rims` and the joint checks and rebaking all six chunks.
