@@ -444,3 +444,56 @@ Frames: `devlog/media/2026-11-17-cave6-*.png`. Each one is a round 5 | round 6 p
 - **S's mouth (a):** the foam is gone, but the mouth still reads as one opening in the chamber's end wall. The funnel does not show from the berth.
 - **C1's entry rock:** it no longer reads as clay, but it shows big flat facets at close range (C1_from_entry).
 - **E's bays:** they now read as crumpled rather than plain. The scale of the relief needs tuning.
+
+## Round 7 (Nov 17): cameras, rims, bays, holes and S's mouth
+Goal: finish round 6's list without changing the layout, the exits in `CaveChunks.csv` or the joint types (D-059).
+
+### Causes found
+- **Rims (A–T1 keyhole, S–A, T1–C1, C1–B):** the fine joint relief only pushed outward, and each tunnel held its joint section on a plateau (two anchors of the same name before the joint). Together they made stepped rings that ran parallel to the rim.
+- **Back bays in S and E:** built in `rock_m` / `rock_b` with the `'rock'` kind, so their floors snapped down to the bed below and left a hard lip (the black lower rim). Outward-only relief crumpled their insides.
+- **C1 sink column:** the shaft lies wholly inside C1's stacked chamber ellipsoids, so it never shows. The rings seen from Park are the chamber's bedded roofs, seen from below (tried: patchy roof snap and weaker beds on the upper roofs; no visible change, so reverted).
+- **Black specks and the notch:** not holes. Every chunk has border edges only on its rims (S and E 720, others 1440, one or two loops), so non-rim border edges are 0. The notch in `S_mouth_back` is a recess.
+- **Cameras:** fixed world positions went stale when chunks changed.
+
+### What changed
+- **Fine joint relief** is zero-mean (in and out) and reaches 3.5 m (`JFINE_REACH`). The plateaus before each joint are gone; sections now blend straight into the joint shape.
+- **`collapse_slivers`** in `conform_rims` merges edges under 2 mm (a rim vertex wins and two rim vertices never merge) and drops the resulting fins.
+- **E's bays and S's back bays:** silt kind, relief both ways, a gentler warp. S's two low bays and the Serpent's bay now reach under the silt, so they have no lower lip.
+- **C1 entry:** its own calmer rock (`rock_in`: smaller blocks, less sharpness).
+- **S's mouth:** two buttresses and a shoulder of `rock_m` set half into the funnel's walls. Each is pushed back into the wall until it clears the core by `DELTA + 60`. Tried and dropped: strongly warped ellipsoids (foam), bare boxes (concrete), and a roof lobe (it floated).
+- **Cameras (`cavestring.derive_cameras`):**
+  - The helm views come from `dive_path`, 20 m before each joint at z + 1 m. `T1_squeeze_helm`, `C1_from_entry` and `E_from_joint` sit in chunk-local spots.
+  - `String_overview` fits all six chunks' bounds.
+  - `camera_check` raises if any camera is under 50 cm from rock or out of the water.
+
+### Results
+| Check | Round 6 | Round 7 |
+|---|---|---|
+| Joint gap / off outline | 0.000 / 0.001 cm | 0.000 / 0.001 cm |
+| Overlap, core exposure | 0, 0 | 0, 0 |
+| Hull sweep S–E; controls ±300 | 0 / 1168; 666, 662 | 0 / 1168; 648, 648 |
+| Least clearance: squeeze, neck, tunnel, cavern | 87.5, 104.7, 112.5, 112.5 cm | 87.5, 103.1, 115.6, 120.3 cm |
+| Column S / C1; tether | 28.5 / 22.2 m; 0 leaks | 28.5 / 22.3 m; 0 leaks of 2592 |
+| Park gap S / C1; Serpent S | 308 / 295 cm; 30.9 m in void | 308 / 295 cm; 30.9 m in void |
+| Salvage sockets | 9 in water | 9 in water, 20–28 cm above the floor |
+| Cameras < 50 cm from rock | not checked | 0 of 22 (nearest 146 cm) |
+| Non-rim border edges | not checked | 0 in every chunk |
+| Degenerate triangles S, A, B, T1, C1, E | 56, 22, 26, 76, 116, 14 | 4, 2, 3, 4, 5, 0 |
+
+- **Degenerate triangles:** the 18 left are collinear caps with an area under 0.001 cm² (under 1 µm high). They cover no pixel, and with no non-rim border edges they hide no gap.
+- **GPU** (Graphics queue median / p95, 40 samples per view): round 6 and round 7 were measured back to back, twice, in one session at 1.7–1.9 GHz. They are equal within noise.
+
+  | View | Round 6 | Round 7 |
+  |---|---|---|
+  | S berth | 4.48/4.78, 4.65/5.26 | 4.50/5.51, 4.54/5.02 |
+  | T1 squeeze | 4.41/4.63, 4.43/4.65 | 4.41/4.60, 4.45/4.65 |
+  | C1 Park | 4.54/4.65, 4.51/4.70 | 4.39/4.55, 4.56/4.77 |
+
+Frames: `devlog/media/2026-11-17-cave7-*.png`. Each is a round 6 | round 7 pair from the same (new) camera.
+
+### Still open
+- **A–T1 keyhole:** the rings are softer, but the key outline is fixed at the plane, so its straight sides still read as a cut doorway from `Helm_A_T1`.
+- **C1 column rings:** see the cause above. A fix means reshaping the chamber's upper roof, not the shaft.
+- **S's mouth:** it now breaks on rock, but the masses are smooth and bright, and they may read as boulders. Quinn to judge.
+- **Joint T1–C1:** the rim area is smoother and plainer than in round 6.
+- **B–E:** the streak beyond the bed wing's right end is softer, but it is still there in `Helm_B_E`.

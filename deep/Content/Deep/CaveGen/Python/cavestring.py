@@ -632,3 +632,125 @@ def tether_check(rows, name='S', tether=4000.0, n_az=72, n_el=36):
                 leak += 1
     return {'rays': rock + water + leak, 'rock_first': rock, 'clear_water_at_full_tether': water, 'leaks': leak,
             'nearest_rock_cm': round(nearest, 1), 'hatch': tuple(round(c) for c in hatch)}
+
+
+# ---------------------------------------------------------------- frame cameras
+# Round 6 kept every camera as a fixed world position, and the rock moved round them: the
+# squeeze helm sat against rock and the overview lost chunks. Now the cameras that follow
+# the string are derived from it (helm views from the dive path, the overview from the
+# chunks' bounds), and camera_check fails a run if any camera is near rock.
+CAMERA_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'CaveCameras.csv')
+CAMERA_COLS = ['Name', 'X', 'Y', 'Z', 'Yaw', 'Pitch', 'Note']
+HELM_BACK = 2000.0      # helm views: the hull centre this far (along the dive path) before a joint
+HELM_UP = 100.0         # and the eye this far above it
+VIEW_ASPECT = 1912.0 / 637.0   # the frame viewport; its horizontal field of view is 90 degrees
+CAMERA_MIN_ROCK = 50.0  # a camera this close to rock fails the run
+
+
+def _path_cum(pts):
+    acc = [0.0]
+    for a, b in zip(pts, pts[1:]):
+        acc.append(acc[-1] + math.dist(a[:3], b[:3]))
+    return acc
+
+
+def _path_at(pts, acc, d):
+    """The dive-path sample at path distance d (nearest sample)."""
+    import bisect
+    i = max(0, min(len(pts) - 1, bisect.bisect_left(acc, d)))
+    return pts[i]
+
+
+def derive_cameras(rows, write=True):
+    """Recompute the cameras that follow the string and keep the rest. Helm views
+    (Helm_X_Y): the hull centre 20 m along the dive path before joint X-Y, 1 m up, facing
+    along the path. T1_squeeze_helm: the hull's nose at the squeeze's start. C1_from_entry:
+    3.5 m into C1 on its axis. E_from_joint: 1.5 m into E. String_overview: straight down, turned and raised so every
+    chunk's bounds fit the frame."""
+    cams = read_csv(CAMERA_CSV)
+    plist, end = string_places(rows)
+    places = dict(plist)
+    pts = dive_path(rows)
+    acc = _path_cum(pts)
+    new = {}
+    # joints in string order: the entry of every chunk after the first
+    for a, b in zip(STRING, STRING[1:]):
+        j = places[b][:3]
+        k = min(range(len(pts)), key=lambda i: math.dist(pts[i][:3], j))
+        p = _path_at(pts, acc, acc[k] - HELM_BACK)
+        new['Helm_%s_%s' % (a, b)] = (p[0], p[1], p[2] + HELM_UP, p[3])
+    # the squeeze helm: hull centre a hull half length before the rift, so the nose is in it
+    q0 = cg.T1_SQUEEZE[0] - HULL_HALF[0] + 500.0
+    x, y, z, yaw = cg.t1_path().at(q0)
+    w = compose(places['T1'], (x, y, z + HELM_UP, yaw))
+    new['T1_squeeze_helm'] = w
+    w = compose(places['C1'], (350.0, 0.0, 60.0, 0.0))
+    new['C1_from_entry'] = w
+    # just past the B-E joint (on the plane itself it is in neither chunk's water)
+    new['E_from_joint'] = compose(places['E'], (150.0, 0.0, HELM_UP, 0.0))
+    # overview: fit the chunks' bounds (8 corners each, in world) for the best yaw
+    corners = []
+    for r in rows:
+        if r['Name'] not in places:
+            continue
+        for xx in (r['MinX'], r['MaxX']):
+            for yy in (r['MinY'], r['MaxY']):
+                for zz in (r['MinZ'], r['MaxZ']):
+                    corners.append(compose(places[r['Name']], (xx, yy, zz)))
+    ztop = max(c[2] for c in corners)
+    best = None
+    for yd in range(0, 180, 5):
+        (fx, fy), (rx, ry) = yaw_dirs(float(yd))
+        us = [c[0] * rx + c[1] * ry for c in corners]      # image right
+        vs = [c[0] * fx + c[1] * fy for c in corners]      # image up
+        h = max(0.5 * (max(us) - min(us)), 0.5 * (max(vs) - min(vs)) * VIEW_ASPECT) * 1.06
+        if best is None or h < best[0]:
+            uc, vc = 0.5 * (max(us) + min(us)), 0.5 * (max(vs) + min(vs))
+            best = (h, float(yd), (uc * rx + vc * fx, uc * ry + vc * fy))
+    h, yd, (cx, cy) = best
+    new['String_overview'] = (cx, cy, ztop + h, yd)
+    out = []
+    for c in cams:
+        if c['Name'] in new:
+            v = new[c['Name']]
+            c = dict(c, X=round(v[0], 1), Y=round(v[1], 1), Z=round(v[2], 1), Yaw=round(v[3], 2))
+        out.append(c)
+    if write:
+        write_csv(CAMERA_CSV, CAMERA_COLS, out)
+    return out
+
+
+def _sphere_dirs(n=162):
+    g = math.pi * (3.0 - math.sqrt(5.0))
+    out = []
+    for i in range(n):
+        z = 1.0 - 2.0 * (i + 0.5) / n
+        r = math.sqrt(max(0.0, 1.0 - z * z))
+        out.append((r * math.cos(g * i), r * math.sin(g * i), z))
+    return out
+
+
+def camera_check(rows, cams=None, min_rock=CAMERA_MIN_ROCK, reach=400.0):
+    """Every frame camera: nearest rock within reach (rays in 162 directions, so to a few
+    cm) and, except the overviews, that it is in some chunk's water. Raises if any camera
+    is within min_rock of rock or outside the water."""
+    cams = cams or read_csv(CAMERA_CSV)
+    plist, end = string_places(rows)
+    dirs = _sphere_dirs()
+    out, bad = [], []
+    for c in cams:
+        p = (c['X'], c['Y'], c['Z'])
+        near = reach
+        for d in dirs:
+            h = line(p, (p[0] + d[0] * reach, p[1] + d[1] * reach, p[2] + d[2] * reach))
+            if h:
+                near = min(near, math.dist(p, h[0]))
+        wet = None
+        if 'overview' not in c['Name']:
+            wet = any(in_void(n, to_local(pl, p)) for n, pl in plist)
+        out.append((c['Name'], round(near, 1), wet))
+        if near < min_rock or wet is False:
+            bad.append((c['Name'], round(near, 1), wet))
+    if bad:
+        raise RuntimeError('cameras near or in rock: %s' % bad)
+    return out

@@ -941,10 +941,12 @@ def tunnel(path, secs, rock, s_list, slices=None, core=None, fade=None, n=RING_N
                 du, dv = (dx * rx + dy * ry) * amp, dz * amp
             jn = fade.near(p0) if hasattr(fade, 'near') else 0.0
             if jn > 0.0:
-                # fine, sharp relief along the ring's outward normal near a joint, outward only
-                f = JFINE_AMP * jn * (0.55 + 0.45 * fbm(p0[0], p0[1], p0[2], rock.seed + 51, 110.0)
-                                      - 0.35 * abs(fbm(p0[0], p0[1], p0[2], rock.seed + 53, 60.0)))
-                du, dv = du + max(0.0, f) * nu, dv + max(0.0, f) * nv
+                # fine relief along the ring's outward normal near a joint. Round 6 pushed it
+                # outward only (mean +14 cm, peaking 1.4 m from the plane): every rim got a
+                # raised ring and a crease inside it. Round 7: zero mean, both ways
+                f = JFINE_AMP * jn * (0.7 * fbm(p0[0], p0[1], p0[2], rock.seed + 51, 110.0)
+                                      + 0.45 * (0.3 - abs(fbm(p0[0], p0[1], p0[2], rock.seed + 53, 60.0))))
+                du, dv = du + f * nu, dv + f * nv
             if du or dv:
                 if sl:
                     du, dv = clamp2(pu, pv, du, dv, sl)
@@ -1095,7 +1097,7 @@ def bent_tube(pts, radii, seed, res=45.0, step=50.0, amp=0.14, flute=0.0, lobe=0
     return ring_tube(rings, cents)
 
 
-def shaft(cx, cy, z0, z1, R, rock, res=50.0, flute=28.0, seed=0):
+def shaft(cx, cy, z0, z1, R, rock, res=50.0, flute=40.0, seed=0):
     """Vertical shaft of water: radius R plus outward-only relief (bed ledges and
     vertical flutes), so its clear diameter never drops below 2R."""
     n = max(24, int(2 * math.pi * R / res))
@@ -1107,10 +1109,15 @@ def shaft(cx, cy, z0, z1, R, rock, res=50.0, flute=28.0, seed=0):
         for j in range(n):
             th = 2 * math.pi * j / n
             x, y = cx + R * math.cos(th), cy + R * math.sin(th)
-            zb = rock.zb(x, y, z)
-            d = rock.wall(x, y, zb, rock.bed(zb)) + 45.0
-            fl = 0.5 + 0.5 * math.cos(kf * th + 2.5 * fbm(x, y, z * 0.2, seed + 1, 300.0))
-            d = max(0.0, d) + flute * fl
+            # round 7: round 6 took the bedded wall relief per height, so each bed's ledge
+            # ran round the shaft and from Park it read as concentric rings. Now the relief
+            # is sampled in the shaft's own frame, stretched up the axis (as bent_tube's)
+            ca, sa, sz = 900.0 * math.cos(th), 900.0 * math.sin(th), z / 3.5
+            d = (60.0 + 70.0 * fbm(ca, sa, sz, seed + 9, 900.0) + 35.0 * fbm(ca * 1.6, sa * 1.6, sz * 1.4, seed, 500.0)
+                 + 8.0 * fbm(x, y, z, seed + 5, 120.0))
+            fl = 0.5 + 0.5 * math.cos(kf * th + 2.2 * fbm(ca * 0.4, sa * 0.4, z / 2.0, seed + 1, 700.0))
+            fl *= 0.6 + 0.4 * fbm(ca, sa, z / 1.5, seed + 13, 600.0)
+            d = max(0.0, d) + flute * max(0.0, fl)
             verts.append(U.Vector(cx + (R + d) * math.cos(th), cy + (R + d) * math.sin(th), z))
     for i in range(nz):
         a0, b0 = i * n, (i + 1) * n
@@ -1641,6 +1648,9 @@ def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
         out = [tuple(newi[x] for x in t) for t in welded]
         for j in range(len(joints)):
             stats[j]['welded'] = sum(1 for i in rep if ring[i][0] == j)
+    pts, out, nsl = collapse_slivers(pts, out, joints)
+    for st in stats:
+        st['slivers'] = nsl
     buf = U.GeometryScriptSimpleMeshBuffers()
     buf.vertices = [U.Vector(*q) for q in pts]
     buf.triangles = [U.IntVector(*t) for t in out]
@@ -1649,6 +1659,65 @@ def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
     if GS_Q.get_num_triangle_i_ds(res) != len(out):
         raise RuntimeError('rim rebuild dropped triangles: %d of %d' % (GS_Q.get_num_triangle_i_ds(res), len(out)))
     return res, stats
+
+
+def collapse_slivers(pts, tris, joints, min_edge=0.2, rim_tol=0.6):
+    """Collapse edges shorter than min_edge (cm): the voxel surfacing leaves a few dozen
+    slivers per chunk with sub-millimetre edges (zero area, so 'degenerate'). Round 6 left
+    them; a repair that deletes them opens tiny holes. Here both ends of a short edge
+    become one vertex (a rim vertex wins, and two rim vertices never merge, so the rims
+    stay canonical), the triangles that collapse go, and a pair of triangles left on the
+    same three vertices (a fin) goes too. Returns (pts, tris, collapsed edges)."""
+    def on_rim(i):
+        x, y, z = pts[i]
+        return any(abs((x - cx) * fx + (y - cy) * fy) < rim_tol for (cx, cy, cz), (fx, fy), t, sg in joints)
+
+    parent = list(range(len(pts)))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    m2 = min_edge * min_edge
+    n = 0
+    for t in tris:
+        for u, v in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            a, b = pts[u], pts[v]
+            if (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2 >= m2:
+                continue
+            ru, rv = find(u), find(v)
+            if ru == rv:
+                continue
+            fu, fv = on_rim(ru), on_rim(rv)
+            if fu and fv:
+                continue
+            if fv:
+                ru, rv = rv, ru
+            parent[rv] = ru
+            n += 1
+    if not n:
+        return pts, tris, 0
+    keep = {}
+    for t in tris:
+        q = (find(t[0]), find(t[1]), find(t[2]))
+        if q[0] == q[1] or q[1] == q[2] or q[0] == q[2]:
+            continue
+        keep.setdefault(frozenset(q), []).append(q)
+    out = []
+    for k, ts in keep.items():
+        if len(ts) == 1:
+            out.append(ts[0])
+        elif len(ts) == 2:
+            a, b = ts
+            # same winding: a duplicate, keep one; opposite: a fin, drop both
+            if (a[1], a[2]) in ((b[0], b[1]), (b[1], b[2]), (b[2], b[0])):
+                out.append(a)
+        else:
+            out.append(ts[0])
+    used = sorted({x for t in out for x in t})
+    newi = {o: k for k, o in enumerate(used)}
+    return [pts[o] for o in used], [tuple(newi[x] for x in t) for t in out], n
 
 
 def finish(mesh):
@@ -1739,7 +1808,7 @@ def core_exposure(mesh, spec, tol=4.0):
 
 # ---------------------------------------------------------------- chunk specs
 FADE_OUTER = 650.0    # the rock relief grows from nothing at a joint plane to full over this (cm)
-JFINE_REACH = 140.0   # a fine relief ramps in over this from the plane, where the big relief is still small
+JFINE_REACH = 350.0   # a fine relief ramps in over this from the plane, where the big relief is still small
 JFINE_AMP = 26.0
 
 
@@ -1780,7 +1849,8 @@ class JointFade:
         a = joint_along(p, self.exit_t, self.entry)
         if a is None:
             return 0.0
-        return sstep(0.0, JFINE_REACH, a) * (1.0 - sstep(0.0, FADE_OUTER, a))
+        # round 7: a slow ramp in and out (round 6 rose over 1.4 m and peaked there)
+        return sstep(0.0, JFINE_REACH, a) * (1.0 - sstep(0.4 * JFINE_REACH, FADE_OUTER, a))
 
 
 def section_defs(seed):
@@ -1827,7 +1897,7 @@ def spec_A(shapes=True):
         return spec
     p, s_list, slices, core = straight_core(L)
     secs = Sections([(-EXT, 'j_rift'), (100.0, 'j_rift'), (750.0, 'canyon'), (1350.0, 'canyon'), (1750.0, 'keyhole'),
-                     (2250.0, 'keyhole'), (2900.0, 'j_key'), (L + EXT, 'j_key')], section_defs(11), seed=11)
+                     (L, 'j_key'), (L + EXT, 'j_key')], section_defs(11), seed=11)
     rock = Rock(11)
     fade = JointFade(ex)
     sh = Shapes(11)
@@ -1849,7 +1919,7 @@ def spec_B(shapes=True):
         return spec
     p, s_list, slices, core = straight_core(L)
     # each joint sits a few metres back down a rough throat that flares raggedly into the hall
-    secs = Sections([(-EXT, 'j_rift'), (80.0, 'j_rift'), (1150.0, 'hall'), (1800.0, 'hall'), (2920.0, 'j_bed'),
+    secs = Sections([(-EXT, 'j_rift'), (0.0, 'j_rift'), (1150.0, 'hall'), (1800.0, 'hall'), (L, 'j_bed'),
                      (L + EXT, 'j_bed')], section_defs(22), seed=22)
     rock = Rock(22)
     fade = JointFade(ex)
@@ -1944,9 +2014,9 @@ def spec_T1(shapes=True):
     slices = [core_slice(p, s, t1_margin) for s in s_list]
     core = Core()
     core.add_tube(p, s_list, slices)
-    secs = Sections([(-EXT, 'j_key'), (100.0, 'j_key'), (750.0, 'canyon'), (1000.0, 'canyon'), (q0, 'rift'), (q1, 'rift'),
+    secs = Sections([(-EXT, 'j_key'), (0.0, 'j_key'), (q0, 'rift'), (q1, 'rift'),
                      (2900.0, 'keyhole'), (3650.0, 'keyhole'), (4050.0, 'canyon'), (6050.0, 'canyon'), (6350.0, 'widelow'),
-                     (8200.0, 'widelow'), (8650.0, 'phreatic'), (9000.0, 'phreatic'), (L - 100.0, 'j_bed'), (L + EXT, 'j_bed')],
+                     (8200.0, 'widelow'), (8650.0, 'phreatic'), (L, 'j_bed'), (L + EXT, 'j_bed')],
                     section_defs(33), seed=33)
     rock = Rock(33)
     fade = JointFade(ex)
@@ -2035,14 +2105,17 @@ def spec_C1(shapes=True):
     defs = section_defs(44)
     # entry tunnel, level, opening into the chamber
     pin = Path().straight(cx)
-    secs_in = Sections([(-EXT, 'j_bed'), (100.0, 'j_bed'), (850.0, 'keyhole'), (cx, 'keyhole')], defs, seed=44)
-    tv, info_in = tunnel(pin, secs_in, rock, ring_s(-EXT, cx), core=core, fade=fade)
+    # round 7: the entry run in the same beds with softer blocks (round 6's sharp, blocky
+    # rock read as facets from the joint)
+    rock_in = Rock(44, a_res=50.0, a_blk=18.0, a_fine=12.0, a_sharp=10.0, a_warp=0.0)
+    secs_in = Sections([(-EXT, 'j_bed'), (0.0, 'j_bed'), (1100.0, 'keyhole'), (cx, 'keyhole')], defs, seed=44)
+    tv, info_in = tunnel(pin, secs_in, rock_in, ring_s(-EXT, cx), core=core, fade=fade)
     sh.add(tv)
     # exit tunnel from the column axis, level at Park height
     pout = Path(cx, cy, C1_EXIT_YAW).straight(C1_EXIT_RUN)
     pout.zf = lambda s: C1_PARK_Z
     secs_out = Sections([(500.0, 'phreatic'), (1500.0, 'phreatic'), (1850.0, 'widelow'), (2250.0, 'widelow'),
-                         (C1_EXIT_RUN - 100.0, 'j_rift'), (C1_EXIT_RUN + EXT, 'j_rift')], defs, seed=45)
+                         (C1_EXIT_RUN, 'j_rift'), (C1_EXIT_RUN + EXT, 'j_rift')], defs, seed=45)
     # the mouth's lips stand inside the 9 m circle, so near the exit the wall keeps the same
     # uneven gap round the hull's swept box as the straight chunks do
     s_out = ring_s(500.0, C1_EXIT_RUN + EXT)
@@ -2143,11 +2216,13 @@ def spec_E(shapes=True):
     defs = section_defs(55)
     # no snap of the roof to a bedding plane: it would hold the roof flat and open (a slot)
     defs['pinch'] = (lambda s: sec_pinch(max(0.0, min(1.0, (s - q0) / (q1 - q0)))), 'silt', 1.0, False)
-    secs = Sections([(-EXT, 'j_bed'), (80.0, 'j_bed'), (q0, 'pinch'), (L, 'pinch')], defs, seed=55)
+    secs = Sections([(-EXT, 'j_bed'), (0.0, 'j_bed'), (q0, 'pinch'), (L, 'pinch')], defs, seed=55)
     # (round 6: E's roof barely snaps, so no flat lintel shows through the bed joint from B)
     rock = Rock(55, roof_snap=0.3)
-    # the same beds, harder and more broken, for the bays
-    rock_b = Rock(55, a_res=65.0, a_var=35.0, a_blk=38.0, a_notch=22.0, a_fine=12.0, a_sharp=22.0)
+    # the same beds, a little more broken, for the bays (round 7: round 6's harder rock_b,
+    # its rock-floor snap and outward-only relief crumpled the bays; now they carry the
+    # passage's own relief and only open the wall out)
+    rock_b = Rock(55, a_res=50.0, a_var=30.0, a_blk=22.0, a_notch=16.0, a_fine=10.0, a_sharp=10.0)
     fade = JointFade(None)
     sh = Shapes(55)
     tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade)
@@ -2165,11 +2240,13 @@ def spec_E(shapes=True):
         if uw is None:
             continue
         _, (rx, ry) = yaw_dirs(yaw)
-        u = uw + side * 0.45 * ay
-        # round 5's bays were plain bowls: now each is warped out of round and cut in broken rock
+        # round 7: wider along the wall and shallower, centred nearer the wall, so each bay
+        # meets the wall at a low angle instead of a fold
+        ax, ay = 1.2 * ax, 0.7 * ay
+        u = uw + side * 0.15 * ay
         c = (x + rx * u, y + ry * u, z + dv)
-        sh.add(warp_blob(rock_ellipsoid(c, (ax, ay, az), rock_b, 'rock', res=40.0, rot_yaw=yaw, fade=fade, core=core,
-                                        outward=True), c, 0.22, 380.0, 560 + int(sb)))
+        sh.add(warp_blob(rock_ellipsoid(c, (ax, ay, az), rock_b, 'silt', res=40.0, rot_yaw=yaw, fade=fade, core=core),
+                         c, 0.14, 520.0, 560 + int(sb)))
         notes['bays'] = notes.get('bays', 0) + 1
     sh.core.extend(core.meshes())
     spec.update({'shapes': sh, 'core': core, 'path': p, 'notes': notes})
@@ -2234,8 +2311,11 @@ def spec_S(shapes=True):
                       (1350.0, 950.0, 2850.0)], [620.0, 540.0, 420.0, 330.0, 300.0], seed=67, flute=60.0, lobe=0.16))
     # the Serpent's bay off the -Y wall, far from the berth
     sx, sy, sz, _ = S_SERPENT
-    sh.add(warp_blob(rock_ellipsoid((sx - 50.0, sy + 150.0, sz - 20.0), (780.0, 680.0, 470.0), rock, 'silt', res=40.0,
-                                    rot_yaw=-25.0, amp=0.6), (sx - 50.0, sy + 150.0, sz - 20.0), 0.14, 700.0, 662))
+    # (round 7: taller and lower, so its floor runs under the silt and it has no lower lip,
+    # which read as a hard black rim from the hatch)
+    sc = (sx - 50.0, sy + 150.0, sz - 140.0)
+    sh.add(warp_blob(rock_ellipsoid(sc, (780.0, 680.0, 580.0), rock, 'silt', res=40.0,
+                                    rot_yaw=-25.0, amp=0.6), sc, 0.14, 700.0, 662))
     # the way on. Round 5 set a wide, low passage into the chamber's end wall and dressed
     # the mouth with two worn blobs: from the berth they bulged like foam round a door in a
     # wall. Now the passage starts well inside the chamber as a hall wider and taller than
@@ -2243,7 +2323,7 @@ def spec_S(shapes=True):
     # (no wall face to hold a door), cut in the broken, bedded rock of rock_m
     s_t = ring_s(1700.0, L + EXT)
     sl_t = [core_slice(p, s, lambda q: M_BODY) for s in s_t]
-    secs = Sections([(1700.0, 'hall'), (2300.0, 'hall'), (3200.0, 'widelow'), (L - 100.0, 'j_rift'), (L + EXT, 'j_rift')],
+    secs = Sections([(1700.0, 'hall'), (2300.0, 'hall'), (3200.0, 'widelow'), (L, 'j_rift'), (L + EXT, 'j_rift')],
                     section_defs(66), seed=66)
     tv, info = tunnel(p, secs, rock_m, s_t, slices=sl_t, fade=fade)
     sh.add(tv)
@@ -2269,12 +2349,34 @@ def spec_S(shapes=True):
         nb += 1
     # the back of the chamber: round 5's read as a box (one wall, straight roof bands, square
     # corners). Bays of bedded rock at three heights break its wall and corners
-    for c, r, yaw, sd in (((-2150.0, -950.0, 120.0), (760.0, 620.0, 520.0), 30.0, 671),
-                          ((-2300.0, 750.0, -80.0), (700.0, 720.0, 430.0), -25.0, 672),
-                          ((-1950.0, 80.0, 560.0), (620.0, 900.0, 380.0), 8.0, 673),
-                          ((-1500.0, -1650.0, 300.0), (520.0, 480.0, 420.0), 50.0, 674)):
-        sh.add(warp_blob(rock_ellipsoid(c, r, rock_m, 'rock', res=40.0, rot_yaw=yaw, core=core, outward=True),
-                         c, 0.2, 450.0, sd))
+    # (round 7: in the chamber's own worn rock with a silt floor, and flatter: round 6's, in
+    # rock_m with a rock-floor snap and outward-only relief, had hard black lower rims and
+    # crumpled insides; the two low bays now reach down under the silt, so they have no
+    # lower lip and the floor runs into them)
+    for c, r, yaw, sd in (((-2150.0, -950.0, -100.0), (820.0, 560.0, 560.0), 30.0, 671),
+                          ((-2300.0, 750.0, -260.0), (780.0, 620.0, 440.0), -25.0, 672),
+                          ((-1950.0, 80.0, 560.0), (680.0, 820.0, 340.0), 8.0, 673),
+                          ((-1500.0, -1650.0, 300.0), (600.0, 420.0, 380.0), 50.0, 674)):
+        sh.add(warp_blob(rock_ellipsoid(c, r, rock, 'silt', res=40.0, rot_yaw=yaw, core=core),
+                         c, 0.13, 600.0, sd))
+    # round 7: from the berth the funnel still closed to one hole in a flat end wall. Masses
+    # of the broken, bedded rock (rock_m, as the funnel's walls) stand out of its walls (a
+    # buttress each side and a shoulder above the right one), so the outline breaks and
+    # overlaps. Each is half set into the wall and pushed back into it until it
+    # clears the core. (First tries: worn ellipsoids with a strong warp read as lumps of foam
+    # floating in the mouth, as round 5's did; bare boxes read as concrete; a roof lobe
+    # floated clear of the roof)
+    for c, r, yaw, sd, out in (((2500.0, -1080.0, -280.0), (560.0, 340.0, 540.0), 22.0, 681, (0, -1, 0)),
+                               ((2300.0, 1120.0, -420.0), (500.0, 380.0, 330.0), -18.0, 682, (0, 1, 0)),
+                               ((2850.0, 1150.0, 180.0), (460.0, 330.0, 480.0), -12.0, 684, (0, 1, 0))):
+        for k in range(20):
+            vt = warp_blob(rock_ellipsoid(c, r, rock_m, 'silt', res=40.0, rot_yaw=yaw), c, 0.1, 900.0, sd)
+            if min(core.sdf((v.x, v.y, v.z))[0] for v in vt[0]) >= DELTA + 60.0:
+                break
+            c = (c[0] + 40.0 * out[0], c[1] + 40.0 * out[1], c[2] + 40.0 * out[2])
+        else:
+            raise RuntimeError('S mouth rock %d cannot clear the core' % sd)
+        sh.add(vt, True)
     # flat silt floor, easing down to the passage floor at the mouth; it banks up against the
     # walls (round 5's met them in a straight, square crease) but not in the mouth
     def top(x, y):
