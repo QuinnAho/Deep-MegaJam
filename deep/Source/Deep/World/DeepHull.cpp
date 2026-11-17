@@ -7,6 +7,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepShapes.h"
+#include "World/DeepSubmarine.h"
 
 static TAutoConsoleVariable<int32> CVarDeepSubModel(
 	TEXT("Deep.Sub.Model"), 1,
@@ -276,6 +277,36 @@ namespace DeepHull
 	{
 		return CVarDeepSubModel.GetValueOnGameThread() != 0;
 	}
+
+	const TCHAR* BulbMaterial = TEXT("/Game/Deep/Subs/M_SubBulb.M_SubBulb");
+
+	const FLampSpot& ModelLamp(ELamp Lamp)
+	{
+		// Measured on BT-01 with per-triangle traces (build_sub_hull.py probe): flat or convex spots, mirrored port and
+		// starboard. Mesh-local cm and the face's outward normal.
+		static const FLampSpot Spots[] = {
+			{TEXT("BowPort"), FVector(299.26, -15.93, 59.05), FVector(0.748, -0.664, -0.007)},     // the nose's port cheek
+			{TEXT("BowStbd"), FVector(298.86, 15.93, 59.05), FVector(0.775, 0.631, -0.039)},      // the nose's starboard cheek
+			{TEXT("HullPort"), FVector(45.50, -75.44, 106.83), FVector(-0.066, -0.968, 0.243)},   // widest beam, over the hatch
+			{TEXT("HullStbd"), FVector(45.50, 75.31, 106.83), FVector(-0.061, 0.975, 0.212)},
+			{TEXT("MarkerPort"), FVector(204.78, -74.57, 106.83), FVector(0.145, -0.966, 0.212)}, // forward beam, 3 m ahead of the hatch
+			{TEXT("MarkerStbd"), FVector(204.78, 74.40, 106.83), FVector(0.132, 0.965, 0.225)},
+			{TEXT("Airlock"), FVector(45.50, 32.95, -52.45), FVector(0.134, 0.990, 0.038)},       // the gondola's side, abeam the hatch
+			{TEXT("BellyFlood"), FVector(125.14, 0.0, -27.63), FVector(0.0, 0.0, -1.0)},          // the float's flat belly
+		};
+		static_assert(UE_ARRAY_COUNT(Spots) == uint8(ELamp::Count), "one spot per lamp");
+		return Spots[FMath::Min(uint8(Lamp), uint8(uint8(ELamp::Count) - 1))];
+	}
+
+	FVector ModelLampNormal(ELamp Lamp, const FTransform& Fit)
+	{
+		return Fit.TransformVectorNoScale(ModelLamp(Lamp).MeshNormal).GetSafeNormal();
+	}
+
+	FVector ModelLampLocation(ELamp Lamp, const FTransform& Fit)
+	{
+		return Fit.TransformPosition(ModelLamp(Lamp).MeshCm) + ModelLampNormal(Lamp, Fit) * LampOutCm;
+	}
 }
 
 UDeepHullModel::UDeepHullModel()
@@ -327,9 +358,20 @@ void UDeepHullModel::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 
 void UDeepHullModel::ApplySwitch(bool bModel)
 {
-	Shown = bModel ? 1 : 0;
-	SetHiddenInGame(!bModel || !GetStaticMesh());
-	const bool bHideDress = bModel && GetStaticMesh();
+	const bool bShow = bModel && GetStaticMesh();
+	Shown = bShow ? 1 : 0;
+	SetHiddenInGame(!bShow);
+	// Shown, the model is the hull's solid shape (its convex hulls), blocking like the box colliders did.
+	if (bShow)
+	{
+		SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	}
+	else
+	{
+		SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	}
 	AActor* Owner = GetOwner();
 	if (!Owner)
 	{
@@ -338,11 +380,16 @@ void UDeepHullModel::ApplySwitch(bool bModel)
 	TInlineComponentArray<UStaticMeshComponent*> Meshes(Owner);
 	for (UStaticMeshComponent* Mesh : Meshes)
 	{
-		// The hatch's cover and water keep their own show and hide (ADeepSubmarine::OnRep_Hatch).
-		if (Mesh == this || Mesh->GetFName() == TEXT("HatchCover") || Mesh->GetFName() == TEXT("HatchWater"))
+		// The hatch's cover and water and the lamps' bulbs: the sub shows and hides them (OnHullModelSwitched).
+		const FString Name = Mesh->GetName();
+		if (Mesh == this || Name == TEXT("HatchCover") || Name == TEXT("HatchWater") || Name.StartsWith(TEXT("Bulb_")))
 		{
 			continue;
 		}
-		Mesh->SetHiddenInGame(bHideDress);
+		Mesh->SetHiddenInGame(bShow);
+	}
+	if (ADeepSubmarine* Sub = Cast<ADeepSubmarine>(Owner))
+	{
+		Sub->OnHullModelSwitched();
 	}
 }

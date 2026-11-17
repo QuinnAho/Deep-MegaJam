@@ -249,13 +249,10 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	FVector VelocityMps = UDeepRules::SwimVelocityMps(Wish, bSprinting, GetWeight(), UDeepTuningSettings::Get().Swim);
 	if (const ADeepSubmarine* Sub = Tether->GetSubmarine())
 	{
-		// Pushing into the side of the hull slides the diver down it and under, toward the hatch, instead of pinning.
-		const FTransform& SubFrame = Sub->GetActorTransform();
-		const FVector Local = UDeepRules::HullSlideVelocity(SubFrame.InverseTransformPosition(GetActorLocation()),
-			SubFrame.InverseTransformVectorNoScale(VelocityMps), Sub->GetSolidBoundsLocal(true),
-			GetCapsuleComponent()->GetScaledCapsuleRadius(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight(),
-			UDeepTuningSettings::Get().Swim.HullContactM * UDeepRules::CmPerM);
-		VelocityMps = SubFrame.TransformVectorNoScale(Local);
+		// Pushing into the side of the hull slides the diver down it and under, toward the hatch, instead of pinning:
+		// at the model's real surface, or the box hull's sides.
+		VelocityMps = Sub->SlideAlongHull(GetActorLocation(), VelocityMps, GetCapsuleComponent()->GetScaledCapsuleRadius(),
+			GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), UDeepTuningSettings::Get().Swim.HullContactM * UDeepRules::CmPerM);
 	}
 	const float SpeedCm = static_cast<float>(VelocityMps.Size()) * UDeepRules::CmPerM;
 	if (SpeedCm > KINDA_SMALL_NUMBER)

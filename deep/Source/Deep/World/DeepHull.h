@@ -66,12 +66,61 @@ namespace DeepHull
 
 	/** Deep.Sub.Model: 1 (default) shows BT-01, 0 the dress of basic shapes. */
 	DEEP_API bool WantsModel();
+
+	/**
+	 * Where the model's centre (the middle of its bounding box) sits in the sub's frame, cm, with the shipped room
+	 * tuning: the hatch stays at the hull origin, so the model hangs 1.08 m aft of it and 0.69 m above. Measured by the fit
+	 * (Deep.World.SubModel checks it against ModelTransform); things that aim at the hull's middle use the origin.
+	 */
+	inline const FVector ModelCentreOffsetCm(-107.6, -0.9, 69.5);
+
+	/** The sub's outside lamps. On the model each sits on its surface (ModelLamp); on the old dress, where LayOut puts it. */
+	enum class ELamp : uint8
+	{
+		BowPort,
+		BowStbd,
+		HullPort,
+		HullStbd,
+		MarkerPort,
+		MarkerStbd,
+		Airlock,
+		BellyFlood,
+		Count
+	};
+
+	/** A point on BT-01's visible surface and its outward normal, in the mesh's own space (measured with per-triangle traces). */
+	struct FLampSpot
+	{
+		const TCHAR* Name;
+		FVector MeshCm;
+		FVector MeshNormal;
+	};
+
+	DEEP_API const FLampSpot& ModelLamp(ELamp Lamp);
+
+	/** A lamp's light sits this far out from the surface along the normal (cm); its bulb is a sphere of BulbRadiusCm round it. */
+	inline constexpr double LampOutCm = 6.0;
+	inline constexpr double BulbRadiusCm = 3.5;
+
+	/** The lamp's sub-local location on the model placed by Fit (DeepHull::ModelTransform). */
+	DEEP_API FVector ModelLampLocation(ELamp Lamp, const FTransform& Fit);
+
+	/** The lamp's outward normal in the sub's frame. */
+	DEEP_API FVector ModelLampNormal(ELamp Lamp, const FTransform& Fit);
+
+	/** M_SubBulb (Content/Deep/Subs, build_sub_hull.py): unlit, emissive Color x Glow. */
+	DEEP_API extern const TCHAR* BulbMaterial;
+
+	/** The bulbs' emissive strength: bright enough to read as a lit lamp at 12 m in the dark. */
+	inline constexpr float BulbGlow = 40.f;
 }
 
 /**
- * BT-01 on the hull. Visual only: no collision, so the room's box stays the collider. Deep.Sub.Model picks it or the
- * old dress; the switch hides one or the other in game (SetHiddenInGame, so the hatch's and Deep.Hull's SetVisibility
- * calls are untouched). With the model shown every other mesh on the sub is hidden but the hatch cover and water.
+ * BT-01 on the hull. Deep.Sub.Model picks it or the old dress; the switch hides one or the other in game
+ * (SetHiddenInGame, so the hatch's and Deep.Hull's SetVisibility calls are untouched). With the model shown it is the
+ * hull's solid shape: its simple collision (convex hulls saved in SM_BT01, build_sub_hull.py) blocks like the box did,
+ * and ADeepSubmarine::OnHullModelSwitched turns the box colliders off, hides the square hatch and puts the lamps on
+ * the model's surface. Every other mesh on the sub is hidden but the hatch cover and water (the sub's call) and the bulbs.
  */
 UCLASS(ClassGroup = Deep)
 class DEEP_API UDeepHullModel : public UStaticMeshComponent
@@ -81,7 +130,7 @@ class DEEP_API UDeepHullModel : public UStaticMeshComponent
 public:
 	UDeepHullModel();
 
-	/** Shows BT-01 and hides the box dress (true), or the reverse. Collision is untouched. */
+	/** Shows BT-01, makes it the collider and hides the box dress (true), or the reverse. Tells the sub (OnHullModelSwitched). */
 	void ApplySwitch(bool bModel);
 
 	/** 1 model shown, 0 old dress, -1 not applied yet. */
