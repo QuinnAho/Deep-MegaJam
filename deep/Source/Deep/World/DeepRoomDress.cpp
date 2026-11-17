@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -483,6 +484,15 @@ void DeepRoomDress::Skin(const TArray<TObjectPtr<UInstancedStaticMeshComponent>>
 		const int32 Mat = Index % int32(EDeepRoomMat::Count);
 		if (UMaterialInterface* M = Cast<UMaterialInterface>(Paths[Mat]->TryLoad()))
 		{
+			// Held to the room's most wear (Look.RoomMaxWear) like the shell: a heavier chip tore a locker door.
+			float Wear = 0.f;
+			const float MaxWear = UDeepTuningSettings::Get().Look.RoomMaxWear;
+			if (M->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Wear")), Wear) && Wear > MaxWear)
+			{
+				UMaterialInstanceDynamic* Held = UMaterialInstanceDynamic::Create(M, Ism);
+				Held->SetScalarParameterValue(TEXT("Wear"), MaxWear);
+				M = Held;
+			}
 			Ism->SetMaterial(0, M);
 		}
 		else

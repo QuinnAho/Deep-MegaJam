@@ -51,4 +51,5 @@ Branch `build/sub-inside`, worktree `.wt/subs`. Brief: fit the code-built room (
 - The two grey-white torn patches on the porthole panel were bare-steel chips of `M_WornSteel` on the window bezel, whose wear was 0.45: at the chip scale (about 55 cm) that tore big blotches into its port corners. The bezel now has the machine's wear (0.15).
 - Spawn on the deck: the start and the enter stand put the capsule centre at `Sub.InsideStandHeightM` (0.82 m: half height plus the walker's floor gap). No drop.
 - The dress blocks walkers: its instanced meshes are query-only, Pawn blocks, every other channel ignores, so traces, the camera and the sonar pass as before. Test `Deep.World.SubRoomStand`.
-- Plan frame: with the roof off, the room's exposure volume and its look (`IsInRoomLook`: no water fog or snow) reach `Sub.InsidePlanViewHeightM` over the deck. Still open: the deck shows the same grey-white chip blotches from above (Floor wear); a look-pass item.
+- Plan frame: with the roof off, the room's exposure volume and its look (`IsInRoomLook`: no water fog or snow) reach `Sub.InsidePlanViewHeightM` over the deck.
+- The same chips tore the deck, the hatch ring and a locker door: every room paint and the dressing's materials are now held to `Look.RoomMaxWear` (0.15). The hull outside keeps its own wear. The finish waits for the look pass.

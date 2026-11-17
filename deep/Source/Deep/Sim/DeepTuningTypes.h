@@ -1067,6 +1067,14 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
 	float RoomExposureBias = 0.f;
 
+	/**
+	 * The most paint wear (M_WornSteel's Wear) any surface in the room gets: its shell, the hatch and the dressing. The
+	 * chips are about 55 cm across, so above this they read as big torn blotches (the deck, a locker door, the porthole
+	 * frame, Nov 17) instead of wear. The finish itself waits for the look pass.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float RoomMaxWear = 0.15f;
+
 	/** The old ceiling light, kept as a soft fill at this fraction of Sub.RoomLightIntensity. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
 	float RoomFillScale = 0.2f;

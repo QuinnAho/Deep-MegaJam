@@ -317,7 +317,12 @@ void ADeepSubRoom::ApplyLook()
 {
 	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
 	const FDeepSubTuning& Sub = UDeepTuningSettings::Get().Sub;
-	const FSubPaints P = Paints();
+	// Every room paint held to the room's most wear (Look.RoomMaxWear): no torn blotches (the hull keeps its own).
+	FSubPaints P = Paints();
+	for (FSubSteel* S : { &P.Wall, &P.Floor, &P.Ceil, &P.Rim, &P.Cover, &P.Machine, &P.Seat })
+	{
+		S->Wear = FMath::Min(S->Wear, Look.RoomMaxWear);
+	}
 
 	const FVector Hatch = GetHatchLocation();
 	const float PuddleRadius = static_cast<float>(DeepRoomLayout::HatchRadiusCm(Sub) * PuddleRadii);
@@ -349,13 +354,9 @@ void ADeepSubRoom::ApplyLook()
 	}
 	SubScreen(ConsoleScreen, Look.ScreenGlow);
 	SubScreen(HelmScreen, Look.ScreenGlow);
-	FSubSteel Bezel = P.Wall;
-	// Only the machine's light wear: at the wall's chip scale (about 55 cm) a heavier wear tore bare grey-white
-	// blotches into the porthole frame's corners.
-	Bezel.Wear = P.Machine.Wear;
 	for (UStaticMeshComponent* Shape : WindowBezel)
 	{
-		SubSteel(Shape, Bezel);
+		SubSteel(Shape, P.Wall);
 	}
 	// Black water: nothing out there but what drifts past the glass.
 	DeepShapes::Tint(PortholeBackdrop, FLinearColor(0.004f, 0.008f, 0.01f));
