@@ -21,7 +21,17 @@ How the camera lane builds its post-process effects, and the sources each step c
 - Sway: the step-1 Perlin shake `Sway`, constant while the switch is on, under a degree.
 - Cost: 1707x1067 at 100 m, GPU 7.95 ms off and 8.04 ms on; at the helm while driving, 8.14 ms off and 8.37 ms on. The look costs about 0.1 to 0.2 ms.
 
-## Sonar pulse (`Deep.Sonar.Pulse`, default 1 since Nov 15, D-041)
+## Sonar pulse (`Deep.Sonar.Pulse`, default 1 since Nov 15, D-041; soft style Nov 17)
+- Soft look (Nov 17, `Deep.Sonar.Style 1`, the default; Quinn: "too invasive ... softer, more minimal, still horror"). Two looks sit side by side in tuning, `Camera.PulseJam` (the values below) and `Camera.PulseSoft`, picked by `Camera.SonarStyle` or the CVar; `DeepCameraRules::PulseLook`. Soft values:
+  - Colour pale `BF E3 EA`; band 0.35 m, leading edge 1.0 × band (`BandLead`, softer than the jam's hard 0.35), intensity 0.45; dots 0.8 m apart, intensity 0.16, fade 0.8 s; 1.5 s shell. The brief's start (band 0.3, dots 0.1, range 45 m, fade 0.6) drew nothing visible at the helm or from the diver in the first frames, so it went up by eye.
+  - The helm pulse reaches 50 m (`HelmRangeM`; the sonar still traces 60 m, and the jam pulse used that 60 m), and fades to 55% over its travel (`RangeFade` 0.45, `1 - 0.45·(d/r)²`), so it dies out instead of stopping at an edge.
+  - The serpent's band gets 2.5× (`SerpentBandGain`, still band only, dots masked), so his outline is the brightest thing the ping finds.
+  - The diver's V ping uses the same look × 1.6 (`DiverGain`), 100 m range unchanged.
+  - Cadence: the sound and the pulse come every `Sonar.PingPeriodS` 6 s (`UDeepSonarRules::PingDueAt` on the sonar clock), while the sweep, traces and blips stay at 2.5 s. Gameplay change: the serpent hears the helm less often (ping noise 40, decay 10/s) so the helm alone no longer climbs to Stalk (60); before, three pings 2.5 s apart did.
+  - Sound: a new `sonar_ping` (DeepSynth): 392 Hz with a second voice 7 cents up (slow beating) and a faint octave, a 35 ms swell (no click), a slight droop, tau 0.62 s, three returns at 0.38/0.81/1.37 s, each low-passed darker (1.4 k, 800, 450 Hz) and quieter, a dark noise wash under them; 3.4 s; row volume 0.28 (was 0.5). The jam sound is builtin `sonar_ping_jam`. `Deep.Audio.Export <builtin> <wav> [count] [spacingS] [gain]` writes either to a wav.
+  - What it looks like (frames `devlog/media/2026-11-17-sonar-*`): from the helm at stop 1, open water ahead, the band shows only where it meets something, so at 0.8 s the horizon rocks about 26 m out light as pale outlines; by 1.2 s the screen is clean. The dots read only close up (the diver's grating and rocks).
+  - Cost: ProfileGPU at the helm (1707x1067, soft pulse live) puts `M_SonarPulse` at 0.019 to 0.028 ms over runs, under the jam figure of 0.030 ms.
+  - Sources: Scanner Sombre's lidar dots and withheld information ([Game Developer](https://gamedeveloper.com/audio/how-scanner-sombre-immerses-players-in-a-pitch-black-cave-sound-and-lasers)); a zero-time attack clicks, most on a sine, so use a few ms or more ([Vital forum](https://forum.vital.audio/t/click-at-start-of-envelope/8251)).
 - Each `sonar_ping` on the bus (the sonar broadcasts it, with Source as the sub and DepthM as the range) starts a pulse. `UDeepCameraSubsystem` drives a dynamic instance of `M_SonarPulse` and hangs it on the environment's unbound volume through `SetCameraBlendable`. The weight is 0 between pings.
 - In the material, after the tonemapper, priority 0, one Custom node:
   - `d = |WorldPosition - Origin|`. Sky (depth over 1e6), beyond the range, or within `PulseStartM` 0.5 m of the origin is returned untouched. The sub itself is left out by the hull box below, not by distance.

@@ -43,11 +43,20 @@ namespace DeepCameraRules
 	/** Footage grain on top of the depth look: X = intensity add, Y = shadows intensity, blended by depth. */
 	DEEP_API FVector2D FootageGrain(float DepthM, const FDeepCameraTuning& Tuning);
 
-	/** The pulse shell's radius (cm) at AgeS: grows linearly from 0 to RangeM over PulseSeconds, then holds. */
-	DEEP_API float PulseRadiusCm(float AgeS, float RangeM, const FDeepCameraTuning& Tuning);
+	/** The pulse look for a sonar style: 0 = PulseJam, anything else = PulseSoft. */
+	DEEP_API const FDeepPulseLook& PulseLook(const FDeepCameraTuning& Tuning, int32 Style);
+
+	/** How far the helm's pulse reaches (m): the look's HelmRangeM, else the sonar's range, else PulseRangeM. */
+	DEEP_API float HelmPulseRangeM(const FDeepPulseLook& Look, float SonarRangeM, const FDeepCameraTuning& Tuning);
+
+	/** The pulse shell's radius (cm) at AgeS: grows linearly from 0 to RangeM over Look.Seconds, then holds. */
+	DEEP_API float PulseRadiusCm(float AgeS, float RangeM, const FDeepPulseLook& Look);
 
 	/** The pulse is drawn until the band has reached its range and the last dots have faded. */
-	DEEP_API bool IsPulseLive(float AgeS, const FDeepCameraTuning& Tuning);
+	DEEP_API bool IsPulseLive(float AgeS, const FDeepPulseLook& Look);
+
+	/** Brightness left at DistanceM from the origin: 1 - RangeFade * (d / range)^2 (mirrors M_SonarPulse). */
+	DEEP_API float PulseRangeFall(float DistanceM, float RangeM, const FDeepPulseLook& Look);
 
 	/** The diver may ping now: in the water (bInWater), and the first ping (LastPingS < 0) or DiverPingCooldownS since. */
 	DEEP_API bool CanDiverPing(float NowS, float LastPingS, bool bInWater, const FDeepCameraTuning& Tuning);
@@ -55,13 +64,13 @@ namespace DeepCameraRules
 	/** Seconds until the diver may ping again (0 = ready). */
 	DEEP_API float DiverPingWaitS(float NowS, float LastPingS, const FDeepCameraTuning& Tuning);
 
-	/** The band's trail (cm) on a surface EyeCm from the eye: PulseBandM, growing with distance past PulseBandFarM so
+	/** The band's trail (cm) on a surface EyeCm from the eye: Look.BandM, growing with distance past PulseBandFarM so
 	 * it keeps its width on screen (mirrors M_SonarPulse). */
-	DEEP_API float PulseBandCm(float EyeCm, const FDeepCameraTuning& Tuning);
+	DEEP_API float PulseBandCm(float EyeCm, const FDeepPulseLook& Look, const FDeepCameraTuning& Tuning);
 
-	/** The fine lidar grid's spacing (cm) on a surface EyeCm from the eye: PulseDotSpacingM, doubled each time the distance
-	 * doubles past PulseDotNearM (mirrors M_SonarPulse). */
-	DEEP_API float PulseDotSpacingCm(float EyeCm, const FDeepCameraTuning& Tuning);
+	/** The fine lidar grid's spacing (cm) on a surface EyeCm from the eye: Look.DotSpacingM, doubled each time the
+	 * distance doubles past PulseDotNearM (mirrors M_SonarPulse). */
+	DEEP_API float PulseDotSpacingCm(float EyeCm, const FDeepPulseLook& Look, const FDeepCameraTuning& Tuning);
 
 	/** Interference target 0..1: 0 beyond the far distance, NearMax at the near one, 1 in a bite, at least the burst. */
 	DEEP_API float InterferenceTarget(float SerpentDistanceM, bool bBiting, float BurstLeftS, const FDeepCameraTuning& Tuning);

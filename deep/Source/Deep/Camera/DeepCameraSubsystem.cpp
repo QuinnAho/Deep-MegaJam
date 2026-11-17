@@ -32,7 +32,11 @@ namespace
 	TAutoConsoleVariable<int32> CVarFootage(TEXT("Deep.Look.Footage"), -1,
 		TEXT("Deep.Look.Footage 0|1: the helmet-camera footage look (grain, edges, lens, handheld sway). -1 = DEEP Tuning > Camera > bFootageOn."));
 	TAutoConsoleVariable<int32> CVarPulse(TEXT("Deep.Sonar.Pulse"), -1,
-		TEXT("Deep.Sonar.Pulse 0|1: each sonar ping draws an amber shell over the surfaces and leaves lidar dots. -1 = DEEP Tuning > Camera > bPulseOn."));
+		TEXT("Deep.Sonar.Pulse 0|1: each sonar ping draws a shell over the surfaces and leaves lidar dots. -1 = DEEP Tuning > Camera > bPulseOn."));
+	TAutoConsoleVariable<int32> CVarStyle(TEXT("Deep.Sonar.Style"), -1,
+		TEXT("Deep.Sonar.Style 0|1: 0 = the jam's sonar (amber pulse, a ping every sweep), 1 = soft (pale, sparse, a ping every Sonar.PingPeriodS). -1 = DEEP Tuning > Camera > SonarStyle."));
+	TAutoConsoleVariable<float> CVarHoldAge(TEXT("Deep.Sonar.HoldAge"), -1.f,
+		TEXT("Deep.Sonar.HoldAge <s>: freeze a live sonar pulse at this age, for frames. -1 = off."));
 	TAutoConsoleVariable<int32> CVarInterference(TEXT("Deep.Look.Interference"), -1,
 		TEXT("Deep.Look.Interference 0|1: the feed breaks up as the serpent closes (static, torn lines, colour split). -1 = DEEP Tuning > Camera > bInterferenceOn."));
 
@@ -62,6 +66,12 @@ bool UDeepCameraSubsystem::IsFootageOn()
 bool UDeepCameraSubsystem::IsPulseOn()
 {
 	return Switch(CVarPulse, UDeepTuningSettings::Get().Camera.bPulseOn);
+}
+
+int32 UDeepCameraSubsystem::GetSonarStyle()
+{
+	const int32 Value = CVarStyle.GetValueOnGameThread();
+	return Value < 0 ? UDeepTuningSettings::Get().Camera.SonarStyle : Value;
 }
 
 bool UDeepCameraSubsystem::IsInterferenceOn()
@@ -128,7 +138,11 @@ void UDeepCameraSubsystem::HandleEvent(FName Event, const FDeepEventPayload& Pay
 		{
 			const APlayerCameraManager* Camera = LocalCamera();
 			const FVector Origin = From ? From->GetActorLocation() : (Camera ? Camera->GetCameraLocation() : FVector::ZeroVector);
-			if (StartPulse(Origin, Payload.DepthM > 0.f ? Payload.DepthM : UDeepTuningSettings::Get().Camera.PulseRangeM))
+			// The helm's reach comes from the look (the soft look keeps it close); the diver's from his ping.
+			const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+			const float RangeM = bFromDiver ? (Payload.DepthM > 0.f ? Payload.DepthM : T.PulseRangeM)
+				: DeepCameraRules::HelmPulseRangeM(DeepCameraRules::PulseLook(T, GetSonarStyle()), Payload.DepthM, T);
+			if (StartPulse(Origin, RangeM))
 			{
 				bPulseFromDiver = bFromDiver;
 			}
@@ -266,6 +280,7 @@ TSharedRef<FJsonObject> UDeepCameraSubsystem::BuildStateJson() const
 	Json->SetBoolField(TEXT("pulse"), IsPulseOn());
 	Json->SetNumberField(TEXT("pulses"), Pulses);
 	Json->SetBoolField(TEXT("pulse_live"), IsPulseLive());
+	Json->SetNumberField(TEXT("sonar_style"), GetSonarStyle());
 	Json->SetBoolField(TEXT("interference_on"), IsInterferenceOn());
 	Json->SetNumberField(TEXT("interference"), FMath::RoundToFloat(Interference * 100.f) / 100.f);
 	return Json;
@@ -336,6 +351,7 @@ bool UDeepCameraSubsystem::StartPulse(const FVector& Origin, float RangeM)
 	PulseOrigin = Origin;
 	PulseRangeM = RangeM;
 	PulseAgeS = 0.f;
+	PulseStyle = GetSonarStyle();
 	bPulseFromDiver = false;
 	++Pulses;
 	// The sub nearest the origin (the one that pinged): its parts' box is masked out of the pulse.
@@ -351,7 +367,7 @@ bool UDeepCameraSubsystem::StartPulse(const FVector& Origin, float RangeM)
 		}
 	}
 	PulseSubParts = SubPartsLocal(PulseSub.Get());
-	UE_LOG(LogDeepCamera, Display, TEXT("DEEPCAMERA pulse=%d origin=%s range=%.0fm hull=%s"), Pulses, *Origin.ToCompactString(), RangeM,
+	UE_LOG(LogDeepCamera, Display, TEXT("DEEPCAMERA pulse=%d style=%d origin=%s range=%.0fm hull=%s"), Pulses, PulseStyle, *Origin.ToCompactString(), RangeM,
 		PulseSubParts.IsValid ? *PulseSubParts.GetSize().ToCompactString() : TEXT("none"));
 	return true;
 }
@@ -379,10 +395,13 @@ void UDeepCameraSubsystem::MarkSerpents()
 void UDeepCameraSubsystem::UpdatePulse(float DeltaTime)
 {
 	const FDeepCameraTuning& T = UDeepTuningSettings::Get().Camera;
+	// The look is the one the pulse started with, so flipping Deep.Sonar.Style mid-pulse never mixes two.
+	const FDeepPulseLook& Look = DeepCameraRules::PulseLook(T, PulseStyle);
 	if (PulseAgeS >= 0.f)
 	{
-		PulseAgeS += DeltaTime;
-		if (!DeepCameraRules::IsPulseLive(PulseAgeS, T))
+		const float HoldS = CVarHoldAge.GetValueOnGameThread();
+		PulseAgeS = HoldS >= 0.f ? HoldS : PulseAgeS + DeltaTime;
+		if (!DeepCameraRules::IsPulseLive(PulseAgeS, Look))
 		{
 			PulseAgeS = -1.f;
 		}
@@ -395,24 +414,29 @@ void UDeepCameraSubsystem::UpdatePulse(float DeltaTime)
 	const bool bShow = PulseAgeS >= 0.f;
 	if (bShow)
 	{
-		// After the tonemapper the buffer is display-encoded: the amber goes in as its sRGB value, not linear.
-		const FLinearColor Amber = T.PulseColor.ToFColor(true).ReinterpretAsLinear();
+		// After the tonemapper the buffer is display-encoded: the colour goes in as its sRGB value, not linear.
+		const FLinearColor Color = Look.Color.ToFColor(true).ReinterpretAsLinear();
+		const float Gain = bPulseFromDiver ? FMath::Max(0.f, Look.DiverGain) : 1.f;
+		const float Seconds = FMath::Max(Look.Seconds, 0.01f);
 		PulseMID->SetVectorParameterValue(TEXT("Origin"), FLinearColor(PulseOrigin.X, PulseOrigin.Y, PulseOrigin.Z, 0.f));
-		PulseMID->SetVectorParameterValue(TEXT("Color"), Amber);
-		PulseMID->SetScalarParameterValue(TEXT("RadiusCm"), DeepCameraRules::PulseRadiusCm(PulseAgeS, PulseRangeM, T));
+		PulseMID->SetVectorParameterValue(TEXT("Color"), Color);
+		PulseMID->SetScalarParameterValue(TEXT("RadiusCm"), DeepCameraRules::PulseRadiusCm(PulseAgeS, PulseRangeM, Look));
 		PulseMID->SetScalarParameterValue(TEXT("MaxRadiusCm"), PulseRangeM * 100.f);
 		PulseMID->SetScalarParameterValue(TEXT("StartCm"), T.PulseStartM * 100.f);
-		PulseMID->SetScalarParameterValue(TEXT("BandCm"), T.PulseBandM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("BandCm"), Look.BandM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("BandLead"), Look.BandLead);
 		PulseMID->SetScalarParameterValue(TEXT("AgeS"), PulseAgeS);
-		PulseMID->SetScalarParameterValue(TEXT("ShellS"), T.PulseSeconds);
-		PulseMID->SetScalarParameterValue(TEXT("SpeedCmPerS"), PulseRangeM * 100.f / FMath::Max(T.PulseSeconds, 0.01f));
-		PulseMID->SetScalarParameterValue(TEXT("DotFadeS"), T.PulseDotFadeS);
-		PulseMID->SetScalarParameterValue(TEXT("SpacingCm"), T.PulseDotSpacingM * 100.f);
+		PulseMID->SetScalarParameterValue(TEXT("ShellS"), Seconds);
+		PulseMID->SetScalarParameterValue(TEXT("SpeedCmPerS"), PulseRangeM * 100.f / Seconds);
+		PulseMID->SetScalarParameterValue(TEXT("DotFadeS"), Look.DotFadeS);
+		PulseMID->SetScalarParameterValue(TEXT("SpacingCm"), Look.DotSpacingM * 100.f);
 		PulseMID->SetScalarParameterValue(TEXT("DotFarCm"), T.PulseDotFarM * 100.f);
 		PulseMID->SetScalarParameterValue(TEXT("BandFarCm"), T.PulseBandFarM * 100.f);
 		PulseMID->SetScalarParameterValue(TEXT("DotNearCm"), T.PulseDotNearM * 100.f);
-		PulseMID->SetScalarParameterValue(TEXT("BandIntensity"), T.PulseBandIntensity);
-		PulseMID->SetScalarParameterValue(TEXT("DotIntensity"), T.PulseDotIntensity);
+		PulseMID->SetScalarParameterValue(TEXT("BandIntensity"), Look.BandIntensity * Gain);
+		PulseMID->SetScalarParameterValue(TEXT("DotIntensity"), Look.DotIntensity * Gain);
+		PulseMID->SetScalarParameterValue(TEXT("SerpentBand"), FMath::Max(0.f, Look.SerpentBandGain));
+		PulseMID->SetScalarParameterValue(TEXT("RangeFade"), FMath::Clamp(Look.RangeFade, 0.f, 1.f));
 		PulseMID->SetScalarParameterValue(TEXT("Intensity"), 1.f);
 		// The hull mask follows the sub as it moves; with no sub the box is 1 cm at the origin.
 		const AActor* Sub = PulseSub.Get();

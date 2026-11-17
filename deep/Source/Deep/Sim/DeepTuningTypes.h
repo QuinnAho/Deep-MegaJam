@@ -1067,6 +1067,14 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
 	float RoomExposureBias = 0.f;
 
+	/**
+	 * The most paint wear (M_WornSteel's Wear) any surface in the room gets: its shell, the hatch and the dressing. The
+	 * chips are about 55 cm across, so above this they read as big torn blotches (the deck, a locker door, the porthole
+	 * frame, Nov 17) instead of wear. The finish itself waits for the look pass.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
+	float RoomMaxWear = 0.15f;
+
 	/** The old ceiling light, kept as a soft fill at this fraction of Sub.RoomLightIntensity. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Room")
 	float RoomFillScale = 0.2f;
@@ -1433,7 +1441,10 @@ struct FDeepSubTuning
 		DepthLimitsM = { 200.f, 400.f, 600.f };
 	}
 
-	/** Inside of the room: half length (X), half width (Y), height. The deck's top is at -RoomHeightM / 2. */
+	/**
+	 * The hull's box (ADeepSubmarine, the shaft, the hull tests): half length (X), half width (Y), height, the deck's top
+	 * at -RoomHeightM / 2. Since Nov 17 the room set (ADeepSubRoom) has its own size, the Inside* fields below.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float RoomHalfLengthM = 4.5f;
 
@@ -1446,9 +1457,56 @@ struct FDeepSubTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float WallThicknessM = 0.2f;
 
-	/** Half the side of the square hatch in the deck, centred under the sub (above the tether anchor). */
+	/** Half the side of the hull's square hatch, centred under the sub (above the tether anchor). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float HatchHalfSizeM = 0.8f;
+
+	/**
+	 * The room set's inside (World/DeepRoomLayout), fitted to BT-01's cabin (Nov 17): about 1.8 m wide and 2.1 m high
+	 * like the model's cabin, its length the part of the hull you could live in. Room metres, X ahead, Y starboard, the
+	 * hatch's centre at X 0 Y 0 (lined up with the hull's hatch), so the room runs from -InsideAftM to +InsideForeM.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideAftM = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideForeM = 3.9f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideHalfWidthM = 0.9f;
+
+	/** Deck to ceiling. Low: a walker's head clears it by about half a metre. The deck's top is at -InsideHeightM / 2. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideHeightM = 2.1f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideWallThicknessM = 0.15f;
+
+	/** The room's round hatch in the deck, shut for good (the airlock is the way out). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideHatchRadiusM = 0.55f;
+
+	/** The porthole in the front wall over the helm: half width and half height, and its centre's height over the deck (eye height). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	FVector2D InsidePortholeHalfM = FVector2D(0.45f, 0.3f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsidePortholeZM = 1.35f;
+
+	/**
+	 * Where a diver is put aboard (the start, a respawn, back in through the airlock): the capsule centre this high over
+	 * the deck. The diver's half height (0.8 m) plus the walker's floor gap (the engine keeps 1.9-2.4 cm), so the diver
+	 * stands on the deck at once instead of dropping onto it (Deep.World.SubRoomLayout).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideStandHeightM = 0.82f;
+
+	/**
+	 * With the roof off (`Deep.Room.Roof 0`), the room's look (its fixed exposure, no water) reaches this high over the deck, so a plan
+	 * view from a diver stood on the ceiling (eye about 3.6 m over the deck) reads at the room's exposure.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsidePlanViewHeightM = 5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float RoomLightIntensity = 6000.f;
@@ -1457,25 +1515,26 @@ struct FDeepSubTuning
 	float RoomLightRadiusM = 9.f;
 
 	/**
-	 * Where a diver stands at the start of a run and after a respawn (X, Y on the deck), and the view pitch. The start,
-	 * the enter stand, the console and the helm all sit along the +Y side, so no straight walk between them crosses the
-	 * hatch (Deep.World.SubRoomLayout checks it).
+	 * Where a diver stands at the start of a run and after a respawn (room metres on the deck), and the view pitch. The
+	 * start, the enter stand and the console sit just forward of the hatch, all within UseRangeM of each other and of the
+	 * valve (E acts on the nearest station in reach); the helm is at the bow, so no straight walk between them crosses
+	 * the hatch (Deep.World.SubRoomLayout).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D RoomStartM = FVector2D(-3.4f, 1.5f);
+	FVector2D RoomStartM = FVector2D(1.7f, -0.15f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float RoomStartPitchDeg = -22.f;
 
 	/** Where a diver who comes up through the hatch is put on the deck. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D EnterStandM = FVector2D(-2.8f, 1.3f);
+	FVector2D EnterStandM = FVector2D(0.95f, -0.3f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D ConsoleM = FVector2D(-1.6f, 1.75f);
+	FVector2D ConsoleM = FVector2D(1.2f, 0.45f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
-	FVector2D HelmM = FVector2D(3.7f, 1.5f);
+	FVector2D HelmM = FVector2D(3.4f, 0.f);
 
 	/** The console or the helm can be used from this far (horizontal). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
@@ -1967,6 +2026,63 @@ struct FDeepEventShake
 };
 
 /**
+ * One look for the sonar pulse made visible (M_SonarPulse). FDeepCameraTuning holds two, PulseJam and PulseSoft, and
+ * Deep.Sonar.Style picks one. Values are set in the FDeepCameraTuning constructor.
+ */
+USTRUCT(BlueprintType)
+struct FDeepPulseLook
+{
+	GENERATED_BODY()
+
+	/** The overlay colour (display sRGB, added after the tonemapper). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FLinearColor Color = FLinearColor::White;
+
+	/** The shell's growth from the ping's origin to its range (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float Seconds = 1.5f;
+
+	/** The band's trail behind the shell where it crosses a surface (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float BandM = 0.6f;
+
+	/** The band's leading edge as a fraction of BandM: small = a hard front, 1 = as soft as the trail. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float BandLead = 0.35f;
+
+	/** Band brightness (overlay units after the tonemapper: 1 = the colour itself). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float BandIntensity = 0.9f;
+
+	/** Spacing of the lidar dot grid near the eye (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DotSpacingM = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DotIntensity = 0.35f;
+
+	/** Dots left behind the band fade over this long (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DotFadeS = 2.f;
+
+	/** The helm's ping reaches this far (m); 0 = the sonar's own range (Sonar.RangeM). The diver's keeps DiverPingRangeM. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float HelmRangeM = 0.f;
+
+	/** The diver's ping is this much brighter than the helm's (band and dots). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DiverGain = 1.f;
+
+	/** The band is this much brighter on the serpent (custom depth), so its outline reads as the shell passes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float SerpentBandGain = 1.f;
+
+	/** The shell dims as it travels: at its range, band and dots are (1 - RangeFade) as bright (0 = no loss). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float RangeFade = 0.f;
+};
+
+/**
  * The camera: shakes on events, the helmet-camera footage look, the sonar pulse made visible, interference.
  * Each feature has a console switch (Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse, Deep.Look.Interference);
  * the switch's default is the b...On flag here.
@@ -2068,36 +2184,23 @@ struct FDeepCameraTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	float PulseDotNearM = 12.f;
 
-	/** The shell's growth from the sub to PulseRangeM. */
+	/** Which look a ping draws and how often the helm pings (Deep.Sonar.Style overrides): 0 = the jam's (PulseJam, a
+	 * ping every sweep), 1 = soft (PulseSoft, a ping every Sonar.PingPeriodS). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseSeconds = 1.5f;
+	int32 SonarStyle = 1;
 
-	/** Shell range when the sonar does not say (m). */
+	/** The jam's look: amber, a hard bright band, a dense grid that lingers 2 s. Set in the constructor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FDeepPulseLook PulseJam;
+
+	/** The soft look (Quinn, Nov 17: softer, minimal, low-key, still horror): pale cyan, a thin dim band, sparse faint
+	 * dots gone within a second, so the screen is clean between pings. Set in the constructor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FDeepPulseLook PulseSoft;
+
+	/** Shell range when neither the look nor the ping says (m). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	float PulseRangeM = 80.f;
-
-	/** The bright band where the shell crosses a surface (m thick). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseBandM = 0.6f;
-
-	/** Dots left behind the band fade over this long. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotFadeS = 2.f;
-
-	/** Spacing of the lidar dot grid (m). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotSpacingM = 0.35f;
-
-	/** Band brightness (overlay units, after the tonemapper: 1 = the colour itself). Dots are PulseDotIntensity of it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseBandIntensity = 0.9f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotIntensity = 0.35f;
-
-	/** Sonar sweep colour: amber (style guide 3). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	FLinearColor PulseColor = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	FSoftObjectPath PulseMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_SonarPulse.M_SonarPulse"));
@@ -2299,9 +2402,15 @@ struct FDeepSonarTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	int32 Beams = 90;
 
-	/** One turn of the sweep, and one ping, every this many seconds. */
+	/** One turn of the sweep (traces and scope contacts) every this many seconds. The jam look (Camera.SonarStyle 0)
+	 * also pings once a turn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float SweepPeriodS = 2.5f;
+
+	/** The soft look (Camera.SonarStyle 1) pings, sounds and shows the pulse once every this many seconds. The serpent
+	 * hears each ping as noise: at 6 s the helm alone peaks at Monster.PingNoise and does not reach StalkNoise. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float PingPeriodS = 6.f;
 
 	/** The dim slice runs this far under the sub's centre, so a bend shows before the sub reaches it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
@@ -2415,21 +2524,21 @@ struct FDeepRoomDressTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
 	FSoftObjectPath GlassMaterial = FSoftObjectPath(TEXT("/Game/Deep/Room/MI_GrimyGlass.MI_GrimyGlass"));
 
-	/** Pieces below this height over the deck (cm) must keep out of the walks, the hatch and the helm zone. */
+	/** Pieces below this height over the deck (cm) must keep out of the walks, the hatch and the helm zone: a walker's head top is about 162. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
-	float HeadClearCm = 200.f;
+	float HeadClearCm = 170.f;
 
 	/** A walk's half width beyond the walker's capsule radius (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
 	float WalkMarginCm = 3.f;
 
-	/** Kept clear round the hatch opening (cm). */
+	/** Kept clear round the round hatch's edge (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
-	float HatchClearCm = 50.f;
+	float HatchClearCm = 20.f;
 
-	/** Kept clear round the helm seat (cm): the helm lane's throttle and ballast levers go there. */
+	/** Kept clear round the helm seat and the throttle and ballast levers beside it (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
-	float HelmClearCm = 100.f;
+	float HelmClearCm = 25.f;
 
 	/** Caged practicals (#FFB45A) over the console and the helm. Candela-ish units of a point light. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RoomDress")
@@ -2543,12 +2652,12 @@ struct DEEP_API FDeepPilotTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
 	float LeverThrowDeg = 38.f;
 
-	/** Where the throttle and ballast levers stand, sub-local metres (X ahead, Y starboard), beside the helm seat. */
+	/** Where the throttle and ballast levers stand, room metres (X ahead, Y starboard), either side of the helm seat. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
-	FVector2D ThrottleLeverM = FVector2D(3.55f, 0.95f);
+	FVector2D ThrottleLeverM = FVector2D(3.1f, -0.5f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
-	FVector2D BallastLeverM = FVector2D(3.55f, 2.05f);
+	FVector2D BallastLeverM = FVector2D(3.1f, 0.5f);
 
 	/** How fast a lever swings to where it is set (per second, a share of the gap): it moves, it does not jump. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")

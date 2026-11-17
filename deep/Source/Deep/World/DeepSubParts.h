@@ -1,6 +1,7 @@
 // Shared building blocks for the sub's moving hull (ADeepSubmarine) and its fixed room set (ADeepSubRoom): solid
-// shapes, placing a basic shape by centre and size, the worn-steel paints and the screens. Both share one local frame:
-// X ahead, Y starboard, Z up, the room's centre at the origin and the deck's top at -RoomHeightM / 2.
+// shapes, placing a basic shape by centre and size, the worn-steel paints and the screens. Local frame: X ahead,
+// Y starboard, Z up, the hatch's centre over the origin. The hull's box deck is at -RoomHeightM / 2; the room set has
+// its own, smaller inside (World/DeepRoomLayout, the Sub|Inside tuning).
 
 #pragma once
 
@@ -15,7 +16,7 @@
 
 namespace DeepSubParts
 {
-	// The helm window: an opening in the front wall (local cm, centre height and half sizes).
+	// The hull's helm window: an opening in the box hull's front wall (local cm, centre height and half sizes).
 	constexpr double WinZ = 40.0;
 	constexpr double WinHalfW = 85.0;
 	constexpr double WinHalfH = 35.0;
@@ -133,63 +134,5 @@ namespace DeepSubParts
 		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base, Shape);
 		M->SetScalarParameterValue(TEXT("Glow"), Glow);
 		Shape->SetMaterial(0, M);
-	}
-
-	/** The four deck slabs round the hatch opening, the seven wall pieces round the window, the ceiling (local cm). */
-	inline void LayOutShell(const TArray<TObjectPtr<UStaticMeshComponent>>& Deck, const TArray<TObjectPtr<UStaticMeshComponent>>& Walls, UStaticMeshComponent* Ceiling)
-	{
-		const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-		const double M = UDeepRules::CmPerM;
-		const double L = T.RoomHalfLengthM * M;
-		const double W = T.RoomHalfWidthM * M;
-		const double H = T.RoomHeightM * M;
-		const double Th = T.WallThicknessM * M;
-		const double Hh = T.HatchHalfSizeM * M;
-		const double DeckZ = -H * 0.5 - Th * 0.5;
-		const double OuterL = L + Th;
-		const double OuterW = W + Th;
-		if (Deck.Num() == 4)
-		{
-			Place(Deck[0], FVector((Hh + OuterL) * 0.5, 0.0, DeckZ), FVector(OuterL - Hh, OuterW * 2.0, Th));
-			Place(Deck[1], FVector(-(Hh + OuterL) * 0.5, 0.0, DeckZ), FVector(OuterL - Hh, OuterW * 2.0, Th));
-			Place(Deck[2], FVector(0.0, (Hh + OuterW) * 0.5, DeckZ), FVector(Hh * 2.0, OuterW - Hh, Th));
-			Place(Deck[3], FVector(0.0, -(Hh + OuterW) * 0.5, DeckZ), FVector(Hh * 2.0, OuterW - Hh, Th));
-		}
-		if (Walls.Num() == 7)
-		{
-			const double WinBottom = WinZ - WinHalfH;
-			const double WinTop = WinZ + WinHalfH;
-			Place(Walls[0], FVector(L + Th * 0.5, 0.0, (-H * 0.5 + WinBottom) * 0.5), FVector(Th, OuterW * 2.0, WinBottom + H * 0.5));
-			Place(Walls[1], FVector(-L - Th * 0.5, 0.0, 0.0), FVector(Th, OuterW * 2.0, H));
-			Place(Walls[2], FVector(0.0, W + Th * 0.5, 0.0), FVector(L * 2.0, Th, H));
-			Place(Walls[3], FVector(0.0, -W - Th * 0.5, 0.0), FVector(L * 2.0, Th, H));
-			Place(Walls[4], FVector(L + Th * 0.5, 0.0, (WinTop + H * 0.5) * 0.5), FVector(Th, OuterW * 2.0, H * 0.5 - WinTop));
-			Place(Walls[5], FVector(L + Th * 0.5, -(WinHalfW + OuterW) * 0.5, WinZ), FVector(Th, OuterW - WinHalfW, WinHalfH * 2.0));
-			Place(Walls[6], FVector(L + Th * 0.5, (WinHalfW + OuterW) * 0.5, WinZ), FVector(Th, OuterW - WinHalfW, WinHalfH * 2.0));
-		}
-		if (Ceiling)
-		{
-			Place(Ceiling, FVector(0.0, 0.0, H * 0.5 + Th * 0.5), FVector(OuterL * 2.0, OuterW * 2.0, Th));
-		}
-	}
-
-	/** The hatch's rim: four bars through the deck, so the frame shows from above and below (local cm). */
-	inline void LayOutRim(const TArray<TObjectPtr<UStaticMeshComponent>>& Rim)
-	{
-		const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-		const double H = T.RoomHeightM * UDeepRules::CmPerM;
-		const double Th = T.WallThicknessM * UDeepRules::CmPerM;
-		const double Hh = T.HatchHalfSizeM * UDeepRules::CmPerM;
-		const double RimW = 16.0;
-		const double RimH = 6.0;
-		const double RimZ = -H * 0.5 - Th * 0.5;
-		const double RimT = Th + RimH * 2.0;
-		if (Rim.Num() == 4)
-		{
-			Place(Rim[0], FVector(0.0, Hh + RimW * 0.5, RimZ), FVector(Hh * 2.0 + RimW * 2.0, RimW, RimT));
-			Place(Rim[1], FVector(0.0, -Hh - RimW * 0.5, RimZ), FVector(Hh * 2.0 + RimW * 2.0, RimW, RimT));
-			Place(Rim[2], FVector(Hh + RimW * 0.5, 0.0, RimZ), FVector(RimW, Hh * 2.0, RimT));
-			Place(Rim[3], FVector(-Hh - RimW * 0.5, 0.0, RimZ), FVector(RimW, Hh * 2.0, RimT));
-		}
 	}
 }

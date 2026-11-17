@@ -2,6 +2,7 @@
 
 #include "Audio/DeepAudioSubsystem.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/DeepCameraSubsystem.h"
 #include "CollisionQueryParams.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
@@ -349,6 +350,7 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 		return;
 	}
 
+	const double PrevClock = Clock;
 	Clock += FMath::Max(0.f, DeltaSeconds);
 	const float Prev = SweepDegNow;
 	SweepDegNow = UDeepSonarRules::SweepDeg(static_cast<float>(FMath::Fmod(Clock, static_cast<double>(FMath::Max(0.01f, T.SweepPeriodS)))), T.SweepPeriodS);
@@ -385,7 +387,9 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 	UpdateContacts(Origin, Forward, Prev, SweepDegNow, false);
 	UpdateNearest();
 
-	if (UDeepSonarRules::PingDue(Prev, SweepDegNow))
+	// The ping (sound, pulse, the serpent's noise) keeps its own cadence: every sweep in the jam style, every
+	// PingPeriodS in the soft one. The traces and scope above still turn every SweepPeriodS.
+	if (UDeepSonarRules::PingDueAt(PrevClock, Clock, UDeepSonarRules::PingPeriodFor(UDeepCameraSubsystem::GetSonarStyle(), T)))
 	{
 		PlaySonarSound(DeepSonarEvent::Ping, 1.f, 1.f);
 		++Pings;

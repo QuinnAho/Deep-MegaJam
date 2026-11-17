@@ -102,16 +102,38 @@ bool FDeepCameraLookTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Grain clamps above"), DeepCameraRules::FootageGrain(0.f, T).X, G100.X);
 	TestEqual(TEXT("Grain clamps below"), DeepCameraRules::FootageGrain(900.f, T).X, G500.X);
 
-	// Pulse: the shell reaches the range at PulseSeconds and holds; drawn until the dots fade.
-	TestEqual(TEXT("Shell starts at the sub"), DeepCameraRules::PulseRadiusCm(0.f, 80.f, T), 0.f);
-	TestTrue(TEXT("Half way at half time"), FMath::IsNearlyEqual(DeepCameraRules::PulseRadiusCm(T.PulseSeconds * 0.5f, 80.f, T), 4000.f, 1.f));
-	TestTrue(TEXT("Holds at range"), FMath::IsNearlyEqual(DeepCameraRules::PulseRadiusCm(T.PulseSeconds * 3.f, 80.f, T), 8000.f, 1.f));
-	TestTrue(TEXT("Live while growing"), DeepCameraRules::IsPulseLive(0.5f, T));
-	TestTrue(TEXT("Live while the dots fade"), DeepCameraRules::IsPulseLive(T.PulseSeconds + T.PulseDotFadeS * 0.5f, T));
-	TestFalse(TEXT("Gone after"), DeepCameraRules::IsPulseLive(T.PulseSeconds + T.PulseDotFadeS + 0.01f, T));
-	TestTrue(TEXT("About 1.5 s and 2 s (brief)"), FMath::IsNearlyEqual(T.PulseSeconds, 1.5f) && FMath::IsNearlyEqual(T.PulseDotFadeS, 2.f));
-	TestTrue(TEXT("The pulse skips the sub's own room and reaches past it"), T.PulseStartM > 0.f && T.PulseStartM < T.PulseRangeM && T.PulseBandM > 0.f);
+	// Pulse: the shell reaches the range at the look's Seconds and holds; drawn until the dots fade.
+	const FDeepPulseLook& Soft = DeepCameraRules::PulseLook(T, 1);
+	const FDeepPulseLook& Jam = DeepCameraRules::PulseLook(T, 0);
+	TestTrue(TEXT("Style 0 is the jam look, 1 the soft one"), &Jam == &T.PulseJam && &Soft == &T.PulseSoft);
+	TestEqual(TEXT("The soft look is the default (Nov 17)"), T.SonarStyle, 1);
+	TestEqual(TEXT("Shell starts at the sub"), DeepCameraRules::PulseRadiusCm(0.f, 80.f, Soft), 0.f);
+	TestTrue(TEXT("Half way at half time"), FMath::IsNearlyEqual(DeepCameraRules::PulseRadiusCm(Soft.Seconds * 0.5f, 80.f, Soft), 4000.f, 1.f));
+	TestTrue(TEXT("Holds at range"), FMath::IsNearlyEqual(DeepCameraRules::PulseRadiusCm(Soft.Seconds * 3.f, 80.f, Soft), 8000.f, 1.f));
+	TestTrue(TEXT("Live while growing"), DeepCameraRules::IsPulseLive(0.5f, Soft));
+	TestTrue(TEXT("Live while the dots fade"), DeepCameraRules::IsPulseLive(Soft.Seconds + Soft.DotFadeS * 0.5f, Soft));
+	TestFalse(TEXT("Gone after"), DeepCameraRules::IsPulseLive(Soft.Seconds + Soft.DotFadeS + 0.01f, Soft));
+	TestTrue(TEXT("Jam: about 1.5 s and 2 s (D-041)"), FMath::IsNearlyEqual(Jam.Seconds, 1.5f) && FMath::IsNearlyEqual(Jam.DotFadeS, 2.f));
+	TestTrue(TEXT("The pulse skips the sub's own room and reaches past it"), T.PulseStartM > 0.f && T.PulseStartM < T.PulseRangeM && Soft.BandM > 0.f);
 	TestTrue(TEXT("Lidar dots fade with distance, past the diver ping's far walls (D-041)"), T.PulseDotFarM > 0.f && T.PulseDotFarM >= T.DiverPingRangeM);
+
+	// The soft look (brief, Nov 17): pale cyan #BFE3EA, a thin dim band, sparse faint dots gone within 0.8 s, so the
+	// screen is clean between pings; the helm reaches 40-50 m; the serpent's outline still catches the band.
+	TestTrue(TEXT("Soft: #BFE3EA"), Soft.Color.ToFColor(true) == FColor(0xBF, 0xE3, 0xEA));
+	// Tuned by eye from the brief's 0.3 / 0.1 start (Nov 17 frames: at 0.3 / 0.1 the helm pulse did not show at all).
+	TestTrue(TEXT("Soft: a thin band at about half the jam's strength"), Soft.BandM <= 0.4f && Soft.BandIntensity <= 0.5f * Jam.BandIntensity + 1e-4f && Soft.BandIntensity > 0.f);
+	TestTrue(TEXT("Soft: dots at least 0.7 m apart, under half the jam's, fade 0.8 s at most"), Soft.DotSpacingM >= 0.7f && Soft.DotIntensity <= 0.5f * Jam.DotIntensity && Soft.DotFadeS <= 0.8f);
+	TestTrue(TEXT("Soft: the helm reaches 40-50 m"), Soft.HelmRangeM >= 40.f && Soft.HelmRangeM <= 50.f);
+	TestTrue(TEXT("Soft: gone well before the next ping"), Soft.Seconds + Soft.DotFadeS < 0.5f * FDeepSonarTuning().PingPeriodS);
+	TestTrue(TEXT("Soft: the diver's ping a little stronger"), Soft.DiverGain > 1.f && Soft.DiverGain < 2.5f);
+	TestTrue(TEXT("Soft: the band still finds the serpent"), Soft.SerpentBandGain * Soft.BandIntensity >= 0.5f);
+	TestTrue(TEXT("Soft: quieter than the jam look"), Soft.BandIntensity < Jam.BandIntensity && Soft.DotIntensity < Jam.DotIntensity);
+	TestEqual(TEXT("Helm range: the look's own"), DeepCameraRules::HelmPulseRangeM(Soft, 60.f, T), Soft.HelmRangeM);
+	TestEqual(TEXT("Helm range: the jam look uses the sonar's"), DeepCameraRules::HelmPulseRangeM(Jam, 60.f, T), 60.f);
+	TestEqual(TEXT("Helm range: else the fallback"), DeepCameraRules::HelmPulseRangeM(Jam, 0.f, T), T.PulseRangeM);
+	TestEqual(TEXT("Full strength at the origin"), DeepCameraRules::PulseRangeFall(0.f, 45.f, Soft), 1.f);
+	TestTrue(TEXT("Dims toward the range"), FMath::IsNearlyEqual(DeepCameraRules::PulseRangeFall(45.f, 45.f, Soft), 1.f - Soft.RangeFade, 1e-4f));
+	TestEqual(TEXT("The jam look does not dim"), DeepCameraRules::PulseRangeFall(60.f, 60.f, Jam), 1.f);
 
 	// Interference: static before shape.
 	TestEqual(TEXT("None far away"), DeepCameraRules::InterferenceTarget(100.f, false, 0.f, T), 0.f);

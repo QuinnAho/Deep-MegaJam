@@ -38,4 +38,10 @@ namespace DeepSynth
 	DEEP_API TArray<int16> Finish(TArray<float>& Raw, float Peak, bool bOneShot);
 	/** Turns Raw (LoopSamples + crossfade samples long) into a seamless loop of LoopSamples. */
 	DEEP_API void MakeSeamless(TArray<float>& Raw, int32 LoopSamples);
+
+	/** Count copies of a finished one-shot, SpacingS apart and scaled by Gain, mixed and clamped (for the wav export). */
+	DEEP_API TArray<int16> Repeat(const TArray<int16>& One, int32 Count, float SpacingS, float Gain = 1.f);
+
+	/** Writes 16-bit mono PCM at SampleRate as a RIFF wav (Deep.Audio.Export). */
+	DEEP_API bool WriteWav(const TArray<int16>& Pcm, const FString& Path);
 }

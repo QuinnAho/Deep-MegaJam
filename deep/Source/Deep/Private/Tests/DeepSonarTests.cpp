@@ -5,6 +5,7 @@
 // trace budget, pings once a turn, and a wall close to the hull sets the proximity tone going.
 
 #include "CoreMinimal.h"
+#include "Camera/DeepCameraSubsystem.h"
 #include "Components/BoxComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -153,6 +154,34 @@ bool FDeepSonarTimingTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(FString::Printf(TEXT("Bearing %d swept once"), 4 * B), Hits[B], 1);
 	}
+
+	// The ping's own cadence (Nov 17): the jam style pings once a sweep; the soft style once every PingPeriodS while
+	// the sweep still turns every SweepPeriodS. Over 18 s at 60 fps that is 7 jam pings and 3 soft ones.
+	const FDeepSonarTuning Cadence;
+	TestEqual(TEXT("Jam style: a ping a sweep"), UDeepSonarRules::PingPeriodFor(0, Cadence), Cadence.SweepPeriodS);
+	TestEqual(TEXT("Soft style: a ping every PingPeriodS"), UDeepSonarRules::PingPeriodFor(1, Cadence), Cadence.PingPeriodS);
+	TestTrue(TEXT("About one ping every 6 s (brief)"), Cadence.PingPeriodS >= 5.f && Cadence.PingPeriodS <= 7.f && Cadence.PingPeriodS > Cadence.SweepPeriodS);
+	TestTrue(TEXT("Crossing a period pings"), UDeepSonarRules::PingDueAt(5.99, 6.01, 6.f));
+	TestFalse(TEXT("Inside a period is quiet"), UDeepSonarRules::PingDueAt(6.01, 6.03, 6.f));
+	TestFalse(TEXT("A still clock never pings"), UDeepSonarRules::PingDueAt(6.0, 6.0, 6.f));
+	int32 JamPings = 0;
+	int32 SoftPings = 0;
+	int32 SweepPings = 0;
+	double Clock = 0.0;
+	float SweepPrev = 0.f;
+	for (int32 F = 0; F < 18 * 60 + 1; ++F)
+	{
+		const double Next = Clock + 1.0 / 60.0;
+		const float SweepNext = UDeepSonarRules::SweepDeg(static_cast<float>(FMath::Fmod(Next, 2.5)), 2.5f);
+		JamPings += UDeepSonarRules::PingDueAt(Clock, Next, UDeepSonarRules::PingPeriodFor(0, Cadence)) ? 1 : 0;
+		SoftPings += UDeepSonarRules::PingDueAt(Clock, Next, 6.f) ? 1 : 0;
+		SweepPings += UDeepSonarRules::PingDue(SweepPrev, SweepNext) ? 1 : 0;
+		Clock = Next;
+		SweepPrev = SweepNext;
+	}
+	TestEqual(TEXT("18 s, jam: 7 pings"), JamPings, 7);
+	TestEqual(TEXT("The jam cadence matches the sweep's own bow crossings"), JamPings, SweepPings);
+	TestEqual(TEXT("18 s, soft: 3 pings"), SoftPings, 3);
 	return true;
 }
 
@@ -434,17 +463,19 @@ bool FDeepSonarSweepTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("1 m from the hull"), W.Sonar->GetClearanceM(), 1.f, 0.35f);
 	TestEqual(TEXT("Full proximity"), W.Sonar->GetProximity01(), 1.f, 1e-3f);
 
-	// One more turn at 60 fps: within the trace budget every frame, one more ping, the tone beeping fast.
+	// One ping period at 60 fps (a sweep in the jam style, PingPeriodS in the soft one): within the trace budget every
+	// frame, one more ping, the tone beeping fast.
 	int32 MostTraces = 0;
-	const int32 Frames = FMath::CeilToInt(T.SweepPeriodS * 60.f) + 2;
+	const int32 Frames = FMath::CeilToInt(UDeepSonarRules::PingPeriodFor(UDeepCameraSubsystem::GetSonarStyle(), T) * 60.f) + 2;
 	for (int32 I = 0; I < Frames; ++I)
 	{
 		W.Sonar->StepSonar(1.f / 60.f);
 		MostTraces = FMath::Max(MostTraces, W.Sonar->GetTracesLastStep());
 	}
 	TestTrue(FString::Printf(TEXT("Traces a frame within the budget (%d, budget %d plus the bottom probe)"), MostTraces, T.MaxTracesPerFrame), MostTraces <= T.MaxTracesPerFrame + 1);
-	TestEqual(TEXT("One ping a turn"), W.Sonar->GetPings(), 2);
-	const int32 ExpectBeeps = FMath::FloorToInt(Frames / 60.f / FMath::Max(1.f / 60.f, T.ToneFastS));
+	TestEqual(TEXT("One ping a period"), W.Sonar->GetPings(), 2);
+	// A beep lands on a frame, so at 60 fps each interval rounds up to whole frames (this matters over a 6 s period).
+	const int32 ExpectBeeps = Frames / FMath::Max(1, FMath::CeilToInt(T.ToneFastS * 60.f - 1e-3f));
 	TestTrue(FString::Printf(TEXT("The tone beeps fast (%d beeps, about %d expected)"), W.Sonar->GetBeeps(), ExpectBeeps), W.Sonar->GetBeeps() >= ExpectBeeps - 2);
 	bool bAllFresh = true;
 	for (const FDeepSonarSample& S : W.Sonar->GetSlice(0))

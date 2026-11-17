@@ -1237,7 +1237,7 @@ bool UDeepRunComponent::IsNearValve() const
 {
 	const ADeepDiver* Diver = GetDiver();
 	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
-	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->IsWithinUseRange(Diver->GetActorLocation(), Room->GetValveLocation());
+	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->GetStationInReach(Diver->GetActorLocation()) == EDeepRoomStation::Valve;
 }
 
 bool UDeepRunComponent::CanCycleAirlock() const
@@ -1307,14 +1307,14 @@ bool UDeepRunComponent::IsNearConsole() const
 {
 	const ADeepDiver* Diver = GetDiver();
 	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
-	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->IsWithinUseRange(Diver->GetActorLocation(), Room->GetConsoleLocation());
+	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->GetStationInReach(Diver->GetActorLocation()) == EDeepRoomStation::Console;
 }
 
 bool UDeepRunComponent::IsNearHelm() const
 {
 	const ADeepDiver* Diver = GetDiver();
 	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
-	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->IsWithinUseRange(Diver->GetActorLocation(), Room->GetHelmLocation());
+	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->GetStationInReach(Diver->GetActorLocation()) == EDeepRoomStation::Helm;
 }
 
 void UDeepRunComponent::UseConsole()
