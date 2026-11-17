@@ -2,7 +2,9 @@
 // the console, the helm seat and panel, the strips and practicals, the room dressing, and a blank porthole (black water,
 // now and then a faint light drifting past). It stands at Sub.RoomSetLocationM, far above every dive, and never moves:
 // the hull (ADeepSubmarine) is what the water sees. Divers walk here; the airlock (UDeepRunComponent) moves them between.
-// Not replicated: every machine spawns its own (DeepArena::EnsureRoom). Same local frame as the hull (World/DeepSubParts).
+// Not replicated: every machine spawns its own (DeepArena::EnsureRoom). Local frame: X ahead, Y starboard, the round
+// hatch's centre at the origin (lined up with the hull's); its size and stations come from World/DeepRoomLayout, fitted
+// to BT-01's cabin (Nov 17): low and narrow, the console by the hatch, the helm at the bow under the porthole.
 
 #pragma once
 
@@ -18,6 +20,15 @@ class URectLightComponent;
 class UBoxComponent;
 class UPostProcessComponent;
 
+/** A station E acts on aboard. In the low room several sit within reach at once; the nearest one wins. */
+enum class EDeepRoomStation : uint8
+{
+	None,
+	Helm,
+	Console,
+	Valve,
+};
+
 UCLASS()
 class DEEP_API ADeepSubRoom : public AActor
 {
@@ -26,7 +37,7 @@ class DEEP_API ADeepSubRoom : public AActor
 public:
 	ADeepSubRoom();
 
-	/** Where a diver stands at the start of a run and after a respawn: on the deck, facing the hatch and the helm. */
+	/** Where a diver stands at the start of a run and after a respawn: on the deck by the console, facing the helm. */
 	UFUNCTION(BlueprintPure, Category = "Deep")
 	FTransform GetRoomStartTransform() const;
 
@@ -46,11 +57,20 @@ public:
 	/** Inside the room's box (world cm), above the deck's top minus Margin. */
 	bool IsInRoom(const FVector& WorldCm, double MarginCm = 0.0) const;
 
+	/** Whether a view here gets the room's look (its exposure, no water): inside, or with the roof off up to the plan view. */
+	bool IsInRoomLook(const FVector& WorldCm, double MarginCm = 0.0) const;
+
 	/** Horizontal distance to a deck point is within the use range. */
 	bool IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const;
 
+	/** The station E acts on from here: the nearest one within the use range (a tie goes helm, console, valve), or None. */
+	EDeepRoomStation GetStationInReach(const FVector& WorldCm) const;
+
 	/** Shows or hides the room's dressing and its lights (World/DeepRoomDress, `Deep.Room.Dress`). */
 	void SetRoomDressVisible(bool bVisible);
+
+	/** Shows or hides the ceiling and the strips' fixtures (`Deep.Room.Roof`), for a plan view from above. */
+	void SetRoofVisible(bool bVisible);
 
 	/** The valve wheel's turn as last drawn (0..1): the most any diver aboard has turned it. */
 	float GetValveTurn01() const { return ValveTurn01; }
@@ -62,6 +82,8 @@ protected:
 
 	/** Places and sizes every shape from the tuning. */
 	void LayOut();
+	/** Fits the room's exposure volume to the inside, up to this height (room-local cm): the ceiling, or the plan view with the roof off. */
+	void FitRoomVolume(double TopCm);
 	/** Surfaces, lights and screens (FDeepLookTuning, Look|Room). */
 	void ApplyLook();
 
@@ -74,7 +96,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<USceneComponent> Root;
 
-	/** Four slabs round the hatch, which is shut for good: the airlock is the way out. */
+	/** One slab: the round hatch is shut for good (the airlock is the way out). */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UStaticMeshComponent>> Deck;
 
@@ -84,10 +106,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> Ceiling;
 
+	/** The rim ring under the hatch plate and three dogs round it. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UStaticMeshComponent>> HatchRim;
 
-	/** The hatch, closed and solid. */
+	/** The round hatch, closed for good: a plate flush with the deck, safe to walk over. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UStaticMeshComponent> HatchCover;
 
@@ -158,6 +181,9 @@ protected:
 	/** The room's box: inside it the room keeps its own exposure. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UBoxComponent> RoomVolume;
+
+	/** The top of the room's look (room-local cm): the ceiling, or the plan view's height with the roof off (FitRoomVolume). */
+	double LookTopCm = 0.0;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPostProcessComponent> RoomGrade;

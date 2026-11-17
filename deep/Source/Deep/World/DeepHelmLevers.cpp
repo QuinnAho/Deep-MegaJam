@@ -13,6 +13,7 @@
 #include "Sim/DeepTuningSettings.h"
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
+#include "World/DeepRoomLayout.h"
 #include "World/DeepShapes.h"
 #include "World/DeepSubmarine.h"
 #include "World/DeepSubRoom.h"
@@ -54,7 +55,8 @@ UDeepHelmLevers::UDeepHelmLevers()
 
 void UDeepHelmLevers::BuildLever(FLever& Lever, const TCHAR* Name, const FVector2D& AtM, const FLinearColor& KnobPaint)
 {
-	const float DeckZ = -UDeepTuningSettings::Get().Sub.RoomHeightM * UDeepRules::CmPerM * 0.5f;
+	// On the room set's deck (World/DeepRoomLayout), beside the helm seat.
+	const float DeckZ = static_cast<float>(DeepRoomLayout::DeckTopCm(UDeepTuningSettings::Get().Sub));
 	const FVector At(AtM.X * UDeepRules::CmPerM, AtM.Y * UDeepRules::CmPerM, DeckZ);
 	Lever.Base = MakePart(*this, this, FString::Printf(TEXT("%sBase"), Name), DeepShapes::Cube, At + FVector(0.f, 0.f, BaseH * 0.5f), FVector(BaseW, BaseW, BaseH));
 	Lever.Pivot = NewObject<USceneComponent>(GetOwner(), *FString::Printf(TEXT("%sPivot"), Name));

@@ -4,6 +4,7 @@
 #include "Misc/AutomationTest.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepRoomDress.h"
+#include "World/DeepRoomLayout.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -120,6 +121,16 @@ bool FDeepRoomDressChecksBiteTest::RunTest(const FString& Parameters)
 	const FVector2D Seat = DeepRoomDress::HelmSeatCm(Sub);
 	TestTrue(TEXT("a crate at the helm seat is in the helm zone"), DeepRoomDress::InHelmZone(Crate(Seat), Sub, Dress));
 	TestTrue(TEXT("a crate on the hatch is in the hatch zone"), DeepRoomDress::InHatchZone(Crate(FVector2D::ZeroVector), Sub, Dress));
+	// The hatch is round: a crate off its diagonal, inside where a square zone's corner would be, is clear.
+	const double HatchClear = DeepRoomLayout::HatchRadiusCm(Sub) + Dress.HatchClearCm;
+	TestTrue(TEXT("a crate at the round hatch's edge is in the hatch zone"), DeepRoomDress::InHatchZone(Crate(FVector2D(HatchClear, 0.0)), Sub, Dress));
+	TestFalse(TEXT("a crate off the round hatch's diagonal is clear of it"), DeepRoomDress::InHatchZone(Crate(FVector2D(HatchClear, HatchClear)), Sub, Dress));
+	// The levers beside the seat are in the helm zone too: a crate at either would stop its throw.
+	for (const FBox& Lever : DeepRoomLayout::Levers(Sub, T.Pilot))
+	{
+		const FVector Centre = Lever.GetCenter();
+		TestTrue(TEXT("a crate at a helm lever is in the helm zone"), DeepRoomDress::InHelmZone(Crate(FVector2D(Centre.X, Centre.Y)), Sub, Dress));
+	}
 	const TPair<FVector2D, FVector2D> Walk = DeepRoomDress::Walks(Sub)[0];
 	TestTrue(TEXT("a crate mid-walk blocks it"), DeepRoomDress::BlocksWalk(Crate((Walk.Key + Walk.Value) * 0.5), Sub, Dress, 35.0));
 	TestFalse(TEXT("a crate overhead does not block a walk"),

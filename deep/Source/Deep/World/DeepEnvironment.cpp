@@ -240,7 +240,7 @@ void ADeepEnvironment::StepRoomLook(float DeltaSeconds, const FVector& ViewCm)
 {
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
-	const bool bInRoom = Room && Room->IsInRoom(ViewCm, 100.0);
+	const bool bInRoom = Room && Room->IsInRoomLook(ViewCm, 100.0);
 	const float Ease = FMath::Max(0.01f, Tuning.MovingSub.RoomLookEaseSeconds);
 	Room01 = FMath::FInterpConstantTo(Room01, bInRoom ? 1.f : 0.f, FMath::Max(0.f, DeltaSeconds), 1.f / Ease);
 	const float DepthM = LookDepthM();
@@ -520,7 +520,7 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 	const FQuat Upright = FQuat::Identity;
 	// In the room set (far above the dive, World/DeepSubRoom) there is no water: no specks at all.
 	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
-	const bool bInRoom = Room01 > 0.f || (Room && Room->IsInRoom(View, 100.0));
+	const bool bInRoom = Room01 > 0.f || (Room && Room->IsInRoomLook(View, 100.0));
 
 	for (int32 i = 0; i < SnowHome.Num(); ++i)
 	{
