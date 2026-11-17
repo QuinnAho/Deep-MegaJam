@@ -52,6 +52,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
 	static bool PingDue(float PrevSweepDeg, float NewSweepDeg);
 
+	/** True when the sonar clock crossed a whole PeriodS between two frames (one ping per period; the first is at 0). */
+	static bool PingDueAt(double PrevClockS, double NewClockS, float PeriodS);
+
+	/** Seconds between helm pings for a sonar style: 0 (the jam's) = once a sweep, else PingPeriodS. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
+	static float PingPeriodFor(int32 Style, const FDeepSonarTuning& Tuning);
+
 	/** True when Bearing lies on the arc the sweep covered between two frames (clockwise, Prev excluded, New included). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
 	static bool SweptOver(float BearingDeg, float PrevSweepDeg, float NewSweepDeg);

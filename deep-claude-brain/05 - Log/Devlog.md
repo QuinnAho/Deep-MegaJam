@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 03:32 EST
+updated: 2026-11-17 04:17 EST
 ---
 # Devlog
 
@@ -1298,3 +1298,16 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: Quinn OK'd the merge, and `build/sub-model` went into main at 3:24 AM as a fast-forward to `6ed6929` (main was merged into the branch first; that brought only vault notes). BT-01 is the sub by default; `Deep.Sub.Model 0` brings back the old hull.
 - Checked: verify 180 of 180; S1-hatch, S2-gate, S7-run and S12-sidehome pass; package 764 MB with no missing usage flags; smoke passes; zip 480 MB. Two frames from the packaged game look as they do in the editor, so the model's materials cook.
 - Next: the room changes to fit BT-01 (Quinn: "we need to change the interior too"); frames page v31 asks when to start. The shadows and the lamp's washout stay with the look pass (D-028).
+
+### 4:05 AM, Nov 17  Quinn's three calls: the inside and the rock start; the soft ping waits on one frame
+- Decided: Quinn OK'd merging the soft ping (D-060), with the serpent turning to each ping but hunting only on other noise too (D-063); asked for one more round on the cave rock before the caves go into the dive; and said to start BT-01's inside now.
+- Changed: main went into `build/sonar-soft` (`0cb1de0`) and `build/cavegen` (`b9c5616`), both clean. Two agents are building: BT-01's inside on the new `build/sub-inside` in `.wt\subs`, and chunk tool round 8 (joint rims, the keyhole, S's mouth) on `build/cavegen`.
+- Held: the soft ping's gate passed (verify 180 of 180, S3-serpent, S7-run, package, smoke, zip 814 MB), but its frame from the packaged game at the helm shows no band, where the editor frame taken before BT-01 lit the rocks. The merge waits while three more packaged shots find out why.
+- Found: the package is 1101 MB, not BT-01's 764 MB, because `.wt\subs` has no DragonCave pack, so BT-01's packaged build had no serpent. This one has both.
+- Next: merge the soft ping once the band shows; both lanes' frames go to Quinn on the frames page.
+
+### 4:17 AM, Nov 17  The soft ping is merged
+- Changed: `build/sonar-soft` went into main as `4367b3a` and was pushed. The soft ping is the default; `Deep.Sonar.Style 0` brings back the jam's ping.
+- Found: the packaged game draws the soft band. At 0.8 s it sat between the near rock (lit at 0.5 s) and the far rocks (lit at 1.2 s), so that frame lit nothing. Neither BT-01 nor the wait explained it: the old hull and a 20 s wait gave the same empty frame.
+- Failed: the first packaged check took one moment of the pulse. A band this thin needs three (0.5, 0.8 and 1.2 s) to show.
+- Next: frames page v32 shows the packaged frames; both lanes' frames go to Quinn when they report.

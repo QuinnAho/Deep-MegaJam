@@ -2003,6 +2003,63 @@ struct FDeepEventShake
 };
 
 /**
+ * One look for the sonar pulse made visible (M_SonarPulse). FDeepCameraTuning holds two, PulseJam and PulseSoft, and
+ * Deep.Sonar.Style picks one. Values are set in the FDeepCameraTuning constructor.
+ */
+USTRUCT(BlueprintType)
+struct FDeepPulseLook
+{
+	GENERATED_BODY()
+
+	/** The overlay colour (display sRGB, added after the tonemapper). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FLinearColor Color = FLinearColor::White;
+
+	/** The shell's growth from the ping's origin to its range (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float Seconds = 1.5f;
+
+	/** The band's trail behind the shell where it crosses a surface (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float BandM = 0.6f;
+
+	/** The band's leading edge as a fraction of BandM: small = a hard front, 1 = as soft as the trail. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float BandLead = 0.35f;
+
+	/** Band brightness (overlay units after the tonemapper: 1 = the colour itself). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float BandIntensity = 0.9f;
+
+	/** Spacing of the lidar dot grid near the eye (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DotSpacingM = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DotIntensity = 0.35f;
+
+	/** Dots left behind the band fade over this long (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DotFadeS = 2.f;
+
+	/** The helm's ping reaches this far (m); 0 = the sonar's own range (Sonar.RangeM). The diver's keeps DiverPingRangeM. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float HelmRangeM = 0.f;
+
+	/** The diver's ping is this much brighter than the helm's (band and dots). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float DiverGain = 1.f;
+
+	/** The band is this much brighter on the serpent (custom depth), so its outline reads as the shell passes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float SerpentBandGain = 1.f;
+
+	/** The shell dims as it travels: at its range, band and dots are (1 - RangeFade) as bright (0 = no loss). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	float RangeFade = 0.f;
+};
+
+/**
  * The camera: shakes on events, the helmet-camera footage look, the sonar pulse made visible, interference.
  * Each feature has a console switch (Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse, Deep.Look.Interference);
  * the switch's default is the b...On flag here.
@@ -2104,36 +2161,23 @@ struct FDeepCameraTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	float PulseDotNearM = 12.f;
 
-	/** The shell's growth from the sub to PulseRangeM. */
+	/** Which look a ping draws and how often the helm pings (Deep.Sonar.Style overrides): 0 = the jam's (PulseJam, a
+	 * ping every sweep), 1 = soft (PulseSoft, a ping every Sonar.PingPeriodS). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseSeconds = 1.5f;
+	int32 SonarStyle = 1;
 
-	/** Shell range when the sonar does not say (m). */
+	/** The jam's look: amber, a hard bright band, a dense grid that lingers 2 s. Set in the constructor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FDeepPulseLook PulseJam;
+
+	/** The soft look (Quinn, Nov 17: softer, minimal, low-key, still horror): pale cyan, a thin dim band, sparse faint
+	 * dots gone within a second, so the screen is clean between pings. Set in the constructor. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
+	FDeepPulseLook PulseSoft;
+
+	/** Shell range when neither the look nor the ping says (m). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	float PulseRangeM = 80.f;
-
-	/** The bright band where the shell crosses a surface (m thick). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseBandM = 0.6f;
-
-	/** Dots left behind the band fade over this long. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotFadeS = 2.f;
-
-	/** Spacing of the lidar dot grid (m). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotSpacingM = 0.35f;
-
-	/** Band brightness (overlay units, after the tonemapper: 1 = the colour itself). Dots are PulseDotIntensity of it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseBandIntensity = 0.9f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	float PulseDotIntensity = 0.35f;
-
-	/** Sonar sweep colour: amber (style guide 3). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
-	FLinearColor PulseColor = FLinearColor(FColor(0xFF, 0xB4, 0x5A));
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera|Pulse")
 	FSoftObjectPath PulseMaterial = FSoftObjectPath(TEXT("/Game/Deep/Camera/M_SonarPulse.M_SonarPulse"));
@@ -2335,9 +2379,15 @@ struct FDeepSonarTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	int32 Beams = 90;
 
-	/** One turn of the sweep, and one ping, every this many seconds. */
+	/** One turn of the sweep (traces and scope contacts) every this many seconds. The jam look (Camera.SonarStyle 0)
+	 * also pings once a turn. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float SweepPeriodS = 2.5f;
+
+	/** The soft look (Camera.SonarStyle 1) pings, sounds and shows the pulse once every this many seconds. The serpent
+	 * hears each ping as noise: at 6 s the helm alone peaks at Monster.PingNoise and does not reach StalkNoise. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float PingPeriodS = 6.f;
 
 	/** The dim slice runs this far under the sub's centre, so a bend shows before the sub reaches it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")

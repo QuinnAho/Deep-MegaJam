@@ -2,7 +2,8 @@
 // manager (DeepCameraRules::ShakeForEvent picks them); keeps the footage look's handheld sway running while it is on.
 // Draws the sonar ping as a pulse (M_SonarPulse) on each sonar_ping.
 // Degrades the feed as the serpent closes (M_FeedInterference): static, torn lines, colour split; full in a bite, a burst on hull_hit.
-// Switches (console variables, -1 = the FDeepCameraTuning default): Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse, Deep.Look.Interference.
+// Switches (console variables, -1 = the FDeepCameraTuning default): Deep.Camera.Shake, Deep.Look.Footage, Deep.Sonar.Pulse,
+// Deep.Sonar.Style (0 jam, 1 soft: the pulse's look and the helm's cadence), Deep.Look.Interference. Deep.Sonar.HoldAge freezes a pulse for frames.
 
 #pragma once
 
@@ -30,6 +31,8 @@ public:
 	static bool IsFootageOn();
 	static bool IsPulseOn();
 	static bool IsInterferenceOn();
+	/** The sonar's look and cadence: 0 = the jam's, 1 = soft (Deep.Sonar.Style, else Camera.SonarStyle). */
+	static int32 GetSonarStyle();
 
 	/** Starts a sonar pulse from Origin over RangeM (restarts one in flight). Ignores the switch: the caller decides. */
 	bool StartPulse(const FVector& Origin, float RangeM);
@@ -106,6 +109,8 @@ private:
 	bool bPulseShown = false;
 	float PulseAgeS = -1.f;
 	float PulseRangeM = 0.f;
+	/** The style the live pulse started with (its look holds to the end). */
+	int32 PulseStyle = 1;
 	FVector PulseOrigin = FVector::ZeroVector;
 	bool bPulseFromDiver = false;
 	/** The sub the pulse left from and its parts' box (sub space, cm): the material skips everything inside it. */
