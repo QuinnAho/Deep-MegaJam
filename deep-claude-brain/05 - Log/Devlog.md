@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 06:22 EST
+updated: 2026-11-17 12:02 EST
 ---
 # Devlog
 
@@ -1326,3 +1326,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: BT-01's inside (`f9b40cb`). The white patches and the floor blotches were the worn-steel paint's chips, about 55 cm across; one cap on the room's wear removes them. You spawn on the deck, and the lockers are solid. Caves round 8c (`4f2f44a`): T1's rough walls run its whole length, so it no longer reads as a square duct.
 - Failed: S's softer ledges read as a pipe, so S's mouth is back to round 7b's. The squeeze loosened to 119 cm at its tightest (88 in round 8); Quinn judges it by driving it.
 - Next: page v35 asks Quinn to OK both. The inside's merge gate is running; the caves get their own gate at the merge, then they go into the dive.
+
+### 12:02 PM, Nov 17  The inside and the caves are merged; the caves go into the dive
+- Changed: Quinn OK'd both. BT-01's inside merged (`c695b5e`) and the caves merged (`06ba3f1`), each after its own gate. The caves' gate: 181 tests, two playthroughs and a packaged build; the zip grew from 814 to 911 MB with the chunk meshes.
+- Decided: the dive lane also brings the hull's real collision, and the old shaft stays the default until the run loop works in the caves (D-064).
+- Failed: the merges waited about five hours after Quinn's OK (11:41 and 11:53 AM). The packaged frame by the tower still shows black wedges on the hull's outside, as at BT-01's gate; that goes to the look pass.
+- Next: the dive lane (`build/cavedive`), M1: start in S and drive the string with hull hits, behind `Deep.World.Caves`. Quinn sees M1's frames and decides how depth reads in the caves.

@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-17 04:17 EST
+updated: 2026-11-17 12:02 EST
 ---
 # Decision Log
 
@@ -72,6 +72,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-061 | The run starts in a calm start cavern | Decided (Quinn, about 11:45 PM Nov 16); chunk S in round 5 |
 | D-062 | BT-01 is the player's sub | Decided (Quinn, about 11:45 PM Nov 16); merged 3:24 AM Nov 17 (`6ed6929`) |
 | D-063 | The serpent turns to each soft helm ping, but pings alone do not make it hunt | Decided (Quinn, about 3:45 AM Nov 17); merged with the soft ping 4:15 AM Nov 17 (`4367b3a`) |
+| D-064 | The caves lane brings the hull's real collision; the old shaft stays the default until M2 | Decided (Claude, inside Quinn's OK for the lane, about 12:02 PM Nov 17) |
 
 ## Open
 
@@ -374,6 +375,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-064 The caves lane brings the hull's real collision; the old shaft stays the default until M2
+- **Status:** Decided. The lane `build/cavedive` has started.
+- **Date:** 2026-11-17, about 12:02 PM EST
+- **Who:** Claude, inside Quinn's OK for the lane.
+- **Quinn's words:** "OK, merge and go", to: "Then the next lane puts the caves into the dive: you start in S and drive the sub through with steering and hull hits. The old shaft stays behind a switch."
+- **Decided:** The lane that puts the caves into the dive also does moving-sub step 6's collision: the hull's real box sweeps against the baked chunks, and `UDeepCaveRules::Contact` retires with the shaft. The switch `Deep.World.Caves` stays 0 (the old shaft) through M1 and flips to 1 at the end of M2, once salvage, the stops and the gates work in the caves.
+- **Why:** Driving the caves needs hits against the chunks' rock, which was step 6's job; doing it twice wastes a lane. Flipping the default before the run loop works in the caves would break every run test at once.
+- **What follows:** [[cave-dive]] holds the plan. Moving-sub step 5 (removing D-022's code) comes after this lane.
 
 ### D-063 The serpent turns to each soft ping, but pings alone do not make it hunt
 - **Status:** Decided and merged with the soft ping (D-060), 4:15 AM Nov 17 (`4367b3a`).
