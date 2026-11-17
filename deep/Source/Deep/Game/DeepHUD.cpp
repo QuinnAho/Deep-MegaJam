@@ -1216,6 +1216,7 @@ namespace
 			};
 			AddRow(TEXT("Made by"), TEXT("Quinn and Colby"), EDeepHudTone::Normal, false);
 			AddRow(TEXT("Built with"), TEXT("Claude agents"), EDeepHudTone::Normal, false);
+			AddRow(TEXT("Submarine"), TEXT("BT-01 by Oliv1e, Sketchfab, CC BY 4.0, https://sketchfab.com/3d-models/7eb3b5312ec044b08ffd2d87e7761cfc"), EDeepHudTone::Normal, false);
 			bool bFirst = true;
 			for (const FDeepCreditRow& Credit : DeepCredits::Get())
 			{

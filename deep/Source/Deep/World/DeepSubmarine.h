@@ -18,6 +18,8 @@ class UCameraComponent;
 class URectLightComponent;
 class UBoxComponent;
 class UPostProcessComponent;
+class UDeepHullModel;
+namespace DeepHull { enum class ELamp : uint8; }
 
 UCLASS()
 class DEEP_API ADeepSubmarine : public AActor
@@ -50,8 +52,35 @@ public:
 	/**
 	 * The box (sub-local cm) round every shape that has collision: each is a visible engine cube, so this is the
 	 * visible solid hull and nothing more. bHullOnly: the box hull (deck, walls, ceiling) without the tower on top.
+	 * With the model hull (Deep.Sub.Model 1) it is the box round the model's simple collision, for both values: the
+	 * model is one solid with its tower.
 	 */
 	FBox GetSolidBoundsLocal(bool bHullOnly) const;
+
+	/**
+	 * A swimmer's velocity near the hull (world cm and m/s in, world m/s out): pushing into a side slides down it and
+	 * under (UDeepRules). The old box hull uses its collision box; the model hull sweeps the capsule ContactCm along the
+	 * velocity against the model's own collision, so the slide happens only at its real surface.
+	 */
+	FVector SlideAlongHull(const FVector& WorldCm, const FVector& VelocityMps, float RadiusCm, float HalfHeightCm, float ContactCm) const;
+
+	/** BT-01 is shown and is the hull's solid shape (Deep.Sub.Model 1, applied). */
+	bool IsModelHull() const;
+
+	UDeepHullModel* GetHullModel() const { return HullModel; }
+
+	/**
+	 * Deep.Sub.Model switched (UDeepHullModel::ApplySwitch): box colliders off with the model, on without; the square
+	 * hatch cover and water hidden with the model (the diver still leaves and comes home through the hatch column);
+	 * the lamps and their bulbs onto the model's surface, or back to the box.
+	 */
+	void OnHullModelSwitched();
+
+	/** An outside lamp's light (bow, hull, marker, airlock, belly flood). */
+	class ULocalLightComponent* GetLamp(DeepHull::ELamp Lamp) const;
+
+	/** The bulb on a lamp: a small glowing sphere at the light, shown with the model hull. */
+	UStaticMeshComponent* GetBulb(DeepHull::ELamp Lamp) const;
 
 	/** Locked: a red cover closes the hatch (collision on). Open while parked at a stop. */
 	void SetHatchOpen(bool bOpen);
@@ -197,6 +226,17 @@ protected:
 	/** Red port, green starboard, blinking. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TArray<TObjectPtr<UPointLightComponent>> Markers;
+
+	/** BT-01 (World/DeepHull). */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<UDeepHullModel> HullModel;
+
+	/** One bulb per lamp, in DeepHull::ELamp order, each attached to its light. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> Bulbs;
+
+	/** Puts the lamps on the model's surface (DeepHull::ModelLamp); LayOut calls it with the model hull. */
+	void PlaceLampsOnModel();
 
 	UPROPERTY(ReplicatedUsing = OnRep_Hatch)
 	bool bHatchOpen = true;

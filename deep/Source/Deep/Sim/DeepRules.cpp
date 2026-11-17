@@ -191,7 +191,19 @@ FVector UDeepRules::HullSlideVelocity(const FVector& LocalCm, const FVector& Vel
 		// Under or over the hull, or clear of its sides.
 		return Velocity;
 	}
-	const FVector Out(Off.X / Gap, Off.Y / Gap, 0.0);
+	return HullSlideAlongNormal(Velocity, FVector(Off.X / Gap, Off.Y / Gap, 0.0));
+}
+
+FVector UDeepRules::HullSlideAlongNormal(const FVector& Velocity, const FVector& SurfaceNormal)
+{
+	const FVector2D Side(SurfaceNormal.X, SurfaceNormal.Y);
+	const double SideLen = Side.Size();
+	// A side: the normal leans more out than up or down. The top and the belly do not slide.
+	if (Velocity.IsNearlyZero() || SideLen <= UE_KINDA_SMALL_NUMBER || SideLen < FMath::Abs(SurfaceNormal.Z))
+	{
+		return Velocity;
+	}
+	const FVector Out(Side.X / SideLen, Side.Y / SideLen, 0.0);
 	const double Into = -FVector::DotProduct(Velocity, Out);
 	if (Into <= 0.0)
 	{

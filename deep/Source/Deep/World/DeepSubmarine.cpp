@@ -22,6 +22,8 @@
 #include "World/DeepHull.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/LocalLightComponent.h"
+#include "Engine/StaticMesh.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
@@ -153,6 +155,28 @@ ADeepSubmarine::ADeepSubmarine()
 		Shape->bAffectDynamicIndirectLighting = Part.bShadow;
 		HullDress.Add(Shape);
 	}
+	// BT-01, the bathyscaphe: Deep.Sub.Model 1 (default) shows it, makes it the collider and hides the dress above
+	// and the box colliders (World/DeepHull, OnHullModelSwitched).
+	HullModel = CreateDefaultSubobject<UDeepHullModel>(TEXT("HullModel"));
+	HullModel->SetupAttachment(Root);
+	// A bulb on every outside lamp, at the light: a small glowing sphere, shown with the model (on the box the lamp
+	// housings stand in for it). No collision, no shadow; the markers' bulbs blink with their lights.
+	{
+		ULocalLightComponent* Lights[] = { BowLights[0], BowLights[1], HullLights[0], HullLights[1], Markers[0], Markers[1], AirlockLight, BellyFlood };
+		static_assert(UE_ARRAY_COUNT(Lights) == uint8(DeepHull::ELamp::Count), "One bulb per lamp");
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Lights); ++Index)
+		{
+			UStaticMeshComponent* Bulb = DeepShapes::CreateShape(this, FName(TEXT("Bulb_") + Lights[Index]->GetName()), DeepShapes::Sphere);
+			Bulb->SetupAttachment(Lights[Index]);
+			Bulb->SetRelativeScale3D(FVector(DeepHull::BulbRadiusCm * 2.0 / DeepShapes::ShapeSizeCm));
+			Bulb->SetCastShadow(false);
+			Bulb->bAffectDistanceFieldLighting = false;
+			Bulb->bVisibleInRayTracing = false;
+			Bulb->bAffectDynamicIndirectLighting = false;
+			Bulb->SetHiddenInGame(true);
+			Bulbs.Add(Bulb);
+		}
+	}
 	for (int32 Index = 0; Index < BowLights.Num(); ++Index)
 	{
 		UStaticMeshComponent* Shape = DeepShapes::CreateShape(this, Index == 0 ? TEXT("Hull_BowHousingPort") : TEXT("Hull_BowHousingStbd"), DeepShapes::Cylinder);
@@ -259,6 +283,12 @@ void ADeepSubmarine::LayOut()
 	for (int32 Index = 0; Index < Markers.Num(); ++Index)
 	{
 		Markers[Index]->SetRelativeLocation(FVector(L - 50.0, Index == 0 ? -OuterW - 12.0 : OuterW + 12.0, H * 0.5 - 20.0));
+	}
+	AirlockLight->SetRelativeLocation(FVector(0.0, 0.0, -350.0));
+	// With the model hull every lamp sits on its surface instead (the box positions above would float or be buried).
+	if (IsModelHull())
+	{
+		PlaceLampsOnModel();
 	}
 
 	// The outside dress, from the same part list the constructor made the components from.
@@ -637,6 +667,12 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	{
 		Light->SetVisibility(bOn && !UDeepTuningSettings::Get().Arena.bGreyBox);
 	}
+	// A bulb glows while its light is on: the markers' blink, the floods off in grey box or the water look's dimming.
+	for (UStaticMeshComponent* Bulb : Bulbs)
+	{
+		const ULightComponent* Light = Cast<ULightComponent>(Bulb->GetAttachParent());
+		Bulb->SetVisibility(Light && Light->GetVisibleFlag() && Light->Intensity > 0.f);
+	}
 	// Deep.World.Still: every machine places the hull from the replicated depth, offset and yaw.
 	PlaceStill();
 	DeepArena::UpdateStillWorld(GetWorld());
@@ -774,6 +810,24 @@ void ADeepSubmarine::ApplyLook()
 		Markers[Index]->SetAttenuationRadius(180.f);
 		Markers[Index]->SetSourceRadius(3.f);
 	}
+	// Each bulb glows in its own light's colour (M_SubBulb; a flat tint if the asset is missing).
+	UMaterialInterface* BulbBase = LoadObject<UMaterialInterface>(nullptr, DeepHull::BulbMaterial);
+	for (UStaticMeshComponent* Bulb : Bulbs)
+	{
+		const ULightComponent* Light = Cast<ULightComponent>(Bulb->GetAttachParent());
+		const FLinearColor Colour = Light ? Light->GetLightColor() : FLinearColor::White;
+		if (BulbBase)
+		{
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(BulbBase, Bulb);
+			M->SetVectorParameterValue(TEXT("Color"), Colour);
+			M->SetScalarParameterValue(TEXT("Glow"), DeepHull::BulbGlow);
+			Bulb->SetMaterial(0, M);
+		}
+		else
+		{
+			DeepShapes::Tint(Bulb, Colour);
+		}
+	}
 
 }
 
@@ -896,6 +950,17 @@ bool ADeepSubmarine::IsInHatchColumn(const FVector& WorldCm) const
 FBox ADeepSubmarine::GetSolidBoundsLocal(bool bHullOnly) const
 {
 	FBox Box(ForceInit);
+	if (IsModelHull())
+	{
+		// The model's own simple collision (its convex hulls), placed by the fit.
+		const UStaticMesh* Mesh = HullModel->GetStaticMesh();
+		const UBodySetup* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
+		if (Body && Body->AggGeom.GetElementCount() > 0)
+		{
+			return Body->AggGeom.CalcAABB(HullModel->GetRelativeTransform());
+		}
+		return HullModel->CalcBounds(HullModel->GetRelativeTransform()).GetBox();
+	}
 	TArray<UStaticMeshComponent*> Shapes;
 	GetComponents<UStaticMeshComponent>(Shapes);
 	for (UStaticMeshComponent* Shape : Shapes)
@@ -922,7 +987,8 @@ void ADeepSubmarine::OnRep_Hatch()
 {
 	HatchCover->SetVisibility(!bHatchOpen);
 	HatchWater->SetVisibility(bHatchOpen);
-	if (bHatchOpen)
+	// The model's belly is closed, so its square cover never blocks (it is hidden, and nothing hidden is solid).
+	if (bHatchOpen || IsModelHull())
 	{
 		HatchCover->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
@@ -930,6 +996,109 @@ void ADeepSubmarine::OnRep_Hatch()
 	{
 		Solid(HatchCover);
 	}
+}
+
+bool ADeepSubmarine::IsModelHull() const
+{
+	return HullModel && HullModel->GetShown() == 1;
+}
+
+void ADeepSubmarine::OnHullModelSwitched()
+{
+	const bool bModel = IsModelHull();
+	// The box hull's colliders: the model replaces them. The window and tower too; the hatch cover is OnRep_Hatch's.
+	TArray<UStaticMeshComponent*> Colliders;
+	for (UStaticMeshComponent* Shape : Deck) { Colliders.Add(Shape); }
+	for (UStaticMeshComponent* Shape : Walls) { Colliders.Add(Shape); }
+	Colliders.Add(Ceiling);
+	Colliders.Add(Window);
+	Colliders.Add(Tower);
+	for (UStaticMeshComponent* Shape : Colliders)
+	{
+		if (bModel)
+		{
+			Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		}
+		else
+		{
+			Solid(Shape);
+		}
+	}
+	// The square hatch: the model has its own round one at the same place.
+	HatchCover->SetHiddenInGame(bModel);
+	HatchWater->SetHiddenInGame(bModel);
+	OnRep_Hatch();
+	for (UStaticMeshComponent* Bulb : Bulbs)
+	{
+		Bulb->SetHiddenInGame(!bModel);
+	}
+	// The lamps: on the model's surface, or back where the box hull has them.
+	LayOut();
+}
+
+void ADeepSubmarine::PlaceLampsOnModel()
+{
+	if (!HullModel)
+	{
+		return;
+	}
+	const FTransform Fit = HullModel->GetRelativeTransform();
+	for (uint8 Index = 0; Index < uint8(DeepHull::ELamp::Count); ++Index)
+	{
+		const DeepHull::ELamp Lamp = DeepHull::ELamp(Index);
+		if (ULocalLightComponent* Light = GetLamp(Lamp))
+		{
+			Light->SetRelativeLocation(DeepHull::ModelLampLocation(Lamp, Fit));
+		}
+	}
+}
+
+ULocalLightComponent* ADeepSubmarine::GetLamp(DeepHull::ELamp Lamp) const
+{
+	using DeepHull::ELamp;
+	switch (Lamp)
+	{
+	case ELamp::BowPort: return BowLights.IsValidIndex(0) ? BowLights[0].Get() : nullptr;
+	case ELamp::BowStbd: return BowLights.IsValidIndex(1) ? BowLights[1].Get() : nullptr;
+	case ELamp::HullPort: return HullLights.IsValidIndex(0) ? HullLights[0].Get() : nullptr;
+	case ELamp::HullStbd: return HullLights.IsValidIndex(1) ? HullLights[1].Get() : nullptr;
+	case ELamp::MarkerPort: return Markers.IsValidIndex(0) ? Markers[0].Get() : nullptr;
+	case ELamp::MarkerStbd: return Markers.IsValidIndex(1) ? Markers[1].Get() : nullptr;
+	case ELamp::Airlock: return AirlockLight;
+	case ELamp::BellyFlood: return BellyFlood;
+	default: return nullptr;
+	}
+}
+
+UStaticMeshComponent* ADeepSubmarine::GetBulb(DeepHull::ELamp Lamp) const
+{
+	return Bulbs.IsValidIndex(int32(Lamp)) ? Bulbs[int32(Lamp)].Get() : nullptr;
+}
+
+FVector ADeepSubmarine::SlideAlongHull(const FVector& WorldCm, const FVector& VelocityMps, float RadiusCm, float HalfHeightCm, float ContactCm) const
+{
+	const FTransform& Frame = GetActorTransform();
+	if (!IsModelHull())
+	{
+		const FVector Local = UDeepRules::HullSlideVelocity(Frame.InverseTransformPosition(WorldCm), Frame.InverseTransformVectorNoScale(VelocityMps),
+			GetSolidBoundsLocal(true), RadiusCm, HalfHeightCm, ContactCm);
+		return Frame.TransformVectorNoScale(Local);
+	}
+	// The model: sweep the capsule ContactCm along the velocity against the model alone; touching its real surface
+	// gives the normal there (a tapered nose or stern, the tower's side), not a box face out in the water.
+	const FVector Dir = VelocityMps.GetSafeNormal();
+	if (Dir.IsNearlyZero())
+	{
+		return VelocityMps;
+	}
+	FHitResult Hit;
+	const FCollisionShape Capsule = FCollisionShape::MakeCapsule(RadiusCm, HalfHeightCm);
+	if (!HullModel->SweepComponent(Hit, WorldCm, WorldCm + Dir * ContactCm, FQuat::Identity, Capsule, false) || !Hit.bBlockingHit)
+	{
+		return VelocityMps;
+	}
+	const FVector Normal = Frame.InverseTransformVectorNoScale(Hit.bStartPenetrating ? Hit.Normal : Hit.ImpactNormal);
+	return Frame.TransformVectorNoScale(UDeepRules::HullSlideAlongNormal(Frame.InverseTransformVectorNoScale(VelocityMps), Normal));
 }
 
 void ADeepSubmarine::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const

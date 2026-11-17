@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 02:44 EST
+updated: 2026-11-16 23:57 EST
 ---
 # Style Guide
 
@@ -39,6 +39,7 @@ Do not:
 | Fog albedo | #40A6BF | volumetric albedo, all depths |
 | Diver lamp | #F2F4EE (chosen here) | cool neutral white, never yellow |
 | Sub ambient strips | #BFE3EA (chosen here) | cool, low |
+| Sonar pulse (helm and diver) | #BFE3EA, as the sub strips (D-060; Quinn checks it in frames) | a thin, faint band on nearby rock and sparse, brief dots; never amber |
 | Sub practicals (console, helm) | #FFB45A (chosen here) | the only warm room light |
 | Sub emergency | #D8271C (chosen here) | hatch rim, pulses on hull damage |
 | Sub markers | #FF2A1A red, #22D96A green (chosen here) | blink 1 Hz |
@@ -109,7 +110,7 @@ Buses: Master, Voice, Effects, Ambience, Music. Levels relative to Master 0 dB (
 |---|---|
 | Accent / HUD primary / secondary / alert | #FFB45A / #58E1D6 / #E0E6E6 at 88% / #E5484D |
 | Water 100, 300, 500 m | #193C45, #071A28, #000000 |
-| Lamp / sub strips / practical / emergency | #F2F4EE / #BFE3EA / #FFB45A / #D8271C |
+| Lamp / sub strips and sonar pulse / practical / emergency | #F2F4EE / #BFE3EA / #FFB45A / #D8271C |
 | Type sizes at 1080p | 18, 24, 36, 72 px |
 | Panel open, close, fade, number tween | 200, 120, 200, 450 ms |
 | Buses | Voice -3, Effects -6, Ambience -12, Music -18 dB |

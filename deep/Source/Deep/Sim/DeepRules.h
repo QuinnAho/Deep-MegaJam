@@ -97,6 +97,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Swim")
 	static FVector HullSlideVelocity(const FVector& LocalCm, const FVector& Velocity, const FBox& HullCm, float RadiusCm, float HalfHeightCm, float ContactCm);
 
+	/**
+	 * The same slide at a real surface: SurfaceNormal is the hull's outward normal where the swimmer touches it (a
+	 * sweep against the hull, so a tapered nose or stern turns the push the way the surface faces). Only a side slides:
+	 * a normal more vertical than horizontal (the top, the belly) leaves the velocity unchanged, as does a zero normal
+	 * (no contact) or a push away. The outward direction is the normal's horizontal part. Never faster than the input.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Swim")
+	static FVector HullSlideAlongNormal(const FVector& Velocity, const FVector& SurfaceNormal);
+
 	/** True when the diver is within WinchArriveM of the anchor (home). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Tether")
 	static bool IsHome(const FVector& DiverCm, const FVector& AnchorCm, const FDeepTetherTuning& Tuning);
