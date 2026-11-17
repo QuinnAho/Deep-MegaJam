@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-16 07:15 EST
+updated: 2026-11-16 23:10 EST
 ---
 # Board
 
@@ -17,7 +17,7 @@ Jam entry submitted solo (D-054). The goal now is an enjoyable game. Caves are c
 | Rewrite `CLAUDE.md` for the post-jam rules | orchestrator | done, for Quinn to read |
 | Turn on the PCG and Geometry Script plugins (D-052) | orchestrator | done (`6917b6d`); Quinn restarts the editor to load them |
 | Commit the `.uproject` EngineAssociation change ("5.9")? | Quinn decides | todo |
-| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | Step 4: built. `5a40577` on `build/moving-sub` is pushed. The still world is on by default, and the room has its own look. Tests: 178 of 178 pass. The S7 run was won in 47 s. It waits for Quinn's OK on the frames (frames page v22). The orange lattice at stop 1 is not from this lane: the `jam-final` build shows it at the same view (`.wt\monster\deep\Saved\Harness\shots\jamfinal-stop1-helm-20261116-032115.png`). Turning off volumetric fog or the stop's cave shell removes it; shadows and props don't |
+| Moving sub: undo D-022 (D-051: the sub moves through a still world; the room is a fixed set; airlock cycle; real collision). Plan in the branch's `Lane Notes/moving-sub.md`, six green commits | agent, opus, `.wt\swim` on `build/moving-sub` | Step 4: built. `5a40577` on `build/moving-sub` is pushed. The still world is on by default, and the room has its own look. Tests: 178 of 178 pass. The S7 run was won in 47 s. It waits for Quinn's OK on the frames (frames page v22). The orange lattice at stop 1 is not from this lane: the `jam-final` build shows it at the same view (`.wt\monster\deep\Saved\Harness\shots\jamfinal-stop1-helm-20261116-032115.png`). Turning off volumetric fog or the stop's cave shell removes it; shadows and props don't. Packaged for Quinn to play: `Builds\Step4-2309` (11:09 PM, Nov 16; package and smoke pass) |
 | Asset shortlist for the slice: sub exterior, interior kit, cave kit, with licences | agent, sonnet | done ([[Asset Shortlist - Slice]]) |
 | Cave research: UE 5.9's tools, real caves and methods, games to learn from | agents | done ([[Cave Gen - Engine Tools]], [[Cave Gen - Real Caves and Methods]], [[Games to Learn From]]) |
 | Cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand (D-053) | orchestrator | decided with D-055 (chunks) ([[Cave Pipeline]]) |
