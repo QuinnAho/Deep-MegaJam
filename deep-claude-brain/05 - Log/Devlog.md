@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 01:20 EST
+updated: 2026-11-17 02:07 EST
 ---
 # Devlog
 
@@ -1278,3 +1278,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: `06770f2` on `build/cavegen` (pushed, not merged). S's chimney has no rings, the lumps around S's way out are gone, the T1-C1 opening is a natural arch and B-E lost its lintel. The checks hold: 0 hull contacts in 1168 samples, joint gap 0, 0 tether leaks.
 - Failed: the keyhole still reads as a cut doorway, creases remain at three joint rims, E's bay came out crumpled and C1's entry rock faceted. The frame cameras are fixed world points, and round 6's rock now wraps two of them, so the squeeze frame (GPU view 1 too) shows the inside of the rock. The agent's report missed it; the frame check caught it.
 - Next: round 7 (started 1:18 AM) fixes those, fails any run with a camera under 50 cm from rock, and measures the GPU for rounds 6 and 7 back to back.
+
+### 2:07 AM, Nov 17  Cave round 7: honest cameras, one step back at S
+- Changed: `4dfcb90` on `build/cavegen` (pushed, not merged). The frame cameras follow the dive path, and a run fails if one comes within 50 cm of rock. E's side bay and S's back bay are natural rock, and the T1-C1 creases are gone. The GPU cost is unchanged at about 4.5 ms in all three views (rounds 6 and 7 measured back to back).
+- Failed: round 7 added three pale boulders around S's way out. They look stuck on, and one blocks the diver's view of the Serpent alcove. The keyhole's straight sides come from the shape itself, and C1's column rings from its roof. E closes in a flat plug. The report counts the S-A and C1-B rim rings as fixed; the frames show no change.
+- Next: round 7b (the same agent) takes out the boulders and gives E a rock end. Frames page v27 shows round 7 now, and v28 brings 7b with BT-01. On the page I proposed ending the rock patching after 7b, with one structural fix for the joint rims instead, and making the caves drivable next. That waits on Quinn.
