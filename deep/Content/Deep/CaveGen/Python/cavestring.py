@@ -290,6 +290,78 @@ def joint_checks(rows):
     return {'max_off_outline_cm': round(worst_off, 3), 'worst_gap_cm': round(worst, 3)}, rep
 
 
+# ---------------------------------------------------------------- lip check (round 8b)
+def mesh_lists(mesh):
+    """(pts, tris) of a DynamicMesh as plain tuples."""
+    pts = [(q.x, q.y, q.z) for q in verts(mesh)]
+    tris = [(t.x, t.y, t.z) for t in GS_L.convert_triangle_list_to_array(GS_Q.get_all_triangle_indices(mesh, False)[1])]
+    return pts, tris
+
+
+def _rim_faces(pts, tris, centre, fwd, place):
+    """World normal of the triangle on each open rim edge at a joint plane, keyed by the
+    edge's two world end points (rounded to 0.1 cm, unordered: float32 at 11 km is off by more than 0.01)."""
+    cx, cy, cz = centre
+    fx, fy = fwd
+    on = [abs((p[0] - cx) * fx + (p[1] - cy) * fy) < 0.01 for p in pts]
+    half = set()
+    for a, b, c in tris:
+        half.update(((a, b), (b, c), (c, a)))
+    out = {}
+    for t in tris:
+        for u, v in ((t[0], t[1]), (t[1], t[2]), (t[2], t[0])):
+            if on[u] and on[v] and (v, u) not in half:
+                w = [compose(place, pts[i]) for i in t]
+                n = cg._tri_n(w, (0, 1, 2))[0]
+                key = frozenset(tuple(round(c, 1) for c in compose(place, pts[i])) for i in (u, v))
+                if n is not None:
+                    out[key] = n
+    return out
+
+
+def lip_checks(rows, deg=None):
+    """Round 8b: the bright lips. Per rim of the string: on each side, cg.joint_folds
+    (neighbouring triangles within 3 m of the plane whose normals differ by more than
+    cg.LIP_DEG, 90 degrees: the surface folds back on itself); across it, the angle
+    between the two triangles that share each rim edge, one from each chunk (the rock
+    should run on through the plane). Target 0 lips on every side and across."""
+    deg = cg.LIP_DEG if deg is None else deg
+    cmax = math.cos(math.radians(deg))
+    byname = {r['Name']: r for r in rows}
+    places, end = string_places(rows)
+    rep = []
+    total = 0
+    for i in range(len(places) - 1):
+        (na, pa), (nb, pb) = places[i], places[i + 1]
+        ra = byname[na]
+        (fx, fy), _ = yaw_dirs(ra['ExitYaw'])
+        ea = ((ra['ExitX'], ra['ExitY'], ra['ExitZ']), (fx, fy), ra['OutType'], -1.0)
+        eb = ((0.0, 0.0, 0.0), (1.0, 0.0), byname[nb]['InType'], 1.0)
+        A, B = mesh_lists(read_mesh(na)), mesh_lists(read_mesh(nb))
+        fa = cg.joint_folds(A[0], A[1], [ea], deg)[0]
+        fb = cg.joint_folds(B[0], B[1], [eb], deg)[0]
+        xa = _rim_faces(A[0], A[1], ea[0], ea[1], pa)
+        xb = _rim_faces(B[0], B[1], eb[0], eb[1], pb)
+        n = bad = 0
+        worst = 0.0
+        for k, na_ in xa.items():
+            nb_ = xb.get(k)
+            if nb_ is None:
+                continue
+            n += 1
+            d = max(-1.0, min(1.0, sum(x * y for x, y in zip(na_, nb_))))
+            worst = max(worst, math.degrees(math.acos(d)))
+            if d < cmax:
+                bad += 1
+        rec = {'rim': '%s-%s' % (na, nb), 'type': ra['OutType'], 'lips_%s' % na: fa['lips'], 'lips_%s' % nb: fb['lips'],
+               'lips_across': bad, 'rim_edges_matched': n, 'of': len(xa),
+               'max_deg': max(fa['max_deg'], fb['max_deg'], round(worst, 1)), 'across_max_deg': round(worst, 1),
+               'over_60': fa['over_60'] + fb['over_60']}
+        total += fa['lips'] + fb['lips'] + bad
+        rep.append(rec)
+    return {'lips': total, 'deg': deg}, rep
+
+
 # ---------------------------------------------------------------- overlap check
 JOINT_REACH = 1000.0   # the joint outlines reach about 9.5 to 11.7 m from their centres
 def overlap_checks(rows, stride=4, joint_clear=300.0):

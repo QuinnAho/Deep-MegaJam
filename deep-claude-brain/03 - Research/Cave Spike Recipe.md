@@ -579,3 +579,67 @@ Frames: `devlog/media/2026-11-17-cave8-*.png` (10). Each is a round 7b | round 8
 - **Keyhole:** from the helm's 3:1 frame you see the tube and the top of the trench; the trench shows when you look down (`A_keyhole_trench`).
 - **Goal 3 not done:** S's mouth funnel walls, and E's pale rounded blocks and smooth approach roof.
 - **C1's column rings:** unchanged.
+
+## Round 8b (Nov 17): no bright lips, T1's doorway, goal 3
+Goal: remove the bright lips at every rim with a check that finds them; make Helm_A_T1's dark rectangle with a notch read as rock; goal 3 (S's mouth funnel walls, E's pale blocks and smooth approach roof). S's size and layout, the exits, the joint types and the string order are unchanged. C1's column rings were not touched.
+
+### Lip check (`cavestring.lip_checks`)
+- **On each side:** neighbouring triangles within 300 cm of the joint plane whose normals differ by more than 90° (`LIP_DEG`). It also reports the worst angle and how many exceed 60°.
+- **Across:** the angle between the two chunks' triangles on each shared rim edge. Edges are matched on positions rounded to 0.1 cm.
+- **Target:** 0 everywhere. The bake also runs the side check per rim.
+
+### Causes found
+- **The key's ledge nose:** the rim polygon turned 92° within one 0.4° sample, a 4 cm notch at a ledge.
+- **Slot tips and rock noses on the rim:** these are about 50 cm wide (e.g. C1's exit at −106°), and neither chunk's voxel surface follows them. The rim made a thin fin there that caught the light.
+- **T1's doorway:** the squeeze's walls stood on the core's box plus a gap that only swelled in places. Looking down its 14 m, every ray met a pinch at the same 30 cm, so seen end-on the opening was the core's rounded rectangle. The notch was `sec_rift`'s roof slot, which was the same at every s. The keyhole is not involved.
+
+### What changed
+- **The rim (`cavegen.py`):** `joint_rim` = `_round_rim(_rim_morph(outline + J))`.
+  - `_rim_morph` does an opening, then a closing, with a 30 cm disc (`RIM_RHO`). Radii of 50, 75 and 100 were worse: they cut slot tips that the chunks do follow, which made new fins.
+  - `_round_rim` relaxes every sample that turns more than 30° (`RIM_TURN`).
+  - The difference from the raw rim fades out over the snap's 150 cm. `LIP_LIFT 15` lifts the unfold off the plane.
+- **T1:** `t1_gap` adds an outward lean (120 cm over the height), a per-angle lump (0–80 cm) and pinches at a different s for each angle (spacing 520 cm, standing back 110 cm), minus `T1_FLOOR 80`, so the walls still reach the core. `sec_rift`'s slots now vary in lean and width along s.
+  - With the floor at 0, the squeeze clearance was 118.8 cm; at 40 it was 106.2. 80 keeps the doorway looking like rock and is the tightest of the three.
+- **S's mouth funnel:** the walls step back in courses. Each bed in the walls' height is dissolved back under the one above it in runs (`bed_undercut`, 18 runs), plus 6 worn joint recesses (`rock_ellipsoid`, outward). All of this is water and short of the exit's fade.
+  - A first try cut square-ended boxes, which read as shelving from the berth.
+- **E:** `roof_snap 0`, because its snap patches were the flat approach roof. There are now 16 breakdown scars in the approach roof, none within 7 m of the joint. The choke's blocks are now slabs up to 3.4 × 2.6 m, under 1 m thick, and tilted up to 40°. 7b's near-cubic blocks voxelised into pale rounded lumps.
+
+### Results
+| Rim | Lips on each side | Lips across | Edges matched | Worst angle, across |
+|---|---|---|---|---|
+| S–A (rift) | 0, 0 | 0 | 720 / 720 | 61.4° |
+| A–T1 (key) | 0, 0 | 0 | 720 / 720 | 43.2° |
+| T1–C1 (bed) | 0, 0 | 0 | 720 / 720 | 44.3° |
+| C1–B (rift) | 0, 0 | 0 | 716 / 720 (float32 at about 11 km) | 88.6° |
+| B–E (bed) | 0, 0 | 0 | 720 / 720 | 48.9° |
+
+- No crease over 60° on either side of any rim. The worst on a side is 59–61°.
+- **Round 8's checks all hold:**
+  - Joint gap 0.000 cm and off the outline 0.001 cm.
+  - Overlap 0 and core exposure 0.
+  - Hull sweep 0 / 1168, with controls 647 and 658.
+  - Columns: S 28.5 m, C1 22.2 m. Tether: 0 leaks of 2592 (nearest 278 cm).
+  - 9 salvage sockets in water. No camera within 50 cm of rock (nearest 146 cm).
+  - Border edges: 720 per rim, only on the rims. Degenerate triangles: 0.
+- **Least clearance:**
+  - Squeeze **95.3** cm (was 87.5) and neck **114.1** (was 103.1).
+  - Tunnel 93.8 and cavern 120.3 are unchanged.
+- **Joint types:**
+  - Bed: 45.0 cm gap, 18.72 × 9.46 m.
+  - Rift: 54.0 cm gap, 9.36 × 18.61 m (was 9.41 × 19.08).
+  - Key: 75.2 cm gap, 13.15 × 18.04 m.
+- **Triangles against round 8:**
+  - S 226142 (+1.2%), T1 273872 (+5.1%) and E 56758 (+1.6%).
+  - A, B and C1 are within 0.2%.
+- **GPU:** for the meshes that changed by more than 1%, round 8's meshes (from HEAD, in a temporary `Scratch8`, since deleted) were measured against 8b's. Each view was run twice, alternating, with 40 samples, and the medians are in ms:
+  - S berth: 5.04, 5.08 vs 5.12, 5.10.
+  - T1 squeeze: 4.81, 4.77 vs 4.80, 4.78.
+  - E from the joint: 4.63, 4.75 vs 4.82, 4.80.
+  - These are equal within noise (spread about 0.12 ms).
+
+Frames: `devlog/media/2026-11-17-cave8b-*.png` (10). Each one is a round 7b | round 8b pair.
+
+### Still open
+- **Squeeze clearance:** the squeeze is 7.8 cm wider than round 8's. Quinn to judge whether it still feels tight.
+- **C1's column rings:** unchanged.
+- **Doorway:** Helm_A_T1 still shows a roughly upright dark opening at the far end of the squeeze. It has rock edges and no notch.

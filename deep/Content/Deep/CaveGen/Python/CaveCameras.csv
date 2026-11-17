@@ -1,5 +1,5 @@
 Name,X,Y,Z,Yaw,Pitch,Note
-String_overview,5329.3,3085.8,20802.4,120,-89.9,top down over the whole string
+String_overview,5329.1,3085.8,20800.5,120,-89.9,top down over the whole string
 T1_squeeze_helm,4145,0,100,0,0,helm at T1's rift squeeze (GPU view 1)
 C1_from_entry,8300,5150,-540,90,-8,C1 just inside its entry joint
 C1_from_Park,8300,7900,-2850,40,-8,from Park toward the exit (GPU view 2)

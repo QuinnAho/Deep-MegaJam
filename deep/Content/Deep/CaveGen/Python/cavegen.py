@@ -366,11 +366,12 @@ def sec_widelow(aR, aL, bT=450.0, bB=440.0, n=3.5):
     return [r_sel(c, s, aR, aL, bT, bB, n) for c, s in ANG]
 
 
-def sec_rift():
+def sec_rift(lean=0.22, w_top=175.0, lean_bot=-0.15):
     """Squeeze: a narrow, leaning rift that tapers up into a roof slot and down into a floor
-    slot; the core (plus an uneven gap) sets its width."""
-    return [max(r_sel(c, s, 290.0, 265.0, 430.0, 390.0, 2.6), r_wedge(c, s, 175.0, 1100.0, 0.22),
-                r_wedge(c, -s, 140.0, 650.0, -0.15)) for c, s in ANG]
+    slot; the core (plus an uneven gap) sets its width. Round 8b: the slots' lean and width
+    vary along s (T1's section_defs), so seen end-on they do not stack into one notch."""
+    return [max(r_sel(c, s, 290.0, 265.0, 430.0, 390.0, 2.6), r_wedge(c, s, w_top, 1100.0, lean),
+                r_wedge(c, -s, 140.0, 650.0, lean_bot)) for c, s in ANG]
 
 
 def sec_throat():
@@ -623,7 +624,7 @@ def _jrel_geo(t):
     return _JREL[t]
 
 
-def _jrel_k(t, k, a):
+def _jrel_raw(t, k, a):
     pts, cs, gaps, rock = _jrel_geo(t)
     u, v = pts[k]
     zb = rock.zb(a, u, v)
@@ -632,6 +633,48 @@ def _jrel_k(t, k, a):
         return JREL_OUT * math.tanh(d / JREL_OUT)
     lim = max(0.0, min(JREL_IN, gaps[k] - JREL_KEEP))
     return -lim * math.tanh(-d / lim) if lim > 0.0 else 0.0
+
+
+# Round 8b: the rock above is evaluated at each outline sample on its own. Where the
+# outline runs nearly along the rays (a slot wall), 1 / cos makes neighbouring samples
+# disagree by tens of cm, so the rim zigzagged (rift at 80 degrees: 914, 878, 918, 876 cm
+# over 1.5 degrees) and the snap folded the surface onto it: bright lips round the rims.
+# The relief is now smoothed over nine samples (binomial, 3.6 degrees) and cached in 5 cm steps of a,
+# linear between them, so the rim keeps its rock but has no sawtooth.
+JREL_SMOOTH = (1.0, 8.0, 28.0, 56.0, 70.0, 56.0, 28.0, 8.0, 1.0)
+JREL_ABIN = 5.0
+_JREL_BIN = {}
+
+
+def _jrel_bin(t, ia):
+    key = (t, ia)
+    row = _JREL_BIN.get(key)
+    if row is None:
+        row = _JREL_BIN[key] = [None] * NA
+    return row
+
+
+def _jrel_k(t, k, a):
+    """Type t's rock at outline sample k, a cm along travel from the plane: the smoothed,
+    cached form of _jrel_raw."""
+    f = a / JREL_ABIN
+    ia = math.floor(f)
+    w = f - ia
+    r0, r1 = _jrel_bin(t, ia), _jrel_bin(t, ia + 1)
+    h = len(JREL_SMOOTH) // 2
+    tot = 0.0
+    for d, wt in zip(range(-h, h + 1), JREL_SMOOTH):
+        kk = (k + d) % NA
+        v0 = r0[kk]
+        if v0 is None:
+            v0 = r0[kk] = _jrel_raw(t, kk, ia * JREL_ABIN)
+        if w > 0.0:
+            v1 = r1[kk]
+            if v1 is None:
+                v1 = r1[kk] = _jrel_raw(t, kk, (ia + 1) * JREL_ABIN)
+            v0 += (v1 - v0) * w
+        tot += wt * v0
+    return tot / sum(JREL_SMOOTH)
 
 
 def joint_relief(t, th, a):
@@ -646,11 +689,132 @@ def joint_relief(t, th, a):
 _RIM_CACHE = {}
 
 
+RIM_TURN = 30.0       # round 8b: the most the rim polygon turns at one sample (degrees)
+RIM_RHO = 30.0        # round 8b: the rim's smallest feature, as a disc radius (cm)
+
+
+def _rim_morph(rs, rho=None):
+    """Round 8b: no feature of the rim narrower than a 2*rho disc. Opening (the union of
+    every rho disc that fits in the water) takes off the outline's narrow slot tips;
+    closing (the same in the rock) takes off narrow rock noses. The rift's slot tips were
+    50 cm wide and over a metre deep at the plane; neither chunk's 25 cm voxel surface
+    followed them, so the rim alone went into them and the two fans lay flat in the plane
+    there, a fin that caught the light. Returns radii along the same rays."""
+    rho = RIM_RHO if rho is None else rho
+    n = len(rs)
+    P = [(r * c, r * sn) for r, (c, sn) in zip(rs, ANG)]
+    dth = 2.0 * math.pi / n
+
+    def seg_d2(c, a, b):
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        L2 = ex * ex + ey * ey
+        q = 0.0 if L2 < 1e-12 else max(0.0, min(1.0, ((c[0] - a[0]) * ex + (c[1] - a[1]) * ey) / L2))
+        return (a[0] + ex * q - c[0]) ** 2 + (a[1] + ey * q - c[1]) ** 2
+
+    def discs(sign):
+        out = []
+        for k in range(n):
+            a, b = P[k - 1], P[(k + 1) % n]
+            tx, ty = b[0] - a[0], b[1] - a[1]
+            L = math.hypot(tx, ty)
+            if L < 1e-9:
+                continue
+            nx, ny = ty / L, -tx / L                      # out of the water (ANG runs anticlockwise)
+            c = (P[k][0] + sign * rho * nx, P[k][1] + sign * rho * ny)
+            rc = math.hypot(*c)
+            W = n if rc < 3.0 * rho else int(math.asin(min(1.0, (rho + 10.0) / rc)) / dth) + 4
+            k0 = int(round((math.atan2(c[1], c[0]) + 0.5 * math.pi) / dth)) % n
+            js = range(n) if W >= n // 2 else range(k0 - W, k0 + W + 1)
+            if all(seg_d2(c, P[j % n], P[(j + 1) % n]) >= (rho - 0.5) ** 2 for j in js):
+                out.append((c, rc, k0))
+        return out
+
+    def rays(dl, keep):
+        res = [None] * n
+        for c, rc, k0 in dl:
+            W = n // 2 if rc <= rho else int(math.asin(rho / rc) / dth) + 2
+            for j in range(k0 - W, k0 + W + 1):
+                cj, sj = ANG[j % n]
+                cd = c[0] * cj + c[1] * sj
+                disc = rho * rho - rc * rc + cd * cd
+                if disc < 0.0:
+                    continue
+                t = cd + keep * math.sqrt(disc)
+                if t <= 0.0:
+                    continue
+                q = j % n
+                if res[q] is None or keep * (t - res[q]) > 0.0:
+                    res[q] = t
+        return res
+    far = rays(discs(-1.0), 1.0)                          # opening: the farthest water disc point
+    rs = [min(r, f) if f is not None else r for r, f in zip(rs, far)]
+    P = [(r * c, r * sn) for r, (c, sn) in zip(rs, ANG)]
+    near = rays(discs(1.0), -1.0)                         # closing: the nearest rock disc point
+    return [max(r, f) if f is not None else r for r, f in zip(rs, near)]
+
+
+def _round_rim(rs):
+    """Round 8b: round the rim's sharp corners. The key's ledges and the rift's relief steps
+    turned the rim up to 92 degrees within one 0.4 degree sample (a 4 cm notch at a ledge's
+    nose); the voxel surface either side of the plane is rounded at 25 cm, so the fan
+    between them folded there whatever the snap did. Each pass moves every sample whose
+    polygon turns more than RIM_TURN (and its neighbours, less) toward the midpoint of its
+    neighbours, until none does; the result is read back as radii along the same rays.
+    Only sharp corners move (by a few cm); the rest of the rim is unchanged."""
+    n = len(rs)
+    P = [(r * c, r * sn) for r, (c, sn) in zip(rs, ANG)]
+    lim = math.cos(math.radians(RIM_TURN))
+    for _ in range(600):
+        hot = set()
+        for k in range(n):
+            a, b, c = P[k - 1], P[k], P[(k + 1) % n]
+            e1, e2 = (b[0] - a[0], b[1] - a[1]), (c[0] - b[0], c[1] - b[1])
+            l1, l2 = math.hypot(*e1), math.hypot(*e2)
+            if l1 > 1e-9 and l2 > 1e-9 and (e1[0] * e2[0] + e1[1] * e2[1]) / (l1 * l2) < lim:
+                hot.add(k)
+        if not hot:
+            break
+        new = {}
+        for k in hot | {(k + d) % n for k in hot for d in (-1, 1)}:
+            w = 0.5 if k in hot else 0.25
+            a, b, c = P[k - 1], P[k], P[(k + 1) % n]
+            new[k] = (b[0] + w * (0.5 * (a[0] + c[0]) - b[0]), b[1] + w * (0.5 * (a[1] + c[1]) - b[1]))
+        for k, q in new.items():
+            P[k] = q
+    out = []
+    for k, (c, sn) in enumerate(ANG):
+        best = None
+        for j in range(k - 15, k + 15):
+            p, q = P[j % n], P[(j + 1) % n]
+            dx, dy = q[0] - p[0], q[1] - p[1]
+            den = c * dy - sn * dx
+            if abs(den) < 1e-12:
+                continue
+            u = (p[0] * sn - p[1] * c) / den
+            tt = (p[0] * dy - p[1] * dx) / den
+            if -1e-9 <= u <= 1.0 + 1e-9 and tt > 0.0 and (best is None or abs(tt - rs[k]) < abs(best - rs[k])):
+                best = tt
+        out.append(rs[k] if best is None else best)
+    return out
+
+
 def joint_rim(t):
-    """Type t's rim over ANG: its outline plus its rock relief at the plane."""
+    """Type t's rim over ANG: its outline plus its rock relief at the plane, with nothing
+    narrower than RIM_RHO's disc and its sharp corners rounded (round 8b)."""
     if t not in _RIM_CACHE:
-        _RIM_CACHE[t] = [r + _jrel_k(t, k, 0.0) for k, r in enumerate(joint_outline(t))]
+        _RIM_CACHE[t] = _round_rim(_rim_morph([r + _jrel_k(t, k, 0.0) for k, r in enumerate(joint_outline(t))]))
     return _RIM_CACHE[t]
+
+
+def _rim_delta(t, k):
+    """How far the rounding moved rim sample k (cm, along its ray)."""
+    if t not in _RIM_D_CACHE:
+        rim = joint_rim(t)
+        _RIM_D_CACHE[t] = [rim[q] - (r + _jrel_k(t, q, 0.0)) for q, r in enumerate(joint_outline(t))]
+    return _RIM_D_CACHE[t][k]
+
+
+_RIM_D_CACHE = {}
 
 
 def joint_r(t, th):
@@ -1054,10 +1218,12 @@ def resample(pts, n):
     return out
 
 
-def tunnel(path, secs, rock, s_list, slices=None, core=None, fade=None, n=RING_N):
+def tunnel(path, secs, rock, s_list, slices=None, core=None, fade=None, n=RING_N, gap=None):
     """Displaced ring tube along a path. Rings stand vertical (yaw-only frames), so a
-    level hull meets level joints. Returns (verts, tris) and per-ring info:
-    (s, (x, y, z, yaw), [(u, v)] final ring points, section name)."""
+    level hull meets level joints. gap (round 8b), if given: gap(s, k, c, sn, rc, sl) -> cm
+    more that the wall stands off the core along ray k (outward only, so clearances hold).
+    Returns (verts, tris) and per-ring info: (s, (x, y, z, yaw), [(u, v)] final ring
+    points, section name)."""
     rings, cents, info = [], [], []
     for i, s in enumerate(s_list):
         x, y, z, yaw = path.at(s)
@@ -1083,6 +1249,8 @@ def tunnel(path, secs, rock, s_list, slices=None, core=None, fade=None, n=RING_N
                 if fc > 0.0:
                     bulge = fc * 85.0 * max(0.0, 0.3 + fbm(x + rx * rc * c, y + ry * rc * c, z + rc * sn,
                                                                rock.seed + 29, 380.0))
+                if gap:
+                    bulge += max(0.0, gap(s, k, c, sn, rc, sl))
                 r = smax(r, rc + BASE_GAP + bulge, SMAX_K)
             pts.append((r * c, r * sn))
         pts = resample(pts, n)
@@ -1675,16 +1843,146 @@ def spec_joints(spec):
     return js
 
 
-def snap_joints(mesh, joints):
-    """Blend vertices within SNAP of each joint plane onto the joint type's outline, along
-    rays from the joint centre; vertices on the plane land exactly on it."""
-    GS_R.compact_mesh(mesh)
-    res = GS_Q.get_all_vertex_positions(mesh, False)
-    pts = list(GS_L.convert_vector_list_to_array(res[1]))
+def _plane_al(p, joints):
+    """(along, sign * forward) for the joint plane nearest p."""
+    best = None
+    for (cx, cy, cz), (fx, fy), t, sg in joints:
+        d = sg * ((p[0] - cx) * fx + (p[1] - cy) * fy)
+        if best is None or abs(d) < abs(best[0]):
+            best = (d, (fx * sg, fy * sg))
+    return best
+
+
+JOINT_SETTLE = 22.0   # clean_plane's reach (cm): just under one 25 cm voxel
+
+
+def clean_plane(pts, tris, joints, eps=JOINT_SETTLE, tol=0.01):
+    """Round 8b: tidy each cut before the snap. plane_cut leaves rows of vertices a few
+    mm inside the plane next to the rim (a voxel layer 0.5 cm from it at B's exit); the
+    snap put them on the plane too, and the thin triangles between folded over: dot -1
+    pairs at every rim, the bright lips. Here (1) each vertex within eps of a plane, with
+    a neighbour on it, merges into the nearest such neighbour; (2) triangles left lying in
+    the plane with two open edges (ears off the rim) go; (3) plane vertices left inside
+    the surface (no longer on the rim) step eps into the chunk. Returns (pts, tris, stats)."""
+    nb = {}
+    for a, b, c in tris:
+        for u, v in ((a, b), (b, c), (c, a)):
+            nb.setdefault(u, set()).add(v)
+            nb.setdefault(v, set()).add(u)
+    al = [_plane_al(p, joints)[0] if joints else 1e9 for p in pts]
+    parent = list(range(len(pts)))
+    nset = 0
+    for u in range(len(pts)):
+        if tol < al[u] < eps:
+            on = [v for v in nb.get(u, ()) if abs(al[v]) <= tol]
+            if on:
+                parent[u] = min(on, key=lambda v: math.dist(pts[u], pts[v]))
+                nset += 1
+
+    def f(i):
+        while parent[i] != i:
+            i = parent[i]
+        return i
+    keep = {}
+    for t in tris:
+        q = (f(t[0]), f(t[1]), f(t[2]))
+        if q[0] == q[1] or q[1] == q[2] or q[0] == q[2]:
+            continue
+        keep.setdefault(frozenset(q), []).append(q)
+    tris = []
+    for ts in keep.values():
+        if len(ts) == 2:
+            a, b = ts
+            if (a[1], a[2]) not in ((b[0], b[1]), (b[1], b[2]), (b[2], b[0])):
+                continue          # two opposite triangles on the same vertices: a fin, both go
+        tris.append(ts[0])
+    on = [abs(a) <= tol for a in al]
+    alive = [True] * len(tris)
+    he = {}
+    for i, (a, b, c) in enumerate(tris):
+        for e in ((a, b), (b, c), (c, a)):
+            he[e] = i
+    ears = 0
+    changed = True
+    while changed:
+        changed = False
+        for i, (a, b, c) in enumerate(tris):
+            if not alive[i] or not (on[a] and on[b] and on[c]):
+                continue
+            if sum(1 for u, v in ((a, b), (b, c), (c, a)) if (v, u) not in he) >= 2:
+                alive[i] = False
+                for e in ((a, b), (b, c), (c, a)):
+                    he.pop(e, None)
+                ears += 1
+                changed = True
+    tris = [t for t, k in zip(tris, alive) if k]
+    border = set()
+    for (u, v) in he:
+        if (v, u) not in he:
+            border.update((u, v))
+    pts = list(pts)
+    lifted = 0
+    for i, p in enumerate(pts):
+        if on[i] and i not in border:
+            d, (dx, dy) = _plane_al(p, joints)
+            pts[i] = (p[0] + dx * eps, p[1] + dy * eps, p[2])
+            lifted += 1
+    used = sorted({x for t in tris for x in t})
+    newi = {o: k for k, o in enumerate(used)}
+    return [pts[o] for o in used], [tuple(newi[x] for x in t) for t in tris], \
+        {'settled': nset, 'ears': ears, 'lifted': lifted}
+
+
+_ANG_DTH = 2.0 * math.pi / NA
+
+
+def _joint_target(t, k, a0, along):
+    """Outline sample k of joint type t as the snap lays it at a0 (along from the plane):
+    the rim on the plane, the outline plus the fading joint rock off it. (u, v) in the
+    joint plane."""
+    k %= NA
+    if along <= 0.5:
+        R = joint_rim(t)[k]
+    else:
+        # the rim's rounding fades out over the snap zone, so it meets the plane exactly
+        R = joint_outline(t)[k] + (1.0 - sstep(0.0, FADE_OUTER, along)) * _jrel_k(t, k, a0)             + (1.0 - sstep(0.0, SNAP, along)) * _rim_delta(t, k)
+    c, s = ANG[k]
+    return R * c, R * s
+
+
+def _closest_on_outline(t, u, v, r, R, a0, along):
+    """Nearest point to (u, v) on type t's outline at a0. The ray's own target is |R - r|
+    away, so only samples within that arc length either side need a look."""
+    th = math.atan2(v, u)
+    f = ((th + 0.5 * math.pi) / (2.0 * math.pi) * NA) % NA
+    k0 = int(f)
+    w = min(40, 1 + int(abs(R - r) / max(r * _ANG_DTH, 1.0)))
+    best = None
+    prev = _joint_target(t, k0 - w, a0, along)
+    for k in range(k0 - w + 1, k0 + w + 2):
+        cur = _joint_target(t, k, a0, along)
+        ex, ey = cur[0] - prev[0], cur[1] - prev[1]
+        L2 = ex * ex + ey * ey
+        q = 0.0 if L2 < 1e-9 else max(0.0, min(1.0, ((u - prev[0]) * ex + (v - prev[1]) * ey) / L2))
+        px, py = prev[0] + ex * q, prev[1] + ey * q
+        d2 = (px - u) ** 2 + (py - v) ** 2
+        if best is None or d2 < best[0]:
+            best = (d2, px, py)
+        prev = cur
+    return best[1], best[2]
+
+
+def snap_pts(pts, joints):
+    """Blend vertices within SNAP of each joint plane onto the joint type's outline; those
+    on the plane land exactly on the rim. Round 8b: onto the nearest point of the outline,
+    not along the ray from the joint centre. Where a wall runs nearly along the rays (the
+    slot walls), the radial snap sent neighbouring vertices to very different radii and
+    folded the triangles between them. Returns (pts, moved)."""
+    pts = list(pts)
     moved = 0
     for i, p in enumerate(pts):
         for (cx, cy, cz), (fx, fy), t, sg in joints:
-            dx, dy, dz = p.x - cx, p.y - cy, p.z - cz
+            dx, dy, dz = p[0] - cx, p[1] - cy, p[2] - cz
             a0 = dx * fx + dy * fy
             along = sg * a0                     # distance from the plane, + into the chunk
             if along > SNAP or along < -1.0:
@@ -1697,25 +1995,187 @@ def snap_joints(mesh, joints):
             if along <= 0.5:
                 R = joint_r(t, th)
             else:
-                # round 8: onto the outline plus the joint's own relief at this distance, as
-                # tunnel() lays it (the rim itself is joint_r)
                 R = joint_base_r(t, th) + (1.0 - sstep(0.0, FADE_OUTER, along)) * joint_relief(t, th, a0)
             if r > R + 450.0:
                 continue
+            tu, tv = _closest_on_outline(t, lat, dz, r, R, a0, along)
             w = 1.0 - smooth(max(along, 0.0) / SNAP)
-            k = (r + (R - r) * w) / r
-            bx, by = (cx, cy) if along <= 0.5 else (cx + a0 * fx, cy + a0 * fy)
-            pts[i] = U.Vector(bx - fy * lat * k, by + fx * lat * k, cz + dz * k)
+            nu, nv = lat + (tu - lat) * w, dz + (tv - dz) * w
+            if along <= 0.5:
+                # exactly on the polar rim, where conform_pts looks for it
+                th2 = math.atan2(nv, nu)
+                R2 = joint_r(t, th2)
+                nu, nv = R2 * math.cos(th2), R2 * math.sin(th2)
+                bx, by = cx, cy
+            else:
+                bx, by = cx + a0 * fx, cy + a0 * fy
+            pts[i] = (bx - fy * nu, by + fx * nu, cz + nv)
             moved += 1
             break
-    GS_E.set_all_mesh_vertex_positions(mesh, GS_L.convert_array_to_vector_list(pts))
-    return moved
+    return pts, moved
+
+
+def _tri_n(pts, t):
+    """Unit normal of triangle t and its doubled area."""
+    P, Q, R = pts[t[0]], pts[t[1]], pts[t[2]]
+    u = (Q[0] - P[0], Q[1] - P[1], Q[2] - P[2])
+    v = (R[0] - P[0], R[1] - P[1], R[2] - P[2])
+    c = (u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0])
+    L = math.sqrt(c[0] * c[0] + c[1] * c[1] + c[2] * c[2])
+    if L < 1e-9:
+        return None, 0.0
+    return (c[0] / L, c[1] / L, c[2] / L), L
+
+
+LIP_DEG = 90.0        # a lip: two neighbouring triangles whose normals differ by more than this
+LIP_SOFT = 60.0       # also counted, for context: a sharp crease, not yet a fold
+LIP_REACH = 300.0     # how far from a joint plane, both sides, the lip check and repair look
+LIP_LIFT = 15.0       # least distance (cm) from the plane for a rim fan vertex that folded
+
+
+def joint_folds(pts, tris, joints, deg=LIP_DEG, reach=LIP_REACH):
+    """Round 8b's lip check. For each joint: the interior edges with both triangles within
+    reach (cm) of the plane on the chunk's side whose two normals differ by more than deg.
+    A smooth rock wall from 25 cm voxels bends a few tens of degrees per edge; a fold back
+    on itself (the bright lips, normals 150 to 180 degrees apart) or a knife crease is more.
+    Returns per joint {'edges', 'lips' (over deg), 'over_60', 'max_deg', 'at': [(theta deg, a cm, deg)]}."""
+    cmax = math.cos(math.radians(deg))
+    out = []
+    for (cx, cy, cz), (fx, fy), t, sg in joints:
+        A = [sg * ((p[0] - cx) * fx + (p[1] - cy) * fy) for p in pts]
+        he = {}
+        for k, tr in enumerate(tris):
+            if all(-1.0 <= A[i] <= reach for i in tr):
+                a, b, c = tr
+                for e in ((a, b), (b, c), (c, a)):
+                    he[e] = k
+        nrm = {}
+        n = bad = soft = 0
+        worst = 0.0
+        at = []
+        for (u, v), k in he.items():
+            o = he.get((v, u))
+            if o is None or o < k:
+                continue
+            for q in (k, o):
+                if q not in nrm:
+                    nrm[q] = _tri_n(pts, tris[q])[0]
+            if nrm[k] is None or nrm[o] is None:
+                continue
+            n += 1
+            d = max(-1.0, min(1.0, sum(x * y for x, y in zip(nrm[k], nrm[o]))))
+            ang = math.degrees(math.acos(d))
+            worst = max(worst, ang)
+            if ang > LIP_SOFT:
+                soft += 1
+            if d < cmax:
+                bad += 1
+                x, y, z = [(pts[u][i] + pts[v][i]) * 0.5 for i in range(3)]
+                dx, dy, dz = x - cx, y - cy, z - cz
+                at.append((round(math.degrees(math.atan2(dz, -dx * fy + dy * fx))), round(sg * (dx * fx + dy * fy)),
+                           round(ang)))
+        out.append({'type': t, 'edges': n, 'lips': bad, 'over_%d' % int(LIP_SOFT): soft, 'max_deg': round(worst, 1),
+                    'at': sorted(at)[:12]})
+    return out
+
+
+def unfold(pts, tris, joints, deg=LIP_SOFT, reach=LIP_REACH, passes=60):
+    """Round 8b: repair what joint_folds finds. The snap moves vertices a few cm; where the
+    voxel surface has triangles smaller than that, a neighbour can cross over and the pair
+    folds. Each pass moves the vertices of every fold (and their neighbours, more gently)
+    halfway to the centre of their neighbours, which lays the fold flat; vertices on a
+    joint plane stay put, so the rims stay canonical. Repeats until none is left or passes
+    run out. Returns (pts, tris, vertex moves)."""
+    cmax = math.cos(math.radians(deg))
+    pts = list(pts)
+    plane = [any(abs((x - cx) * fx + (y - cy) * fy) < 0.01 for (cx, cy, cz), (fx, fy), t, sg in joints)
+             for (x, y, z) in pts]
+    band = [any(-1.0 <= sg * ((x - cx) * fx + (y - cy) * fy) <= reach for (cx, cy, cz), (fx, fy), t, sg in joints)
+            for (x, y, z) in pts]
+    he = {}
+    nb = {}
+    for k, (a, b, c) in enumerate(tris):
+        for u, v in ((a, b), (b, c), (c, a)):
+            he[(u, v)] = k
+            nb.setdefault(u, set()).add(v)
+            nb.setdefault(v, set()).add(u)
+    edges = [(u, v, k, he[(v, u)]) for (u, v), k in he.items() if u < v and (v, u) in he and band[u] and band[v]]
+    total = 0
+    for _ in range(passes):
+        hot = set()
+        for u, v, k, o in edges:
+            n1, n2 = _tri_n(pts, tris[k])[0], _tri_n(pts, tris[o])[0]
+            if n1 is None or n2 is None or sum(x * y for x, y in zip(n1, n2)) < cmax:
+                hot.update(tris[k])
+                hot.update(tris[o])
+        if not hot:
+            break
+        warm = set()
+        for i in hot:
+            warm.update(nb[i])
+        warm -= hot
+        new = {}
+        for grp, wt in ((hot, 0.5), (warm, 0.25)):
+            for i in grp:
+                if plane[i]:
+                    continue
+                ns = nb[i]
+                c = [sum(pts[j][q] for j in ns) / len(ns) for q in range(3)]
+                q = tuple(pts[i][k] + (c[k] - pts[i][k]) * wt for k in range(3))
+                if i in hot and any(plane[j] for j in ns):
+                    # a fan vertex on the rim: the centre of its neighbours lies near the
+                    # plane, which keeps the fan flat; where the rim has a notch (the key's
+                    # ledges, the rift's corners) a flat fan folds, so it steps back into
+                    # the chunk, where the fan stands up and the notch only bends it
+                    d, (dx, dy) = _plane_al(q, joints)
+                    if d < LIP_LIFT:
+                        q = (q[0] + dx * (LIP_LIFT - d), q[1] + dy * (LIP_LIFT - d), q[2])
+                new[i] = q
+        for i, q in new.items():
+            pts[i] = q
+        total += len(new)
+    return pts, list(tris), total
+
+
+def joint_pts(pts, tris, joints, n=None, tol=0.5):
+    """The joint steps on plain lists: clean_plane, snap_pts, conform_pts. Returns
+    (pts, tris, moved, per-joint stats)."""
+    pts, tris, cl = clean_plane(pts, tris, joints)
+    pts, moved = snap_pts(pts, joints)
+    pts, tris, stats = conform_pts(pts, tris, joints, n or JOINT_N, tol)
+    pts, tris, nun = unfold(pts, tris, joints)
+    tris, nfl = flip_flat(pts, tris)
+    lips = joint_folds(pts, tris, joints)
+    for st, lp in zip(stats, lips):
+        st.update(cl)
+        st['unfolded'] = nun
+        st['flipped'] += nfl
+        st['lips'] = lp['lips']
+        st['creases_over_60'] = lp['over_60']
+        st['lip_max_deg'] = lp['max_deg']
+    return pts, tris, moved, stats
+
+
+def joint_mesh(mesh, joints):
+    """joint_pts on a DynamicMesh; returns (new mesh, per-joint stats, moved)."""
+    GS_R.compact_mesh(mesh)
+    pts = [(q.x, q.y, q.z) for q in GS_L.convert_vector_list_to_array(GS_Q.get_all_vertex_positions(mesh, False)[1])]
+    tris = [(t.x, t.y, t.z) for t in GS_L.convert_triangle_list_to_array(GS_Q.get_all_triangle_indices(mesh, False)[1])]
+    pts, out, moved, stats = joint_pts(pts, tris, joints)
+    buf = U.GeometryScriptSimpleMeshBuffers()
+    buf.vertices = [U.Vector(*q) for q in pts]
+    buf.triangles = [U.IntVector(*t) for t in out]
+    res = U.DynamicMesh()
+    GS_E.append_buffers_to_mesh(res, buf, 0)
+    if GS_Q.get_num_triangle_i_ds(res) != len(out):
+        raise RuntimeError('rim rebuild dropped triangles: %d of %d' % (GS_Q.get_num_triangle_i_ds(res), len(out)))
+    return res, stats, moved
 
 
 JOINT_N = 720         # rim vertices at every joint, evenly spaced in angle: both chunks get the same polygon
 
 
-def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
+def conform_pts(pts, tris, joints, n=JOINT_N, tol=0.5):
     """Give every joint rim the same canonical polygon: n vertices on the type's outline at
     even angles, counted from the joint's side axis.
 
@@ -1725,11 +2185,9 @@ def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
     moves along the outline to the nearest canonical angle (an order-keeping map, so no
     triangle flips), and each rim edge that spans several canonical angles gets the
     missing vertices, its triangle becoming a fan. Both sides of a joint then share their
-    rim edge for edge. Returns the new mesh and per-joint numbers; raises if a rim does
+    rim edge for edge. Returns (pts, tris, per-joint numbers); raises if a rim does
     not go once round, one way."""
-    GS_R.compact_mesh(mesh)
-    pts = [(q.x, q.y, q.z) for q in GS_L.convert_vector_list_to_array(GS_Q.get_all_vertex_positions(mesh, False)[1])]
-    tris = [(t.x, t.y, t.z) for t in GS_L.convert_triangle_list_to_array(GS_Q.get_all_triangle_indices(mesh, False)[1])]
+    pts = list(pts)
     step = 2.0 * math.pi / n
 
     def canon(j, k):
@@ -1823,14 +2281,7 @@ def conform_rims(mesh, joints, n=JOINT_N, tol=0.5):
     for st in stats:
         st['slivers'] = nsl
         st['flipped'] = nfl
-    buf = U.GeometryScriptSimpleMeshBuffers()
-    buf.vertices = [U.Vector(*q) for q in pts]
-    buf.triangles = [U.IntVector(*t) for t in out]
-    res = U.DynamicMesh()
-    GS_E.append_buffers_to_mesh(res, buf, 0)
-    if GS_Q.get_num_triangle_i_ds(res) != len(out):
-        raise RuntimeError('rim rebuild dropped triangles: %d of %d' % (GS_Q.get_num_triangle_i_ds(res), len(out)))
-    return res, stats
+    return pts, out, stats
 
 
 def _tri_h(pts, a, b, c):
@@ -2005,8 +2456,7 @@ def build_mesh(spec, cell):
         plane_cut(m, (ex, ey, ez), (fx, fy, 0))
     note('cut')
     joints = spec_joints(spec)
-    moved = snap_joints(m, joints)
-    m, spec['rim'] = conform_rims(m, joints)
+    m, spec['rim'], moved = joint_mesh(m, joints)
     finish(m)
     return m, time.time() - t0, moved
 
@@ -2121,7 +2571,8 @@ def section_defs(seed):
         'phreatic': (lambda s: sec_phreatic(0.12 * math.sin(s / 600.0 + ph[7]), 0.85 + 0.25 * math.sin(s / 450.0 + ph[2])),
                      'silt', 1.0, True),
         'throat': (lambda s: sec_throat(), 'rock', 1.0, False),
-        'rift': (lambda s: sec_rift(), 'rock', 0.9, False),
+        'rift': (lambda s: sec_rift(0.22 + 0.3 * math.sin(s / 330.0 + ph[0]), 175.0 + 60.0 * math.sin(s / 260.0 + ph[1]),
+                                   -0.15 + 0.25 * math.sin(s / 410.0 + ph[5])), 'rock', 0.9, True),
         'canyon': (lambda s: sec_canyon(400.0, 70.0 * math.sin(s / 700.0 + ph[0]), 55.0 * math.sin(s / 430.0 + ph[1])),
                    'rock', 1.0, True),
         'keyhole': (lambda s: sec_keyhole(45.0 * math.sin(s / 520.0 + ph[2])), 'rock', 1.0, True),
@@ -2248,6 +2699,40 @@ def t1_exit():
     return (round(x, 3), round(y, 3), round(z, 3), round(yaw, 6))
 
 
+# Round 8b: from Helm_A_T1 the squeeze read as a doorway, a dark rectangle with a notch
+# on top. Its walls stood on the core's box plus a gap that only swelled here and there,
+# so looking down its 14 m every ray found a pinch at the same 30 cm: the end-on outline
+# was the core's rounded rectangle, and the roof slot (the same at every s) the notch.
+# Now the walls lean (the right one out at the top, the left out at the bottom), stand
+# off unevenly by angle, and pinch in at a different s for each angle; the slots' lean
+# and width change along s. All of it is outward, so the 0.75 m margin still holds; less
+# T1_FLOOR, so where lean, lump and pinch are all small the wall still comes in to it and
+# the squeeze is no wider than before.
+T1_LEAN = 120.0       # cm the side walls lean out over the squeeze's height
+T1_LUMP = 80.0        # per-angle stand-off, 0 to this
+T1_PINCH = 110.0      # how far the walls stand back between pinches
+T1_PINCH_L = 520.0    # pinch spacing along s
+T1_FLOOR = 80.0       # taken off the sum, so the pinches still reach the core: the squeeze stays tight
+
+
+def t1_gap():
+    rnd = random.Random(331)
+    lump = jag(rnd, lobes=(3, 5, 7, 11), amp=1.0)
+    ph = jag(rnd, lobes=(2, 3), amp=math.pi)
+    q0, q1 = T1_SQUEEZE
+
+    def g(s, k, c, sn, rc, sl):
+        w = sstep(q0 - 600.0, q0, s) * (1.0 - sstep(q1, q1 + 600.0, s))
+        if w <= 0.0:
+            return 0.0
+        t = max(0.0, min(1.0, (rc * sn - sl[2]) / max(sl[3] - sl[2], 1.0)))   # 0 floor, 1 roof
+        lean = T1_LEAN * c * c * (t if c > 0.0 else 1.0 - t)
+        lmp = T1_LUMP * 0.5 * (1.0 + max(-1.0, min(1.0, lump[k])))
+        pinch = T1_PINCH * 0.5 * (1.0 - math.cos(2.0 * math.pi * (s - q0) / T1_PINCH_L + ph[k]))
+        return w * max(0.0, lean + lmp + pinch - T1_FLOOR)
+    return g
+
+
 def t1_margin(s):
     """0.75 m for hull positions whose grown box reaches the squeeze, 1.0 m elsewhere."""
     q0, q1 = T1_SQUEEZE
@@ -2276,7 +2761,7 @@ def spec_T1(shapes=True):
     rock = Rock(33)
     fade = JointFade(ex, types=(spec['in'], spec['out']))
     sh = Shapes(33)
-    tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade)
+    tv, info = tunnel(p, secs, rock, s_list, slices=slices, fade=fade, gap=t1_gap())
     sh.add(tv)
     notes = tunnel_features(sh, info, rock, random.Random(34), L, core, fade,
                             dome_secs=('keyhole', 'widelow', 'phreatic'), block_secs=('widelow',), blocks=12)
@@ -2475,8 +2960,10 @@ def spec_E(shapes=True):
     # the smooth oval plug seen from the joint)
     defs['pinch'] = (lambda s: sec_pinch(max(0.0, min(1.0, (s - q0) / (q1 - q0)))), 'silt', 1.0, True)
     secs = Sections([(-EXT, 'j_bed'), (0.0, 'j_bed'), (q0, 'pinch'), (L, 'pinch')], defs, seed=55)
-    # (round 6: E's roof barely snaps, so no flat lintel shows through the bed joint from B)
-    rock = Rock(55, roof_snap=0.3)
+    # (round 6: E's roof barely snaps, so no flat lintel shows through the bed joint from B;
+    # round 8b: not at all, since its snap patches were the flat approach roof; the roof's
+    # breakdown scars below give it its steps instead)
+    rock = Rock(55, roof_snap=0.0)
     # the same beds, a little more broken, for the bays (round 7: round 6's harder rock_b,
     # its rock-floor snap and outward-only relief crumpled the bays; now they carry the
     # passage's own relief and only open the wall out)
@@ -2506,22 +2993,45 @@ def spec_E(shapes=True):
         sh.add(warp_blob(rock_ellipsoid(c, (ax, ay, az), rock_b, 'silt', res=40.0, rot_yaw=yaw, fade=fade, core=core),
                          c, 0.14, 520.0, 560 + int(sb)))
         notes['bays'] = notes.get('bays', 0) + 1
-    # round 7b: the breakdown choke. Where the passage closes, angular blocks no more than
-    # 2 m across pile up from the floor toward the roof, half buried and overlapping (lone
-    # blocks on the silt read as boulders), with a few from the broken roof and walls, so
-    # it ends in broken rock and no smooth patch shows
+    # round 8b: breakdown scars in the approach roof. Round 7b's roof was smooth and flat
+    # where it snapped to a bedding plane. Here slabs have fallen out of it: tilted,
+    # overlapping recesses up to a metre deep, whose edges step the roof in courses (water
+    # only, so the core keeps its clearance; none within 7 m of the joint)
+    rs = random.Random(558)
+    nsc = 0
+    for i in range(80):
+        if nsc >= 16:
+            break
+        sc_s = rs.uniform(700.0, 2050.0)
+        _, (x, y, z, yaw), uv, _ = info[min(len(info) - 1, bisect.bisect_left(ss, sc_s))]
+        _, (rx, ry) = yaw_dirs(yaw)
+        hw = max(abs(q[0]) for q in uv)
+        u = rs.uniform(-0.75, 0.75) * hw
+        v = _ring_roof(uv, u, 60.0)
+        if v is None or v < 120.0:
+            continue
+        sz = (rs.uniform(260.0, 520.0), rs.uniform(200.0, 420.0), rs.uniform(70.0, 140.0))
+        c = (x + rx * u, y + ry * u, z + v + 0.2 * sz[2])
+        sh.add(obox(c, sz, yaw + rs.uniform(-50.0, 50.0), rs.uniform(-18.0, 18.0), rs.uniform(-18.0, 18.0), rs, 0.15))
+        nsc += 1
+    notes['roof_scars'] = nsc
+    # round 7b: the breakdown choke. Where the passage closes, angular blocks pile up from
+    # the floor toward the roof, half buried and overlapping (lone blocks on the silt read
+    # as boulders), with a few from the broken roof and walls, so it ends in broken rock
+    # and no smooth patch shows. Round 8b: 7b's blocks, no more than 2 m across and nearly
+    # cubic, came out of the 25 cm voxels as pale rounded lumps; now they are slabs (up to
+    # 3.4 m by 2.6 m, under a metre thick) tilted up to 40 degrees, as roof beds fall
     rc = random.Random(557)
     s_ch = L - 1150.0
     nb = 0
     for i in range(1200):
-        if nb >= 110:
+        if nb >= 70:
             break
         t = math.sqrt(rc.random())
         s = s_ch + (L - 40.0 - s_ch) * t
         _, (x, y, z, yaw), uv, _ = info[min(len(info) - 1, bisect.bisect_left(ss, s))]
         _, (rx, ry) = yaw_dirs(yaw)
-        sz = [rc.uniform(70.0, 200.0) for _ in range(3)]
-        sz[2] *= 0.75
+        sz = [rc.uniform(150.0, 340.0), rc.uniform(120.0, 260.0), rc.uniform(55.0, 100.0)]
         k = rc.random()
         hw = max(abs(q[0]) for q in uv)
         if k < 0.7:           # the pile, rising toward the roof at the end
@@ -2548,7 +3058,7 @@ def spec_E(shapes=True):
         rad = 0.5 * math.sqrt(sz[0] ** 2 + sz[1] ** 2 + sz[2] ** 2)
         if core.sdf(c)[0] - rad < DELTA + 10.0:
             continue
-        sh.add(obox(c, sz, yaw + rc.uniform(-60.0, 60.0), rc.uniform(-30.0, 30.0), rc.uniform(-30.0, 30.0), rc, 0.3), True)
+        sh.add(obox(c, sz, yaw + rc.uniform(-60.0, 60.0), rc.uniform(-40.0, 40.0), rc.uniform(-40.0, 40.0), rc, 0.12), True)
         nb += 1
     notes['choke'] = nb
     sh.core.extend(core.meshes())
@@ -2666,7 +3176,43 @@ def spec_S(shapes=True):
     # (round 7 stood three masses of rock_m out of the funnel's walls to break the mouth's
     # outline; from the berth and the hatch they read as pale boulders, so round 7b took
     # them out and the mouth is round 6's again)
-    # flat silt floor, easing down to the passage floor at the mouth; it banks up against the
+    # round 8b: from the berth the funnel's side walls were still plain panels; rock_m's
+    # half-metre relief foreshortens to nothing at that grazing view. So the walls are cut
+    # back in courses: each bed in the walls' height dissolved back under the one above it
+    # in runs (bed_undercut: a wedge whose roof is the bedding plane, dying out at both
+    # ends; a first try cut square-ended boxes, which read as shelving), and a few worn
+    # joint recesses across them. All water (the walls only step back, so the core keeps
+    # its clearance and nothing stands out to read as a boulder), and all short of the
+    # exit's fade, so the rift joint is untouched
+    ss_t = [q[0] for q in info]
+    rl = random.Random(664)
+    nl = nj = 0
+    for side in (1, -1):
+        for k in range(len(rock_m.beds) - 1):
+            rel = rock_m.beds[k + 1] - p.zf(2650.0)
+            if not -300.0 < rel < 450.0 or rock_m.beds[k + 1] - rock_m.beds[k] < 90.0:
+                continue
+            x = 1850.0 + rl.uniform(0.0, 300.0)
+            while x < 3250.0:
+                ln = rl.uniform(450.0, 900.0)
+                i0 = bisect.bisect_left(ss_t, x)
+                i1 = min(len(info) - 1, bisect.bisect_left(ss_t, min(x + ln, 3450.0)))
+                x += ln + rl.uniform(200.0, 500.0)
+                if i1 - i0 >= 4:
+                    nl += bed_undercut(sh, info, i0, i1, side, k, rock_m, rl, None, depth=(180.0, 300.0))
+        for i in range(3):
+            xc = rl.uniform(2000.0, 3250.0)
+            v = rl.uniform(-80.0, 220.0)
+            _, (wx, wy, wz, wyaw), uv, _ = info[min(len(info) - 1, bisect.bisect_left(ss_t, xc))]
+            u = _ring_wall(uv, side, v, 60.0)
+            if u is None:
+                continue
+            _, (rx, ry) = yaw_dirs(wyaw)
+            dep, w, h = rl.uniform(160.0, 240.0), rl.uniform(90.0, 140.0), rl.uniform(170.0, 260.0)
+            c = (wx + rx * (u + side * 0.3 * dep), wy + ry * (u + side * 0.3 * dep), wz + v)
+            sh.add(rock_ellipsoid(c, (w, dep, h), rock_m, 'rock', res=35.0, rot_yaw=wyaw + side * rl.uniform(10.0, 35.0),
+                                  core=core, outward=True))
+            nj += 1    # flat silt floor, easing down to the passage floor at the mouth; it banks up against the
     # walls (round 5's met them in a straight, square crease) but not in the mouth
     def top(x, y):
         z = min(S_FLOOR - 160.0 * sstep(800.0, 2400.0, x), p.zf(x) - 500.0) + 14.0 * fbm(x, y, 0, 67, 350.0)
@@ -2676,7 +3222,7 @@ def spec_S(shapes=True):
         return z + max(0.0, bank)
     sh.add(heightfield(-2900, 3600, -2300, 2300, -1600, top), True)
     sh.core.extend(core.meshes())
-    spec.update({'shapes': sh, 'core': core, 'notes': {'rings': len(info)}})
+    spec.update({'shapes': sh, 'core': core, 'notes': {'rings': len(info), 'ledges': nl, 'recesses': nj}})
     return spec
 
 
