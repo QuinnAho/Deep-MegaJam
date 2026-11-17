@@ -1,6 +1,6 @@
 # DEEP dev log 2: Sunday, from the night shift to the freeze
 
-DEEP is a submarine horror game for the 2026 Epic AI MegaJam. You pilot a cheap submarine down a generated cave and dive from it on a tether that is also your air line. A Captain who never says a word takes 40 percent of everything you salvage, and a sea serpent hears you working. Quinn and Colby are making it with Claude agents, in Unreal Engine 5.9. This post covers Sunday Nov 15, from about 1 AM to 6:20 PM EST, when the freeze run-through passed. The deadline is 8:59 PM.
+DEEP is a submarine horror game for the 2026 Epic AI MegaJam. You pilot a cheap submarine down a generated cave and dive from it on a tether that is also your air line. A Captain who never says a word takes 40 percent of everything you salvage, and a sea serpent hears you working. Quinn is making it solo, with Claude agents, in Unreal Engine 5.9. This post covers Sunday Nov 15, from about 1 AM to 6:20 PM EST, when the freeze run-through passed. The deadline is 8:59 PM.
 
 ## Where Saturday ended
 
@@ -95,8 +95,6 @@ One orchestrator session plans, dispatches and checks evidence, and writes no ga
 **The gate before every merge.** Build, automated tests, scripted playthroughs, then a package and a smoke run for any branch that touches C++, materials or pack content. A merge needs a zero exit code and the PASS line. Late in the day Quinn added a rule (D-045): the orchestrator reads each diff itself, then runs verify, then only the playthroughs for the area. The full run-through waits for the freeze.
 
 **One Unreal process at a time.** After the crash, every build, test and frame waits for one machine-wide slot. At 5:10 PM four building lanes, one gate run and two editors shared 31.6 GB with 5.1 GB free, so each lane was told to keep one editor at a time.
-
-**Colby.** TODO(Quinn): Colby's part.
 
 ![The Captain's settlement screen: gross haul 300 cr, the Captain's cut 40 percent, minus 120 cr](media/2026-11-15-play-S6-bank.png)
 *12:58 AM. The settlement screen from a scripted playtest, in the greybox. The Captain's cut is 40 percent: 120 of a 300 cr haul.*

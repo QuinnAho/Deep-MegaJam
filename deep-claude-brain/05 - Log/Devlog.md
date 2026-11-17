@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-14 21:00 EST
+updated: 2026-11-16 23:55 EST
 ---
 # Devlog
 
@@ -1205,3 +1205,61 @@ Keep this in step with the "Tools you used" list in [[Submission Checklist]].
 - Why it matters: the bracket colour already tells target kinds apart, so the words were redundant text on screen. No test asserted the names, so no expectations changed.
 - Evidence: build PASS; Deep.UI 23/23, Deep.Sim.Harpoon 2/2, Deep.World.Harpoon 4/4 on branch rescope/notag. Not merged; Quinn decides.
 - Credits fix: Credits.csv row 4 said the Dragon Cave pack supplies the serpent head; it now says cave rocks, stones and the relic. Deep.UI.Settings 5/5.
+
+## After the jam
+
+Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what changed, what was decided, what failed.
+
+### 9:11 PM  The jam ends without a submission
+- Changed: the deadline passed at 9 PM. Quinn turned DEEP into a game to polish, made the traditional way: a real map built by hand, humans own the maps, agents write code and tools in their own folders, binaries in Git LFS (D-050).
+- Decided: the sub moves through a still world, undoing D-022's moving world (D-051); PCG and Geometry Script are on (D-052, `6917b6d`).
+- Evidence: tag `jam-final`; `b37b1c8`, `62c65b3`, `e7ed09f`.
+
+### 10:55 PM  A plan for real caves
+- Changed: three research notes (UE 5.9's tools read from its headers, real caves and how others generate them, games to learn from) and a proposed pipeline, [[Cave Pipeline]] (D-053).
+- Failed: PCG's Spline To Mesh only extrudes a flat curve, so tunnels need a custom node; no cave plugin is confirmed for 5.9.
+- Also: two free CC BY subs measured. BT-01 is 6.15 m long as modelled, so it needs ×2; the Atlantic Explorer is about 8 m.
+
+### 1:00 AM, Nov 16  The jam entry goes in
+- Changed: Quinn submitted DEEP solo before the 2:00 AM EST cutoff (D-054). The video was recorded in one take at stop 2 on the jam build; the dev log is published as a Google Doc with 15 screenshots.
+- Next: moving-sub step 3.
+
+### 1:45 AM, Nov 16  Caves become chunks; two players
+- Changed: moving-sub step 3 (the still world behind a switch, `e1d4a06`) passed 177 of 177 tests. The cave spike started: two chunks joined both ways, with 9 m round necks as the joints and squeezes inside the chunks. Research found no 5.9 build of the ProceduralDungeon plugin, so DEEP will write its own small assembler.
+- Decided: Quinn chose Lethal Company-style caves, baked chunks strung together per dive (D-055). The Atlantic Explorer becomes a wreck (D-056). Quinn wants two players (D-057), and an immersion pass after the cave.
+- Next: the spike's frames, then moving-sub step 4's tests and frames.
+
+### Nov 16: the cave test works; the dive is tunnels with caverns
+- Changed:
+  - A test cave is baked from spline skeletons by PCG and Geometry Script. It has two chunks, each baked in 3 to 4 s, with joints round to the millimetre, and a level hull passed with no contact (`6db858d` on `build/cavegen`).
+  - Moving sub step 4 turned the still world on by default and gave the room its own look (`5a40577`). All 178 tests pass.
+- Decided: D-058. The dive is tunnels that open into caverns, and the sub sinks in the caverns, where the stops are.
+- Failed:
+  - The test cave looks like pipes, the borrowed rock texture stretched, and ray-traced shadows left black patches.
+  - The chamber measured 18 ms on the GPU, from 4 samples.
+  - The look waits for the look pass. The chunk tool fixes the shadows and measures again.
+- Next: Quinn checks step 4's frames, and the chunk tool builds a stop cavern and a turning tunnel.
+
+### 3:45 AM, Nov 16  The caves fit; the lattice predates the moving sub
+- Changed: the chunk tool's second round (`d6bf75b` on `build/cavegen`) strings four chunks from CSV data: a tunnel, a tunnel that turns 90 degrees and drops through a squeeze, a stop cavern with a 24 m sink, and a chamber. The joints meet within 0.31 cm, the hull touches nothing along the string, and the GPU cost is about 5 ms. The 18 ms from the spike was the editor throttling itself in the background. The generator moved from the PCG node to editor Python driving Geometry Script.
+- Failed: the tunnels still read as round pipes, with black specks at the tunnel mouths. Round 3 reshapes the rock with clearance built in.
+- Found: the orange lattice at the helm is the volumetric fog where it meets the cave shell. The `jam-final` build shows it at the same view, so the moving sub didn't cause it. Showing only the nearest stop's shell didn't remove it, so that change was reverted.
+- Next: Quinn checks step 4's frames (frames page v22); cave round 3's frames.
+
+### 6:15 AM, Nov 16  Cave round 3: the sub fits by design
+- Changed: round 3 (`bbb1a11` on `build/cavegen`) builds the hull's clear path into each chunk, so the sweep passes by construction (least clearance 92 cm, was 34). Beds, cracks and fallen blocks make the walls read as rock. Both sides of each joint share one rim polygon, which cured the specks. The PCG spike and its plugin line are gone.
+- Failed: every joint is the same 9 m circle, and it shows as ringed holes down the tunnels and a porthole where a joint meets a cavern. One bend and one opening read as doorways.
+- Decided: round 4 fixes what the joint rule allows. The joint shape itself is Quinn's call, because it changes D-055 and D-058.
+- Next: Quinn picks the joint shape and checks step 4 (frames page v23).
+
+### 7:00 AM, Nov 16  Cave round 4: the doorways are gone, the joints still show
+- Changed: round 4 (`41d0bc3` on `build/cavegen`) removed the doorway, the mine door and most finger ledges, and added an end chunk E that pinches shut. The frame cameras now live in `CaveCameras.csv`, so every round shoots the same views. All checks still pass.
+- Failed: the new helm views, 20 m before each joint, show all four joints as round tubes. Work inside the joint rule can't hide the 9 m circle.
+- Decided: round 5 waits for Quinn's joint call, and will also fix the lintel, straight beds, C1's entry rock and E's bays.
+- Next: Quinn picks the joint shape (frames page v24).
+
+### 11:55 PM, Nov 16  Step 4 is in main, and three lanes start
+- Changed: moving sub step 4 merged into main (`ab8c1f0`) after main was merged into the branch. Verify passed 178 of 178, the package came to 1050 MB, and the smoke run was clean.
+- Decided: Quinn's calls. Joints come in two or three matching types (D-059). The helm ping stays automatic but goes soft and low-key (D-060). Runs start in a calm start cavern (D-061). BT-01 is our sub (D-062).
+- Failed: `ue.ps1 editor` returns as soon as the editor starts, so the slot wrapper let go of the slot with an editor still open. Editor sessions now hold the slot until the editor exits (`.claude/loop.md`).
+- Next: three lanes run at once: caves round 5 (joint types and S), the soft ping, and BT-01 on the sub. Then the assembler puts the caves into the dive.

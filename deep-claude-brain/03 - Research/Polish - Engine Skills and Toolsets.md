@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 02:15 EST
+updated: 2026-11-15 22:55 EST
 verified: 2026-11-15 02:15 EST by reading files under C:\Program Files\Epic Games\UE_5.9\Engine\Plugins (skill .py files, SceneCaptureDiagnosticsSkill.cpp, toolset headers .h, agent_skill.py, AgentSkill.h, Niagara template folder listing). Nothing was called live and no editor was started. Items marked UNCONFIRMED could not be settled from the files.
 ---
 # Polish: Epic's built-in skills and toolsets (UE 5.9)
@@ -31,7 +31,7 @@ Short version: Epic ships about 41 Python skills, 1 C++ skill for scene capture,
 | EditorToolset `default_outdoor_lighting` | Sun, sky, cloud, fog rules | do NOT load (sky setup; see correction 4) |
 | EditorToolset `analyze_widget_navigation`, `debug_runtime_ui_bug`, `create_editor_utility_widget`; SlateInspectorToolset `input_simulation`; WidgetStaticAnalysisToolset `generate_widget_description_document` | UI debugging and docs | `debug_runtime_ui_bug` if the HUD misbehaves in PIE |
 | SceneCaptureToolset C++ skill (`Source\SceneCaptureToolset\Private\SceneCaptureDiagnosticsSkill.cpp`) | Capture vs CaptureGameViewport, modes (Unlit, LightingOnly, depth, ShaderComplexity, post-process stack), blank-capture fixes | WP1 look checks, WP lock |
-| PCG: `Engine\Plugins\PCG\Skills\*\SKILL.md` (11) and PCGToolset\Content\Skills (8 .uasset); Dataflow, ChaosCloth (C++) | PCG, Dataflow, cloth | never (PCG terrain is on the Cut list); Dataflow and cloth not read |
+| PCG: `Engine\Plugins\PCG\Skills\*\SKILL.md` (11) and PCGToolset\Content\Skills (8 .uasset); Dataflow, ChaosCloth (C++) | PCG, Dataflow, cloth | before any PCG graph: D-052 turned PCG on (it was on the Cut list); the skills cover runtime generation only ([[Cave Gen - Engine Tools]]). Dataflow and cloth not read |
 
 ## Per work package (WP numbers from the plan, section 9)
 - **WP1 water look.** Skills: SceneCapture diagnostics. Tools: `SceneCaptureToolset` Capture with modes (LightingOnly, post-process stack) to debug why the fog milks the frame; `CaptureGameViewport` in PIE; `ConsoleToolset` for `Deep.Tune`. Marine snow: see correction 1. Only by hand or C++: the whole look (the plan keeps it in C++); no tool edits our code.
