@@ -20,6 +20,7 @@
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -104,7 +105,7 @@ bool FDeepCameraDiverPingWorldTest::RunTest(const FString& Parameters)
 	}
 	ADeepGameState* State = World->GetGameState<ADeepGameState>();
 	UDeepEventBus* Bus = UDeepEventBus::Get(World);
-	ADeepDiver* Diver = Sub ? World->SpawnActor<ADeepDiver>(Sub->GetRoomStartTransform().GetLocation(), FRotator::ZeroRotator) : nullptr;
+	ADeepDiver* Diver = Sub ? World->SpawnActor<ADeepDiver>(DeepArena::EnsureRoom(World)->GetRoomStartTransform().GetLocation(), FRotator::ZeroRotator) : nullptr;
 	UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
 	UDeepCameraSubsystem* Camera = UDeepCameraSubsystem::Get(World);
 	ON_SCOPE_EXIT

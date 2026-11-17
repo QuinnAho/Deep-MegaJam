@@ -22,6 +22,7 @@
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -288,7 +289,7 @@ bool FDeepRestartTest::RunTest(const FString& Parameters)
 	TestNull(TEXT("The serpent is gone"), Brain->GetSerpent());
 	TestNull(TEXT("The relic is gone with stop 3"), DeepArena::FindRelic(W.World));
 	TestEqual(TEXT("Fresh salvage ring"), W.CountSalvage(), Tuning.Arena.SalvageSpots.Num());
-	TestTrue(TEXT("Diver back on the deck"), FVector::Dist(W.Diver->GetActorLocation(), W.Sub->GetRoomStartTransform().GetLocation()) < 50.0);
+	TestTrue(TEXT("Diver back on the deck"), FVector::Dist(W.Diver->GetActorLocation(), DeepArena::EnsureRoom(W.World)->GetRoomStartTransform().GetLocation()) < 50.0);
 	TestEqual(TEXT("The sub back at the first stop"), W.State->SubDepthM, Tuning.GetStop(1).SubDepthM, 0.01f);
 	W.Cmd(TEXT("Deep.Hatch"));
 	W.Diver->GetTether()->UpdateTether(0.f);
@@ -326,7 +327,7 @@ bool FDeepFullRunTest::RunTest(const FString& Parameters)
 	W.Cmd(TEXT("Deep.Start"));
 	TestFalse(TEXT("Title left"), W.State->bOnTitle);
 	TestEqual(TEXT("Aboard at the start"), W.Run->GetState(), EDeepRunState::Aboard);
-	TestTrue(TEXT("In the room"), W.Sub->IsInRoom(W.Diver->GetActorLocation()));
+	TestTrue(TEXT("In the room"), DeepArena::EnsureRoom(W.World)->IsInRoom(W.Diver->GetActorLocation()));
 	TestFalse(TEXT("No lamp yet"), W.Diver->IsLampOn());
 
 	// Stop 1: through the hatch, a haul, up through the hatch, bank at the console: the flashlight.

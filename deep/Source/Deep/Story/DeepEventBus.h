@@ -48,6 +48,8 @@ namespace DeepEvent
 	inline const TCHAR* RelicWinch = TEXT("relic_winch");
 	inline const TCHAR* Win = TEXT("win");
 	inline const TCHAR* EnterSub = TEXT("enter_sub");
+	/** The airlock cycles (out through the valve, or back in): the hiss. A sound only, so not in AllFired (no Captain line). */
+	inline const TCHAR* AirlockCycle = TEXT("airlock_cycle");
 	inline const TCHAR* HelmTake = TEXT("helm_take");
 	inline const TCHAR* HelmDescend = TEXT("helm_descend");
 	inline const TCHAR* HelmDepthLimit = TEXT("helm_depth_limit");

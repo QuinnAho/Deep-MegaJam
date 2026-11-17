@@ -1,6 +1,7 @@
 #include "Diver/DeepDiver.h"
 
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Camera/DeepCameraRules.h"
 #include "Sonar/DeepSonarRules.h"
 #include "Story/DeepEventBus.h"
@@ -16,6 +17,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Harpoon/DeepHarpoonComponent.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
@@ -143,6 +145,21 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	}
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	SyncAboardMode();
+	// The airlock: the view fades to black and back across the move (UDeepMovingSubRules::AirlockPhase).
+	if (APlayerController* Player = Cast<APlayerController>(GetController()); Player && Player->PlayerCameraManager)
+	{
+		const FDeepAirlockState Lock = Run->GetAirlockState();
+		if (Lock.Phase != EDeepAirlockPhase::Idle && Lock.Phase != EDeepAirlockPhase::Done)
+		{
+			Player->PlayerCameraManager->SetManualCameraFade(Lock.Fade01, FLinearColor::Black, false);
+			bAirlockFading = true;
+		}
+		else if (bAirlockFading)
+		{
+			Player->PlayerCameraManager->StopCameraFade();
+			bAirlockFading = false;
+		}
+	}
 
 	if (Run->IsSeated())
 	{
@@ -232,13 +249,10 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	FVector VelocityMps = UDeepRules::SwimVelocityMps(Wish, bSprinting, GetWeight(), UDeepTuningSettings::Get().Swim);
 	if (const ADeepSubmarine* Sub = Tether->GetSubmarine())
 	{
-		// Pushing into the side of the hull slides the diver down it and under, toward the hatch, instead of pinning.
-		const FTransform& SubFrame = Sub->GetActorTransform();
-		const FVector Local = UDeepRules::HullSlideVelocity(SubFrame.InverseTransformPosition(GetActorLocation()),
-			SubFrame.InverseTransformVectorNoScale(VelocityMps), Sub->GetSolidBoundsLocal(true),
-			GetCapsuleComponent()->GetScaledCapsuleRadius(), GetCapsuleComponent()->GetScaledCapsuleHalfHeight(),
-			UDeepTuningSettings::Get().Swim.HullContactM * UDeepRules::CmPerM);
-		VelocityMps = SubFrame.TransformVectorNoScale(Local);
+		// Pushing into the side of the hull slides the diver down it and under, toward the hatch, instead of pinning:
+		// at the model's real surface, or the box hull's sides.
+		VelocityMps = Sub->SlideAlongHull(GetActorLocation(), VelocityMps, GetCapsuleComponent()->GetScaledCapsuleRadius(),
+			GetCapsuleComponent()->GetScaledCapsuleHalfHeight(), UDeepTuningSettings::Get().Swim.HullContactM * UDeepRules::CmPerM);
 	}
 	const float SpeedCm = static_cast<float>(VelocityMps.Size()) * UDeepRules::CmPerM;
 	if (SpeedCm > KINDA_SMALL_NUMBER)
@@ -264,6 +278,11 @@ FDeepWeightResult ADeepDiver::GetWeight() const
 
 float ADeepDiver::GetDepthM() const
 {
+	// Aboard, the diver walks in the room set far above the dive: the depth is the sub's.
+	if (Run && Run->IsInside())
+	{
+		return Tether->GetAnchorDepthM();
+	}
 	return UDeepRules::DepthM(static_cast<float>(GetActorLocation().Z), static_cast<float>(Tether->GetAnchorLocation().Z), Tether->GetAnchorDepthM());
 }
 
@@ -364,6 +383,23 @@ void ADeepDiver::ServerUse_Implementation()
 	Run->Use();
 }
 
+void ADeepDiver::ReleaseUse()
+{
+	if (HasAuthority())
+	{
+		Run->ReleaseUse();
+	}
+	else
+	{
+		ServerReleaseUse();
+	}
+}
+
+void ADeepDiver::ServerReleaseUse_Implementation()
+{
+	Run->ReleaseUse();
+}
+
 void ADeepDiver::Grab()
 {
 	if (Run->IsInside())
@@ -444,12 +480,12 @@ void ADeepDiver::ResetToStart()
 
 void ADeepDiver::ResetToRoom()
 {
-	const ADeepSubmarine* Sub = Tether->GetSubmarine();
-	if (!Sub)
+	const ADeepSubRoom* Room = DeepArena::EnsureRoom(GetWorld());
+	if (!Room)
 	{
 		return;
 	}
-	const FTransform Start = Sub->GetRoomStartTransform();
+	const FTransform Start = Room->GetRoomStartTransform();
 	TeleportDiver(Start.GetLocation());
 	FRotator View = Start.Rotator();
 	View.Pitch = UDeepTuningSettings::Get().Sub.RoomStartPitchDeg;

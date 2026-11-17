@@ -22,6 +22,7 @@
 #include "World/DeepSalvage.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 UDeepRunComponent::UDeepRunComponent()
 {
@@ -96,8 +97,8 @@ void UDeepRunComponent::BeginPlay()
 	{
 		// A diver placed in the room is aboard from the start (also behind the title screen).
 		ADeepDiver* Diver = GetDiver();
-		const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
-		if (Diver && Sub && Sub->IsInRoom(Diver->GetActorLocation(), 100.0))
+		const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+		if (Diver && Room && Room->IsInRoom(Diver->GetActorLocation(), 100.0))
 		{
 			SetState(EDeepRunState::Aboard);
 			Diver->SetAboard(true);
@@ -351,6 +352,11 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 	{
 		StepRelicSeen();
 	}
+	// The airlock runs across the move: it starts aboard and (going out) ends in the water.
+	if (StepAirlock(Dt))
+	{
+		return;
+	}
 
 	switch (State)
 	{
@@ -446,21 +452,31 @@ void UDeepRunComponent::StepRun(float DeltaSeconds)
 
 void UDeepRunComponent::StepAboard(float DeltaSeconds)
 {
-	ADeepDiver* Diver = GetDiver();
-	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
 	if (bSeated)
 	{
 		IdleSeconds = 0.f;
 		StepHelm(DeltaSeconds);
 		return;
 	}
-	// Fell through the open hatch: into the water, and the dive starts.
-	const FDeepSubTuning& SubTuning = UDeepTuningSettings::Get().Sub;
-	if (Sub && Sub->IsHatchOpen() && Diver->GetActorLocation().Z < Sub->GetDeckTopZ() - SubTuning.DropBelowDeckM * UDeepRules::CmPerM)
+	if (IsInAirlock())
 	{
-		LeaveSub();
+		// Going out (or just in): the wheel stays where it is until the cycle ends.
+		IdleSeconds = 0.f;
 		return;
 	}
+	const FDeepSubTuning& SubTuning = UDeepTuningSettings::Get().Sub;
+	// The valve: held, it turns; a full turn starts the airlock out. Let go, step away or leave the stop and it springs back.
+	if (bValveHeld && IsNearValve() && CanCycleAirlock())
+	{
+		ValveHeldS += DeltaSeconds;
+		IdleSeconds = 0.f;
+		if (UDeepMovingSubRules::ValveTurn01(ValveHeldS, UDeepTuningSettings::Get().Airlock) >= 1.f)
+		{
+			StartAirlock(true);
+		}
+		return;
+	}
+	ValveHeldS = 0.f;
 	IdleSeconds += DeltaSeconds;
 	if (SubTuning.IdleInsideSeconds > 0.f && IdleSeconds >= SubTuning.IdleInsideSeconds)
 	{
@@ -1030,8 +1046,8 @@ void UDeepRunComponent::BeginRun()
 {
 	bStarted = true;
 	ADeepDiver* Diver = GetDiver();
-	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
-	if (Diver && Sub && Sub->IsInRoom(Diver->GetActorLocation(), 100.0))
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	if (Diver && Room && Room->IsInRoom(Diver->GetActorLocation(), 100.0))
 	{
 		PatienceSeconds = UDeepTuningSettings::Get().Patience.MaxSeconds;
 		bFirstSalvageThisRun = true;
@@ -1138,10 +1154,12 @@ void UDeepRunComponent::EnterSub()
 	bSeated = false;
 	IdleSeconds = 0.f;
 	SetState(EDeepRunState::Aboard);
-	if (const ADeepSubmarine* Sub = Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr)
+	// Through the airlock into the room: moved at once, the view starts black and fades in (the hiss plays).
+	if (const ADeepSubRoom* Room = DeepArena::EnsureRoom(GetWorld()))
 	{
-		Diver->TeleportDiver(Sub->GetEnterStandLocation());
+		Diver->TeleportDiver(Room->GetEnterStandLocation());
 	}
+	StartAirlock(false);
 	// Look only: level the view so the first frame aboard is the room, not the ceiling the diver swam up at.
 	if (AController* Controller = Diver->GetController())
 	{
@@ -1188,6 +1206,10 @@ void UDeepRunComponent::Use()
 	{
 		LeaveHelm();
 	}
+	else if (IsInAirlock())
+	{
+		// Mid-cycle: nothing to use until the view has cleared.
+	}
 	else if (IsNearHelm())
 	{
 		TakeHelm();
@@ -1196,20 +1218,103 @@ void UDeepRunComponent::Use()
 	{
 		UseConsole();
 	}
+	else if (IsNearValve())
+	{
+		// Held, not pressed: StepAboard turns the wheel while the key stays down (ReleaseUse).
+		bValveHeld = true;
+	}
+}
+
+void UDeepRunComponent::ReleaseUse()
+{
+	if (GetOwner()->HasAuthority())
+	{
+		bValveHeld = false;
+	}
+}
+
+bool UDeepRunComponent::IsNearValve() const
+{
+	const ADeepDiver* Diver = GetDiver();
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->IsWithinUseRange(Diver->GetActorLocation(), Room->GetValveLocation());
+}
+
+bool UDeepRunComponent::CanCycleAirlock() const
+{
+	// The same rule as LeaveSub: only at a stop, where the hull's hatch is open below.
+	const ADeepGameState* GameState = GetGameState();
+	return !GameState || GameState->bParked;
+}
+
+float UDeepRunComponent::GetValveTurn01() const
+{
+	return UDeepMovingSubRules::ValveTurn01(ValveHeldS, UDeepTuningSettings::Get().Airlock);
+}
+
+FDeepAirlockState UDeepRunComponent::GetAirlockState() const
+{
+	return UDeepMovingSubRules::AirlockPhase(AirlockElapsedS, bAirlockOut, UDeepTuningSettings::Get().Airlock);
+}
+
+void UDeepRunComponent::StartAirlock(bool bOut)
+{
+	if (!GetOwner()->HasAuthority())
+	{
+		return;
+	}
+	// Back in, the diver has already been moved: the cycle starts black (no fade out) and fades in.
+	bAirlockOut = bOut;
+	bAirlockMoved = !bOut;
+	bValveHeld = false;
+	AirlockElapsedS = bOut ? 0.f : FMath::Max(0.f, UDeepTuningSettings::Get().Airlock.FadeOutSeconds);
+	Fire(DeepEvent::AirlockCycle);
+}
+
+bool UDeepRunComponent::StepAirlock(float DeltaSeconds)
+{
+	if (!IsInAirlock())
+	{
+		return false;
+	}
+	AirlockElapsedS += DeltaSeconds;
+	const FDeepAirlockState Lock = GetAirlockState();
+	bool bMovedNow = false;
+	if (bAirlockOut && Lock.bMoveDue && !bAirlockMoved)
+	{
+		// Black: down through the hull's hatch. If the sub left the stop meanwhile, the view just fades back in the room.
+		bAirlockMoved = true;
+		ValveHeldS = 0.f;
+		bMovedNow = LeaveSub();
+	}
+	if (Lock.Phase == EDeepAirlockPhase::Done)
+	{
+		ClearAirlock();
+	}
+	return bMovedNow;
+}
+
+void UDeepRunComponent::ClearAirlock()
+{
+	AirlockElapsedS = -1.f;
+	bAirlockOut = false;
+	bAirlockMoved = false;
+	bValveHeld = false;
+	ValveHeldS = 0.f;
 }
 
 bool UDeepRunComponent::IsNearConsole() const
 {
 	const ADeepDiver* Diver = GetDiver();
-	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
-	return Sub && State == EDeepRunState::Aboard && !bSeated && Sub->IsWithinUseRange(Diver->GetActorLocation(), Sub->GetConsoleLocation());
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->IsWithinUseRange(Diver->GetActorLocation(), Room->GetConsoleLocation());
 }
 
 bool UDeepRunComponent::IsNearHelm() const
 {
 	const ADeepDiver* Diver = GetDiver();
-	const ADeepSubmarine* Sub = Diver && Diver->GetTether() ? Diver->GetTether()->GetSubmarine() : nullptr;
-	return Sub && State == EDeepRunState::Aboard && !bSeated && Sub->IsWithinUseRange(Diver->GetActorLocation(), Sub->GetHelmLocation());
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	return Diver && Room && State == EDeepRunState::Aboard && !bSeated && Room->IsWithinUseRange(Diver->GetActorLocation(), Room->GetHelmLocation());
 }
 
 void UDeepRunComponent::UseConsole()
@@ -1423,6 +1528,7 @@ void UDeepRunComponent::DieFor(const TCHAR* Event, bool bByMonster)
 
 void UDeepRunComponent::Respawn()
 {
+	ClearAirlock();
 	if (ADeepGameState* GameState = GetGameState())
 	{
 		GameState->DiverNumber += 1;
@@ -1614,6 +1720,7 @@ void UDeepRunComponent::ResetRun(bool bToTitle)
 		GameState->bOnTitle = bToTitle;
 		DeepArena::ApplySubDepth(GetWorld());
 	}
+	ClearAirlock();
 	// The serpent goes with the old run (it returns at stop 2).
 	if (UDeepMonsterBrain* Brain = GetWorld()->GetSubsystem<UDeepMonsterBrain>())
 	{
@@ -1822,4 +1929,7 @@ void UDeepRunComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Ou
 	DOREPLIFETIME(UDeepRunComponent, bBiteAlarm);
 	DOREPLIFETIME(UDeepRunComponent, MonsterThreat01);
 	DOREPLIFETIME(UDeepRunComponent, bLastDeathMonster);
+	DOREPLIFETIME(UDeepRunComponent, AirlockElapsedS);
+	DOREPLIFETIME(UDeepRunComponent, bAirlockOut);
+	DOREPLIFETIME(UDeepRunComponent, ValveHeldS);
 }

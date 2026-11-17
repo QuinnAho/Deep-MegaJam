@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 22:55 EST
+updated: 2026-11-16 23:55 EST
 ---
 # Decision Log
 
@@ -49,7 +49,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-038 | Feature freeze moves from 3 PM to 5:30 PM | Quinn, 11:58 AM Nov 15; the 5:30 PM freeze is replaced by D-048 (6:45 PM) |
 | D-039 | Drive the sub down a winding cave shaft with a sonar; every stop is a cavern | Quinn, 11:55 AM Nov 15; the shaft and caverns gated and pushed at 1:41 PM |
 | D-040 | The Captain becomes a voice on the radio who says less; real sound replaces the synth | Quinn, about 12:15 PM Nov 15; built, waiting on sound files |
-| D-041 | Camera feel: shakes, a found-footage look, and the sonar made visible | Shakes decided; the rest behind switches until Quinn approves frames |
+| D-041 | Camera feel: shakes, a found-footage look, and the sonar made visible | Shakes decided; the rest behind switches until Quinn approves frames; the pulse's look changes in D-060 |
 | D-042 | The cavern reads from the hatch by a lower roof, not nearer walls | Orchestrator, 1:38 PM Nov 15; built, made no visible difference, dropped at 1:54 PM for D-043 |
 | D-043 | The diver sends the sonar ping, so the cavern walls show from the water | Orchestrator, 1:54 PM Nov 15; replaces D-042; Quinn can overrule |
 | D-044 | The HUD palette changes: Quinn says the colours do not match the theme | Quinn, 1:54 PM Nov 15; for the HUD pass |
@@ -61,8 +61,16 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-050 | The jam is over; DEEP becomes a polished game made the traditional way: humans own the maps, agents write code and tools | Decided (Quinn, 9:11 to 9:39 PM Nov 15) |
 | D-051 | The sub moves through a still world; the room is a fixed set; leaving is an airlock cycle | Decided (Quinn, 9:39 PM Nov 15); building on `build/moving-sub`; supersedes D-022's moving world |
 | D-052 | PCG and Geometry Script are on; caves are made with the editor's tools | Decided (Quinn, 9:43 and 10:04 PM Nov 15); `6917b6d` |
-| D-053 | The cave pipeline: a drawn skeleton, a Geometry Script shell, PCG dressing, a hand pass | **Proposed** (Claude, 10:55 PM Nov 15); waiting on Quinn |
+| D-053 | The cave pipeline: a drawn skeleton, a Geometry Script shell, PCG dressing, a hand pass | Decided (Quinn, about 1:05 AM Nov 16), with one change: the output is a chunk library strung together per dive (D-055). The spike is approved: the scratch map `L_CaveSpike` and the beta PCG Geometry Script Interop plugin. |
 | D-054 | The jam entry went in solo | Decided (Quinn, about 1 AM EST Nov 16) |
+| D-055 | Caves are baked chunks, strung in a new order every dive | Decided (Quinn, about 1:05 AM Nov 16) |
+| D-056 | The Atlantic Explorer is wreckage | Decided (Quinn, about 1:10 AM Nov 16); the dive's goal and the upgrade loop are open |
+| D-057 | Two players: one drives the sub, one dives on the tether | Decided (Quinn, Nov 16), after the cave work; plugins open |
+| D-058 | The dive is tunnels that open into caverns | Decided (Quinn, Nov 16); replaces the vertical descent passage in [[Cave Gen - Chunk Assembly]] |
+| D-059 | Joints come in two or three types that must match | Decided (Quinn, about 11:45 PM Nov 16); changes D-055 and D-058 |
+| D-060 | The helm ping stays automatic, but soft and low-key | Decided (Quinn, about 11:45 PM Nov 16); behind a switch until Quinn approves frames |
+| D-061 | The run starts in a calm start cavern | Decided (Quinn, about 11:45 PM Nov 16); chunk S in round 5 |
+| D-062 | BT-01 is the player's sub | Decided (Quinn, about 11:45 PM Nov 16); lane started |
 
 ## Open
 
@@ -78,7 +86,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 ## Proposed
 
 ### D-053 The cave pipeline: draw the skeleton, generate the rock, dress it with PCG, finish by hand
-- **Status:** Proposed by Claude, 10:55 PM Nov 15. Waiting on Quinn: the pick, and an OK for a scratch map for the spike. Nothing is built.
+- **Status:** Decided (Quinn, about 1:05 AM Nov 16), with one change: the output is a chunk library strung together per dive (D-055). The spike is approved: the scratch map `L_CaveSpike` and the beta PCG Geometry Script Interop plugin.
 - **Date:** 2026-11-15, 10:55 PM EST
 - **Who:** Quinn asked for the approach. The pipeline and the spike are Claude's.
 - **Quinn's words:** 10:04 PM: "we really should think through a pcg followed with genuiine cave generation to think of the best approach here to give use truley realistic immersive results" Then 10:07 PM: "also note in the plan if theres behavior from games we wnat to replicate or learn form we can use reverse enginerer anythign too, but continue"
@@ -365,6 +373,85 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-062 BT-01 is the player's sub
+- **Status:** Decided. The model lane has started.
+- **Date:** 2026-11-16, about 11:45 PM EST
+- **Who:** Quinn.
+- **Quinn's words:** "also we should use the sub model"
+- **Decided:** BT-01 replaces the basic-shapes dress on our sub, at the 12.3 m hull length the cave rules use (×2), inside the 12.3 × 3.3 × 5.0 m hull box. This settles D-056's working assumption; Quinn judges the scale in frames. The Atlantic Explorer stays the wreck (D-056). Credit: BT-01 by Oliv1e, Sketchfab, CC BY 4.0.
+- **What follows:** the lane `build/sub-model`, behind `Deep.Sub.Model`; frames before it merges.
+
+### D-061 The run starts in a calm start cavern
+- **Status:** Decided. Chunk S is built in round 5 of the chunk tool.
+- **Date:** 2026-11-16, about 11:45 PM EST
+- **Who:** Quinn asked; Claude proposed the shape.
+- **Quinn's words:** "i also would like to have the starting area a bit better maybe its just a cavern"
+- **Decided:** a start chunk S replaces stop 1's old code-built cavern as the place a run begins: one calm cavern, the sub at a berth, the exit joint 25–40 m ahead of the bow, and a chimney overhead where the sub came down.
+- **What follows:** the assembler lane puts the chunk string into the game and starts runs in S.
+
+### D-060 The helm ping stays automatic, but soft and low-key
+- **Status:** Decided. Built behind `Deep.Sonar.Style` until Quinn approves frames.
+- **Date:** 2026-11-16, about 11:45 PM EST
+- **Who:** Quinn decided; Claude set the starting values.
+- **Quinn's words:** "i feel like the radar is a bit oto invasive", and asked how: "softer more minaml and modern lowkey still gives that horror vibe"
+- **Decided:** the helm keeps pinging by itself. The wave goes thin and faint and reaches only nearby rock, the dots are sparse and brief, there is about one ping every 6 s, and the sound is softer and lower with a long dim tail. The diver's V ping (D-043) gets the same look, a little stronger.
+- **Claude's call, for Quinn to check in frames:** cool #BFE3EA instead of amber, because the Style Guide keeps amber off rock and water.
+- **What it changes:** the pulse's look from D-041 and D-043.
+
+### D-059 Joints come in two or three types that must match
+- **Status:** Decided. Round 5 of the chunk tool builds them.
+- **Date:** 2026-11-16, about 11:45 PM EST
+- **Who:** Quinn decided. Claude had recommended one shared rock outline with loose rocks over each joint.
+- **Quinn's answer:** "2–3 joint types", after frames page v24 showed all four 9 m round joints reading as tubes from the helm.
+- **Decided:** two or three irregular joint outlines drawn from real passage shapes, such as a bedding-plane slot, a rift or a keyhole. Every socket carries a type, and chunks join only where the types match, on the identical vertex ring. Each type holds the hull's 3.3 × 5.0 m section with 1 m clear all round. The chunk library must always let a string reach E.
+- **Why:** one round profile at every joint reads as a tube. Matching types give variety, at the cost of a larger chunk library.
+- **What it changes:** D-055's single joint profile and D-058's 9 m round joints. The assembler must match types.
+
+### D-058 The dive is tunnels that open into caverns
+- **Status:** Decided. The chunk tool builds a stop cavern and a turning tunnel next.
+- **Date:** 2026-11-16
+- **Who:** Quinn decided.
+- **Quinn's words:** "im thining itsi like tunnels with caverns closer to the first option"
+- **Decided:**
+  - **Tunnels:** the sub flies level and nose first through the 9 m round joints. Slopes stay gentle (about 11° at most near a joint), and 7 × 7 m squeezes sit inside chunks.
+  - **Caverns:** the sub sinks on ballast from the entry joint (high) to the exit joint (lower). A cavern keeps a clear column 16 m or more across, so the hull can turn in place.
+  - Stops are in caverns. The wreck of the Atlantic Explorer (D-056) is the cavern at the bottom.
+- **Why:**
+  - A level hull 12.3 m long can't pass a 9 m joint going down, so the descent happens in caverns rather than in vertical passages.
+  - It also suits two players (D-057): the diver can swim ahead through a squeeze and call the pilot through.
+- **What it changes:** it replaces the "descent passages, mostly vertical" chunk type in [[Cave Gen - Chunk Assembly]]. The [[Slice Brief]] is rewritten once the first cavern and tunnel exist.
+- **Changed by D-059:** the joints are two or three matching types, no longer 9 m circles.
+
+### D-057 Two players: one drives the sub, one dives on the tether
+- **Status:** Decided that DEEP is two-player co-op. The plugins are open.
+- **Date:** 2026-11-16
+- **Who:** Quinn decided; Claude proposes the voice idea.
+- **Quinn's words:** "then I do want this to be a game, where ones driving ones on the tether, so we should look into that, im thinking that theres some plugin that allows easy steam support proximity chat ect, i might =even have it saved but continue with the cave"
+- **Decided:** DEEP is a two-player co-op game, one player at the helm and one on the tether. It comes after the cave work.
+- **Open:** the session and voice plugins ([[Co-op - Steam and Voice]]); which plugin Quinn has saved; solo play, assumed to stay as the jam build plays, one person doing both jobs.
+- **Claude's proposal, not decided:** the tether carries the voice. It is clear over the line while the diver is clipped on, and close and muffled once they unclip or the line is cut. So a cut line also cuts the voice.
+
+### D-056 The Atlantic Explorer is wreckage
+- **Status:** Decided that the model is a wreck. The dive's goal and the upgrade loop are open.
+- **Date:** 2026-11-16, about 1:10 AM EST
+- **Who:** Quinn decided the wreck; Claude proposes the loop.
+- **Quinn's words:** "we can have it as wreckage honesltly maybe the move is that we are recoving stuff from the wreck or maybe we can upgrade the ship? not too sure"
+- **Decided:** the Atlantic Explorer model is a wreck in the cave, not the player's sub.
+- **Open, Quinn unsure:** the dive's goal is to recover salvage from wrecks, and the earnings upgrade the sub. Claude proposes the two as one loop: wrecks are what each dive goes down to, salvage from them pays the Company, and what's left buys sub upgrades. This goes into the [[Slice Brief]] once Quinn decides.
+- **Working assumption:** BT-01 at ×2 is the player's sub. Quinn hasn't confirmed the scale.
+- **Settled by D-062:** BT-01 is the player's sub.
+
+### D-055 Caves are baked chunks, strung in a new order every dive
+- **Status:** Decided. The assembler is open; the research is [[Cave Gen - Chunk Assembly]].
+- **Date:** 2026-11-16, about 1:05 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "im thinking lethal company stylegenerate caves so yes chunks"
+- **What it changes:** the pipeline bakes a library of chunks with one standard joint profile, and a runtime assembler strings them together per dive from one replicated seed. The 60 m spike becomes two chunks joined both ways.
+- **Why:** every dive is different, and the rock still looks hand-shaped.
+- **Challenged:** D-053 had rejected modular kits because seams and repeats show. The answer: joints at restrictions with one fixed profile, rocks over each joint, and enough chunks. The spike tests the seam.
+- **Open:** the assembler; see [[Cave Gen - Chunk Assembly]].
+- **Changed by D-059:** two or three joint types that must match, instead of one standard profile.
 
 ### D-054 The jam entry went in solo
 - **Status:** Decided. Done. D-050's post-jam rules still stand; only its "passed without a submission" wording no longer holds.

@@ -16,8 +16,13 @@
 #include "World/DeepRopeComponent.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
+#include "Components/LocalLightComponent.h"
+#include "Containers/Ticker.h"
+#include "DynamicRHI.h"
 #include "GameFramework/Controller.h"
 #include "HAL/IConsoleManager.h"
+#include "Misc/App.h"
+#include "RenderTimer.h"
 #include "Sim/DeepTuningSettings.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepCheats, Log, All);
@@ -433,6 +438,24 @@ namespace
 			});
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs AirlockCommand(
+		TEXT("Deep.Airlock"),
+		TEXT("Deep.Airlock: cycles the airlock out, as a full turn of the valve (comes aboard first; needs the sub parked): hiss, fade, then the dive."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			WithRun(World, TEXT("Deep.Airlock"), [](UDeepRunComponent& Run)
+			{
+				AboardFirst(Run);
+				Run.LeaveHelm();
+				if (!Run.IsInside() || Run.IsLeavingByAirlock() || !Run.CanCycleAirlock())
+				{
+					UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Airlock: not aboard, already cycling, or the hatch is locked (the sub is not parked at a stop)"));
+					return;
+				}
+				Run.StartAirlock(true);
+			});
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs ConsoleCommand(
 		TEXT("Deep.Console"),
 		TEXT("Deep.Console: uses the console (comes aboard first): banks cargo, or shows the account and buys the next gate if affordable."),
@@ -623,5 +646,79 @@ namespace
 				++Count;
 			}
 			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Hull: dress %s on %d sub(s)"), bShow ? TEXT("shown") : TEXT("hidden"), Count);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SubLampsCommand(
+		TEXT("Deep.Sub.Lamps"),
+		TEXT("Deep.Sub.Lamps <0|1>: turns every light on the submarine off (0) or back on (1); the bulbs stay (shots: what the hull lamps light or shade)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const bool bOn = Args.Num() < 1 || FCString::Atoi(*Args[0]) != 0;
+			int32 Count = 0;
+			for (TActorIterator<ADeepSubmarine> It(World); It; ++It)
+			{
+				TArray<ULocalLightComponent*> Lights;
+				It->GetComponents(Lights);
+				for (ULocalLightComponent* Light : Lights)
+				{
+					// AffectsWorld, not visibility: the depth fade sets the lights' visibility every stop.
+					Light->bAffectsWorld = bOn;
+					Light->MarkRenderStateDirty();
+					++Count;
+				}
+			}
+			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Sub.Lamps: %d light(s) %s"), Count, bOn ? TEXT("on") : TEXT("off"));
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SwimCommand(
+		TEXT("Deep.Swim"),
+		TEXT("Deep.Swim <forward> <right> <up>: holds the diver's swim input (-1..1 each) until changed; Deep.Swim 0 0 0 lets go (shots, perf: pressing into the hull)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Swim")))
+			{
+				const auto Axis = [&Args](int32 Index) { return Args.Num() > Index ? FMath::Clamp(FCString::Atof(*Args[Index]), -1.f, 1.f) : 0.f; };
+				Diver->SetMoveInput(FVector2D(Axis(1), Axis(0)));
+				Diver->SetVerticalInput(Axis(2));
+				UE_LOG(LogDeepCheats, Display, TEXT("Deep.Swim: forward %.2f right %.2f up %.2f"), Axis(0), Axis(1), Axis(2));
+			}
+		}));
+
+	/** Averages the frame over a few seconds and logs it as DEEPPERF (frame, game thread, render thread, GPU in ms). */
+	struct FPerfSample
+	{
+		double Left = 0.0;
+		int32 Frames = 0;
+		double FrameMs = 0.0, GameMs = 0.0, RenderMs = 0.0, GpuMs = 0.0, MaxFrameMs = 0.0;
+		FString Label;
+	};
+
+	FAutoConsoleCommandWithWorldAndArgs PerfCommand(
+		TEXT("Deep.Perf"),
+		TEXT("Deep.Perf <seconds> [label]: averages frame, game, render and GPU time over that many seconds, then logs DEEPPERF {json}."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			TSharedRef<FPerfSample> Sample = MakeShared<FPerfSample>();
+			Sample->Left = Args.Num() > 0 ? FMath::Max(0.5, FCString::Atod(*Args[0])) : 5.0;
+			Sample->Label = Args.Num() > 1 ? Args[1] : TEXT("");
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([Sample](float DeltaSeconds)
+			{
+				const double FrameMs = 1000.0 * FApp::GetDeltaTime();
+				++Sample->Frames;
+				Sample->FrameMs += FrameMs;
+				Sample->MaxFrameMs = FMath::Max(Sample->MaxFrameMs, FrameMs);
+				Sample->GameMs += FPlatformTime::ToMilliseconds(GGameThreadTime);
+				Sample->RenderMs += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+				Sample->GpuMs += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles());
+				Sample->Left -= FApp::GetDeltaTime();
+				if (Sample->Left > 0.0)
+				{
+					return true;
+				}
+				const double N = FMath::Max(1, Sample->Frames);
+				UE_LOG(LogDeepCheats, Display, TEXT("DEEPPERF {\"label\":\"%s\",\"frames\":%d,\"frame_ms\":%.2f,\"max_frame_ms\":%.2f,\"game_ms\":%.2f,\"render_ms\":%.2f,\"gpu_ms\":%.2f}"),
+					*Sample->Label, Sample->Frames, Sample->FrameMs / N, Sample->MaxFrameMs, Sample->GameMs / N, Sample->RenderMs / N, Sample->GpuMs / N);
+				return false;
+			}));
 		}));
 }

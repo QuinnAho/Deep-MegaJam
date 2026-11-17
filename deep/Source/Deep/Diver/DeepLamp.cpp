@@ -14,6 +14,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningTypes.h"
 #include "World/DeepAbyssFloor.h"
+#include "World/DeepArena.h"
 #include "World/DeepDressing.h"
 
 namespace
@@ -141,11 +142,12 @@ float DeepLamp::WantNearScale(const AActor* Holder, const USpotLightComponent* L
 	}
 
 	// 1b. The sea bed and the well, from the bed's height field (also where a trace misses it: see MarchBed).
-	for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
+	// Only the loaded stop's bed (Deep.World.Still has one per stop), found once.
+	if (const ADeepAbyssFloor* Bed = DeepArena::FindLoadedFloor(World))
 	{
 		const TArray<FVector4> Rest = ADeepAbyssFloor::RestPointsFromTuning();
 		const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
-		const FTransform BedToWorld = It->GetActorTransform();
+		const FTransform BedToWorld = Bed->GetActorTransform();
 		for (const FVector& Dir : Rays)
 		{
 			FVector Normal = FVector::UpVector;
@@ -156,7 +158,6 @@ float DeepLamp::WantNearScale(const AActor* Holder, const USpotLightComponent* L
 				Brightest = FMath::Max(Brightest, UDeepRules::LampSampleBrightness(HitCm / UDeepRules::CmPerM, FVector::DotProduct(Dir, Axis), Facing, Tuning));
 			}
 		}
-		break;
 	}
 
 	// 2. The serpent, which has no collision by design: its drawn body as spheres. The nearest point of each sphere, at
@@ -277,10 +278,11 @@ float DeepLamp::RayToBedCm(UWorld* World, const FVector& From, const FVector& Di
 	{
 		return -1.f;
 	}
-	for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
+	const ADeepAbyssFloor* Bed = DeepArena::FindLoadedFloor(World);
+	if (!Bed)
 	{
-		FVector Normal;
-		return MarchBed(It->GetActorTransform(), ADeepAbyssFloor::RestPointsFromTuning(), UDeepTuningSettings::Get().Look, From, Dir.GetSafeNormal(), MaxCm, Normal);
+		return -1.f;
 	}
-	return -1.f;
+	FVector Normal;
+	return MarchBed(Bed->GetActorTransform(), ADeepAbyssFloor::RestPointsFromTuning(), UDeepTuningSettings::Get().Look, From, Dir.GetSafeNormal(), MaxCm, Normal);
 }

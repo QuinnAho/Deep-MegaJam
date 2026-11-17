@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepPilotRules.h"
 #include "Sim/DeepTuningTypes.h"
 #include "Story/DeepEventBus.h"
@@ -30,13 +31,26 @@ public:
 	bool CanSwim() const;
 	/** Inside the sub: aboard, on the settlement screen or on the win screen. Walking, not swimming. */
 	bool IsInside() const { return State == EDeepRunState::Aboard || State == EDeepRunState::Settling || State == EDeepRunState::Won; }
-	/** Aboard, standing, and the title is not up: WASD walks. */
-	bool CanWalk() const { return State == EDeepRunState::Aboard && !bSeated && !IsOnTitle(); }
+	/** Aboard, standing, not going out through the airlock, and the title is not up: WASD walks. */
+	bool CanWalk() const { return State == EDeepRunState::Aboard && !bSeated && !IsOnTitle() && !IsLeavingByAirlock(); }
 	/** Seated at the helm: the view is the helm camera and up/down drive the sub. */
 	bool IsSeated() const { return bSeated; }
 	/** Within use range of the console / the helm (aboard, standing). */
 	bool IsNearConsole() const;
 	bool IsNearHelm() const;
+
+	// ---- The airlock (World/DeepSubRoom): hold the use key on the valve to go out; coming back runs the same fade ----
+	/** Within use range of the valve on the room's hatch (aboard, standing). */
+	bool IsNearValve() const;
+	/** The valve can open the airlock now: the sub is parked at a stop (the hull's hatch is open below). */
+	bool CanCycleAirlock() const;
+	/** How far this diver has turned the valve (0..1); it springs back when let go. */
+	float GetValveTurn01() const;
+	/** The airlock's cycle for this diver (Idle when none): the phase and how black the view is. */
+	FDeepAirlockState GetAirlockState() const;
+	bool IsInAirlock() const { return AirlockElapsedS >= 0.f; }
+	/** Going out and not yet through: the diver stands still in the room. */
+	bool IsLeavingByAirlock() const { return IsInAirlock() && bAirlockOut; }
 	/** The helm is pushing against the depth limit right now. */
 	bool IsHelmAtLimit() const { return bHelmAtLimit; }
 	/** Server: the helm is driving itself toward a depth (Deep.Drive). */
@@ -121,11 +135,15 @@ public:
 	void ContinueAfterSettlement();
 
 	// ---- Aboard (server) ----
-	/** The use key: stand up from the helm, or use the helm or the console if in range. */
+	/** The use key: stand up from the helm, use the helm or the console if in range, or start turning the valve. */
 	void Use();
-	/** Up through the hatch (or a cut diver home: re-tether fee). The diver stands on the deck, walking. */
+	/** The use key let go: the valve stops turning and springs back. */
+	void ReleaseUse();
+	/** Server: starts an airlock cycle, out (hiss, fade, then down through the hull's hatch) or back in (already moved: starts black). */
+	void StartAirlock(bool bOut);
+	/** Up through the hull's hatch (or a cut diver home: re-tether fee). The diver stands in the room, the view fading in. */
 	void EnterSub();
-	/** Down through the hatch: swimming, tethered, Patience full, salvage respawned. Only while parked at a stop. */
+	/** Down through the hull's hatch at once (the airlock calls it when black): swimming, tethered, Patience full, salvage respawned. Only while parked. */
 	bool LeaveSub();
 	/** The console: with cargo it banks; without, it shows the account and buys the next gate if affordable. */
 	void UseConsole();
@@ -175,6 +193,9 @@ protected:
 	/** The diver came up through the hatch (or is home at the anchor). */
 	bool ReachedHatch(bool bArrivalOnly) const;
 	void StepAboard(float DeltaSeconds);
+	/** Server: advances the airlock; going out, moves the diver once the view is black. True if it moved the diver now. */
+	bool StepAirlock(float DeltaSeconds);
+	void ClearAirlock();
 	void StepHelm(float DeltaSeconds);
 	/** The helm's depth: input or autopilot, the limit, parking. */
 	void StepHelmDepth(float DeltaSeconds);
@@ -262,6 +283,20 @@ protected:
 
 	UPROPERTY(Replicated)
 	float LastGateTime = -100.f;
+
+	/** The airlock: seconds into the cycle (< 0 none), its direction, and how long the valve has been held. */
+	UPROPERTY(Replicated)
+	float AirlockElapsedS = -1.f;
+
+	UPROPERTY(Replicated)
+	bool bAirlockOut = false;
+
+	UPROPERTY(Replicated)
+	float ValveHeldS = 0.f;
+
+	/** Server: the use key is down on the valve; the diver has been moved this cycle. */
+	bool bValveHeld = false;
+	bool bAirlockMoved = false;
 
 	/** Server: the helm control, and the autopilot target (< 0 off). */
 	float HelmInput = 0.f;

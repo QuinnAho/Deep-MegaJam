@@ -113,6 +113,8 @@ namespace DeepStateReport
 		Json->SetBoolField(TEXT("won"), State && State->bWon);
 		Json->SetBoolField(TEXT("inside"), Run && Run->IsInside());
 		Json->SetBoolField(TEXT("seated"), Run && Run->IsSeated());
+		Json->SetNumberField(TEXT("airlock"), Run && Run->IsInAirlock() ? static_cast<int32>(Run->GetAirlockState().Phase) : 0);
+		Json->SetNumberField(TEXT("valve"), Run ? Run->GetValveTurn01() : 0.f);
 		Json->SetNumberField(TEXT("sub_depth_m"), State ? State->SubDepthM : 0.f);
 		Json->SetNumberField(TEXT("depth_limit_m"), State ? State->DepthLimitM() : 0.f);
 		// The cave shaft: the sideways offset from the stops' axis (sub frame, m) and the hull left before a breach.

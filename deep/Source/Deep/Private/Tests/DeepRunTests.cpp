@@ -23,6 +23,8 @@
 #include "Story/DeepEventBus.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepArena.h"
+#include "World/DeepSubRoom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -258,7 +260,7 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	UTEST_NOT_NULL(TEXT("Diver"), Diver);
 	UDeepRunComponent* Run = Diver->GetRun();
 	UTEST_NOT_NULL(TEXT("Run component"), Run);
-	const FVector Anchor = Sub->GetAnchorLocation();
+	FVector Anchor = Sub->GetAnchorLocation();
 	const FVector Start = Sub->GetDiverStartTransform().GetLocation();
 
 	// A dive starts tethered with full Patience.
@@ -310,7 +312,7 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Respawned aboard"), Run->GetState(), EDeepRunState::Aboard);
 	TestEqual(TEXT("Diver number goes up"), State->DiverNumber, DiverBefore + 1);
 	TestEqual(TEXT("respawn fired"), Bus->CountOf(DeepEvent::Respawn), 1);
-	TestTrue(TEXT("Respawned in the room"), Sub->IsInRoom(Diver->GetActorLocation()));
+	TestTrue(TEXT("Respawned in the room"), DeepArena::EnsureRoom(World)->IsInRoom(Diver->GetActorLocation()));
 	TestEqual(TEXT("Respawn refills Patience"), Run->GetPatienceFraction(), 1.f, 0.0001f);
 	Run->StepRun(10.f);
 	TestEqual(TEXT("Patience does not run aboard"), Run->GetPatienceFraction(), 1.f, 0.0001f);
@@ -401,6 +403,8 @@ bool FDeepRunLoopTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("descend_stop2 fired"), Bus->CountOf(DeepEvent::DescendStop2), 1);
 	Run->LeaveHelm();
 	TestTrue(TEXT("Through the hatch at stop 2"), Run->LeaveSub());
+	// Deep.World.Still: the hull went down to stop 2 with its hatch (D-022 kept the hull, and the anchor, in place).
+	Anchor = Sub->GetAnchorLocation();
 	Diver->GetTether()->UpdateTether(0.f);
 	TestEqual(TEXT("Tether is longer at stop 2"), Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(2, Tuning.Tether), 0.01f);
 

@@ -14,6 +14,7 @@
 #include "Engine/StaticMesh.h"
 #include "Misc/Crc.h"
 #include "Sim/DeepCaveRules.h"
+#include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepArena.h"
@@ -442,7 +443,32 @@ void ADeepShaft::Follow()
 	const ADeepSubmarine* Sub = DeepArena::FindSubmarine(World);
 	const bool bOn = DeepShaft::IsOn() && State && Sub;
 	const TArray<float> Stops = UDeepTuningSettings::Get().StopDepthsM();
-	if (bOn)
+	const bool bStill = DeepArena::IsWorldStill(World);
+	// At or above the stop a stretch starts under, that stop's bed and salvage are where the tube is: the stretch hides.
+	// D-022: only while that stop is loaded (no other bed exists). Deep.World.Still: whenever that stop's bed shows.
+	auto UnderAShowingBed = [State, &Stops, bStill](int32 K)
+	{
+		if (!State || !Stops.IsValidIndex(K))
+		{
+			return false;
+		}
+		if (bStill)
+		{
+			return UDeepMovingSubRules::StillBedShows(State->SubDepthM, Stops[K], UDeepTuningSettings::Get().MovingSub);
+		}
+		return State->Stop == K + 1 && State->SubDepthM <= Stops[K] + 0.5f;
+	};
+	if (bOn && bStill)
+	{
+		// Placed once, spanning every stop: the hull moves through it.
+		const double DatumCm = UDeepTuningSettings::Get().MovingSub.DepthDatumZM * UDeepRules::CmPerM;
+		const FTransform Still = UDeepMovingSubRules::StillShaft(Sub->GetHomeTransform(), DatumCm);
+		if (!GetActorTransform().Equals(Still, 0.001))
+		{
+			SetActorTransform(Still);
+		}
+	}
+	else if (bOn)
 	{
 		// Turned with the arena root about the vertical through the sub by the helm's heading (same as
 		// UDeepPilotRules::HangLocationCm; exactly the old placement at yaw 0).
@@ -459,8 +485,7 @@ void ADeepShaft::Follow()
 		{
 			continue;
 		}
-		// At or above the stop this stretch starts under (that stop loaded): its bed and salvage are where the tube is.
-		const bool bAtItsStop = State && State->Stop == K + 1 && Stops.IsValidIndex(K) && State->SubDepthM <= Stops[K] + 0.5f;
+		const bool bAtItsStop = UnderAShowingBed(K);
 		const bool bShow = bOn && !bAtItsStop;
 		if (Tube->IsVisible() != bShow)
 		{
@@ -477,7 +502,7 @@ void ADeepShaft::Follow()
 		{
 			continue;
 		}
-		const bool bAtItsStop = State && State->Stop == K + 1 && Stops.IsValidIndex(K) && State->SubDepthM <= Stops[K] + 0.5f;
+		const bool bAtItsStop = UnderAShowingBed(K);
 		const bool bShow = bOn && !bAtItsStop;
 		if (Mesh->IsVisible() != bShow)
 		{

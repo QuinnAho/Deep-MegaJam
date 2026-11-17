@@ -20,6 +20,8 @@
 #include "World/DeepSalvage.h"
 #include "World/DeepShapes.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
+#include "World/DeepArena.h"
 
 namespace
 {
@@ -216,17 +218,65 @@ FDeepLookPreset ADeepEnvironment::BlendLook(const FDeepLookTuning& Look, float D
 	return P.Last();
 }
 
+FDeepLookPreset ADeepEnvironment::MixRoomLook(const FDeepLookPreset& Cave, const FDeepMovingSubTuning& MovingSub, float InRoom01)
+{
+	const float T = FMath::Clamp(InRoom01, 0.f, 1.f);
+	FDeepLookPreset O = Cave;
+	// Thin dry haze in the room's own colour; no light in the fog (volumetric fog is off once fully in, ApplyLook).
+	O.FogDensity = FMath::Lerp(Cave.FogDensity, FMath::Max(0.f, MovingSub.RoomFogDensity), T);
+	O.FogColor = FMath::Lerp(Cave.FogColor, MovingSub.RoomFogColor, T);
+	O.DownlightVolumetric = FMath::Lerp(Cave.DownlightVolumetric, 0.f, T);
+	O.ExtinctionScale = FMath::Lerp(Cave.ExtinctionScale, 0.f, T);
+	return O;
+}
+
+float ADeepEnvironment::LookDepthM() const
+{
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	return State ? State->SubDepthM : UDeepTuningSettings::Get().GetStop(Stop).SubDepthM;
+}
+
+void ADeepEnvironment::StepRoomLook(float DeltaSeconds, const FVector& ViewCm)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	const bool bInRoom = Room && Room->IsInRoom(ViewCm, 100.0);
+	const float Ease = FMath::Max(0.01f, Tuning.MovingSub.RoomLookEaseSeconds);
+	Room01 = FMath::FInterpConstantTo(Room01, bInRoom ? 1.f : 0.f, FMath::Max(0.f, DeltaSeconds), 1.f / Ease);
+	const float DepthM = LookDepthM();
+	if (!Tuning.Arena.bGreyBox && (!FMath::IsNearlyEqual(Room01, AppliedRoom01, 1.e-4f) || !FMath::IsNearlyEqual(DepthM, AppliedDepthM, 0.01f)))
+	{
+		AppliedDepthM = DepthM;
+		ApplyLook(BlendLook(Tuning.Look, AppliedDepthM), Tuning.Look);
+	}
+}
+
+bool ADeepEnvironment::IsVolumetricFogOn() const
+{
+	return Fog && Fog->bEnableVolumetricFog;
+}
+
 void ADeepEnvironment::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	FollowStillHull();
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	if (Tuning.Arena.bGreyBox)
 	{
 		return;
 	}
+	// The Room look follows this machine's own view (a dedicated server has none and keeps the cave look).
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PC = It->Get();
+		if (PC && PC->IsLocalController() && PC->PlayerCameraManager)
+		{
+			StepRoomLook(DeltaSeconds, PC->PlayerCameraManager->GetCameraLocation());
+			break;
+		}
+	}
 	// Every machine blends by the replicated depth, so driving fades continuously and clients match the server.
-	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
-	const float DepthM = State ? State->SubDepthM : Tuning.GetStop(Stop).SubDepthM;
+	const float DepthM = LookDepthM();
 	// Toggling the footage look (Deep.Look.Footage) reapplies at once, not only on the next depth change.
 	if (!FMath::IsNearlyEqual(DepthM, AppliedDepthM, 0.01f) || UDeepCameraSubsystem::IsFootageOn() != bAppliedFootage)
 	{
@@ -283,8 +333,11 @@ void ADeepEnvironment::ApplyStop(const FDeepStopTuning& StopTuning, const FDeepA
 	ApplyLook(BlendLook(Tuning.Look, AppliedDepthM), Tuning.Look);
 }
 
-void ADeepEnvironment::ApplyLook(const FDeepLookPreset& L, const FDeepLookTuning& Look)
+void ADeepEnvironment::ApplyLook(const FDeepLookPreset& CaveLook, const FDeepLookTuning& Look)
 {
+	// The local view in the room set: the cave look eased toward the Room look (StepRoomLook).
+	const FDeepLookPreset L = MixRoomLook(CaveLook, UDeepTuningSettings::Get().MovingSub, Room01);
+	AppliedRoom01 = Room01;
 	Applied = L;
 	Downlight->SetVisibility(L.DownlightLux > 0.0005f);
 	Downlight->SetIntensity(L.DownlightLux);
@@ -315,7 +368,8 @@ void ADeepEnvironment::ApplyLook(const FDeepLookPreset& L, const FDeepLookTuning
 	Fog->SetFogInscatteringColor(L.FogColor);
 	// The far fog's directional inscattering lifted the view to milk (look/pass1): keep it black.
 	Fog->SetDirectionalInscatteringColor(FLinearColor::Black);
-	Fog->SetVolumetricFog(true);
+	// Fully in the room: no volumetric fog (dry air). Easing in, its extinction has already gone toward zero.
+	Fog->SetVolumetricFog(Room01 < 1.f);
 	Fog->SetVolumetricFogAlbedo(Look.FogAlbedo);
 	Fog->SetVolumetricFogScatteringDistribution(Look.FogScatteringDistribution);
 	Fog->SetVolumetricFogExtinctionScale(L.ExtinctionScale);
@@ -464,12 +518,15 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 	// Below a few cm of streak a speck keeps its tumble; above, it is a line along the world's vertical (the travel).
 	const bool bStreak = StreakCm > 1.0;
 	const FQuat Upright = FQuat::Identity;
+	// In the room set (far above the dive, World/DeepSubRoom) there is no water: no specks at all.
+	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
+	const bool bInRoom = Room01 > 0.f || (Room && Room->IsInRoom(View, 100.0));
 
 	for (int32 i = 0; i < SnowHome.Num(); ++i)
 	{
 		const FVector P = Origin + SnowHome[i] + SnowDrift[i] * SnowTime;
 		const FVector At = View + FVector(Wrap(P.X - View.X, Box), Wrap(P.Y - View.Y, Box), Wrap(P.Z - View.Z, Box));
-		const bool bInHull = (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
+		const bool bInHull = bInRoom || (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
 			|| FVector::DistSquared(At, View) < ClearSq;
 		SnowXforms[i].SetLocation(At);
 		if (bInHull)
@@ -497,4 +554,14 @@ void ADeepEnvironment::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ADeepEnvironment, Stop);
+}
+
+void ADeepEnvironment::FollowStillHull()
+{
+	UWorld* World = GetWorld();
+	const ADeepSubmarine* Sub = DeepArena::IsWorldStill(World) ? DeepArena::FindSubmarine(World) : nullptr;
+	if (Sub && !GetActorLocation().Equals(Sub->GetActorLocation(), 0.01))
+	{
+		SetActorLocation(Sub->GetActorLocation());
+	}
 }

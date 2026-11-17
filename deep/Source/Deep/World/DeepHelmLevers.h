@@ -1,5 +1,5 @@
 // The helm's two levers, beside the seat: the throttle (W/S, a notch a press) inboard, the ballast (Space/C) outboard.
-// Built at runtime on the sub on every machine from engine shapes in worn steel; each arm follows the replicated
+// Built at runtime on the room set (ADeepSubRoom) on every machine from engine shapes in worn steel; each arm follows the replicated
 // lever state on the game state (HelmThrottleNotch, HelmBallast), and a notch change clicks. Look only, no collision.
 #pragma once
 

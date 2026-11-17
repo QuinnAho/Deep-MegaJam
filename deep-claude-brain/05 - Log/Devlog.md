@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-15 22:55 EST
+updated: 2026-11-17 03:32 EST
 ---
 # Devlog
 
@@ -1223,3 +1223,78 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 ### 1:00 AM, Nov 16  The jam entry goes in
 - Changed: Quinn submitted DEEP solo before the 2:00 AM EST cutoff (D-054). The video was recorded in one take at stop 2 on the jam build; the dev log is published as a Google Doc with 15 screenshots.
 - Next: moving-sub step 3.
+
+### 1:45 AM, Nov 16  Caves become chunks; two players
+- Changed: moving-sub step 3 (the still world behind a switch, `e1d4a06`) passed 177 of 177 tests. The cave spike started: two chunks joined both ways, with 9 m round necks as the joints and squeezes inside the chunks. Research found no 5.9 build of the ProceduralDungeon plugin, so DEEP will write its own small assembler.
+- Decided: Quinn chose Lethal Company-style caves, baked chunks strung together per dive (D-055). The Atlantic Explorer becomes a wreck (D-056). Quinn wants two players (D-057), and an immersion pass after the cave.
+- Next: the spike's frames, then moving-sub step 4's tests and frames.
+
+### Nov 16: the cave test works; the dive is tunnels with caverns
+- Changed:
+  - A test cave is baked from spline skeletons by PCG and Geometry Script. It has two chunks, each baked in 3 to 4 s, with joints round to the millimetre, and a level hull passed with no contact (`6db858d` on `build/cavegen`).
+  - Moving sub step 4 turned the still world on by default and gave the room its own look (`5a40577`). All 178 tests pass.
+- Decided: D-058. The dive is tunnels that open into caverns, and the sub sinks in the caverns, where the stops are.
+- Failed:
+  - The test cave looks like pipes, the borrowed rock texture stretched, and ray-traced shadows left black patches.
+  - The chamber measured 18 ms on the GPU, from 4 samples.
+  - The look waits for the look pass. The chunk tool fixes the shadows and measures again.
+- Next: Quinn checks step 4's frames, and the chunk tool builds a stop cavern and a turning tunnel.
+
+### 3:45 AM, Nov 16  The caves fit; the lattice predates the moving sub
+- Changed: the chunk tool's second round (`d6bf75b` on `build/cavegen`) strings four chunks from CSV data: a tunnel, a tunnel that turns 90 degrees and drops through a squeeze, a stop cavern with a 24 m sink, and a chamber. The joints meet within 0.31 cm, the hull touches nothing along the string, and the GPU cost is about 5 ms. The 18 ms from the spike was the editor throttling itself in the background. The generator moved from the PCG node to editor Python driving Geometry Script.
+- Failed: the tunnels still read as round pipes, with black specks at the tunnel mouths. Round 3 reshapes the rock with clearance built in.
+- Found: the orange lattice at the helm is the volumetric fog where it meets the cave shell. The `jam-final` build shows it at the same view, so the moving sub didn't cause it. Showing only the nearest stop's shell didn't remove it, so that change was reverted.
+- Next: Quinn checks step 4's frames (frames page v22); cave round 3's frames.
+
+### 6:15 AM, Nov 16  Cave round 3: the sub fits by design
+- Changed: round 3 (`bbb1a11` on `build/cavegen`) builds the hull's clear path into each chunk, so the sweep passes by construction (least clearance 92 cm, was 34). Beds, cracks and fallen blocks make the walls read as rock. Both sides of each joint share one rim polygon, which cured the specks. The PCG spike and its plugin line are gone.
+- Failed: every joint is the same 9 m circle, and it shows as ringed holes down the tunnels and a porthole where a joint meets a cavern. One bend and one opening read as doorways.
+- Decided: round 4 fixes what the joint rule allows. The joint shape itself is Quinn's call, because it changes D-055 and D-058.
+- Next: Quinn picks the joint shape and checks step 4 (frames page v23).
+
+### 7:00 AM, Nov 16  Cave round 4: the doorways are gone, the joints still show
+- Changed: round 4 (`41d0bc3` on `build/cavegen`) removed the doorway, the mine door and most finger ledges, and added an end chunk E that pinches shut. The frame cameras now live in `CaveCameras.csv`, so every round shoots the same views. All checks still pass.
+- Failed: the new helm views, 20 m before each joint, show all four joints as round tubes. Work inside the joint rule can't hide the 9 m circle.
+- Decided: round 5 waits for Quinn's joint call, and will also fix the lintel, straight beds, C1's entry rock and E's bays.
+- Next: Quinn picks the joint shape (frames page v24).
+
+### 11:55 PM, Nov 16  Step 4 is in main, and three lanes start
+- Changed: moving sub step 4 merged into main (`ab8c1f0`) after main was merged into the branch. Verify passed 178 of 178, the package came to 1050 MB, and the smoke run was clean.
+- Decided: Quinn's calls. Joints come in two or three matching types (D-059). The helm ping stays automatic but goes soft and low-key (D-060). Runs start in a calm start cavern (D-061). BT-01 is our sub (D-062).
+- Failed: `ue.ps1 editor` returns as soon as the editor starts, so the slot wrapper let go of the slot with an editor still open. Editor sessions now hold the slot until the editor exits (`.claude/loop.md`).
+- Next: three lanes run at once: caves round 5 (joint types and S), the soft ping, and BT-01 on the sub. Then the assembler puts the caves into the dive.
+
+### 12:50 AM, Nov 17  Cave round 5: three joint types and a start cavern
+- Changed: round 5 (`0e7c183` on `build/cavegen`) gives the joints three matching types (bed, rift and key) and adds the start cavern S, with a berth, a chimney and the exit ahead. The string is S, A, T1, C1, B, E. The agent's checks pass: no hull contacts along the path, no joint gaps, under 4 ms GPU median at the helm.
+- Failed: from the helm a dark crease still rings each joint, S's chimney looks drilled, with lathe rings, and S's back reads as a box. The lintels, straight beds, C1's entry rock and E's bays were not reached.
+- Next: round 6 fixes those (started 12:45 AM). The BT-01 second pass and the soft ping are still running.
+
+### 1:05 AM, Nov 17  The soft ping is built
+- Changed: `2d6f383` on `build/sonar-soft` (pushed, not merged) makes the helm ping a thin, faint #BFE3EA line on nearby rock, about once every 6 s and gone by 1.2 s, with a quieter, lower sound. The jam look stays behind `Deep.Sonar.Style 0`. Frames old beside new are on the page (v26).
+- Found: the serpent hears each ping (40 noise, falling 10 a second, Stalk at 60). At 6 s the noise is back to 0 before the next ping, so the helm's pings alone no longer make it stalk; driving at half speed or more, a knock, the winch or a harpoon still do. That matches its Nov 15 hearing notes. I recommend keeping it; Quinn decides.
+- Next: Quinn's OK on the look, the sound and the serpent, then my own test run and the merge. Nobody has heard the two sounds yet.
+
+### 1:20 AM, Nov 17  Cave round 6: half there
+- Changed: `06770f2` on `build/cavegen` (pushed, not merged). S's chimney has no rings, the lumps around S's way out are gone, the T1-C1 opening is a natural arch and B-E lost its lintel. The checks hold: 0 hull contacts in 1168 samples, joint gap 0, 0 tether leaks.
+- Failed: the keyhole still reads as a cut doorway, creases remain at three joint rims, E's bay came out crumpled and C1's entry rock faceted. The frame cameras are fixed world points, and round 6's rock now wraps two of them, so the squeeze frame (GPU view 1 too) shows the inside of the rock. The agent's report missed it; the frame check caught it.
+- Next: round 7 (started 1:18 AM) fixes those, fails any run with a camera under 50 cm from rock, and measures the GPU for rounds 6 and 7 back to back.
+
+### 2:07 AM, Nov 17  Cave round 7: honest cameras, one step back at S
+- Changed: `4dfcb90` on `build/cavegen` (pushed, not merged). The frame cameras follow the dive path, and a run fails if one comes within 50 cm of rock. E's side bay and S's back bay are natural rock, and the T1-C1 creases are gone. The GPU cost is unchanged at about 4.5 ms in all three views (rounds 6 and 7 measured back to back).
+- Failed: round 7 added three pale boulders around S's way out. They look stuck on, and one blocks the diver's view of the Serpent alcove. The keyhole's straight sides come from the shape itself, and C1's column rings from its roof. E closes in a flat plug. The report counts the S-A and C1-B rim rings as fixed; the frames show no change.
+- Next: round 7b (the same agent) takes out the boulders and gives E a rock end. Frames page v27 shows round 7 now, and v28 brings 7b with BT-01. On the page I proposed ending the rock patching after 7b, with one structural fix for the joint rims instead, and making the caves drivable next. That waits on Quinn.
+
+### 2:23 AM, Nov 17  Cave round 7b: S's boulders out, E ends in rock
+- Changed: `20b0dea` on `build/cavegen` (pushed, not merged). The three pale boulders at S's way out are gone, and E narrows into a choke of broken rock instead of the tube's flat end cap. All checks green by the agent's numbers; I checked the changed views on frames.
+- Found: the joint rims look cut because the rock's surface detail fades to nothing over 6.5 m at each joint plane (3.5 m for fine detail), so both pieces meet on a bare outline. Shared detail in the joint's frame would fix it, but the rim tools and joint checks need rework and all six pieces rebuild.
+- Next: frames page v28 shows 7b. I proposed to Quinn to judge the rims under the sub's lights in the game first and to make the caves drivable meanwhile. That waits on Quinn.
+
+### 2:48 AM, Nov 17  BT-01: the diver stops on the model; the dark shapes are shadows
+- Changed: `5d78c5a` and `daf3a69` on `build/sub-model` (pushed, not merged). The model is the diver's collider now (2048 convex hulls merged from 13,205; the propellers, arms, drill and rope have none), its lights sit on the skin (red to port, green to starboard, blinking at 1 Hz), and the square hatch plate is hidden. New cheats switch the lamps and log a perf readout.
+- Found: the hard black shapes on the hull up close are shadows, not holes; with no lighting the paint is whole. On the side they come from the light above, with nothing to fill them at depth; on the tower from the diver's lamp, which sits off to one side. The collision costs 2.8 ms of game thread with the diver against the hull, and the frame time doesn't change.
+- Next: frames page v30 asks Quinn to OK the merge, and the full suite runs before it. The shadows and the lamp's washout go to the look pass (D-028).
+
+### 3:32 AM, Nov 17  BT-01 is our sub on main
+- Changed: Quinn OK'd the merge, and `build/sub-model` went into main at 3:24 AM as a fast-forward to `6ed6929` (main was merged into the branch first; that brought only vault notes). BT-01 is the sub by default; `Deep.Sub.Model 0` brings back the old hull.
+- Checked: verify 180 of 180; S1-hatch, S2-gate, S7-run and S12-sidehome pass; package 764 MB with no missing usage flags; smoke passes; zip 480 MB. Two frames from the packaged game look as they do in the editor, so the model's materials cook.
+- Next: the room changes to fit BT-01 (Quinn: "we need to change the interior too"); frames page v31 asks when to start. The shadows and the lamp's washout stay with the look pass (D-028).

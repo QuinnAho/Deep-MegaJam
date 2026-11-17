@@ -137,4 +137,5 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(ADeepGameState, TotalGross);
 	DOREPLIFETIME(ADeepGameState, TotalDirectorCut);
 	DOREPLIFETIME(ADeepGameState, TotalFees);
+	DOREPLIFETIME(ADeepGameState, bWorldStill);
 }

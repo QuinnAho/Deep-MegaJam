@@ -20,6 +20,7 @@
 #include "World/DeepArena.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepSubRoom.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -75,7 +76,7 @@ namespace DeepCaveShapeTest
 			State = World->GetGameState<ADeepGameState>();
 			if (Sub)
 			{
-				Diver = World->SpawnActor<ADeepDiver>(Sub->GetRoomStartTransform().GetLocation(), FRotator::ZeroRotator);
+				Diver = World->SpawnActor<ADeepDiver>(DeepArena::EnsureRoom(World)->GetRoomStartTransform().GetLocation(), FRotator::ZeroRotator);
 			}
 			Run = Diver ? Diver->GetRun() : nullptr;
 			if (Run)

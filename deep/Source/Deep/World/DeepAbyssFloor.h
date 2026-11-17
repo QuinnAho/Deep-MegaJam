@@ -42,6 +42,12 @@ public:
 	/** Kept for callers: the bed's size comes from FDeepLookTuning::SeabedHalfWidthM. */
 	void SetSizeM(float SizeM) {}
 
+	/** Deep.World.Still: the stop (1-based) this bed lies under. 0: the one bed D-022 slides under every stop. */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	int32 BedStop = 0;
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 protected:
 	virtual void BeginPlay() override;
 
