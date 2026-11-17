@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 12:02 EST
+updated: 2026-11-17 13:02 EST
 ---
 # Devlog
 
@@ -1332,3 +1332,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided: the dive lane also brings the hull's real collision, and the old shaft stays the default until the run loop works in the caves (D-064).
 - Failed: the merges waited about five hours after Quinn's OK (11:41 and 11:53 AM). The packaged frame by the tower still shows black wedges on the hull's outside, as at BT-01's gate; that goes to the look pass.
 - Next: the dive lane (`build/cavedive`), M1: start in S and drive the string with hull hits, behind `Deep.World.Caves`. Quinn sees M1's frames and decides how depth reads in the caves.
+
+### 1:02 PM, Nov 17  Caves into the dive, M1: the cave run can be driven
+- Changed: on `build/cavedive` (`132a907`, `400b49d`), `Deep.World.Caves 1` starts the run parked in S, and the helm drives the chunk string S to E with BT-01's real box: bounces, dents and scrapes, a turn into rock is held, and it parks near the berths in S and C1. The box flies the whole path with no contacts. Off by default, so the game doesn't change.
+- Decided: the merge gate runs before Quinn's OK, so the merge can follow the OK at once. It passed at 1:02 PM: 192 tests, both playthroughs, the package and two frames from it.
+- Failed: a straight sink 20 m into C1 meets a ledge at 112 m. In the caverns the lamps light only the floor ahead, so S, C1, B and E read as grey floor from the helm, and the debug views from outside are near black; that goes to M2 and the look pass.
+- Next: Quinn's OK on M1 and the depth question (page v38), then M2.

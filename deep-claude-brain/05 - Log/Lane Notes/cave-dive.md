@@ -111,3 +111,11 @@ Then moving-sub step 5 removes D-022's code.
 ## Log
 
 - Nov 17, about noon: lane started on M1.
+- Nov 17, 12:50 PM: M1 built and pushed (`132a907`, `400b49d`). What it found, for M2:
+  - The real hull box (the model's solid bounds) is half (579.5, 156.2, 236.6) cm, its centre 89 cm aft and 68.7 cm up, against cavestring's half (615, 165, 250) centred 94 cm aft. It clears the path: 0 contacts in 1168 steps over 284 m. The squeeze stays as built until Quinn has driven it.
+  - A straight sink 20 m into C1 hits a ledge at 112 m.
+  - E ends in a wall, which holds the sub.
+  - In S, C1, B and E the lamps light only the floor ahead: from the helm they read as grey floor. Finding the way in the caverns may lean on the soft ping; judge it when Quinn drives.
+  - Setting `Deep.World.Caves` in a running game restarts the level so the arena latches it.
+  - The unzipped build is 1.2 GB; `ue.ps1` warns about the old 1 GB jam limit, which no longer applies.
+  - Play build for Quinn: `Builds\CaveDive-1251\Play-Caves.bat` (caves on from `-ExecCmds`).
