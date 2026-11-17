@@ -1,6 +1,16 @@
 #include "World/DeepHull.h"
 
+#include "Engine/CollisionProfile.h"
+#include "Engine/StaticMesh.h"
+#include "GameFramework/Actor.h"
+#include "HAL/IConsoleManager.h"
+#include "Sim/DeepRules.h"
+#include "Sim/DeepTuningSettings.h"
 #include "World/DeepShapes.h"
+
+static TAutoConsoleVariable<int32> CVarDeepSubModel(
+	TEXT("Deep.Sub.Model"), 1,
+	TEXT("1 (default): the sub's outside is BT-01, the bathyscaphe model. 0: the dress of basic shapes. Visual only."));
 
 namespace DeepHull
 {
@@ -246,5 +256,93 @@ namespace DeepHull
 	{
 		const FTransform T(Part.Rotation, Part.Centre, Part.Size / DeepShapes::ShapeSizeCm);
 		return FBox(FVector(-50.0), FVector(50.0)).TransformBy(T);
+	}
+
+	const TCHAR* ModelMesh = TEXT("/Game/Deep/Subs/SM_BT01.SM_BT01");
+
+	FTransform ModelTransform(const FBox& MeshBox, const FVector& OuterCm)
+	{
+		const FVector Size = MeshBox.GetSize();
+		if (Size.X <= 0.0 || Size.Y <= 0.0 || Size.Z <= 0.0)
+		{
+			return FTransform::Identity;
+		}
+		const double Scale = FMath::Min3(ModelEnvelopeCm.X / Size.X, ModelEnvelopeCm.Y / Size.Y, ModelEnvelopeCm.Z / Size.Z);
+		const FVector Hatch(ModelHatchLocalCm.X, ModelHatchLocalCm.Y, MeshBox.Min.Z);
+		return FTransform(FQuat::Identity, FVector(0.0, 0.0, -OuterCm.Z) - Hatch * Scale, FVector(Scale));
+	}
+
+	bool WantsModel()
+	{
+		return CVarDeepSubModel.GetValueOnGameThread() != 0;
+	}
+}
+
+UDeepHullModel::UDeepHullModel()
+{
+	// Ticks only to follow Deep.Sub.Model when it changes; nothing else.
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickInterval = 0.25f;
+	SetStaticMesh(LoadObject<UStaticMesh>(nullptr, DeepHull::ModelMesh));
+	SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	SetGenerateOverlapEvents(false);
+	SetCanEverAffectNavigation(false);
+	SetMobility(EComponentMobility::Movable);
+	SetCastShadow(true);
+}
+
+void UDeepHullModel::Fit()
+{
+	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
+	const double M = UDeepRules::CmPerM;
+	const FVector Outer((T.RoomHalfLengthM + T.WallThicknessM) * M, (T.RoomHalfWidthM + T.WallThicknessM) * M, (T.RoomHeightM * 0.5 + T.WallThicknessM) * M);
+	if (const UStaticMesh* Mesh = GetStaticMesh())
+	{
+		SetRelativeTransform(DeepHull::ModelTransform(Mesh->GetBoundingBox(), Outer));
+	}
+}
+
+void UDeepHullModel::OnRegister()
+{
+	Super::OnRegister();
+	Fit();
+}
+
+void UDeepHullModel::BeginPlay()
+{
+	Super::BeginPlay();
+	ApplySwitch(DeepHull::WantsModel());
+}
+
+void UDeepHullModel::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	const bool bWant = DeepHull::WantsModel();
+	if (Shown != (bWant ? 1 : 0))
+	{
+		ApplySwitch(bWant);
+	}
+}
+
+void UDeepHullModel::ApplySwitch(bool bModel)
+{
+	Shown = bModel ? 1 : 0;
+	SetHiddenInGame(!bModel || !GetStaticMesh());
+	const bool bHideDress = bModel && GetStaticMesh();
+	AActor* Owner = GetOwner();
+	if (!Owner)
+	{
+		return;
+	}
+	TInlineComponentArray<UStaticMeshComponent*> Meshes(Owner);
+	for (UStaticMeshComponent* Mesh : Meshes)
+	{
+		// The hatch's cover and water keep their own show and hide (ADeepSubmarine::OnRep_Hatch).
+		if (Mesh == this || Mesh->GetFName() == TEXT("HatchCover") || Mesh->GetFName() == TEXT("HatchWater"))
+		{
+			continue;
+		}
+		Mesh->SetHiddenInGame(bHideDress);
 	}
 }

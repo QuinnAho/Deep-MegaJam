@@ -153,6 +153,8 @@ ADeepSubmarine::ADeepSubmarine()
 		Shape->bAffectDynamicIndirectLighting = Part.bShadow;
 		HullDress.Add(Shape);
 	}
+	// BT-01, the bathyscaphe: visual only; Deep.Sub.Model 1 (default) shows it and hides the dress above (World/DeepHull).
+	CreateDefaultSubobject<UDeepHullModel>(TEXT("HullModel"))->SetupAttachment(Root);
 	for (int32 Index = 0; Index < BowLights.Num(); ++Index)
 	{
 		UStaticMeshComponent* Shape = DeepShapes::CreateShape(this, Index == 0 ? TEXT("Hull_BowHousingPort") : TEXT("Hull_BowHousingStbd"), DeepShapes::Cylinder);
