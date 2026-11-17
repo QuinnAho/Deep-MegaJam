@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 05:15 EST
+updated: 2026-11-17 06:00 EST
 ---
 # Devlog
 
@@ -1316,3 +1316,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Found: BT-01's own cabin is too tight to walk in (4.4 x 1.8 m, aisle 60-80 cm), so two divers could not pass. The room stays built in code, sized to BT-01's inside: 4.9 x 1.8 x 2.1 m, down from 9 x 4.5 x 3 m.
 - Changed: E acts on the nearest station in reach. In the small room the console was in reach from the valve, and `Still.Airlock` caught E at the valve opening the console. Main went into `build/sub-inside` cleanly (`ef1510b`).
 - Next: the agent fixes two white patches on the porthole panel, a 12 cm drop on spawn and lockers you can walk into; then the merge gate, and the merge with Quinn's OK (page v33).
+
+### 6:00 AM, Nov 17  Caves round 8b: the rims are fixed; T1 and S go back
+- Changed: round 8b (`7d14fc3` on `build/cavegen`). A new check counts sharp creases near each rim, and all five read 0. T1's squeeze leans in and pinches, and E closes in tilted slabs. Round 8's checks all hold.
+- Failed: S's new ledges read as torn paper and a grille, and past the squeeze T1 is still a square duct. Both went back as round 8c.
+- Next: frames page v34 asks Quinn about round 8b. The caves go into the dive after round 8c and Quinn's OK.
