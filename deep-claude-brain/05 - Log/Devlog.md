@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-16 23:10 EST
+updated: 2026-11-16 23:55 EST
 ---
 # Devlog
 
@@ -1257,3 +1257,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Failed: the new helm views, 20 m before each joint, show all four joints as round tubes. Work inside the joint rule can't hide the 9 m circle.
 - Decided: round 5 waits for Quinn's joint call, and will also fix the lintel, straight beds, C1's entry rock and E's bays.
 - Next: Quinn picks the joint shape (frames page v24).
+
+### 11:55 PM, Nov 16  Step 4 is in main, and three lanes start
+- Changed: moving sub step 4 merged into main (`ab8c1f0`) after main was merged into the branch. Verify passed 178 of 178, the package came to 1050 MB, and the smoke run was clean.
+- Decided: Quinn's calls. Joints come in two or three matching types (D-059). The helm ping stays automatic but goes soft and low-key (D-060). Runs start in a calm start cavern (D-061). BT-01 is our sub (D-062).
+- Failed: `ue.ps1 editor` returns as soon as the editor starts, so the slot wrapper let go of the slot with an editor still open. Editor sessions now hold the slot until the editor exits (`.claude/loop.md`).
+- Next: three lanes run at once: caves round 5 (joint types and S), the soft ping, and BT-01 on the sub. Then the assembler puts the caves into the dive.

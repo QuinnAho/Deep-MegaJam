@@ -42,6 +42,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$m = New-Object Syst
 # merge and push only if the exit code is 0 AND verify.txt has a line starting "PASS verify"
 ```
 
+**An editor session holds the slot until the editor closes.** `tools/ue.ps1 editor` starts the editor and returns at once, so the wrapper above lets go of the slot while the editor is still open (found Nov 16). Run this in the background instead, and close the editor as soon as the editor step is done, because other lanes wait on the same slot:
+
+```
+$m = New-Object System.Threading.Mutex($false, 'Global\DeepUnrealSlot'); try { [void]$m.WaitOne() } catch [System.Threading.AbandonedMutexException] { }
+try { $o = & '.\tools\ue.ps1' editor *>&1 | Out-String; $o; if ($o -match 'started pid (\d+)') { Wait-Process -Id ([int]$Matches[1]) } } finally { $m.ReleaseMutex() }
+```
+
 **An open editor blocks every build.** An Unreal editor starts Live Coding by itself, and UnrealBuildTool then refuses every build that uses the same installed engine, in every checkout: "Unable to build while Live Coding is active". `tools/ue.ps1 editor` passes `-LiveCoding=0` so agent editors do not do this. If a build fails with that message, list the `UnrealEditor.exe` processes and their command lines, wait for the one without `-LiveCoding=0`, or ask its owner; never stop a process you did not start. Quinn's own editor on the main checkout has the same effect.
 
 After merging two code branches, always build before pushing, even when git reports no conflict: two files can each define a helper with the same name and only collide once compiled together.
