@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 02:07 EST
+updated: 2026-11-17 02:23 EST
 ---
 # Devlog
 
@@ -1283,3 +1283,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: `4dfcb90` on `build/cavegen` (pushed, not merged). The frame cameras follow the dive path, and a run fails if one comes within 50 cm of rock. E's side bay and S's back bay are natural rock, and the T1-C1 creases are gone. The GPU cost is unchanged at about 4.5 ms in all three views (rounds 6 and 7 measured back to back).
 - Failed: round 7 added three pale boulders around S's way out. They look stuck on, and one blocks the diver's view of the Serpent alcove. The keyhole's straight sides come from the shape itself, and C1's column rings from its roof. E closes in a flat plug. The report counts the S-A and C1-B rim rings as fixed; the frames show no change.
 - Next: round 7b (the same agent) takes out the boulders and gives E a rock end. Frames page v27 shows round 7 now, and v28 brings 7b with BT-01. On the page I proposed ending the rock patching after 7b, with one structural fix for the joint rims instead, and making the caves drivable next. That waits on Quinn.
+
+### 2:23 AM, Nov 17  Cave round 7b: S's boulders out, E ends in rock
+- Changed: `20b0dea` on `build/cavegen` (pushed, not merged). The three pale boulders at S's way out are gone, and E narrows into a choke of broken rock instead of the tube's flat end cap. All checks green by the agent's numbers; I checked the changed views on frames.
+- Found: the joint rims look cut because the rock's surface detail fades to nothing over 6.5 m at each joint plane (3.5 m for fine detail), so both pieces meet on a bare outline. Shared detail in the joint's frame would fix it, but the rim tools and joint checks need rework and all six pieces rebuild.
+- Next: frames page v28 shows 7b. I proposed to Quinn to judge the rims under the sub's lights in the game first and to make the caves drivable meanwhile. That waits on Quinn.
