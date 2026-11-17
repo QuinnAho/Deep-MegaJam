@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-17 04:05 EST
+updated: 2026-11-17 04:17 EST
 ---
 # Decision Log
 
@@ -68,10 +68,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-057 | Two players: one drives the sub, one dives on the tether | Decided (Quinn, Nov 16), after the cave work; plugins open |
 | D-058 | The dive is tunnels that open into caverns | Decided (Quinn, Nov 16); replaces the vertical descent passage in [[Cave Gen - Chunk Assembly]] |
 | D-059 | Joints come in two or three types that must match | Decided (Quinn, about 11:45 PM Nov 16); changes D-055 and D-058 |
-| D-060 | The helm ping stays automatic, but soft and low-key | Decided (Quinn, about 11:45 PM Nov 16); Quinn OK'd the look and the sound about 3:45 AM Nov 17, and it merges as the default |
+| D-060 | The helm ping stays automatic, but soft and low-key | Decided (Quinn, about 11:45 PM Nov 16); Quinn OK'd the look and the sound about 3:45 AM Nov 17; merged as the default 4:15 AM Nov 17 (`4367b3a`) |
 | D-061 | The run starts in a calm start cavern | Decided (Quinn, about 11:45 PM Nov 16); chunk S in round 5 |
 | D-062 | BT-01 is the player's sub | Decided (Quinn, about 11:45 PM Nov 16); merged 3:24 AM Nov 17 (`6ed6929`) |
-| D-063 | The serpent turns to each soft helm ping, but pings alone do not make it hunt | Decided (Quinn, about 3:45 AM Nov 17); ships with the soft ping (D-060) |
+| D-063 | The serpent turns to each soft helm ping, but pings alone do not make it hunt | Decided (Quinn, about 3:45 AM Nov 17); merged with the soft ping 4:15 AM Nov 17 (`4367b3a`) |
 
 ## Open
 
@@ -376,12 +376,12 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 ## Decided
 
 ### D-063 The serpent turns to each soft ping, but pings alone do not make it hunt
-- **Status:** Decided. It ships with the soft ping (D-060).
+- **Status:** Decided and merged with the soft ping (D-060), 4:15 AM Nov 17 (`4367b3a`).
 - **Date:** 2026-11-17, about 3:45 AM EST
 - **Who:** Quinn, answering the merge question.
 - **Quinn's words:** "Merge it", to: the serpent answers each ping but only hunts when you make other noise too.
 - **Decided:** The helm ping still counts as noise, and the serpent still turns to each one. At the soft cadence, one ping every 6 s, pings alone no longer stack up to Stalk; it takes other noise on top. `Deep.Sonar.Style 0` brings back the jam's ping every 2.5 s sweep.
-- **What follows:** `build/sonar-soft` merges once the band shows in the packaged game as it did in the editor frames. Its gate otherwise passed at 3:56 AM.
+- **What follows:** Merged 4:15 AM Nov 17 (`4367b3a`) after frames from the packaged game showed the band at 0.5 s and 1.2 s. Its gate passed at 3:56 AM.
 
 ### D-062 BT-01 is the player's sub
 - **Status:** Decided. The model lane has started.
@@ -400,7 +400,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** the assembler lane puts the chunk string into the game and starts runs in S.
 
 ### D-060 The helm ping stays automatic, but soft and low-key
-- **Status:** Decided. Built behind `Deep.Sonar.Style` until Quinn approves frames.
+- **Status:** Decided and merged (4:15 AM Nov 17, `4367b3a`). The soft ping is the default; `Deep.Sonar.Style 0` brings back the jam's ping.
 - **Date:** 2026-11-16, about 11:45 PM EST
 - **Who:** Quinn decided; Claude set the starting values.
 - **Quinn's words:** "i feel like the radar is a bit oto invasive", and asked how: "softer more minaml and modern lowkey still gives that horror vibe"
