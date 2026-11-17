@@ -339,7 +339,9 @@ void ADeepDiver::SyncAboardMode()
 				Want = Sub;
 			}
 		}
-		if (Player->GetViewTarget() != Want)
+		// Deep.Cave.Eye (a debug view from outside) keeps the view until it is turned off.
+		const AActor* Viewing = Player->GetViewTarget();
+		if (Viewing != Want && !(Viewing && Viewing->ActorHasTag(TEXT("DeepEye"))))
 		{
 			Player->SetViewTargetWithBlend(Want, 0.25f);
 		}

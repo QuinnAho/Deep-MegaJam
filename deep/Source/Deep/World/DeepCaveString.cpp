@@ -1,11 +1,15 @@
 #include "World/DeepCaveString.h"
 
+#include "Camera/CameraActor.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Debug/DeepStateReport.h"
 #include "Game/DeepGameState.h"
+#include "GameFramework/PlayerController.h"
+#include "HAL/IConsoleManager.h"
 #include "Misc/FileHelper.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -230,4 +234,56 @@ bool ADeepCaveString::OverlapsHull(const FBox& Box, const FVector& AtCm, float Y
 		}
 	}
 	return false;
+}
+
+namespace
+{
+	/** The outside view's camera (one per world; a debug view for frames, not part of the game). */
+	TWeakObjectPtr<ACameraActor> EyeCamera;
+
+	FAutoConsoleCommandWithWorldAndArgs CaveEyeCommand(
+		TEXT("Deep.Cave.Eye"),
+		TEXT("Deep.Cave.Eye <back m> <up m> [side m] | off: views the hull from outside (behind, above, to starboard of it, looking at it); off = the player's own view."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			APlayerController* Player = World ? World->GetFirstPlayerController() : nullptr;
+			const ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+			if (!Player || !Sub)
+			{
+				return;
+			}
+			if (Args.Num() > 0 && Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
+			{
+				Player->SetViewTarget(Player->GetPawn());
+				if (EyeCamera.IsValid())
+				{
+					EyeCamera->Destroy();
+				}
+				DeepStateReport::LogState(World);
+				return;
+			}
+			const float BackM = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 18.f;
+			const float UpM = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 6.f;
+			const float SideM = Args.Num() > 2 ? FCString::Atof(*Args[2]) : 0.f;
+			const FTransform Hull = Sub->GetActorTransform();
+			const FVector Target = Hull.TransformPosition(Sub->GetSolidBoundsLocal(false).GetCenter());
+			const FVector At = Hull.TransformPosition(FVector(-BackM, SideM, UpM) * UDeepRules::CmPerM);
+			if (!EyeCamera.IsValid())
+			{
+				FActorSpawnParameters Params;
+				Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				Params.ObjectFlags |= RF_Transient;
+				EyeCamera = World->SpawnActor<ACameraActor>(At, FRotator::ZeroRotator, Params);
+				if (EyeCamera.IsValid())
+				{
+					EyeCamera->Tags.Add(TEXT("DeepEye"));
+				}
+			}
+			if (EyeCamera.IsValid())
+			{
+				EyeCamera->SetActorLocationAndRotation(At, (Target - At).Rotation());
+				Player->SetViewTarget(EyeCamera.Get());
+			}
+			DeepStateReport::LogState(World);
+		}));
 }
