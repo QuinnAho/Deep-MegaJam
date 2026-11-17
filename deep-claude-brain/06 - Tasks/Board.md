@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-17 00:50 EST
+updated: 2026-11-17 01:05 EST
 ---
 # Board
 
@@ -28,7 +28,7 @@ Jam entry submitted solo (D-054). The goal now is an enjoyable game. Caves are c
 | The joint shape: one rock outline shared by every joint, with loose rocks over each joint (recommended), or two or three joint types that must match. Either changes D-055 and D-058 | Quinn | decided: two or three types that must match (D-059, about 11:45 PM Nov 16) |
 | Chunk tool round 5: two or three joint types that must match (D-059) and a calm start cavern S (D-061) | agent, opus, `.wt\cave` on `build/cavegen` | done, `0e7c183` (pushed, not merged). Bed, rift and key joints; S with a berth, a chimney and the exit joint ahead; the string S, A, T1, C1, B, E. The agent's checks pass (re-run before merge). From the helm the joints read as a slot, a rift and a keyhole, not tubes, but a dark crease rings each rim, S's chimney looks drilled, and S's back reads as a box |
 | Chunk tool round 6: walls that run through each joint rim with no crease at 20 m, a natural chimney and a rock back wall in S, then the lintels (A, S's mouth), straight beds, C1's entry rock and E's bays | agent, opus, `.wt\cave` on `build/cavegen` | doing (started about 12:45 AM, Nov 17) |
-| Soft helm ping (D-060): a thin, faint wave on nearby rock only, about one ping every 6 s, a softer and lower sound, cool #BFE3EA instead of amber; `Deep.Sonar.Style` switches old and new for frames | agent, opus, `.wt\text` on `build/sonar-soft` | doing (started 11:55 PM, Nov 16) |
+| Soft helm ping (D-060): a thin, faint wave on nearby rock only, about one ping every 6 s, a softer and lower sound, cool #BFE3EA instead of amber; `Deep.Sonar.Style` switches old and new for frames | agent, opus, `.wt\text` on `build/sonar-soft` | done, `2d6f383` (pushed, not merged). 25 of 25 tests by the agent's numbers; frames old beside new on the page (v26). The serpent no longer stalks from helm pings alone; waits for Quinn's OK on the look, the sound and that |
 | BT-01 on our sub (D-062): the model replaces the basic-shapes dress, fitted to the 12.3 × 3.3 × 5.0 m hull box, behind `Deep.Sub.Model`. First pass `b43e4cf`: the model shows, but the hull still collides as the old 4.8 m wide box, its lights sit inside the model, a square hatch plate shows, and SubHullShape fails. Second pass since 12:15 AM, Nov 17: collision from the model, the hull's box from the model, lights on its surface, the plate hidden | agent, opus, `.wt\subs` on `build/sub-model` | doing |
 | Caves into the dive: place the chunk string in the still world at runtime, replace DeepShaft and DeepCavern behind a switch, start runs in S, and fly the sub along the path with steering and hull hits. BT-01's centre sits about 0.94 m aft of the hull's origin (the hatch), so the cave tool's hull box shifts aft by that much | agent, opus | next, after round 5 and the soft ping (both touch the tuning file) |
 | The orange lattice at the helm: volumetric fog where it meets cave rock, in `jam-final` too. Find the cause and fix it | agent | step 4 is merged; waits for Quinn's OK |

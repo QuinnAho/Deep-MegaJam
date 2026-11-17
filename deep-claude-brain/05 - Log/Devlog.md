@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 00:50 EST
+updated: 2026-11-17 01:05 EST
 ---
 # Devlog
 
@@ -1268,3 +1268,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: round 5 (`0e7c183` on `build/cavegen`) gives the joints three matching types (bed, rift and key) and adds the start cavern S, with a berth, a chimney and the exit ahead. The string is S, A, T1, C1, B, E. The agent's checks pass: no hull contacts along the path, no joint gaps, under 4 ms GPU median at the helm.
 - Failed: from the helm a dark crease still rings each joint, S's chimney looks drilled, with lathe rings, and S's back reads as a box. The lintels, straight beds, C1's entry rock and E's bays were not reached.
 - Next: round 6 fixes those (started 12:45 AM). The BT-01 second pass and the soft ping are still running.
+
+### 1:05 AM, Nov 17  The soft ping is built
+- Changed: `2d6f383` on `build/sonar-soft` (pushed, not merged) makes the helm ping a thin, faint #BFE3EA line on nearby rock, about once every 6 s and gone by 1.2 s, with a quieter, lower sound. The jam look stays behind `Deep.Sonar.Style 0`. Frames old beside new are on the page (v26).
+- Found: the serpent hears each ping (40 noise, falling 10 a second, Stalk at 60). At 6 s the noise is back to 0 before the next ping, so the helm's pings alone no longer make it stalk; driving at half speed or more, a knock, the winch or a harpoon still do. That matches its Nov 15 hearing notes. I recommend keeping it; Quinn decides.
+- Next: Quinn's OK on the look, the sound and the serpent, then my own test run and the merge. Nobody has heard the two sounds yet.
