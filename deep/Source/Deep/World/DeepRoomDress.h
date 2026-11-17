@@ -1,8 +1,9 @@
 // The room's dressing (Lane E, rescope Nov 15): what makes the box a cramped, worn, working submarine. Hull ribs, pipe
-// runs with flanges and valve wheels, a cable tray with cable drops, gauges, lockers, a fold-down bench, a ladder to the
+// runs with flanges and valve wheels, a cable tray with cable drops, gauges, two lockers, a ladder to the
 // ceiling scuttle and caged lights, all engine basic shapes, instanced (one ISM per shape and material), no collision.
 // The layout is pure (Pieces, Lights) and tested: every piece inside the room, none in a walk, the hatch or the helm zone.
-// Light only from sources: amber practicals at the console and helm, red emergency, one low cool strip.
+// Light only from sources: amber practicals at the console and helm, red emergency, one cool strip on the port wall.
+// Laid out in the room set's own inside (World/DeepRoomLayout, fitted to BT-01 on Nov 17).
 
 #pragma once
 
@@ -28,7 +29,7 @@ enum class EDeepRoomMat : uint8
 	Frame,   // worn dark painted steel: ribs, lockers, tray, cages
 	Pipe,    // pipe paint, rustier
 	Brass,   // dull tarnished brass: valve wheels, gauge bezels, handles
-	Rubber,  // cables, the bench cushion, locker vents
+	Rubber,  // cables, locker vents
 	Glass,   // grimy glass: gauge faces, bulbs, the strip's cover
 	Count
 };
@@ -80,10 +81,10 @@ namespace DeepRoomDress
 	/** True when the box reaches below head height into a walk (walker radius plus the margin). */
 	DEEP_API bool BlocksWalk(const FBox& Box, const FDeepSubTuning& Sub, const FDeepRoomDressTuning& Dress, double WalkerRadiusCm);
 
-	/** True when the box reaches below head height into the hatch opening plus its clear margin. */
+	/** True when the box reaches below head height within the round hatch plus its clear margin (a disc round the origin). */
 	DEEP_API bool InHatchZone(const FBox& Box, const FDeepSubTuning& Sub, const FDeepRoomDressTuning& Dress);
 
-	/** True when the box reaches below head height within the helm clear radius of the seat. */
+	/** True when the box reaches below head height within the helm clear radius of the seat or either helm lever. */
 	DEEP_API bool InHelmZone(const FBox& Box, const FDeepSubTuning& Sub, const FDeepRoomDressTuning& Dress);
 
 	/** Constructor side: one ISM per shape and material, one light per Lights entry, instances placed. */

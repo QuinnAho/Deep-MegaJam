@@ -200,6 +200,7 @@ bool FDeepSubHatchTest::RunTest(const FString& Parameters)
 	// The console without cargo buys nothing it cannot afford; the helm seats the diver.
 	W.Diver->TeleportDiver(Room->GetConsoleLocation() - FVector(0.f, 100.f, 0.f));
 	TestTrue(TEXT("Near the console"), W.Run->IsNearConsole());
+	TestFalse(TEXT("At the console E is the console's alone"), W.Run->IsNearValve() || W.Run->IsNearHelm());
 	W.Run->Use();
 	TestEqual(TEXT("No cargo: no settlement"), W.Run->GetState(), EDeepRunState::Aboard);
 	W.Diver->TeleportDiver(Room->GetHelmLocation() - FVector(80.f, 0.f, 0.f));
@@ -234,6 +235,7 @@ bool FDeepSubAirlockTest::RunTest(const FString& Parameters)
 	// A short hold turns the wheel part way; letting go springs it back.
 	W.StandAtValve();
 	TestTrue(TEXT("Near the valve"), W.Run->IsNearValve());
+	TestFalse(TEXT("At the valve E turns the wheel, not the console (the nearest station wins)"), W.Run->IsNearConsole() || W.Run->IsNearHelm());
 	W.Run->Use();
 	W.Run->StepRun(Lock.ValveHoldSeconds * 0.5f);
 	TestTrue(TEXT("Half a hold: the wheel half turned"), W.Run->GetValveTurn01() > 0.3f && W.Run->GetValveTurn01() < 0.7f);

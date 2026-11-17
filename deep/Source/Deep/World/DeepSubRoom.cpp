@@ -16,6 +16,7 @@
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepRoomDress.h"
+#include "World/DeepRoomLayout.h"
 #include "World/DeepShapes.h"
 #include "World/DeepSubParts.h"
 
@@ -38,6 +39,25 @@ namespace
 	// The porthole's backdrop: this far outside the front wall, this big (it fills every view through the glass).
 	constexpr double BackdropOutCm = 500.0;
 	constexpr double BackdropSizeCm = 3000.0;
+	// The round hatch: the cover's plate stands this far proud of the deck, on a wider rim ring with three dogs.
+	constexpr double HatchProudCm = 1.0;
+	constexpr double HatchRimWideCm = 10.0;
+	// The wet patch round the hatch, in hatch radii.
+	constexpr double PuddleRadii = 2.4;
+
+	/** `Deep.Room.Roof 0|1`: hides the room's ceiling and its strips' fixtures, for the plan view from above. */
+	FAutoConsoleCommandWithWorldAndArgs GRoomRoofCmd(
+		TEXT("Deep.Room.Roof"),
+		TEXT("Deep.Room.Roof <0|1>: 0 hides the sub room's ceiling (a plan view from above), 1 shows it."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const bool bOn = Args.Num() == 0 || FCString::Atoi(*Args[0]) != 0;
+			for (TActorIterator<ADeepSubRoom> It(World); It; ++It)
+			{
+				It->SetRoofVisible(bOn);
+			}
+			UE_LOG(LogTemp, Log, TEXT("DEEPROOMROOF visible=%d"), bOn ? 1 : 0);
+		}));
 }
 
 ADeepSubRoom::ADeepSubRoom()
@@ -59,21 +79,21 @@ ADeepSubRoom::ADeepSubRoom()
 		}
 		return Shape;
 	};
-	for (const TCHAR* Name : { TEXT("DeckFront"), TEXT("DeckBack"), TEXT("DeckLeft"), TEXT("DeckRight") })
-	{
-		Deck.Add(Make(Name, DeepShapes::Cube, true));
-	}
+	// One slab: the room's round hatch is shut for good (the airlock is the way out), so the deck runs under it.
+	Deck.Add(Make(TEXT("DeckSlab"), DeepShapes::Cube, true));
 	for (const TCHAR* Name : { TEXT("WallFront"), TEXT("WallBack"), TEXT("WallLeft"), TEXT("WallRight"), TEXT("WallFrontTop"), TEXT("WallFrontPort"), TEXT("WallFrontStarboard") })
 	{
 		Walls.Add(Make(Name, DeepShapes::Cube, true));
 	}
 	Ceiling = Make(TEXT("Ceiling"), DeepShapes::Cube, true);
-	for (const TCHAR* Name : { TEXT("RimA"), TEXT("RimB"), TEXT("RimC"), TEXT("RimD") })
+	// The rim ring under the cover and three dogs that clamp it.
+	HatchRim.Add(Make(TEXT("RimRing"), DeepShapes::Cylinder, false));
+	for (const TCHAR* Name : { TEXT("RimDogA"), TEXT("RimDogB"), TEXT("RimDogC") })
 	{
 		HatchRim.Add(Make(Name, DeepShapes::Cube, false));
 	}
-	// Shut for good: the room's hatch is a door you work, not a hole.
-	HatchCover = Make(TEXT("HatchCover"), DeepShapes::Cube, true);
+	// Shut for good: the room's hatch is a door you work, not a hole. A plate flush with the deck, safe to walk over.
+	HatchCover = Make(TEXT("HatchCover"), DeepShapes::Cylinder, false);
 
 	ValvePivot = CreateDefaultSubobject<USceneComponent>(TEXT("ValvePivot"));
 	ValvePivot->SetupAttachment(Root);
@@ -171,80 +191,127 @@ void ADeepSubRoom::LayOut()
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
 	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
 	const double M = UDeepRules::CmPerM;
-	const double L = T.RoomHalfLengthM * M;
-	const double W = T.RoomHalfWidthM * M;
-	const double H = T.RoomHeightM * M;
-	const double Th = T.WallThicknessM * M;
-	const double Hh = T.HatchHalfSizeM * M;
-	const double DeckTop = -H * 0.5;
-	const double DeckZ = DeckTop - Th * 0.5;
+	// The room's own inside (World/DeepRoomLayout), fitted to BT-01's cabin; the hatch's centre is the origin.
+	const FBox In = DeepRoomLayout::Inside(T);
+	const double Aft = In.Min.X;
+	const double Fore = In.Max.X;
+	const double W = In.Max.Y;
+	const double DeckTop = In.Min.Z;
+	const double Ceil = In.Max.Z;
+	const double H = Ceil - DeckTop;
+	const double Len = Fore - Aft;
+	const double MidX = (Aft + Fore) * 0.5;
+	const double Th = T.InsideWallThicknessM * M;
+	const double OuterW = W + Th;
+	const FBox Port = DeepRoomLayout::Porthole(T);
+	const double PortZ = Port.GetCenter().Z;
+	const double PortHalfW = Port.GetExtent().Y;
+	const double PortHalfH = Port.GetExtent().Z;
+	const double PortBottom = PortZ - PortHalfH;
+	const double PortTop = PortZ + PortHalfH;
 
-	LayOutShell(Deck, Walls, Ceiling);
-	LayOutRim(HatchRim);
-	Place(HatchCover, FVector(0.0, 0.0, DeckZ + 2.0), FVector(Hh * 2.0, Hh * 2.0, Th));
+	// The shell: one deck slab, the aft and side walls, the front wall in four pieces round the porthole, the ceiling.
+	if (Deck.Num() > 0)
+	{
+		Place(Deck[0], FVector(MidX, 0.0, DeckTop - Th * 0.5), FVector(Len + Th * 2.0, OuterW * 2.0, Th));
+	}
+	if (Walls.Num() == 7)
+	{
+		Place(Walls[0], FVector(Fore + Th * 0.5, 0.0, (DeckTop + PortBottom) * 0.5), FVector(Th, OuterW * 2.0, PortBottom - DeckTop));
+		Place(Walls[1], FVector(Aft - Th * 0.5, 0.0, 0.0), FVector(Th, OuterW * 2.0, H));
+		Place(Walls[2], FVector(MidX, W + Th * 0.5, 0.0), FVector(Len, Th, H));
+		Place(Walls[3], FVector(MidX, -W - Th * 0.5, 0.0), FVector(Len, Th, H));
+		Place(Walls[4], FVector(Fore + Th * 0.5, 0.0, (PortTop + Ceil) * 0.5), FVector(Th, OuterW * 2.0, Ceil - PortTop));
+		Place(Walls[5], FVector(Fore + Th * 0.5, -(PortHalfW + OuterW) * 0.5, PortZ), FVector(Th, OuterW - PortHalfW, PortHalfH * 2.0));
+		Place(Walls[6], FVector(Fore + Th * 0.5, (PortHalfW + OuterW) * 0.5, PortZ), FVector(Th, OuterW - PortHalfW, PortHalfH * 2.0));
+	}
+	Place(Ceiling, FVector(MidX, 0.0, Ceil + Th * 0.5), FVector(Len + Th * 2.0, OuterW * 2.0, Th));
+
+	// The round hatch: a plate just proud of the deck on a wider ring, three dogs round its edge.
+	const double R = DeepRoomLayout::HatchRadiusCm(T);
+	Place(HatchCover, FVector(0.0, 0.0, DeckTop + HatchProudCm - 2.0), FVector(R * 2.0, R * 2.0, 4.0));
+	if (HatchRim.Num() == 4)
+	{
+		Place(HatchRim[0], FVector(0.0, 0.0, DeckTop + HatchProudCm * 0.5 - 2.0), FVector((R + HatchRimWideCm) * 2.0, (R + HatchRimWideCm) * 2.0, 4.0));
+		for (int32 Dog = 0; Dog < 3; ++Dog)
+		{
+			const double Yaw = 60.0 + 120.0 * Dog;
+			const FVector Dir(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)), 0.0);
+			Place(HatchRim[Dog + 1], Dir * (R + 2.0) + FVector(0.0, 0.0, DeckTop + 2.0), FVector(16.0, 8.0, 4.0));
+			HatchRim[Dog + 1]->SetRelativeRotation(FRotator(0.f, static_cast<float>(Yaw), 0.f));
+		}
+	}
 	ValvePivot->SetRelativeLocation(FVector(T.ValveM.X * M, T.ValveM.Y * M, DeckTop + 2.0));
 
+	// The console against the side wall, its screen on the face toward the room.
 	const FVector2D C = T.ConsoleM * M;
-	Place(Console, FVector(C.X, C.Y + 20.0, DeckTop + 55.0), FVector(120.0, 50.0, 110.0));
-	Place(ConsoleScreen, FVector(C.X, C.Y - 6.0, DeckTop + 100.0), FVector(90.0, 4.0, 45.0));
+	const FBox ConsoleBox = DeepRoomLayout::Console(T);
+	Place(Console, ConsoleBox.GetCenter(), ConsoleBox.GetSize());
+	const double Toward = C.Y >= 0.0 ? -1.0 : 1.0;
+	const double ConsoleFaceY = Toward < 0.0 ? ConsoleBox.Min.Y : ConsoleBox.Max.Y;
+	Place(ConsoleScreen, FVector(C.X, ConsoleFaceY + Toward * 1.0, DeckTop + 100.0), FVector(80.0, 4.0, 45.0));
 
+	// The helm at the bow: the seat, the panel in front of it, the panel's screen facing the seat, the porthole above.
 	const FVector2D Hm = T.HelmM * M;
-	Place(HelmSeat, FVector(Hm.X - 60.0, Hm.Y, DeckTop + 25.0), FVector(55.0, 55.0, 50.0));
-	Place(HelmPanel, FVector(Hm.X + 30.0, Hm.Y, DeckTop + 45.0), FVector(35.0, 120.0, 90.0));
-	Place(Window, FVector(L + Th * 0.5, 0.0, WinZ), FVector(2.0, WinHalfW * 2.0, WinHalfH * 2.0));
-	const double HelmScreenX = Hm.X + 30.0 - 17.5 - 1.0;
+	const FBox Seat = DeepRoomLayout::HelmSeat(T);
+	const FBox Panel = DeepRoomLayout::HelmPanel(T);
+	Place(HelmSeat, Seat.GetCenter(), Seat.GetSize());
+	Place(HelmPanel, Panel.GetCenter(), Panel.GetSize());
+	const double HelmScreenX = Panel.Min.X - 1.0;
 	Place(HelmScreen, FVector(HelmScreenX, Hm.Y, DeckTop + 62.0), FVector(2.0, 95.0, 45.0));
-	Place(PortholeBackdrop, FVector(L + Th + BackdropOutCm, 0.0, WinZ), FVector(10.0, BackdropSizeCm, BackdropSizeCm));
+	Place(Window, FVector(Fore + Th * 0.5, 0.0, PortZ), FVector(2.0, PortHalfW * 2.0, PortHalfH * 2.0));
+	Place(PortholeBackdrop, FVector(Fore + Th + BackdropOutCm, 0.0, PortZ), FVector(10.0, BackdropSizeCm, BackdropSizeCm));
 
+	// Two ceiling strips from the scuttle to the helm seat, and one across the nose over the helm.
 	const double StripY = W - 45.0;
 	for (int32 Index = 0; Index < Strips.Num() && Index < StripFixtures.Num(); ++Index)
 	{
 		if (Index == 2)
 		{
-			const double NoseX = L - Look.NoseStripBackCm;
-			const double Span = W * 2.0 - 90.0;
-			Place(StripFixtures[Index], FVector(NoseX, 0.0, H * 0.5 - 4.0), FVector(14.0, Span + 20.0, 8.0));
-			Strips[Index]->SetRelativeLocation(FVector(NoseX, 0.0, H * 0.5 - 9.0));
+			const double NoseX = Fore - Look.NoseStripBackCm;
+			const double Span = W * 2.0 - 60.0;
+			Place(StripFixtures[Index], FVector(NoseX, 0.0, Ceil - 4.0), FVector(14.0, Span + 20.0, 8.0));
+			Strips[Index]->SetRelativeLocation(FVector(NoseX, 0.0, Ceil - 9.0));
 			Strips[Index]->SetRelativeRotation(FRotator(-90.f, 90.f, 0.f));
 			Strips[Index]->SetSourceWidth(10.f);
 			Strips[Index]->SetSourceHeight(static_cast<float>(Span));
 			continue;
 		}
 		const double Y = Index == 0 ? StripY : -StripY;
-		const double AftX = -L + 30.0;
-		const double ForeX = 200.0;
-		const double MidX = (AftX + ForeX) * 0.5;
-		const double Len = ForeX - AftX;
-		Place(StripFixtures[Index], FVector(MidX, Y, H * 0.5 - 4.0), FVector(Len + 20.0, 14.0, 8.0));
-		Strips[Index]->SetRelativeLocation(FVector(MidX, Y, H * 0.5 - 9.0));
+		const double AftX = Aft + 60.0;  // forward of the ceiling scuttle (World/DeepRoomDress)
+		const double ForeX = Seat.Min.X - 10.0;
+		const double StripMidX = (AftX + ForeX) * 0.5;
+		const double StripLen = ForeX - AftX;
+		Place(StripFixtures[Index], FVector(StripMidX, Y, Ceil - 4.0), FVector(StripLen + 20.0, 14.0, 8.0));
+		Strips[Index]->SetRelativeLocation(FVector(StripMidX, Y, Ceil - 9.0));
 		Strips[Index]->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
 		Strips[Index]->SetSourceWidth(10.f);
-		Strips[Index]->SetSourceHeight(static_cast<float>(Len));
+		Strips[Index]->SetSourceHeight(static_cast<float>(StripLen));
 	}
-	ConsoleLight->SetRelativeLocation(FVector(C.X, C.Y - 12.0, DeckTop + 100.0));
-	ConsoleLight->SetRelativeRotation(FRotator(-20.f, -90.f, 0.f));
-	ConsoleLight->SetSourceWidth(90.f);
+	ConsoleLight->SetRelativeLocation(FVector(C.X, ConsoleFaceY + Toward * 7.0, DeckTop + 100.0));
+	ConsoleLight->SetRelativeRotation(FRotator(-20.f, Toward < 0.0 ? -90.f : 90.f, 0.f));
+	ConsoleLight->SetSourceWidth(80.f);
 	ConsoleLight->SetSourceHeight(45.f);
 	HelmLight->SetRelativeLocation(FVector(HelmScreenX - 6.0, Hm.Y, DeckTop + 62.0));
 	HelmLight->SetRelativeRotation(FRotator(-10.f, 180.f, 0.f));
 	HelmLight->SetSourceWidth(95.f);
 	HelmLight->SetSourceHeight(45.f);
-	HatchRed->SetRelativeLocation(FVector(0.0, -Hh - 60.0, DeckTop + 35.0));
+	HatchRed->SetRelativeLocation(DeepRoomLayout::HatchLampPost(T) + FVector(0.0, 0.0, 35.0));
 
-	const double BezelX = L - 4.0;
-	const double BezelW = 12.0;
+	const double BezelX = Fore - 4.0;
+	const double BezelW = 10.0;
 	if (WindowBezel.Num() == 4)
 	{
-		Place(WindowBezel[0], FVector(BezelX, 0.0, WinZ + WinHalfH + BezelW * 0.5), FVector(8.0, 2.0 * (WinHalfW + BezelW), BezelW));
-		Place(WindowBezel[1], FVector(BezelX, 0.0, WinZ - WinHalfH - BezelW * 0.5), FVector(8.0, 2.0 * (WinHalfW + BezelW), BezelW));
-		Place(WindowBezel[2], FVector(BezelX, -(WinHalfW + BezelW * 0.5), WinZ), FVector(8.0, BezelW, 2.0 * WinHalfH));
-		Place(WindowBezel[3], FVector(BezelX, WinHalfW + BezelW * 0.5, WinZ), FVector(8.0, BezelW, 2.0 * WinHalfH));
+		Place(WindowBezel[0], FVector(BezelX, 0.0, PortTop + BezelW * 0.5), FVector(8.0, 2.0 * (PortHalfW + BezelW), BezelW));
+		Place(WindowBezel[1], FVector(BezelX, 0.0, PortBottom - BezelW * 0.5), FVector(8.0, 2.0 * (PortHalfW + BezelW), BezelW));
+		Place(WindowBezel[2], FVector(BezelX, -(PortHalfW + BezelW * 0.5), PortZ), FVector(8.0, BezelW, 2.0 * PortHalfH));
+		Place(WindowBezel[3], FVector(BezelX, PortHalfW + BezelW * 0.5, PortZ), FVector(8.0, BezelW, 2.0 * PortHalfH));
 	}
 
-	RoomVolume->SetRelativeLocation(FVector::ZeroVector);
-	RoomVolume->SetBoxExtent(FVector(L, W, H * 0.5));
-	RoomLight->SetRelativeLocation(FVector(-100.0, 0.0, H * 0.5 - 30.0));
-	PortholeLight->SetRelativeLocation(FVector(L + Th + BackdropOutCm * 0.5, 0.0, WinZ));
+	RoomVolume->SetRelativeLocation(FVector(MidX, 0.0, 0.0));
+	RoomVolume->SetBoxExtent(FVector(Len * 0.5, W, H * 0.5));
+	RoomLight->SetRelativeLocation(FVector(60.0, 0.0, Ceil - 25.0));
+	PortholeLight->SetRelativeLocation(FVector(Fore + Th + BackdropOutCm * 0.5, 0.0, PortZ));
 }
 
 void ADeepSubRoom::ApplyLook()
@@ -254,7 +321,7 @@ void ADeepSubRoom::ApplyLook()
 	const FSubPaints P = Paints();
 
 	const FVector Hatch = GetHatchLocation();
-	const float PuddleRadius = Sub.HatchHalfSizeM * UDeepRules::CmPerM * 3.2f;
+	const float PuddleRadius = static_cast<float>(DeepRoomLayout::HatchRadiusCm(Sub) * PuddleRadii);
 	for (UStaticMeshComponent* Shape : Deck)
 	{
 		SubSteel(Shape, P.Floor, Hatch, PuddleRadius);
@@ -418,14 +485,14 @@ FVector ADeepSubRoom::Local(double X, double Y, double Z) const
 
 double ADeepSubRoom::GetDeckTopZ() const
 {
-	return GetActorLocation().Z - UDeepTuningSettings::Get().Sub.RoomHeightM * UDeepRules::CmPerM * 0.5;
+	return GetActorLocation().Z + DeepRoomLayout::DeckTopCm(UDeepTuningSettings::Get().Sub);
 }
 
 FTransform ADeepSubRoom::GetRoomStartTransform() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
 	const FVector2D At = T.RoomStartM * UDeepRules::CmPerM;
-	const FVector Start = Local(At.X, At.Y, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 92.0);
+	const FVector Start = Local(At.X, At.Y, DeepRoomLayout::DeckTopCm(T) + 92.0);
 	return FTransform(FRotator(0.f, GetActorRotation().Yaw, 0.f), Start);
 }
 
@@ -433,39 +500,37 @@ FVector ADeepSubRoom::GetEnterStandLocation() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
 	const FVector2D At = T.EnterStandM * UDeepRules::CmPerM;
-	return Local(At.X, At.Y, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 92.0);
+	return Local(At.X, At.Y, DeepRoomLayout::DeckTopCm(T) + 92.0);
 }
 
 FVector ADeepSubRoom::GetHatchLocation() const
 {
-	return Local(0.0, 0.0, -UDeepTuningSettings::Get().Sub.RoomHeightM * UDeepRules::CmPerM * 0.5);
+	return Local(0.0, 0.0, DeepRoomLayout::DeckTopCm(UDeepTuningSettings::Get().Sub));
 }
 
 FVector ADeepSubRoom::GetValveLocation() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	return Local(T.ValveM.X * UDeepRules::CmPerM, T.ValveM.Y * UDeepRules::CmPerM, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 10.0);
+	return Local(T.ValveM.X * UDeepRules::CmPerM, T.ValveM.Y * UDeepRules::CmPerM, DeepRoomLayout::DeckTopCm(T) + 10.0);
 }
 
 FVector ADeepSubRoom::GetConsoleLocation() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	return Local(T.ConsoleM.X * UDeepRules::CmPerM, T.ConsoleM.Y * UDeepRules::CmPerM, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 100.0);
+	return Local(T.ConsoleM.X * UDeepRules::CmPerM, T.ConsoleM.Y * UDeepRules::CmPerM, DeepRoomLayout::DeckTopCm(T) + 100.0);
 }
 
 FVector ADeepSubRoom::GetHelmLocation() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
-	return Local(T.HelmM.X * UDeepRules::CmPerM, T.HelmM.Y * UDeepRules::CmPerM, -T.RoomHeightM * UDeepRules::CmPerM * 0.5 + 90.0);
+	return Local(T.HelmM.X * UDeepRules::CmPerM, T.HelmM.Y * UDeepRules::CmPerM, DeepRoomLayout::DeckTopCm(T) + 90.0);
 }
 
 bool ADeepSubRoom::IsInRoom(const FVector& WorldCm, double MarginCm) const
 {
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
+	const FBox In = DeepRoomLayout::Inside(UDeepTuningSettings::Get().Sub);
 	const FVector P = GetActorTransform().InverseTransformPosition(WorldCm);
-	const double M = UDeepRules::CmPerM;
-	return FMath::Abs(P.X) <= T.RoomHalfLengthM * M && FMath::Abs(P.Y) <= T.RoomHalfWidthM * M
-		&& P.Z >= -T.RoomHeightM * M * 0.5 - MarginCm && P.Z <= T.RoomHeightM * M * 0.5;
+	return P.X >= In.Min.X && P.X <= In.Max.X && P.Y >= In.Min.Y && P.Y <= In.Max.Y && P.Z >= In.Min.Z - MarginCm && P.Z <= In.Max.Z;
 }
 
 bool ADeepSubRoom::IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const
@@ -473,7 +538,34 @@ bool ADeepSubRoom::IsWithinUseRange(const FVector& WorldCm, const FVector& Point
 	return FVector::DistXY(WorldCm, PointCm) <= UDeepTuningSettings::Get().Sub.UseRangeM * UDeepRules::CmPerM;
 }
 
+EDeepRoomStation ADeepSubRoom::GetStationInReach(const FVector& WorldCm) const
+{
+	const TPair<EDeepRoomStation, FVector> Stations[] = {
+		{ EDeepRoomStation::Helm, GetHelmLocation() }, { EDeepRoomStation::Console, GetConsoleLocation() }, { EDeepRoomStation::Valve, GetValveLocation() } };
+	EDeepRoomStation Best = EDeepRoomStation::None;
+	double BestCm = UDeepTuningSettings::Get().Sub.UseRangeM * UDeepRules::CmPerM;
+	for (const TPair<EDeepRoomStation, FVector>& Station : Stations)
+	{
+		const double Cm = FVector::DistXY(WorldCm, Station.Value);
+		if (Cm < BestCm || (Best == EDeepRoomStation::None && Cm <= BestCm))
+		{
+			Best = Station.Key;
+			BestCm = Cm;
+		}
+	}
+	return Best;
+}
+
 void ADeepSubRoom::SetRoomDressVisible(bool bVisible)
 {
 	DeepRoomDress::SetVisible(RoomDressMeshes, RoomDressLights, bVisible);
+}
+
+void ADeepSubRoom::SetRoofVisible(bool bVisible)
+{
+	Ceiling->SetVisibility(bVisible);
+	for (UStaticMeshComponent* Shape : StripFixtures)
+	{
+		Shape->SetVisibility(bVisible);
+	}
 }

@@ -27,6 +27,9 @@
 #include "World/DeepHull.h"
 #include "World/DeepArena.h"
 #include "World/DeepSubRoom.h"
+#include "World/DeepRoomDress.h"
+#include "World/DeepRoomLayout.h"
+#include "Camera/CameraComponent.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -508,32 +511,141 @@ bool FDeepSubReturnSwimTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubRoomLayoutTest, "Deep.World.SubRoomLayout", DEEP_RETURN_TEST_FLAGS)
 bool FDeepSubRoomLayoutTest::RunTest(const FString& Parameters)
 {
-	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
+	// The room set fitted to BT-01 (World/DeepRoomLayout): low and narrow, but every station in reach, no walk over the
+	// hatch, room for two to pass, and the diver's camera never in the ceiling or the dressing.
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepSubTuning& T = Tuning.Sub;
+	const FDeepRoomDressTuning& Dress = Tuning.RoomDress;
 	const ADeepDiver* Default = GetDefault<ADeepDiver>();
 	const double WalkerRadius = Default->GetCapsuleComponent()->GetScaledCapsuleRadius();
+	const double WalkerHalfHeight = Default->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const UCameraComponent* Eye = Default->FindComponentByClass<UCameraComponent>();
+	UTEST_NOT_NULL(TEXT("The diver's camera"), Eye);
+	const double Clear = WalkerRadius + Dress.WalkMarginCm;
+	const double NearClipCm = 10.0;  // the engine's default near clipping plane
 	const double M = UDeepRules::CmPerM;
-	// The opening grown by the walker's radius: a centre outside it never drops (it still stands on the rim).
-	const double Half = T.HatchHalfSizeM * M + WalkerRadius;
-	const FBox Opening(FVector(-Half, -Half, -1.0), FVector(Half, Half, 1.0));
+	const FBox In = DeepRoomLayout::Inside(T);
+	const double Deck = DeepRoomLayout::DeckTopCm(T);
+	const FBox Console = DeepRoomLayout::Console(T);
+	const FBox Panel = DeepRoomLayout::HelmPanel(T);
+	const FBox Solids[] = { Console, Panel };
+
+	// The round hatch grown by the walker's radius: a centre outside it stands on the deck, not on the hatch.
+	const double Opening = DeepRoomLayout::HatchRadiusCm(T) + WalkerRadius;
+	TestTrue(TEXT("The round hatch is at least 1 m across"), DeepRoomLayout::HatchRadiusCm(T) * 2.0 >= 100.0);
 	const TPair<const TCHAR*, FVector2D> Stations[] = {
-		{ TEXT("start"), T.RoomStartM }, { TEXT("enter stand"), T.EnterStandM }, { TEXT("console"), T.ConsoleM }, { TEXT("helm"), T.HelmM } };
+		{ TEXT("start"), T.RoomStartM * M }, { TEXT("enter stand"), T.EnterStandM * M }, { TEXT("console"), T.ConsoleM * M }, { TEXT("helm"), T.HelmM * M } };
 	for (int32 A = 0; A < UE_ARRAY_COUNT(Stations); ++A)
 	{
-		const FVector P(Stations[A].Value * M, 0.0);
-		TestFalse(FString::Printf(TEXT("The %s is off the hatch"), Stations[A].Key), Opening.IsInside(P));
+		const FVector2D P = Stations[A].Value;
+		TestTrue(FString::Printf(TEXT("The %s is off the hatch"), Stations[A].Key), P.Size() > Opening);
+		TestTrue(FString::Printf(TEXT("The %s is inside the room with room for the walker"), Stations[A].Key),
+			P.X >= In.Min.X + WalkerRadius && P.X <= In.Max.X - WalkerRadius && FMath::Abs(P.Y) <= In.Max.Y - WalkerRadius);
 		for (int32 B = A + 1; B < UE_ARRAY_COUNT(Stations); ++B)
 		{
-			const FVector Q(Stations[B].Value * M, 0.0);
-			TestFalse(FString::Printf(TEXT("The straight walk %s -> %s misses the hatch"), Stations[A].Key, Stations[B].Key),
-				FMath::LineBoxIntersection(Opening, P, Q, Q - P));
+			const FVector2D Q = Stations[B].Value;
+			const FVector2D Closest = FMath::ClosestPointOnSegment2D(FVector2D::ZeroVector, P, Q);
+			TestTrue(FString::Printf(TEXT("The straight walk %s -> %s misses the hatch (%.0f cm off, needs %.0f)"), Stations[A].Key, Stations[B].Key,
+				Closest.Size(), Opening), Closest.Size() > Opening);
 		}
 	}
-	// Each station is inside the room with room for the walker.
-	for (const TPair<const TCHAR*, FVector2D>& Station : Stations)
+	// Where a diver is put (the start, the enter stand) a whole capsule fits clear of the console and the helm panel.
+	for (const FVector2D& Stand : { T.RoomStartM * M, T.EnterStandM * M })
 	{
-		TestTrue(FString::Printf(TEXT("The %s is inside the room"), Station.Key),
-			FMath::Abs(Station.Value.X * M) <= T.RoomHalfLengthM * M - WalkerRadius && FMath::Abs(Station.Value.Y * M) <= T.RoomHalfWidthM * M - WalkerRadius);
+		const FBox Foot(FVector(Stand.X - WalkerRadius, Stand.Y - WalkerRadius, Deck), FVector(Stand.X + WalkerRadius, Stand.Y + WalkerRadius, Deck + 1.0));
+		for (const FBox& Solid : Solids)
+		{
+			TestFalse(FString::Printf(TEXT("A diver put at %s stands clear of %s"), *Stand.ToString(), *Solid.ToString()), Foot.Intersect(Solid));
+		}
 	}
+	// Two divers put at the start and the enter stand at once do not overlap.
+	TestTrue(TEXT("The start and the enter stand are a walker apart"), FVector2D::Distance(T.RoomStartM, T.EnterStandM) * M >= 2.0 * Clear);
+	// The start, the enter stand, the console and the hatch's valve are all in use range of each other: no walking to work.
+	const TPair<const TCHAR*, FVector2D> Near[] = {
+		{ TEXT("start"), T.RoomStartM }, { TEXT("enter stand"), T.EnterStandM }, { TEXT("console"), T.ConsoleM }, { TEXT("valve"), T.ValveM } };
+	for (int32 A = 0; A < UE_ARRAY_COUNT(Near); ++A)
+	{
+		for (int32 B = A + 1; B < UE_ARRAY_COUNT(Near); ++B)
+		{
+			const double D = FVector2D::Distance(Near[A].Value, Near[B].Value);
+			TestTrue(FString::Printf(TEXT("The %s and the %s are in use range (%.2f m, range %.2f m)"), Near[A].Key, Near[B].Key, D, T.UseRangeM), D <= T.UseRangeM);
+		}
+	}
+	// The helm is at the bow: forward of everything else, the panel inside the room.
+	TestTrue(TEXT("The helm is the station furthest forward"), T.HelmM.X > T.RoomStartM.X && T.HelmM.X > T.ConsoleM.X && T.HelmM.X > T.EnterStandM.X);
+	TestTrue(TEXT("The helm panel stands inside the room"), In.ExpandBy(0.5).IsInside(Panel));
+	// The levers stand inside the room and clear of the panel (their knobs throw toward it).
+	for (const FBox& Lever : DeepRoomLayout::Levers(T, Tuning.Pilot))
+	{
+		TestTrue(FString::Printf(TEXT("A lever (%s) is inside the room"), *Lever.ToString()), In.IsInside(Lever));
+		TestFalse(FString::Printf(TEXT("A lever (%s) is clear of the helm panel"), *Lever.ToString()), Lever.Intersect(Panel));
+	}
+
+	// Two can pass (D-057): between the hatch and the helm seat there is a section where two walkers fit side by side,
+	// counting the console, the panel, the seat, the levers and every piece of dressing below head height.
+	TArray<FBox> Blocking = { Console, Panel, DeepRoomLayout::HelmSeat(T) };
+	Blocking.Append(DeepRoomLayout::Levers(T, Tuning.Pilot));
+	const TArray<FDeepRoomPiece> Pieces = DeepRoomDress::Pieces(T);
+	for (const FDeepRoomPiece& Piece : Pieces)
+	{
+		const FBox Box = DeepRoomDress::PieceBox(Piece);
+		if (Box.Min.Z < Deck + Dress.HeadClearCm)
+		{
+			Blocking.Add(Box);
+		}
+	}
+	double BestGap = 0.0;
+	double BestX = 0.0;
+	for (double X = 0.0; X <= T.HelmM.X * M; X += 2.0)
+	{
+		// Every box that reaches into a walker's length round X narrows the room there.
+		TArray<FVector2D> Taken;
+		for (const FBox& Box : Blocking)
+		{
+			if (Box.Max.X > X - Clear && Box.Min.X < X + Clear)
+			{
+				Taken.Emplace(Box.Min.Y, Box.Max.Y);
+			}
+		}
+		Taken.Sort([](const FVector2D& L, const FVector2D& R) { return L.X < R.X; });
+		double Edge = In.Min.Y;
+		double Gap = 0.0;
+		for (const FVector2D& Span : Taken)
+		{
+			Gap = FMath::Max(Gap, Span.X - Edge);
+			Edge = FMath::Max(Edge, Span.Y);
+		}
+		Gap = FMath::Max(Gap, In.Max.Y - Edge);
+		if (Gap > BestGap)
+		{
+			BestGap = Gap;
+			BestX = X;
+		}
+	}
+	TestTrue(FString::Printf(TEXT("Two walkers can pass between the hatch and the helm (widest %.0f cm at x %.0f, needs %.0f)"), BestGap, BestX, 4.0 * Clear),
+		BestGap >= 4.0 * Clear);
+
+	// Low and cramped, but the head clears: the dressing's head height is over a walker's head, the ceiling over that.
+	TestTrue(TEXT("The dressing's head clearance is over a walker's head"), Dress.HeadClearCm >= 2.0 * WalkerHalfHeight);
+	TestTrue(TEXT("The ceiling is over the dressing's head clearance"), In.Max.Z - Deck > Dress.HeadClearCm);
+	// The camera never clips: wherever the walker's centre can be, the eye stays a near clip plane from the ceiling and
+	// every piece of dressing.
+	const double EyeZ = Deck + WalkerHalfHeight + Eye->GetRelativeLocation().Z;
+	const FBox Eyes(FVector(In.Min.X + WalkerRadius, In.Min.Y + WalkerRadius, EyeZ), FVector(In.Max.X - WalkerRadius, In.Max.Y - WalkerRadius, EyeZ));
+	AddInfo(FString::Printf(TEXT("DEEPROOMFIT inside=%s eye=%.0f widest=%.0f@%.0f"), *In.ToString(), EyeZ - Deck, BestGap, BestX));
+	TestTrue(FString::Printf(TEXT("The eye (%.0f cm over the deck) is under the ceiling by more than the near clip"), EyeZ - Deck), In.Max.Z - EyeZ > NearClipCm);
+	int32 Clipped = 0;
+	for (const FDeepRoomPiece& Piece : Pieces)
+	{
+		const FBox Box = DeepRoomDress::PieceBox(Piece);
+		const double D = FMath::Sqrt(Box.ComputeSquaredDistanceToBox(Eyes));
+		if (D < NearClipCm)
+		{
+			++Clipped;
+			AddError(FString::Printf(TEXT("The camera can come %.1f cm from a dressing piece at %s"), D, *Box.ToString()));
+		}
+	}
+	TestEqual(TEXT("Dressing pieces the camera can clip"), Clipped, 0);
 	return true;
 }
 
