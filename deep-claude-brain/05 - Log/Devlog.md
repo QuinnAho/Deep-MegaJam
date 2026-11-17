@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-16 23:55 EST
+updated: 2026-11-17 00:50 EST
 ---
 # Devlog
 
@@ -1263,3 +1263,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided: Quinn's calls. Joints come in two or three matching types (D-059). The helm ping stays automatic but goes soft and low-key (D-060). Runs start in a calm start cavern (D-061). BT-01 is our sub (D-062).
 - Failed: `ue.ps1 editor` returns as soon as the editor starts, so the slot wrapper let go of the slot with an editor still open. Editor sessions now hold the slot until the editor exits (`.claude/loop.md`).
 - Next: three lanes run at once: caves round 5 (joint types and S), the soft ping, and BT-01 on the sub. Then the assembler puts the caves into the dive.
+
+### 12:50 AM, Nov 17  Cave round 5: three joint types and a start cavern
+- Changed: round 5 (`0e7c183` on `build/cavegen`) gives the joints three matching types (bed, rift and key) and adds the start cavern S, with a berth, a chimney and the exit ahead. The string is S, A, T1, C1, B, E. The agent's checks pass: no hull contacts along the path, no joint gaps, under 4 ms GPU median at the helm.
+- Failed: from the helm a dark crease still rings each joint, S's chimney looks drilled, with lathe rings, and S's back reads as a box. The lintels, straight beds, C1's entry rock and E's bays were not reached.
+- Next: round 6 fixes those (started 12:45 AM). The BT-01 second pass and the soft ping are still running.
