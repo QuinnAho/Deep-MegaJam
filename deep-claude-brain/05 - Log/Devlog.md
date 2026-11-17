@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 02:23 EST
+updated: 2026-11-17 02:48 EST
 ---
 # Devlog
 
@@ -1288,3 +1288,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: `20b0dea` on `build/cavegen` (pushed, not merged). The three pale boulders at S's way out are gone, and E narrows into a choke of broken rock instead of the tube's flat end cap. All checks green by the agent's numbers; I checked the changed views on frames.
 - Found: the joint rims look cut because the rock's surface detail fades to nothing over 6.5 m at each joint plane (3.5 m for fine detail), so both pieces meet on a bare outline. Shared detail in the joint's frame would fix it, but the rim tools and joint checks need rework and all six pieces rebuild.
 - Next: frames page v28 shows 7b. I proposed to Quinn to judge the rims under the sub's lights in the game first and to make the caves drivable meanwhile. That waits on Quinn.
+
+### 2:48 AM, Nov 17  BT-01: the diver stops on the model; the dark shapes are shadows
+- Changed: `5d78c5a` and `daf3a69` on `build/sub-model` (pushed, not merged). The model is the diver's collider now (2048 convex hulls merged from 13,205; the propellers, arms, drill and rope have none), its lights sit on the skin (red to port, green to starboard, blinking at 1 Hz), and the square hatch plate is hidden. New cheats switch the lamps and log a perf readout.
+- Found: the hard black shapes on the hull up close are shadows, not holes; with no lighting the paint is whole. On the side they come from the light above, with nothing to fill them at depth; on the tower from the diver's lamp, which sits off to one side. The collision costs 2.8 ms of game thread with the diver against the hull, and the frame time doesn't change.
+- Next: frames page v30 asks Quinn to OK the merge, and the full suite runs before it. The shadows and the lamp's washout go to the look pass (D-028).
