@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 01:05 EST
+updated: 2026-11-17 01:20 EST
 ---
 # Devlog
 
@@ -1273,3 +1273,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: `2d6f383` on `build/sonar-soft` (pushed, not merged) makes the helm ping a thin, faint #BFE3EA line on nearby rock, about once every 6 s and gone by 1.2 s, with a quieter, lower sound. The jam look stays behind `Deep.Sonar.Style 0`. Frames old beside new are on the page (v26).
 - Found: the serpent hears each ping (40 noise, falling 10 a second, Stalk at 60). At 6 s the noise is back to 0 before the next ping, so the helm's pings alone no longer make it stalk; driving at half speed or more, a knock, the winch or a harpoon still do. That matches its Nov 15 hearing notes. I recommend keeping it; Quinn decides.
 - Next: Quinn's OK on the look, the sound and the serpent, then my own test run and the merge. Nobody has heard the two sounds yet.
+
+### 1:20 AM, Nov 17  Cave round 6: half there
+- Changed: `06770f2` on `build/cavegen` (pushed, not merged). S's chimney has no rings, the lumps around S's way out are gone, the T1-C1 opening is a natural arch and B-E lost its lintel. The checks hold: 0 hull contacts in 1168 samples, joint gap 0, 0 tether leaks.
+- Failed: the keyhole still reads as a cut doorway, creases remain at three joint rims, E's bay came out crumpled and C1's entry rock faceted. The frame cameras are fixed world points, and round 6's rock now wraps two of them, so the squeeze frame (GPU view 1 too) shows the inside of the rock. The agent's report missed it; the frame check caught it.
+- Next: round 7 (started 1:18 AM) fixes those, fails any run with a camera under 50 cm from rock, and measures the GPU for rounds 6 and 7 back to back.
