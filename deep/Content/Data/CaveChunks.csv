@@ -1,7 +1,7 @@
 Name,Mesh,Type,InType,OutType,ExitX,ExitY,ExitZ,ExitYaw,MinX,MinY,MinZ,MaxX,MaxY,MaxZ
-S,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_S.SM_CaveChunk_S,start,,rift,4200,0,-250,0,-2556.6,-2558.6,-1022.6,4200,1913.1,3116.1
-A,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_A.SM_CaveChunk_A,tunnel,rift,key,3000,0,0,0,0,-594.2,-1010,3000,631.5,1414.9
-B,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_B.SM_CaveChunk_B,cavern,rift,bed,3000,0,0,0,0,-1581.5,-726.8,3000,1666.9,1823.1
-T1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_T1.SM_CaveChunk_T1,tunnel,key,bed,5300,4800,-600,90,0,-986.4,-1366.6,6258.7,4800,1683.2
-C1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_C1.SM_CaveChunk_C1,stop,bed,rift,4600,-2771.281,-2400,-60,0,-2988,-3110,5259.1,1809,2359.5
-E,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_E.SM_CaveChunk_E,end,bed,,0,0,0,0,0,-1255,-530.4,2824.7,1291.8,518.7
+S,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_S.SM_CaveChunk_S,start,,rift,4200,0,-250,0,-3081.6,-2557.5,-965.2,4200,1915.4,3115.9
+A,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_A.SM_CaveChunk_A,tunnel,rift,key,3000,0,0,0,0,-587.9,-1009.1,3000,631.5,1436.7
+B,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_B.SM_CaveChunk_B,cavern,rift,bed,3000,0,0,0,0,-1595.6,-717.1,3000,1677.8,1837.2
+T1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_T1.SM_CaveChunk_T1,tunnel,key,bed,5300,4800,-600,90,0,-993.7,-1364.4,6254.1,4800,1661.5
+C1,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_C1.SM_CaveChunk_C1,stop,bed,rift,4600,-2771.281,-2400,-60,0,-2988,-3110,5277,1830.7,2309.5
+E,/Game/Deep/CaveGen/Meshes/SM_CaveChunk_E.SM_CaveChunk_E,end,bed,,0,0,0,0,0,-1304.1,-668,2849.7,1385.8,537.6

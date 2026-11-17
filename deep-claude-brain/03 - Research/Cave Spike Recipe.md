@@ -397,3 +397,50 @@ Frames:
 - C1's clay-like entry rock.
 - E's plain bays.
 - S's mouth has a flat bedding-plane lintel over it.
+
+## Round 6 (Nov 17): joint rims, S's chimney, mouth and back, Task 3
+Goal: fix the flaws seen in round 5's frames, keep D-059's joint types, S and the string, and keep every socket in `CaveChunkSockets.csv`.
+
+### What changed
+- **Joint fade:** the rock relief now fades out over 6.5 m from a joint (it was 2 m), and a fine relief of up to 26 cm grows in the band 1.4 to 6.5 m from the rim (`JointFade`, `JFINE_*`). The aim was to soften the crease that read as a door frame.
+- **Beds:** the bedding planes warp by up to 50 cm (`a_warp`), and only part of a roof snaps up to its plane (`roof_snap`). Walls gain sharper, finer relief (`a_sharp`). C1 keeps unwarped beds, so its ledge sockets stay level.
+- **Bed joint (all bed joints: T1–C1, B–E):** each end of the lens is now a blunt, stepped wing, built from two offset lenses (`_bed_wing`). The pointed "eye" ends are gone. The outline is 18.99 × 9.59 m with a 49.0 cm least margin. Both sides still share one outline.
+- **S's chimney:** `bent_tube` samples its noise in the tube's own frame, adding flutes along the axis (`flute=60`) and lobes (`lobe=0.16`). The rings are gone.
+- **S's back:** four bays of bedded rock at three heights break the wall and the corners.
+- **S's mouth:**
+  - The silt blobs are gone.
+  - The way out now starts inside the chamber as a hall in broken rock (`rock_m`), funnelling into the passage.
+  - Fourteen angular slabs lie in the floor corners.
+  - Round recesses read as foam again, and blocks set up the walls floated in the water, so both were dropped.
+- **E's bays:** rock with sharp, blocky relief (`rock_b`), no longer plain ellipsoids.
+- **C1:** sharper, finer rock (`a_sharp=24`).
+- **Rim weld:** `conform_rims` welds rim vertices that share a slot. It then drops collapsed triangles and unused vertices.
+
+### Results
+| Check | Round 5 | Round 6 |
+|---|---|---|
+| Joint gap / off outline | 0.000 / 0.001 cm | 0.000 / 0.001 cm |
+| Overlap away from joints | 0 | 0 |
+| Hull sweep S–E | 0 / 1168 | 0 / 1168 |
+| Least clearance: squeeze, neck, tunnel, cavern | 87.5, 106.2, 112.5, 112.5 cm | 87.5, 104.7, 112.5, 112.5 cm |
+| Controls ±300 | 663, 669 | 666, 662 |
+| Core exposure | 0 | 0 in every chunk |
+| Steepest slope near a joint | 9.3° | 9.3° |
+| Column S / C1 | 28.9 / 22.0 m | 28.5 / 22.2 m |
+| Tether from S's hatch | 0 leaks, nearest 2.8 m | 0 leaks of 2592, nearest 2.8 m |
+| S Park keel gap; Serpent | 307 cm; 30.9 m | 308 cm; 30.9 m, in void |
+| Degenerate triangles S, A, B, T1, C1, E | 675, 901, 1026, 213, 477, 234 | 56, 22, 26, 76, 116, 14 |
+| GPU median / p95 at S berth, T1 squeeze, C1 Park | 3.96/4.98, 3.70/4.64, 3.82/5.76 ms | 4.58/4.91, 4.52/4.92, 4.90/5.15 ms |
+
+Notes on the results:
+- **Sockets:** every socket in the CSV is still in water, and eight of the nine Salvage sockets sit 20 cm above a level surface. C1 Salvage1 now sits 27.5 cm above a 30° lip at the inner edge of its ledge.
+- **Remaining degenerate triangles:** they are inside the chunks, not on the rims. The weld fixed the rim ones.
+- **GPU:** the medians rose 0.6–1.1 ms, but the p95 values did not. The graphics clock was about 1.7 GHz. Repeat the samples before reading this as a cost.
+
+Frames: `devlog/media/2026-11-17-cave6-*.png`. Each one is a round 5 | round 6 pair.
+
+### Still open
+- **Joint rims:** the crease is softer but still there. Stacked bands still frame the rim at Helm_A_T1 and Helm_S_A, and a dark line still marks the bed wing tips at Helm_T1_C1. The next try should change the conform band itself, not only the relief.
+- **S's mouth (a):** the foam is gone, but the mouth still reads as one opening in the chamber's end wall. The funnel does not show from the berth.
+- **C1's entry rock:** it no longer reads as clay, but it shows big flat facets at close range (C1_from_entry).
+- **E's bays:** they now read as crumpled rather than plain. The scale of the relief needs tuning.
