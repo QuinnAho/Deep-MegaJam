@@ -308,8 +308,7 @@ void ADeepSubRoom::LayOut()
 		Place(WindowBezel[3], FVector(BezelX, PortHalfW + BezelW * 0.5, PortZ), FVector(8.0, BezelW, 2.0 * PortHalfH));
 	}
 
-	RoomVolume->SetRelativeLocation(FVector(MidX, 0.0, 0.0));
-	RoomVolume->SetBoxExtent(FVector(Len * 0.5, W, H * 0.5));
+	FitRoomVolume(Ceil);
 	RoomLight->SetRelativeLocation(FVector(60.0, 0.0, Ceil - 25.0));
 	PortholeLight->SetRelativeLocation(FVector(Fore + Th + BackdropOutCm * 0.5, 0.0, PortZ));
 }
@@ -351,7 +350,9 @@ void ADeepSubRoom::ApplyLook()
 	SubScreen(ConsoleScreen, Look.ScreenGlow);
 	SubScreen(HelmScreen, Look.ScreenGlow);
 	FSubSteel Bezel = P.Wall;
-	Bezel.Wear = 0.45f;
+	// Only the machine's light wear: at the wall's chip scale (about 55 cm) a heavier wear tore bare grey-white
+	// blotches into the porthole frame's corners.
+	Bezel.Wear = P.Machine.Wear;
 	for (UStaticMeshComponent* Shape : WindowBezel)
 	{
 		SubSteel(Shape, Bezel);
@@ -492,7 +493,7 @@ FTransform ADeepSubRoom::GetRoomStartTransform() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
 	const FVector2D At = T.RoomStartM * UDeepRules::CmPerM;
-	const FVector Start = Local(At.X, At.Y, DeepRoomLayout::DeckTopCm(T) + 92.0);
+	const FVector Start = Local(At.X, At.Y, DeepRoomLayout::DeckTopCm(T) + T.InsideStandHeightM * UDeepRules::CmPerM);
 	return FTransform(FRotator(0.f, GetActorRotation().Yaw, 0.f), Start);
 }
 
@@ -500,7 +501,7 @@ FVector ADeepSubRoom::GetEnterStandLocation() const
 {
 	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
 	const FVector2D At = T.EnterStandM * UDeepRules::CmPerM;
-	return Local(At.X, At.Y, DeepRoomLayout::DeckTopCm(T) + 92.0);
+	return Local(At.X, At.Y, DeepRoomLayout::DeckTopCm(T) + T.InsideStandHeightM * UDeepRules::CmPerM);
 }
 
 FVector ADeepSubRoom::GetHatchLocation() const
@@ -531,6 +532,13 @@ bool ADeepSubRoom::IsInRoom(const FVector& WorldCm, double MarginCm) const
 	const FBox In = DeepRoomLayout::Inside(UDeepTuningSettings::Get().Sub);
 	const FVector P = GetActorTransform().InverseTransformPosition(WorldCm);
 	return P.X >= In.Min.X && P.X <= In.Max.X && P.Y >= In.Min.Y && P.Y <= In.Max.Y && P.Z >= In.Min.Z - MarginCm && P.Z <= In.Max.Z;
+}
+
+bool ADeepSubRoom::IsInRoomLook(const FVector& WorldCm, double MarginCm) const
+{
+	const FBox In = DeepRoomLayout::Inside(UDeepTuningSettings::Get().Sub);
+	const FVector P = GetActorTransform().InverseTransformPosition(WorldCm);
+	return IsInRoom(WorldCm, MarginCm) || (P.X >= In.Min.X && P.X <= In.Max.X && P.Y >= In.Min.Y && P.Y <= In.Max.Y && P.Z >= In.Max.Z && P.Z <= LookTopCm);
 }
 
 bool ADeepSubRoom::IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const
@@ -568,4 +576,15 @@ void ADeepSubRoom::SetRoofVisible(bool bVisible)
 	{
 		Shape->SetVisibility(bVisible);
 	}
+	// Roof off, the room's own exposure reaches up to the plan view, so a look down from above reads as the room does.
+	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
+	FitRoomVolume(bVisible ? DeepRoomLayout::Inside(T).Max.Z : DeepRoomLayout::DeckTopCm(T) + T.InsidePlanViewHeightM * UDeepRules::CmPerM);
+}
+
+void ADeepSubRoom::FitRoomVolume(double TopCm)
+{
+	const FBox In = DeepRoomLayout::Inside(UDeepTuningSettings::Get().Sub);
+	LookTopCm = TopCm;
+	RoomVolume->SetRelativeLocation(FVector(In.GetCenter().X, 0.0, (In.Min.Z + TopCm) * 0.5));
+	RoomVolume->SetBoxExtent(FVector(In.GetExtent().X, In.Max.Y, (TopCm - In.Min.Z) * 0.5));
 }

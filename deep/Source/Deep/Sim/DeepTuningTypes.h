@@ -1485,6 +1485,21 @@ struct FDeepSubTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
 	float InsidePortholeZM = 1.35f;
 
+	/**
+	 * Where a diver is put aboard (the start, a respawn, back in through the airlock): the capsule centre this high over
+	 * the deck. The diver's half height (0.8 m) plus the walker's floor gap (the engine keeps 1.9-2.4 cm), so the diver
+	 * stands on the deck at once instead of dropping onto it (Deep.World.SubRoomLayout).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsideStandHeightM = 0.82f;
+
+	/**
+	 * With the roof off (`Deep.Room.Roof 0`), the room's look (its fixed exposure, no water) reaches this high over the deck, so a plan
+	 * view from a diver stood on the ceiling (eye about 3.6 m over the deck) reads at the room's exposure.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Inside")
+	float InsidePlanViewHeightM = 5.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sub|Room")
 	float RoomLightIntensity = 6000.f;
 

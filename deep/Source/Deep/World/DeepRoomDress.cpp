@@ -415,7 +415,12 @@ void DeepRoomDress::Create(AActor* Owner, USceneComponent* Parent, TArray<TObjec
 			Ism->SetupAttachment(Parent);
 			Ism->SetStaticMesh(DeepShapes::LoadMesh(MeshPaths[Mesh]));
 			Ism->SetMobility(EComponentMobility::Movable);
-			Ism->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			// Solid for walkers only: a diver walks round a locker, not into it, while traces, the camera and the
+			// sonar pass the dressing as before.
+			Ism->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			Ism->SetCollisionObjectType(ECC_WorldStatic);
+			Ism->SetCollisionResponseToAllChannels(ECR_Ignore);
+			Ism->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 			Ism->SetGenerateOverlapEvents(false);
 			Ism->SetCanEverAffectNavigation(false);
 			// Small pieces stay out of distance fields; the big flat ones still cast shadows from the practicals.

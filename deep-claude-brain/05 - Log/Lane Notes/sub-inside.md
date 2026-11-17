@@ -39,11 +39,16 @@ Branch `build/sub-inside`, worktree `.wt/subs`. Brief: fit the code-built room (
 - start and console-to-helm: the low corridor to the helm panel under the porthole, with the levers either side;
 - helm-aft: the console on the starboard side, the round hatch, the lockers and the ladder aft;
 - hatch: the round cover, the dogs and the red lamp post;
-- plan: `Deep.Room.Roof 0` from above. It is murky because the eye is outside the room's exposure volume.
+- plan: `Deep.Room.Roof 0` from above, nose to the right. With the roof off the room's fixed exposure reaches up to `Sub.InsidePlanViewHeightM` (5 m), so the plan reads at the room's exposure.
 
 ## Open for the look pass
 
-- The lockers and dress have no collision, so a capsule can push about 22 cm into a locker. The camera stays at least 13 cm off, so it never clips.
-- The start transform puts the capsule 12 cm above the deck, and it drops on spawn.
 - The pipe flanges overlap where the runs are close.
 - No old-versus-new frame: the old room only exists at `fd465e4`.
+
+## Follow-up (Nov 17)
+
+- The two grey-white torn patches on the porthole panel were bare-steel chips of `M_WornSteel` on the window bezel, whose wear was 0.45: at the chip scale (about 55 cm) that tore big blotches into its port corners. The bezel now has the machine's wear (0.15).
+- Spawn on the deck: the start and the enter stand put the capsule centre at `Sub.InsideStandHeightM` (0.82 m: half height plus the walker's floor gap). No drop.
+- The dress blocks walkers: its instanced meshes are query-only, Pawn blocks, every other channel ignores, so traces, the camera and the sonar pass as before. Test `Deep.World.SubRoomStand`.
+- Plan frame: with the roof off, the room's exposure volume and its look (`IsInRoomLook`: no water fog or snow) reach `Sub.InsidePlanViewHeightM` over the deck. Still open: the deck shows the same grey-white chip blotches from above (Floor wear); a look-pass item.

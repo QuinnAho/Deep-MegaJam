@@ -649,4 +649,65 @@ bool FDeepSubRoomLayoutTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepSubRoomStandTest, "Deep.World.SubRoomStand", DEEP_RETURN_TEST_FLAGS)
+bool FDeepSubRoomStandTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepReturnTest;
+	// The start puts the diver on the deck, not over it (no drop on spawn), and a walker pushing into a locker stops
+	// at its face: the dressing is solid for walkers.
+	const FDeepSubTuning& T = UDeepTuningSettings::Get().Sub;
+	const double StandCm = T.InsideStandHeightM * UDeepRules::CmPerM - GetDefault<ADeepDiver>()->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	TestTrue(FString::Printf(TEXT("The stand height leaves the walker's floor gap (%.1f cm, the engine keeps %.1f-%.1f)"), StandCm,
+		UCharacterMovementComponent::MIN_FLOOR_DIST, UCharacterMovementComponent::MAX_FLOOR_DIST),
+		StandCm >= UCharacterMovementComponent::MIN_FLOOR_DIST && StandCm <= UCharacterMovementComponent::MAX_FLOOR_DIST);
+
+	FReturnWorld W;
+	UTEST_TRUE(TEXT("World, sub, diver, run"), W.Valid());
+	UTEST_EQUAL(TEXT("Aboard at the start"), W.Run->GetState(), EDeepRunState::Aboard);
+	ADeepSubRoom* Room = DeepArena::EnsureRoom(W.World);
+	UTEST_NOT_NULL(TEXT("Room"), Room);
+	AAIController* Brain = W.World->SpawnActor<AAIController>();
+	UTEST_NOT_NULL(TEXT("Controller"), Brain);
+	Brain->Possess(W.Diver);
+	UCharacterMovementComponent* Movement = W.Diver->GetCharacterMovement();
+	constexpr float Dt = 1.f / 30.f;
+	auto Step = [&](float Seconds)
+	{
+		for (float S = 0.f; S < Seconds; S += Dt)
+		{
+			W.Diver->Tick(Dt);
+			Movement->TickComponent(Dt, LEVELTICK_All, &Movement->PrimaryComponentTick);
+			W.Run->StepRun(Dt);
+		}
+	};
+
+	const double StartZ = W.Diver->GetActorLocation().Z;
+	Step(0.5f);
+	const double Drop = StartZ - W.Diver->GetActorLocation().Z;
+	TestTrue(FString::Printf(TEXT("Stood still at the start: moved %.2f cm down (at most 1)"), Drop), FMath::Abs(Drop) <= 1.0);
+	TestTrue(TEXT("Walking on the deck"), Movement->IsMovingOnGround());
+
+	// The starboard locker on the aft wall (World/DeepRoomDress): its body is the tall cube there.
+	const FBox In = DeepRoomLayout::Inside(T);
+	const TArray<FDeepRoomPiece> Pieces = DeepRoomDress::Pieces(T);
+	const FDeepRoomPiece* Locker = Pieces.FindByPredicate([&](const FDeepRoomPiece& P)
+	{
+		return P.Size.Z >= 150.0 && P.Centre.X < In.Min.X + 30.0 && P.Centre.Y > 40.0;
+	});
+	UTEST_NOT_NULL(TEXT("A locker on the aft wall"), Locker);
+	const double FaceX = DeepRoomDress::PieceBox(*Locker).Max.X;
+	const double WalkerRadius = W.Diver->GetCapsuleComponent()->GetScaledCapsuleRadius();
+	const FVector From(FaceX + WalkerRadius + 60.0, Locker->Centre.Y, DeepRoomLayout::DeckTopCm(T) + T.InsideStandHeightM * UDeepRules::CmPerM);
+	W.Diver->TeleportDiver(Room->GetActorTransform().TransformPosition(From));
+	Brain->SetControlRotation(Room->GetActorTransform().TransformRotation(FRotator(0.f, 180.f, 0.f).Quaternion()).Rotator());
+	W.Diver->SetMoveInput(FVector2D(0.f, 1.f));
+	Step(1.5f);
+	W.Diver->SetMoveInput(FVector2D::ZeroVector);
+	const FVector At = Room->GetActorTransform().InverseTransformPosition(W.Diver->GetActorLocation());
+	TestTrue(FString::Printf(TEXT("Walked from x %.0f into the locker (face at x %.0f): stopped at x %.1f, at most 1 cm into it"), From.X, FaceX, At.X),
+		At.X >= FaceX + WalkerRadius - 1.0);
+	TestTrue(FString::Printf(TEXT("And walked up to it (stopped at x %.1f)"), At.X), At.X <= From.X - 30.0);
+	return true;
+}
+
 #endif

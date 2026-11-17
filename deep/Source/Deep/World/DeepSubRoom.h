@@ -57,6 +57,9 @@ public:
 	/** Inside the room's box (world cm), above the deck's top minus Margin. */
 	bool IsInRoom(const FVector& WorldCm, double MarginCm = 0.0) const;
 
+	/** Whether a view here gets the room's look (its exposure, no water): inside, or with the roof off up to the plan view. */
+	bool IsInRoomLook(const FVector& WorldCm, double MarginCm = 0.0) const;
+
 	/** Horizontal distance to a deck point is within the use range. */
 	bool IsWithinUseRange(const FVector& WorldCm, const FVector& PointCm) const;
 
@@ -79,6 +82,8 @@ protected:
 
 	/** Places and sizes every shape from the tuning. */
 	void LayOut();
+	/** Fits the room's exposure volume to the inside, up to this height (room-local cm): the ceiling, or the plan view with the roof off. */
+	void FitRoomVolume(double TopCm);
 	/** Surfaces, lights and screens (FDeepLookTuning, Look|Room). */
 	void ApplyLook();
 
@@ -176,6 +181,9 @@ protected:
 	/** The room's box: inside it the room keeps its own exposure. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UBoxComponent> RoomVolume;
+
+	/** The top of the room's look (room-local cm): the ceiling, or the plan view's height with the roof off (FitRoomVolume). */
+	double LookTopCm = 0.0;
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UPostProcessComponent> RoomGrade;
