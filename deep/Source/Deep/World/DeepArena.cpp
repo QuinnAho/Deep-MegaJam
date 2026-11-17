@@ -11,7 +11,11 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArenaRoot.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepCavern.h"
+#include "Containers/Ticker.h"
+#include "Engine/Engine.h"
+#include "GameFramework/PlayerController.h"
 #include "World/DeepDressing.h"
 #include "World/DeepEnvironment.h"
 #include "World/DeepSalvage.h"
@@ -29,6 +33,62 @@ static TAutoConsoleVariable<int32> CVarDeepWorldStill(
 
 namespace DeepArena
 {
+	static void RestartForCaves(IConsoleVariable* Var);
+}
+
+static TAutoConsoleVariable<int32> CVarDeepWorldCaves(
+	TEXT("Deep.World.Caves"),
+	0,
+	TEXT("1: the dive is the baked cave chunks (World/DeepCaveString; needs Deep.World.Still 1): the run starts parked in S and the helm drives the string. 0 (default): the shaft and the code-built caverns. Latched when the arena is built; set in a game, it restarts the level."),
+	FConsoleVariableDelegate::CreateStatic(&DeepArena::RestartForCaves),
+	ECVF_Default);
+
+namespace DeepArena
+{
+	/**
+	 * Deep.World.Caves changed in a running game (the console, -ExecCmds, a shot's commands): the arena latched the old
+	 * value, so the level restarts and the new arena latches the new one. The server or a lone game only; next tick, not
+	 * inside the console call; never in automation tests (they pin the flag before building their world).
+	 */
+	static void RestartForCaves(IConsoleVariable* Var)
+	{
+		if (GIsAutomationTesting || !GEngine || !Var)
+		{
+			return;
+		}
+		const bool bCaves = Var->GetInt() != 0;
+		FTSTicker::GetCoreTicker().AddTicker(TEXT("DeepWorldCavesRestart"), 0.f, [bCaves](float)
+		{
+			if (!GEngine)
+			{
+				return false;
+			}
+			for (const FWorldContext& Context : GEngine->GetWorldContexts())
+			{
+				UWorld* World = Context.World();
+				const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+				if (!World || !(Context.WorldType == EWorldType::Game || Context.WorldType == EWorldType::PIE) || !State
+					|| !State->bWorldStillLatched || State->bWorldCaves == bCaves || World->GetNetMode() == NM_Client)
+				{
+					continue;
+				}
+				UE_LOG(LogDeepArena, Display, TEXT("Deep.World.Caves %d: restarting %s so the arena latches it"), bCaves ? 1 : 0, *World->GetName());
+				if (World->GetNetMode() == NM_Standalone)
+				{
+					if (APlayerController* PC = World->GetFirstPlayerController())
+					{
+						PC->RestartLevel();
+					}
+				}
+				else
+				{
+					World->ServerTravel(TEXT("?restart"));
+				}
+			}
+			return false;
+		});
+	}
+
 	template <typename T>
 	static T* FindFirst(const UWorld* World)
 	{
@@ -82,6 +142,12 @@ namespace DeepArena
 	{
 		const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
 		return State && State->bWorldStill;
+	}
+
+	bool IsWorldCaves(const UWorld* World)
+	{
+		const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+		return State && State->bWorldStill && State->bWorldCaves;
 	}
 
 	static double DatumCm()
@@ -192,6 +258,11 @@ namespace DeepArena
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 		int32 Spawned = 0;
+		if (IsWorldCaves(World))
+		{
+			// The caves' salvage sits at the chunks' sockets (M2); the ring is for the open stops.
+			return 0;
+		}
 		for (const FDeepSalvageSpot& Spot : Tuning.Arena.SalvageSpots)
 		{
 			FDeepSalvageKind Kind;
@@ -333,9 +404,17 @@ namespace DeepArena
 		{
 			State->bWorldStill = CVarDeepWorldStill.GetValueOnGameThread() != 0;
 			State->bWorldStillLatched = true;
-			UE_LOG(LogDeepArena, Log, TEXT("World %s: %s"), *World->GetName(), State->bWorldStill ? TEXT("still (the hull moves)") : TEXT("D-022 (the arena root moves)"));
+			const bool bCavesAsked = CVarDeepWorldCaves.GetValueOnGameThread() != 0;
+			State->bWorldCaves = bCavesAsked && State->bWorldStill;
+			if (bCavesAsked && !State->bWorldStill)
+			{
+				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves needs Deep.World.Still 1: the shaft it is"));
+			}
+			UE_LOG(LogDeepArena, Log, TEXT("World %s: %s%s"), *World->GetName(), State->bWorldStill ? TEXT("still (the hull moves)") : TEXT("D-022 (the arena root moves)"),
+				State->bWorldCaves ? TEXT(", the cave string") : TEXT(""));
 		}
 		const bool bStill = IsWorldStill(World);
+		const bool bCaves = IsWorldCaves(World);
 		if (!bStill || !FindArenaRoot(World))
 		{
 			// Still: the hull is about to leave its spot, so its home is kept now (before any root or bed is placed from it).
@@ -357,7 +436,12 @@ namespace DeepArena
 			}
 		}
 
-		if (!FindFirst<ADeepAbyssFloor>(World))
+		// Deep.World.Caves: the chunks are the rock, the floors and the caverns (no beds, shells or dressing).
+		if (bCaves)
+		{
+			DeepCaveString::Ensure(World);
+		}
+		if (!bCaves && !FindFirst<ADeepAbyssFloor>(World))
 		{
 			if (bStill)
 			{
@@ -378,7 +462,7 @@ namespace DeepArena
 			}
 		}
 
-		if (!FindFirst<ADeepCavern>(World))
+		if (!bCaves && !FindFirst<ADeepCavern>(World))
 		{
 			// Rock walls and a roof round the arena, built round the same anchor and hung the same way (ADeepCavern).
 			// Still: it stands at stop 1's anchor and lays each stop's shell at that stop's depth (ADeepCavern::UpdateShellsStill).
@@ -395,7 +479,7 @@ namespace DeepArena
 		}
 
 		// Rock and ruin from the packs (Content/Data/Dressing.csv), hung from the root; every machine reads the rows itself.
-		if (!FindFirst<ADeepDressing>(World))
+		if (!bCaves && !FindFirst<ADeepDressing>(World))
 		{
 			World->SpawnActor<ADeepDressing>(FindArenaRoot(World)->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
 		}
@@ -429,6 +513,11 @@ namespace DeepArena
 			return;
 		}
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		if (State->bWorldCaves)
+		{
+			// Every machine builds its own string once the hull's home has replicated.
+			DeepCaveString::Ensure(World);
+		}
 		for (TActorIterator<ADeepAbyssFloor> It(World); It; ++It)
 		{
 			// A stop's bed shows, and blocks, while the hull is parked there or still above it: never where it passes through.

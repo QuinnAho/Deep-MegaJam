@@ -118,6 +118,11 @@ public:
 	// ---- Server ----
 	/** Advances the state machine. Ticks call it; tests call it with chosen steps. */
 	void StepRun(float DeltaSeconds);
+	/**
+	 * Deep.World.Caves, cheats and tests: puts the hull at once at a pose in the string's frame (cm, degrees), at rest
+	 * with the levers home; parked there (a berth) or under way.
+	 */
+	void PlaceInCave(const FVector& LocationCm, float YawDeg, bool bPark);
 	/** Tethered -> Cut. */
 	void CutTether(bool bRequested);
 	/** Tethered -> Cut, announcing why (cut_patience, cut_requested, cut_bite). The one Cut path. */
@@ -207,10 +212,24 @@ protected:
 	void DentHull(int32 Points, const TCHAR* Event, float ImpactMps);
 	/** Real sub controls (server): one step of the throttle, rudder and ballast, the walls, the limit and parking. */
 	void StepPilot(float DeltaSeconds);
+	/**
+	 * Deep.World.Caves (server): the same levers through the chunk string. The hull's real box is swept against the
+	 * chunks each substep (stopping short, then sliding); a turn holds where the box would not fit; no depth limit; it
+	 * parks at a berth (ParkNear at the Park sockets), never by depth.
+	 */
+	void StepPilotCave(float DeltaSeconds);
+	/**
+	 * The rock's toll after a step (shaft or caves): a knock (impact over the threshold, past the cooldown) dents by
+	 * impact speed and trips the throttle; holding against rock scrapes. KnockNormal, when set, keeps only part of the
+	 * motion along the wall (the shaft; null in the caves, which resolve it per hit). False when the diver is no longer at the helm.
+	 */
+	bool StepRockToll(float DeltaSeconds, float ImpactMps, bool bTouching, const FVector2D* KnockNormal);
 	/** The old direct controls are in use (tests, cheats, the autopilot, a sideways drift still settling). */
 	bool UsesDirectHelm() const;
 	/** Parks at Stop: snaps to its depth, or (bGlide, the pilot) leaves the game state to glide there. */
 	void Park(int32 Stop, bool bGlide = false);
+	/** Deep.World.Caves: parked where the hull is (a berth), levers home, helm_arrive. */
+	void ParkInCave();
 	/** relic_seen, once per run, the first time the relic is near or in view. */
 	void StepRelicSeen();
 	/** Banking the relic: the run is won, the review goes up. */

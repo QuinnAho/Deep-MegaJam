@@ -77,6 +77,11 @@ bool ADeepGameState::IsSettledAtStop() const
 
 void ADeepGameState::StepParkGlide(float DeltaSeconds)
 {
+	// Deep.World.Caves: the helm parks at a berth where it is (ParkNear); nothing glides the hull home through rock.
+	if (DeepArena::IsWorldCaves(GetWorld()))
+	{
+		return;
+	}
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const float StopDepth = Tuning.GetStop(Stop).SubDepthM;
 	const bool bAtDepth = !bParked || SubDepthM == StopDepth;
@@ -138,4 +143,5 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(ADeepGameState, TotalDirectorCut);
 	DOREPLIFETIME(ADeepGameState, TotalFees);
 	DOREPLIFETIME(ADeepGameState, bWorldStill);
+	DOREPLIFETIME(ADeepGameState, bWorldCaves);
 }

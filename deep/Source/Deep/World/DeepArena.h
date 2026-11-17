@@ -32,6 +32,12 @@ namespace DeepArena
 	 */
 	DEEP_API bool IsWorldStill(const UWorld* World);
 
+	/**
+	 * Deep.World.Caves (CVar, default 0), latched with Still and only with it: the dive is the baked chunk string
+	 * (World/DeepCaveString), not the shaft, caverns, beds, dressing or salvage ring. False with the flag off.
+	 */
+	DEEP_API bool IsWorldCaves(const UWorld* World);
+
 	/** Deep.World.Still: where the root sits relative to a stop's content, as if parked there (the hull's home over that stop's depth). */
 	DEEP_API FTransform StillStopFrame(const UWorld* World, int32 Stop);
 
