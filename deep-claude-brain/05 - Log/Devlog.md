@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 02:48 EST
+updated: 2026-11-17 03:32 EST
 ---
 # Devlog
 
@@ -1293,3 +1293,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: `5d78c5a` and `daf3a69` on `build/sub-model` (pushed, not merged). The model is the diver's collider now (2048 convex hulls merged from 13,205; the propellers, arms, drill and rope have none), its lights sit on the skin (red to port, green to starboard, blinking at 1 Hz), and the square hatch plate is hidden. New cheats switch the lamps and log a perf readout.
 - Found: the hard black shapes on the hull up close are shadows, not holes; with no lighting the paint is whole. On the side they come from the light above, with nothing to fill them at depth; on the tower from the diver's lamp, which sits off to one side. The collision costs 2.8 ms of game thread with the diver against the hull, and the frame time doesn't change.
 - Next: frames page v30 asks Quinn to OK the merge, and the full suite runs before it. The shadows and the lamp's washout go to the look pass (D-028).
+
+### 3:32 AM, Nov 17  BT-01 is our sub on main
+- Changed: Quinn OK'd the merge, and `build/sub-model` went into main at 3:24 AM as a fast-forward to `6ed6929` (main was merged into the branch first; that brought only vault notes). BT-01 is the sub by default; `Deep.Sub.Model 0` brings back the old hull.
+- Checked: verify 180 of 180; S1-hatch, S2-gate, S7-run and S12-sidehome pass; package 764 MB with no missing usage flags; smoke passes; zip 480 MB. Two frames from the packaged game look as they do in the editor, so the model's materials cook.
+- Next: the room changes to fit BT-01 (Quinn: "we need to change the interior too"); frames page v31 asks when to start. The shadows and the lamp's washout stay with the look pass (D-028).
