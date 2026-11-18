@@ -3108,8 +3108,97 @@ C2_SERPENT = (C2_L + 2000.0, -2150.0, -2950.0)    # in the bay off the hall's -Y
 C2_ALCOVE = ((C2_L + 4700.0, 350.0, -3500.0), (950.0, 780.0, 450.0))  # the relic's alcove past the far end
 C2_RELIC = (C2_L + 4750.0, 350.0)
 C2_PILE = (C2_L + 3000.0, -450.0)                 # breakdown that hides one salvage socket from the hatch
-# ledges on the hall walls: (x0, x1, edge y, wall side, top z); each holds one salvage socket
-C2_LEDGES = [(C2_L + 700.0, C2_L + 1300.0, -1050.0, -1, -3000.0), (C2_L + 2200.0, C2_L + 3600.0, 1000.0, 1, -3100.0)]
+# ledges on the hall walls: (x0, x1, lip y at the socket, wall side, top z); each holds one
+# salvage socket at its middle, 2.5 m in from the lip
+C2_LEDGES = [(C2_L + 600.0, C2_L + 1400.0, -1050.0, -1, -3000.0), (C2_L + 2200.0, C2_L + 3600.0, 1000.0, 1, -3100.0)]
+
+
+def c2_shelf(x0, x1, lip, side, zt, seed, hall, step=30.0, nj=18):
+    """Round 2: a ledge that is part of the wall's bedding, not a slab (round 1's were boxes
+    with straight edges). A closed rock solid over the wall's run (u = x) and the distance in
+    from its lip (w). Its lip wanders and, past each end, retreats into the wall, so the ledge
+    dies out; its top steps down a bed's fraction at jagged lines either side of the socket (the
+    socket keeps the highest tier); its underside is undercut, thin at a rounded lip and
+    thickening into the wall. Near the socket (the middle of the run, 250 cm in) the top stays
+    level."""
+    (hcx, hcy, hcz), (hrx, hry, hrz) = hall
+    L_in, L_out = 250.0, 150.0
+    um, us = 0.5 * (x0 + x1), abs(lip) + 250.0
+    rnd = random.Random(seed)
+    steps = [(um + rnd.uniform(230.0, 300.0), rnd.uniform(55.0, 95.0)),
+             (um - rnd.uniform(230.0, 300.0), rnd.uniform(55.0, 95.0))]
+    if x1 - x0 > 1000.0:
+        steps.append((um + rnd.uniform(470.0, 560.0), rnd.uniform(40.0, 70.0)))
+
+    def wall_abs(u):
+        q = 1.0 - ((u - hcx) / hrx) ** 2 - ((zt - hcz) / hrz) ** 2
+        return hry * math.sqrt(max(0.05, q))
+
+    def env(u):
+        return sstep(x0 - L_out, x0 + L_in, u) * (1.0 - sstep(x1 - L_in, x1 + L_out, u))
+
+    def calm(u, w_abs):
+        # 0 at the socket, 1 from 2.6 m away
+        return sstep(120.0, 260.0, math.hypot(u - um, w_abs - us))
+
+    def lip_abs(u):
+        a = wall_abs(u) + 150.0
+        base = abs(lip) + (a - abs(lip)) * (1.0 - env(u))
+        wob = 85.0 * fbm(u, 0.0, zt, seed + 1, 260.0) + 35.0 * fbm(u, 0.0, zt, seed + 2, 90.0)
+        return base + wob * env(u) * sstep(120.0, 300.0, abs(u - um))
+
+    def tier(u, w):
+        # the top drops at each step line, which wanders with the distance in from the lip
+        dz = 0.0
+        for us_, h in steps:
+            jag = 45.0 * fbm(w, us_, 0.0, seed + 3, 120.0)
+            e = (u - us_ - jag) if us_ > um else (us_ + jag - u)
+            dz -= h * sstep(-14.0, 14.0, e)
+        return dz
+
+    u0, u1 = x0 - L_out - 30.0, x1 + L_out + 30.0
+    ni = max(2, int((u1 - u0) / step))
+    top, bot = [], []
+    for i in range(ni + 1):
+        u = u0 + (u1 - u0) * i / ni
+        la = lip_abs(u)
+        back = max(wall_abs(u) + 420.0, la + 500.0)
+        tlip = 115.0 + 30.0 * fbm(u, 0.0, zt, seed + 4, 200.0)
+        rt, rb = [], []
+        for j in range(nj + 1):
+            w = (back - la) * (j / nj) ** 1.6
+            y_abs = la + w
+            c = calm(u, y_abs)
+            t = tier(u, w)
+            zr = zt + t
+            # rough top, a rounded droop at the lip
+            # the bed sags and swells along the run and the lip droops unevenly, so no edge runs straight
+            sag = 45.0 * fbm(u, 0.0, zt, seed + 8, 420.0) + 18.0 * fbm(u, w, zt, seed + 9, 150.0)
+            z_top = zr + c * (sag + 16.0 * fbm(u, y_abs, zt, seed + 5, 140.0) + 7.0 * fbm(u, y_abs, zt, seed + 6, 45.0))
+            droop = 40.0 + 30.0 * fbm(u, 0.0, zt, seed + 10, 180.0)
+            z_top -= droop * (1.0 - sstep(0.0, 110.0, w))
+            # undercut: thin at the lip, thickening into the wall, lumpy beneath
+            z_bot = zr + c * sag - tlip - 0.75 * w + 28.0 * fbm(u, y_abs, zt - 300.0, seed + 7, 170.0)
+            z_bot += 25.0 * (1.0 - sstep(0.0, 70.0, w))
+            z_bot = min(z_bot, z_top - 25.0)
+            rt.append(U.Vector(u, side * y_abs, z_top))
+            rb.append(U.Vector(u, side * y_abs, z_bot))
+        top.append(rt); bot.append(rb)
+    verts = [v for r in top for v in r] + [v for r in bot for v in r]
+    nt = (ni + 1) * (nj + 1)
+    idx = lambda i, j: i * (nj + 1) + j
+    tris = []
+    for i in range(ni):
+        for j in range(nj):
+            a, b, c, d = idx(i, j), idx(i + 1, j), idx(i + 1, j + 1), idx(i, j + 1)
+            tris.append(U.IntVector(a, b, c)); tris.append(U.IntVector(a, c, d))
+            tris.append(U.IntVector(nt + a, nt + c, nt + b)); tris.append(U.IntVector(nt + a, nt + d, nt + c))
+    border = [idx(i, 0) for i in range(ni)] + [idx(ni, j) for j in range(nj)] + \
+             [idx(i, nj) for i in range(ni, 0, -1)] + [idx(0, j) for j in range(nj, 0, -1)]
+    for k in range(len(border)):
+        a, b = border[k], border[(k + 1) % len(border)]
+        tris.append(U.IntVector(a, nt + a, nt + b)); tris.append(U.IntVector(a, nt + b, b))
+    return verts, tris
 
 
 def c2_path():
@@ -3176,7 +3265,11 @@ def spec_C2(shapes=True):
     # and a ragged throat where it meets the pit
     secs = Sections([(-EXT, 'j_bed'), (0.0, 'j_bed'), (900.0, 'phreatic'), (2300.0, 'phreatic'),
                      (2900.0, 'keyhole'), (3700.0, 'keyhole'), (4100.0, 'throat'), (C2_L, 'throat')], defs, seed=66)
-    tv, info = tunnel(p, secs, rock_in, s_list, slices=slices, fade=fade)
+    # round 2: the floor stands 20 cm further off the core down the drop, where round 1 left
+    # three vertices 1.5 cm from it (the core's loft between vertical rings dips there)
+    def floor_gap(s, k, c, sn, rc, sl):
+        return 20.0 * sstep(-0.2, -0.5, sn) * sstep(600.0, 1000.0, s) * (1.0 - sstep(3900.0, 4200.0, s))
+    tv, info = tunnel(p, secs, rock_in, s_list, slices=slices, fade=fade, gap=floor_gap)
     sh.add(tv)
     notes = tunnel_features(sh, info, rock_in, random.Random(67), C2_L - 700.0, core, fade,
                             dome_secs=('phreatic', 'keyhole'), block_secs=(), blocks=0, edge=700.0)
@@ -3220,15 +3313,16 @@ def spec_C2(shapes=True):
         rise = 80.0 * sstep(C2_L + 3800.0, C2_L + 4400.0, x)
         return C2_FLOOR + max(-20.0, bank) + rise + 15.0 * fbm(x, y, 1, 73, 150.0)
     sh.add(heightfield(cx - 2200.0, cx + 6000.0, -2600.0, 2600.0, -5200.0, floor_top), True)
-    # ledges: blocky shelves from the walls, tops on bedding planes, clear of the shaft
-    for x0, x1, ey, side, ztop in C2_LEDGES:
+    # ledges: bedding ledges grown from the walls (c2_shelf), tops on bedding planes, clear of
+    # the shaft and the serpent's bay
+    for i, (x0, x1, ey, side, ztop) in enumerate(C2_LEDGES):
         mx = 0.5 * (x0 + x1)
         k = rock.bed(ztop - (mx * rock.dip[0] + ey * rock.dip[1]))
         zt = rock.beds[k] + mx * rock.dip[0] + ey * rock.dip[1]
-        th = rnd.uniform(220.0, 300.0)
-        w = 1300.0
-        sh.add(obox((mx, ey + side * 0.5 * w, zt - 0.5 * th), (x1 - x0, w, th), rnd.uniform(-2, 2), rnd.uniform(-2, 2),
-                    rnd.uniform(-2, 2), rnd, 0.05), True)
+        sh.add(c2_shelf(x0, x1, ey, side, zt, 674 + 10 * i, C2_HALL), True)
+        # round 1's boxes drew 28 numbers each; keep the breakdown below where it was
+        for _ in range(28):
+            rnd.random()
     # breakdown: a pile between the berth and one socket, and blocks on the floor, clear of
     # the shaft, the core, the sockets and the relic
     keep = [q[1] for q in c2_salvage()] + [C2_RELIC]

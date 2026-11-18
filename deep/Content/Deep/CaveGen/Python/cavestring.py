@@ -850,13 +850,12 @@ def _path_at(pts, acc, d):
 
 _C2X = cg.C2_COL[0]
 C2_VIEWS = {   # local x, y, z, yaw; the pitch stays in the CSV
-    'C2_lip_helm': (_C2X - 300.0, 0.0, -750.0, 0.0),
-    'C2_limit_view': (_C2X + 200.0, 0.0, -1900.0, 0.0),
+    'C2_lip_helm': (_C2X - 1550.0, 0.0, -700.0, 0.0),
+    'C2_limit_view': (_C2X - 500.0, 0.0, -2000.0, 0.0),
     'C2_hatch_hall': (_C2X + 150.0, -350.0, -3650.0, 0.0),
     'C2_relic_back': (_C2X + 4300.0, 200.0, -3300.0, 180.0),
-    'C2_serpent_bay': (_C2X + 2000.0, -200.0, -2900.0, -90.0),
+    'C2_serpent_bay': (_C2X + 3500.0, -500.0, -2950.0, -144.0),
     'C2_relic_alcove': (_C2X + 2600.0, 0.0, -3150.0, 9.0),
-    'C2_cut_overview': (_C2X + 600.0, -9000.0, -1000.0, 90.0),
 }
 
 

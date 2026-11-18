@@ -22,10 +22,9 @@ S_chimney_up,-4300,-350,300,80,72,S: up the roof chimney from beside the berth
 S_mouth_back,-1250,0,163,180,4,S: in the exit mouth looking back at the berth
 S_overview,-9500,-6500,6500,42.9,-33,S: high overview from outside the rock
 Helm_S_A,-1975,0,204.6,0,-6,helm 20 m before the S-A joint flying forward
-C2_cut_overview,22586.1,5655.8,-4000,120,0,C2: cut from outside the rock across its tunnel and shaft and hall
-C2_lip_helm,17306.7,13000,-3750,30,-60,C2: helm at the pit's lip looking down the shaft
-C2_limit_view,17739.7,13250,-4900,30,-20,C2: from the 400 m limit at the shaft's foot into the hall
+C2_lip_helm,16224.1,12375,-3700,30,-50,C2: helm a few metres back from the lip looking down past its edge into the shaft
+C2_limit_view,17133.5,12900,-5000,30,-40,C2: from the 400 m limit down the shaft into the hall
 C2_hatch_hall,17871.4,12921.9,-6650,30,6,C2: diver eye outside the hatch down the hall
 C2_relic_back,21190.4,15473.2,-6300,210,-5,C2: from the relic's end back at the berth
-C2_serpent_bay,19398.5,13976.8,-5900,-60,-5,C2: into the serpent's bay off the hall
+C2_serpent_bay,20847.6,14467,-5950,-114,0,C2: from the hall at a slant into the serpent bay to show its mouth and depth
 C2_relic_alcove,19818.1,14450,-6150,39,-8,C2: toward the relic's alcove at the far end
