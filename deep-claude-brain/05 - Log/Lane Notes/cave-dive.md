@@ -4,7 +4,7 @@ Branch `build/cavedive`, worktree `.wt\cave`, from main after the caves merged (
 
 Quinn's OK (about 6:30 AM Nov 17): "The caves merge after their own tests and packaged build. Then the next lane puts the caves into the dive: you start in S and drive the sub through with steering and hull hits. The old shaft stays behind a switch." On the squeeze: keep 119 cm, drive it first, tighten it later if it does not feel tight.
 
-Decisions: D-051 (the sub moves through a still world), D-055 (baked chunks strung per dive), D-058 (tunnels flown level and nose first; caverns by ballast), D-059 (joint types), D-061 (S is stop 1's cavern), D-064 (this lane takes moving-sub step 6's collision; the switch stays off until M2).
+Decisions: D-051 (the sub moves through a still world), D-055 (baked chunks strung per dive), D-058 (tunnels flown level and nose first; caverns by ballast), D-059 (joint types), D-061 (S is stop 1's cavern), D-064 (this lane takes moving-sub step 6's collision; the switch stays off until M2), D-065 (depth in the caves follows the stops).
 
 ## What exists
 
@@ -92,21 +92,32 @@ Decisions: D-051 (the sub moves through a still world), D-055 (baked chunks stru
 
 Package once at the end, and take one packaged frame in cave mode.
 
-## M2, after Quinn sees M1
+## M2a: depth, gates, salvage and the hatch (from Nov 18)
 
-- Salvage and the serpent at their sockets.
-- The relic.
-- The hatch and the tether at C1.
-- Gates in the caves.
-- The default flips to 1.
-- A cave playthrough.
+Quinn merged M1 (about 1:09 AM Nov 18, `5659e71`) and named M2: salvage, the serpent, the relic, the hatch and tether at C1, and the gates, all in the caves. Depth follows the stops (D-065). `build/cavedive` continues: fast-forward it to `origin/main` first.
+
+1. **Read depth (D-065):**
+   - A new table `deep/Content/Data/CaveDepthMap.csv` with columns PhysicalM and ReadM, piecewise linear and strictly increasing. True depth down to the top of C1's sink, then the sink stretched so C1's berth reads 300 m, then slope 1 below. Today that is (100, 100), (108.5, 108.5), (132.5, 300); take the two knots from the composed string (C1's entry joint and C1's Park socket), not from these numbers.
+   - In caves, the game state's `SubDepthM` holds the read depth. The state-to-pose mapping in `DeepCaveStringRules` converts through the table both ways. Then everything that reads depth follows the stops unchanged: the readout, the zones, the look, `Top`, the limit, `NearestStop`.
+   - Anything else that turns a world Z into a depth in caves (the diver, salvage, the sonar if it labels depth) uses the same table.
+2. **Gates:** in caves the limit (`DepthLimitM`, from the gates bought) holds the sub at the read limit. With no gates bought it stops partway down C1's sink, about 120 m physical. M1's bypass of the limit goes. The limit's feedback at the helm and on the HUD works as in the shaft.
+3. **The stops:** S's berth is stop 1 (100 m), C1's berth is stop 2 (300 m). `NearestStop`, `HelmParkStop` and the park at each berth agree with them.
+4. **Salvage:** the shaft's salvage for stop 1 spawns at S's Salvage1 to 4 sockets and stop 2's at C1's Salvage1 to 5, keeping the shaft's counts, kinds and values. If the shaft has more items than a cavern has sockets, report it; don't invent places. No item sits inside rock or floats far from it.
+5. **The hatch and the tether:** parked at either berth, the diver leaves through the hatch, reaches every salvage socket of that cavern on the tether, and gets back in. The diver collides with the chunks' rock. If a socket is out of the tether's reach, report the distance; don't move sockets or change the tether without asking.
+6. **Waits for M2b:** the serpent at its sockets (S and C1 have one each), the relic, a full cave playthrough and the default flip. Stop 3 (500 m) needs a deeper cavern, so where the relic goes until then is Quinn's call at M2b.
+
+**Tests**, by filter: the map (knots, round trip, strictly increasing); with no gates the limit holds the sub in C1's sink; with a gate bought it sinks to C1's berth, parks, and reads 300 m; salvage spawns at the sockets clear of rock; from each berth the diver reaches each socket on the tether, or the report lists which can't; with Caves = 0 the suites pass as before.
+
+**Frames**, from the helm unless noted: S's berth reading 100 m; held at the limit in C1's sink, reading 200 m; parked at C1's berth, reading 300 m; S's salvage from the helm and from the diver; the diver at C1 on the tether by a salvage item. Package once at the end, with one packaged frame in caves.
+
+## M2b, after Quinn sees M2a
+
+- The serpent at its sockets, kept inside the rock's open space.
+- The relic: Quinn's call on where it goes until stop 3's cavern exists.
+- A full cave playthrough scenario.
+- The default flips to 1 after Quinn's OK; the old shaft stays behind the switch.
 
 Then moving-sub step 5 removes D-022's code.
-
-**A question for Quinn:** the string is only about 33 m deep from S to C1, and 60 m overall. The stops sit at 100, 300 and 500 m, and the look and the zones key off depth. The options:
-1. True depth. The zones collapse.
-2. The readout and the look keyed to the stops, blended along the path. I recommend this one.
-3. Much deeper geometry.
 
 ## Log
 
@@ -119,3 +130,5 @@ Then moving-sub step 5 removes D-022's code.
   - Setting `Deep.World.Caves` in a running game restarts the level so the arena latches it.
   - The unzipped build is 1.2 GB; `ue.ps1` warns about the old 1 GB jam limit, which no longer applies.
   - Play build for Quinn: `Builds\CaveDive-1251\Play-Caves.bat` (caves on from `-ExecCmds`).
+- Nov 17, 1:02 PM: M1's merge gate green on `400b49d` (192 tests, S1-hatch and S7-run, package, smoke, two packaged frames, zip 911.1 MB).
+- Nov 18, about 1:10 AM: Quinn merged M1 (`5659e71`) and chose depth that follows the stops (D-065). M2a starts.

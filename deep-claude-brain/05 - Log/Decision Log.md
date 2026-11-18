@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-17 12:02 EST
+updated: 2026-11-18 01:17 EST
 ---
 # Decision Log
 
@@ -72,7 +72,9 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-061 | The run starts in a calm start cavern | Decided (Quinn, about 11:45 PM Nov 16); chunk S in round 5 |
 | D-062 | BT-01 is the player's sub | Decided (Quinn, about 11:45 PM Nov 16); merged 3:24 AM Nov 17 (`6ed6929`) |
 | D-063 | The serpent turns to each soft helm ping, but pings alone do not make it hunt | Decided (Quinn, about 3:45 AM Nov 17); merged with the soft ping 4:15 AM Nov 17 (`4367b3a`) |
-| D-064 | The caves lane brings the hull's real collision; the old shaft stays the default until M2 | Decided (Claude, inside Quinn's OK for the lane, about 12:02 PM Nov 17) |
+| D-064 | The caves lane brings the hull's real collision; the old shaft stays the default until M2 | Decided (Claude, inside Quinn's OK for the lane, about 12:02 PM Nov 17); M1 merged 1:10 AM Nov 18 (`5659e71`) |
+| D-065 | Depth in the caves follows the stops: C1's sink reads 100 to 300 m | Decided (Quinn, about 1:09 AM Nov 18) |
+| D-066 | Frames go into git as JPEG only; the test harness's frames stay out of git | Decided (Quinn, about 1:09 AM Nov 18) |
 
 ## Open
 
@@ -375,6 +377,24 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-066 Frames go into git as JPEG only; the test harness's frames stay out of git
+- **Status:** Decided.
+- **Date:** 2026-11-18, about 1:09 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "JPEG only", to: "From now on, commit JPEG copies only, about an eighth of the size, and keep the test harness's own frames out of git. Files already committed stay."
+- **Decided:** Frames committed to `devlog/media` from now on are JPEG copies, 1280 wide at quality 82. `tools/playtest.ps1` stops copying its frames into `devlog/media`; they stay in `deep/Saved/Harness/`, which git ignores. The PNGs already committed stay.
+- **Why:** `devlog/media` held 483 MB of PNGs in plain git (560 files), and each playtest rewrote tracked PNGs, so every lane grew the history.
+- **What follows:** a small tools change: playtest.ps1 writes no frames into git, and a converter goes into `tools/`.
+
+### D-065 Depth in the caves follows the stops: C1's sink reads 100 to 300 m
+- **Status:** Decided. M2a of [[cave-dive]] builds it.
+- **Date:** 2026-11-18, about 1:09 AM EST
+- **Who:** Quinn chose; Claude chose how.
+- **Quinn's words:** "Follow the stops", to: "The depth readout, fog and light follow the stops, so the sink in C1 reads as 100 to 300 m. Stop 3 (500 m) needs one more deep cavern later."
+- **Decided:** In caves the game's depth (`SubDepthM`, and so the readout, the zones, the look, the limit and the stops) is a read depth, mapped from the physical depth by a piecewise-linear table in `Content/Data`. It is true depth down to the top of C1's sink, then C1's sink is stretched so C1's berth reads 300 m (stop 2), then true slope below. The map keys off physical depth, not progress along the path, so driving level never moves the gauge. B and E read about 300 m.
+- **Why:** The run's rules (stops, gates, zones, fog, light, the serpent's depth rules) all key off depth, so mapping one number keeps them working without moving the stops. True depth would squeeze the zones into 32 m; deeper rock would mean minutes of sinking.
+- **What follows:** Stop 3 (500 m) and the relic's depth wait for a deeper cavern, a later cave round. Where the relic goes until then is Quinn's call at M2b.
 
 ### D-064 The caves lane brings the hull's real collision; the old shaft stays the default until M2
 - **Status:** Decided. The lane `build/cavedive` has started.
