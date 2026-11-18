@@ -1,5 +1,5 @@
 ﻿---
-updated: 2026-11-17 13:02 EST
+updated: 2026-11-18 01:17 EST
 ---
 # Devlog
 
@@ -1338,3 +1338,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided: the merge gate runs before Quinn's OK, so the merge can follow the OK at once. It passed at 1:02 PM: 192 tests, both playthroughs, the package and two frames from it.
 - Failed: a straight sink 20 m into C1 meets a ledge at 112 m. In the caverns the lamps light only the floor ahead, so S, C1, B and E read as grey floor from the helm, and the debug views from outside are near black; that goes to M2 and the look pass.
 - Next: Quinn's OK on M1 and the depth question (page v38), then M2.
+
+### 1:15 AM, Nov 18  M1 merged; depth follows the stops; frames go in as JPEG
+- Changed: Quinn merged M1 (`5659e71`); the caves stay off by default. M1's 11 frames went into `devlog/media` as JPEGs (`2026-11-17-dive1-*.jpg`, 412 KB in all). `tools/playtest.ps1` no longer copies its frames into `devlog/media`, and `tools/jpeg.ps1` converts frames for git.
+- Decided: depth in the caves follows the stops, so C1's sink reads 100 to 300 m from a table keyed on physical depth (D-065). Frames enter git as JPEG only, and the harness's frames stay out (D-066).
+- Next: M2a (depth, the gate limit, salvage at the cave sockets, the hatch and tether at both berths), then frames to Quinn.

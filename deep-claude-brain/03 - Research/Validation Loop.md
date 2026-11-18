@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-15 00:53 EST
+updated: 2026-11-18 01:19 EST
 verified: 2026-11-14 21:29 EST, build-sheriff ran tools\ue.ps1 build, test and verify on this machine (all PASS, plus a deliberate failing test and a deliberate compile error that both reported FAIL). package, zip and smoke were run for real at 21:50 EST on branch sheriff/package (all PASS: package 5m12s, 729.2 MB; zip 448.7 MB; smoke 25 s clean). shot is proven only on its failure path (no PNG, FAIL after 120 s) because the game-side -DeepShot support does not exist yet. editor is still unrun. Tiers T2 to T5 and the MCP tool behaviour are still unverified design.
 ---
 # Validation Loop
@@ -157,4 +157,4 @@ Quirks found on this project with UE 5.9:
 
 Helpers: `Wait-State` polls `GetState` until a condition holds (real-time timeout); `Press-Continue` taps Space until the settlement screen closes (the 2.5 s descent can finish between two polls, so it accepts any state but `settling`). Scenario S5 also saves `S5-cut-bailout.png` mid-cut.
 
-Screenshots: `deep\Saved\Harness\playtest\<scenario>.png` (not committed; the capture tool takes only `maxResolution` 1280, so the aspect ratio is the editor viewport's, not forced 16:9); copy chosen ones to `devlog\media\`. `playtest.ps1 all` (9 scenarios) takes about 5.5 minutes with the editor up.
+Screenshots: `deep\Saved\Harness\playtest\<scenario>.png` (not committed; the capture tool takes only `maxResolution` 1280, so the aspect ratio is the editor viewport's, not forced 16:9). Chosen frames go into `devlog\media\` as JPEG only (D-066): `powershell -ExecutionPolicy Bypass -File tools\jpeg.ps1 -Files a.png,b.png -Dst devlog\media -Prefix 2026-11-18-` (1280 wide, quality 82, about 40 KB each). `playtest.ps1 all` (9 scenarios) takes about 5.5 minutes with the editor up.
