@@ -88,6 +88,12 @@ namespace DeepArena
 	/** The stop the relic waits at (D-068): the last of CaveString.Berths in the caves, Arena.RelicStop in the shaft. */
 	DEEP_API int32 RelicStop(const UWorld* World);
 
+	/** How many stops the HUD names (D-068): the cave string's berths in the caves (none past the last), else all the shaft's. */
+	DEEP_API int32 ShownStops(const UWorld* World);
+
+	/** The depths (m) the HUD names, stop 1 first: the first ShownStops of the tuned stops. */
+	DEEP_API TArray<float> ShownStopDepthsM(const UWorld* World);
+
 	/** Applies the stop's light and fog to the world's environment actor, and adds or removes the relic for the stop. */
 	DEEP_API void ApplyStop(UWorld* World, int32 Stop);
 

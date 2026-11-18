@@ -28,6 +28,7 @@
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 #include "World/DeepSubRoom.h"
+#include "UI/DeepHudCalm.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -815,6 +816,45 @@ bool FDeepCaveDiveDiverTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveHudNextTest, "Deep.World.CaveDive.HudNextStop", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveHudNextTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// D-068: the HUD names only the cave string's berths; the next stop is the next berth, and past the last there is none.
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const TArray<FName>& Berths = Tuning.CaveString.Berths;
+	const TArray<float> Shown = DeepArena::ShownStopDepthsM(W.World);
+	TestEqual(TEXT("the HUD names the berths' stops"), Shown.Num(), Berths.Num());
+	for (int32 Stop = 1; Stop <= Berths.Num(); ++Stop)
+	{
+		FDeepCavePose Berth;
+		String->SocketPose(Berths[Stop - 1], Tuning.CaveString.ParkSocket, Berth);
+		W.PlaceAt(Berth, true);
+		W.TickSub();
+		const float NextM = DeepHudCalm::NextStopM(DeepArena::ShownStopDepthsM(W.World), W.State->SubDepthM, W.State->ParkedStop());
+		AddInfo(FString::Printf(TEXT("parked at %s (stop %d, %.0f m): next stop %.0f m"), *Berths[Stop - 1].ToString(), W.State->ParkedStop(), W.State->SubDepthM, NextM));
+		TestEqual(FString::Printf(TEXT("parked at %s"), *Berths[Stop - 1].ToString()), W.State->ParkedStop(), Stop);
+		if (Stop < Berths.Num())
+		{
+			TestEqual(FString::Printf(TEXT("%s: the next stop is the next berth's"), *Berths[Stop - 1].ToString()), NextM, Tuning.GetStop(Stop + 1).SubDepthM, 0.01f);
+		}
+		else
+		{
+			TestTrue(FString::Printf(TEXT("%s, the last berth: no next stop"), *Berths[Stop - 1].ToString()), NextM < 0.f);
+		}
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveOffTest, "Deep.World.CaveDive.OffIsUnchanged", DEEP_CAVEDIVE_TEST_FLAGS)
 
 bool FDeepCaveDiveOffTest::RunTest(const FString& Parameters)
@@ -837,6 +877,8 @@ bool FDeepCaveDiveOffTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("the shaft's rock is there"), Shafts > 0);
 	TestTrue(TEXT("the shaft is on"), DeepShaft::IsOn(W.World));
+	TestEqual(TEXT("the HUD names all the shaft's stops"), DeepArena::ShownStopDepthsM(W.World).Num(), UDeepTuningSettings::Get().NumStops());
+	TestEqual(TEXT("the relic waits at the shaft's stop"), DeepArena::RelicStop(W.World), UDeepTuningSettings::Get().Arena.RelicStop);
 	return true;
 }
 

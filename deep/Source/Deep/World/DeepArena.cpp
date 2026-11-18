@@ -470,6 +470,23 @@ namespace DeepArena
 		return DeepCaveDiveRules::RelicStop(IsWorldCaves(World), Tuning.Arena.RelicStop, Tuning.CaveString.Berths.Num());
 	}
 
+	int32 ShownStops(const UWorld* World)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		return DeepCaveDiveRules::ShownStops(IsWorldCaves(World), Tuning.NumStops(), Tuning.CaveString.Berths.Num());
+	}
+
+	TArray<float> ShownStopDepthsM(const UWorld* World)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		TArray<float> Out;
+		for (int32 Stop = 1; Stop <= ShownStops(World); ++Stop)
+		{
+			Out.Add(Tuning.GetStop(Stop).SubDepthM);
+		}
+		return Out;
+	}
+
 	ADeepSalvage* EnsureRelic(UWorld* World, int32 Stop)
 	{
 		if (!World || World->GetNetMode() == NM_Client)
