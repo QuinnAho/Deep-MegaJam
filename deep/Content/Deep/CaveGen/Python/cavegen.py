@@ -3091,6 +3091,179 @@ def spec_E(shapes=True):
     return spec
 
 
+# Stop 3's cavern (D-069, Nov 18): the string's last chunk, joined to B's exit. A bed
+# joint, a tunnel that drops 8.5 m to the lip of a pit (SinkTop), a vertical shaft of at
+# least 9.5 m clear radius that opens after about 12 m into the roof of a long dark hall,
+# the berth 24 m below SinkTop facing down the hall, the serpent's bay off the middle of
+# the hall and the relic's alcove at its far end. No exit: it closes in rock.
+C2_L = 4500.0               # the entry joint to the shaft's axis along the tunnel
+C2_DROP = (400.0, 3800.0)   # the tunnel's cosine drop, level at both ends: 21 degrees at most
+C2_COL = (C2_L, 0.0)        # the shaft's axis
+C2_SINKTOP_Z = -850.0       # the lip: the top of the sink (141 m physical depth)
+C2_PARK_Z = -3250.0         # the berth, 24 m below SinkTop (165 m)
+C2_FLOOR = -3800.0          # silt under the berth: keel gap 3 m, as in C1
+C2_COL_R = 1000.0           # the shaft's clear radius before its outward relief
+C2_HALL = ((C2_L + 1500.0, 0.0, -3550.0), (2900.0, 1750.0, 1500.0))   # hall centre and radii: 50 m by 35 m at the floor
+C2_SERPENT = (C2_L + 2000.0, -2150.0, -2950.0)    # in the bay off the hall's -Y wall
+C2_ALCOVE = ((C2_L + 4700.0, 350.0, -3500.0), (950.0, 780.0, 450.0))  # the relic's alcove past the far end
+C2_RELIC = (C2_L + 4750.0, 350.0)
+C2_PILE = (C2_L + 3000.0, -450.0)                 # breakdown that hides one salvage socket from the hatch
+# ledges on the hall walls: (x0, x1, edge y, wall side, top z); each holds one salvage socket
+C2_LEDGES = [(C2_L + 700.0, C2_L + 1300.0, -1050.0, -1, -3000.0), (C2_L + 2200.0, C2_L + 3600.0, 1000.0, 1, -3100.0)]
+
+
+def c2_path():
+    p = Path().straight(C2_L)
+    d0, d1 = C2_DROP
+    dz = C2_SINKTOP_Z
+
+    def zf(s):
+        if s <= d0: return 0.0
+        if s >= d1: return dz
+        return 0.5 * dz * (1.0 - math.cos(math.pi * (s - d0) / (d1 - d0)))
+    p.zf = zf
+    return p
+
+
+def c2_salvage():
+    """(label, local xy, start z) of the five salvage candidates: two ledge tops (out of
+    sight from the hatch), open floor, behind the breakdown pile, and in the bay beside the berth."""
+    cx, cy = C2_COL
+    out = []
+    for x0, x1, ey, side, ztop in C2_LEDGES:
+        out.append(('ledge%d' % side, (0.5 * (x0 + x1), ey + side * 250.0), ztop + 250.0))
+    out.insert(1, ('floor', (cx + 1800.0, 700.0), C2_PARK_Z - 150.0))
+    out.append(('pile', (C2_PILE[0] + 900.0, C2_PILE[1]), C2_PARK_Z - 150.0))
+    out.append(('bay', (cx + 600.0, 1500.0), C2_PARK_Z - 150.0))
+    return out
+
+
+def c2_core():
+    """The sloping tunnel's swept core (capped at the shaft's axis) and the sink box from
+    SinkTop to Park."""
+    p = c2_path()
+    s_list = ring_s(-EXT, C2_L)
+    slices = [core_slice(p, s, lambda s: M_BODY) for s in s_list]
+    core = Core()
+    core.add_tube(p, s_list, slices)
+    # capped: past the shaft's axis the core is the sink box, not the tube run on straight
+    core.capped = True
+    cx, cy = C2_COL
+    hx, hy, hz = core_half(M_BODY)
+    top, bot = C2_SINKTOP_Z + hz, C2_PARK_Z - hz
+    core.boxes.append(((cx, cy, 0.5 * (top + bot)), (hx, hy, 0.5 * (top - bot)), 0.0))
+    return p, s_list, slices, core
+
+
+def spec_C2(shapes=True):
+    """Stop cavern at the end of the string: a dropping tunnel, the pit, the hall."""
+    cx, cy = C2_COL
+    spec = {'name': 'C2', 'type': 'stop', 'exit': None, 'in': 'bed', 'out': None,
+            'sockets': {'Park': (cx, cy, C2_PARK_Z, 0.0), 'SinkTop': (cx, cy, C2_SINKTOP_Z, 0.0),
+                        'Serpent': C2_SERPENT + (90.0,)},
+            'salvage': c2_salvage(), 'salvage_range': (1000.0, 4500.0),
+            'relic': (C2_RELIC, C2_PARK_Z - 150.0, 180.0), 'col': C2_COL}
+    if not shapes:
+        return spec
+    rnd = random.Random(66)
+    rock = Rock(66, a_res=55.0, a_blk=34.0, a_fine=14.0, a_sharp=24.0, a_warp=0.0)
+    rock_in = Rock(66, a_res=50.0, a_blk=18.0, a_fine=12.0, a_sharp=10.0, a_warp=0.0)
+    p, s_list, slices, core = c2_core()
+    fade = JointFade(None, types=(spec['in'], None))
+    sh = Shapes(66)
+    defs = section_defs(66)
+    # the tunnel: the bed joint opens into a phreatic tube, then a keyhole down the drop,
+    # and a ragged throat where it meets the pit
+    secs = Sections([(-EXT, 'j_bed'), (0.0, 'j_bed'), (900.0, 'phreatic'), (2300.0, 'phreatic'),
+                     (2900.0, 'keyhole'), (3700.0, 'keyhole'), (4100.0, 'throat'), (C2_L, 'throat')], defs, seed=66)
+    tv, info = tunnel(p, secs, rock_in, s_list, slices=slices, fade=fade)
+    sh.add(tv)
+    notes = tunnel_features(sh, info, rock_in, random.Random(67), C2_L - 700.0, core, fade,
+                            dome_secs=('phreatic', 'keyhole'), block_secs=(), blocks=0, edge=700.0)
+    # the pit: clear radius C2_COL_R, relief only outward, from inside the hall up past the
+    # tunnel's roof, under a dome and stepped breakdown beyond the lamp
+    sh.add(shaft(cx, cy, -2600.0, 0.0, C2_COL_R, rock, seed=68))
+    sh.add(rock_ellipsoid((cx + 100.0, cy - 100.0, 350.0), (850.0, 750.0, 800.0), rock, 'rock', res=45.0, rot_yaw=25.0,
+                          fade=fade))
+    for vt in joint_dome(cx + 300.0, 200.0, 900.0, 600.0, 480.0, rock.fam[0][0] + 4.0, rock, random.Random(69), levels=3):
+        sh.add(vt)
+    # the hall: one worn vault, wider than it is tall (overlapping ellipsoids meet in
+    # creases that read as holes), with a bay out of its +Y wall near the shaft
+    hc, hr = C2_HALL
+    sh.add(warp_blob(rock_ellipsoid(hc, hr, rock, 'silt', res=50.0, rot_yaw=3.0, fade=fade, core=core),
+                     hc, 0.07, 1400.0, 661))
+    bc = (cx + 600.0, 1450.0, -3250.0)
+    sh.add(warp_blob(rock_ellipsoid(bc, (950.0, 600.0, 600.0), rock, 'silt', res=45.0, rot_yaw=-20.0, fade=fade, core=core),
+                     bc, 0.12, 520.0, 662))
+    # stepped breakdown domes in the hall's roof, beyond the lamp
+    for (dx, dy, zb, a, b), seed in (((cx + 2400.0, -200.0, -2250.0, 800.0, 600.0), 70),
+                                     ((cx + 3400.0, 600.0, -2450.0, 650.0, 500.0), 71)):
+        for vt in joint_dome(dx, dy, zb, a, b, rock.fam[1][0] - 3.0, rock, random.Random(seed), levels=3):
+            sh.add(vt)
+    # the serpent's bay off the middle of the hall's -Y wall, with a narrower mouth
+    sx, sy, sz = C2_SERPENT
+    sh.add(rock_ellipsoid((sx, sy, sz), (620.0, 600.0, 440.0), rock, 'rock', res=40.0, rot_yaw=8.0, amp=0.5))
+    sh.add(rock_ellipsoid((sx, sy + 420.0, sz), (360.0, 420.0, 330.0), rock, 'rock', res=40.0, amp=0.4))
+    # the relic's alcove past the far end
+    ac, ar = C2_ALCOVE
+    sh.add(warp_blob(rock_ellipsoid(ac, ar, rock, 'silt', res=40.0, rot_yaw=-15.0, fade=fade, core=core),
+                     ac, 0.12, 500.0, 663))
+    # --- rock
+    hx0, hy0 = hc[0], hc[1]
+
+    def floor_top(x, y):
+        # silt, flat under the berth, banking up toward the walls and rising into the alcove
+        e = math.hypot((x - hx0) / hr[0], (y - hy0) / hr[1])
+        bank = sstep(0.55, 1.0, e) * (120.0 + 120.0 * fbm(x, y, 0, 72, 500.0))
+        dpark = math.hypot(x - cx, y - cy)
+        bank *= sstep(900.0, 1500.0, dpark)
+        rise = 80.0 * sstep(C2_L + 3800.0, C2_L + 4400.0, x)
+        return C2_FLOOR + max(-20.0, bank) + rise + 15.0 * fbm(x, y, 1, 73, 150.0)
+    sh.add(heightfield(cx - 2200.0, cx + 6000.0, -2600.0, 2600.0, -5200.0, floor_top), True)
+    # ledges: blocky shelves from the walls, tops on bedding planes, clear of the shaft
+    for x0, x1, ey, side, ztop in C2_LEDGES:
+        mx = 0.5 * (x0 + x1)
+        k = rock.bed(ztop - (mx * rock.dip[0] + ey * rock.dip[1]))
+        zt = rock.beds[k] + mx * rock.dip[0] + ey * rock.dip[1]
+        th = rnd.uniform(220.0, 300.0)
+        w = 1300.0
+        sh.add(obox((mx, ey + side * 0.5 * w, zt - 0.5 * th), (x1 - x0, w, th), rnd.uniform(-2, 2), rnd.uniform(-2, 2),
+                    rnd.uniform(-2, 2), rnd, 0.05), True)
+    # breakdown: a pile between the berth and one socket, and blocks on the floor, clear of
+    # the shaft, the core, the sockets and the relic
+    keep = [q[1] for q in c2_salvage()] + [C2_RELIC]
+    nb = 0
+    for i in range(240):
+        if nb >= 32:
+            break
+        if i < 90:
+            a = rnd.uniform(0, 2 * math.pi); d = rnd.uniform(0, 560)
+            x, y = C2_PILE[0] + d * math.cos(a), C2_PILE[1] + d * math.sin(a)
+            zf = C2_FLOOR + rnd.uniform(0, 330) * (1.0 - d / 600.0)
+            sz = (rnd.uniform(160, 420), rnd.uniform(140, 360), rnd.uniform(100, 260))
+        else:
+            x = rnd.uniform(cx - 1200.0, cx + 4200.0); y = rnd.uniform(-1500.0, 1500.0)
+            if math.hypot((x - hx0) / hr[0], (y - hy0) / hr[1]) > 0.85:
+                continue
+            zf = floor_top(x, y) + rnd.uniform(0, 60)
+            sz = (rnd.uniform(110, 380), rnd.uniform(100, 320), rnd.uniform(70, 220))
+        hd = 0.5 * math.sqrt(sz[0] ** 2 + sz[1] ** 2)
+        if math.hypot(x - cx, y - cy) - hd < C2_COL_R + 200.0:
+            continue
+        if min(math.hypot(x - q[0], y - q[1]) for q in keep) - hd < 400.0:
+            continue
+        c = (x, y, zf)
+        rad = 0.5 * math.sqrt(sz[0] ** 2 + sz[1] ** 2 + sz[2] ** 2)
+        if core.sdf(c)[0] - rad < DELTA + 10.0:
+            continue
+        sh.add(obox(c, sz, rnd.uniform(0, 180), rnd.uniform(-30, 30), rnd.uniform(-30, 30), rnd, 0.15), True)
+        nb += 1
+    notes['blocks'] = nb
+    sh.core.extend(core.meshes())
+    spec.update({'shapes': sh, 'core': core, 'path': p, 'notes': notes})
+    return spec
+
+
 S_LEN = 4200.0          # Park to the exit joint
 S_DROP = (900.0, 3300.0, -250.0)   # cosine drop of 2.5 m on the way out: 9.3 deg at most, level at the joint
 S_FLOOR = -545.0        # silt under the berth: keel gap 2.95 m, as in C1
@@ -3221,7 +3394,7 @@ def spec_S(shapes=True):
     return spec
 
 
-SPECS = {'S': spec_S, 'A': spec_A, 'B': spec_B, 'T1': spec_T1, 'C1': spec_C1, 'E': spec_E}
+SPECS = {'S': spec_S, 'A': spec_A, 'B': spec_B, 'T1': spec_T1, 'C1': spec_C1, 'E': spec_E, 'C2': spec_C2}
 
 
 def meta(name):
