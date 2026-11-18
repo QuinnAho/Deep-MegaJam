@@ -1354,3 +1354,7 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: Quinn merged M2a (`7ac9d5b`); the caves stay off by default. Its nine frames went into `devlog/media` as JPEGs (`2026-11-18-m2a-*.jpg`, 303 KB in all).
 - Decided: the caves lay the shaft's 10 salvage pieces a stop, in piles of 2 or 3 at each place (D-067). The relic waits in C1 until a stop-3 cavern is built past B, and the caves stay off by default until then (D-068).
 - Next: M2b (the piles, the serpent in S and C1, the relic in C1, the HUD's next stop, a cave run to the win), then stop 3's cavern.
+
+### 2:49 AM, Nov 18  Stop 3's cavern planned and started
+- Decided: stop 3's cavern is a new last chunk, C2, past B. A tunnel and a pit drop into the run's biggest, darkest chamber, where the sub berths at 500 m with the salvage, the serpent's bay and the relic. E leaves the string (D-069).
+- Changed: C2's generator part started beside M2b on its own branch. Its runtime part follows M2b.
