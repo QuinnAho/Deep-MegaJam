@@ -82,6 +82,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Cave")
 	FDeepCaveTuning Cave;
 
+	/** Deep.World.Caves: the baked chunks strung into the dive, their tables and the hull's contact (World/DeepCaveString). */
+	UPROPERTY(Config, EditAnywhere, Category = "Cave")
+	FDeepCaveStringTuning CaveString;
+
 	/** Real sub controls at the helm: throttle notches, rudder, ballast lever, parking (Sim/DeepPilotRules). */
 	UPROPERTY(Config, EditAnywhere, Category = "Pilot")
 	FDeepPilotTuning Pilot;

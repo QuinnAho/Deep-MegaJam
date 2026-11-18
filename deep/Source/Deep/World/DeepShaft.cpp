@@ -17,7 +17,9 @@
 #include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Sim/DeepCaveStringRules.h"
 #include "World/DeepArena.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepCookKey.h"
 #include "World/DeepSubmarine.h"
 
@@ -34,6 +36,16 @@ bool DeepShaft::IsOn()
 {
 	const int32 Value = CVarDeepCaveShaft.GetValueOnAnyThread();
 	return Value < 0 ? UDeepTuningSettings::Get().Cave.bShaft : Value != 0;
+}
+
+bool DeepShaft::IsOn(const UWorld* World)
+{
+	return IsOn() && !DeepArena::IsWorldCaves(World);
+}
+
+bool DeepShaft::HasRock(const UWorld* World)
+{
+	return IsOn(World) || DeepArena::IsWorldCaves(World);
 }
 
 bool DeepShaft::SubBoxM(const ADeepSubmarine* Sub, FVector& OutMinM, FVector& OutMaxM)
@@ -441,7 +453,7 @@ void ADeepShaft::Follow()
 	UWorld* World = GetWorld();
 	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
 	const ADeepSubmarine* Sub = DeepArena::FindSubmarine(World);
-	const bool bOn = DeepShaft::IsOn() && State && Sub;
+	const bool bOn = DeepShaft::IsOn(World) && State && Sub;
 	const TArray<float> Stops = UDeepTuningSettings::Get().StopDepthsM();
 	const bool bStill = DeepArena::IsWorldStill(World);
 	// At or above the stop a stretch starts under, that stop's bed and salvage are where the tube is: the stretch hides.
@@ -547,11 +559,50 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs CaveGotoCommand(
 		TEXT("Deep.Cave.Goto"),
-		TEXT("Deep.Cave.Goto <squeeze|cavern|metres>: drives at once to the first stretch's narrowest or widest point (or a depth), on the passage's centre."),
+		TEXT("Deep.Cave.Goto <squeeze|cavern|metres>: drives at once to the first stretch's narrowest or widest point (or a depth), on the passage's centre. With Deep.World.Caves 1: <berth S|C1 | chunk [metres] | region | metres> places the hull on the chunk string's path."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (!World || !GEngine)
 			{
+				return;
+			}
+			if (DeepArena::IsWorldCaves(World))
+			{
+				// The chunk string: takes the helm, then places the hull on the exported path (or a berth's Park socket).
+				GEngine->Exec(World, TEXT("Deep.Helm 1"));
+				const ADeepCaveString* String = DeepCaveString::Ensure(World);
+				ADeepDiver* Diver = DeepStateReport::FindDiver(World);
+				UDeepRunComponent* Run = Diver ? Diver->GetRun() : nullptr;
+				if (!String || !Run)
+				{
+					UE_LOG(LogDeepShaft, Warning, TEXT("Deep.Cave.Goto: no cave string or diver"));
+					return;
+				}
+				const FString Where = Args.Num() > 0 ? Args[0] : FString(TEXT("berth"));
+				FDeepCavePose Pose;
+				bool bPark = false;
+				if (Where.Equals(TEXT("berth"), ESearchCase::IgnoreCase))
+				{
+					const FName Berth(Args.Num() > 1 ? *Args[1] : TEXT("S"));
+					if (!String->SocketPose(Berth, UDeepTuningSettings::Get().CaveString.ParkSocket, Pose))
+					{
+						UE_LOG(LogDeepShaft, Warning, TEXT("Deep.Cave.Goto: no berth %s"), *Berth.ToString());
+						return;
+					}
+					bPark = true;
+				}
+				else
+				{
+					const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), Where, Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.f);
+					if (!String->GetPathPoses().IsValidIndex(Sample))
+					{
+						UE_LOG(LogDeepShaft, Warning, TEXT("Deep.Cave.Goto: no path sample for '%s' (berth S|C1, a chunk [metres], a region, or metres)"), *Where);
+						return;
+					}
+					Pose = String->GetPathPoses()[Sample];
+				}
+				Run->PlaceInCave(Pose.LocationCm, Pose.YawDeg, bPark);
+				DeepStateReport::LogState(World);
 				return;
 			}
 			const FString Where = Args.Num() > 0 ? Args[0].ToLower() : FString(TEXT("squeeze"));

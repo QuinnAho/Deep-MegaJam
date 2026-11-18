@@ -49,6 +49,29 @@ namespace DeepShot
 			}
 		}
 
+		/** The shot's world, or the game world that replaced it (Deep.World.Caves restarts the level). */
+		UWorld* ResolveWorld(FShotState& Shot)
+		{
+			if (UWorld* World = Shot.World.Get())
+			{
+				return World;
+			}
+			if (!GEngine)
+			{
+				return nullptr;
+			}
+			for (const FWorldContext& Context : GEngine->GetWorldContexts())
+			{
+				UWorld* World = Context.World();
+				if (World && (Context.WorldType == EWorldType::Game || Context.WorldType == EWorldType::PIE))
+				{
+					Shot.World = World;
+					return World;
+				}
+			}
+			return nullptr;
+		}
+
 		bool Tick(FShotState& Shot, float DeltaSeconds)
 		{
 			Shot.Elapsed += DeltaSeconds;
@@ -63,7 +86,7 @@ namespace DeepShot
 			case EStep::Running:
 			{
 				// Commands run in order; `wait <seconds>` lets the game play on before the next one (or the shot).
-				UWorld* World = Shot.World.Get();
+				UWorld* World = ResolveWorld(Shot);
 				Shot.WaitLeft -= DeltaSeconds;
 				while (Shot.WaitLeft <= 0.f && Shot.Commands.IsValidIndex(Shot.NextCommand))
 				{

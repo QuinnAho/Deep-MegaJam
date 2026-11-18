@@ -19,6 +19,12 @@ namespace DeepShaft
 	/** The shaft is on: Deep.Cave.Shaft (1 on, 0 off, -1 = the tuning's Cave.bShaft). Off = the old straight drive. */
 	DEEP_API bool IsOn();
 
+	/** The shaft is on in this world: IsOn(), and not a cave world (Deep.World.Caves: the chunks are the rock there). */
+	DEEP_API bool IsOn(const UWorld* World);
+
+	/** There is rock to hit in this world (the shaft, or the cave string): the hull bar shows, the helm steers off it. */
+	DEEP_API bool HasRock(const UWorld* World);
+
 	/** The sub's solid box in its own frame, m. False (and the room's tuned size) when there is no sub. */
 	DEEP_API bool SubBoxM(const ADeepSubmarine* Sub, FVector& OutMinM, FVector& OutMaxM);
 

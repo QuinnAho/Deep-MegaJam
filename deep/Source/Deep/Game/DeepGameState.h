@@ -48,6 +48,13 @@ public:
 	/** The arena was built and bWorldStill latched (server only). */
 	bool bWorldStillLatched = false;
 
+	/**
+	 * Deep.World.Caves, latched with bWorldStill (it needs it): the baked chunk string (World/DeepCaveString) instead of
+	 * the shaft, the code-built caverns and the beds (DeepArena::IsWorldCaves). Server sets it; every machine reads it.
+	 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	bool bWorldCaves = false;
+
 	/** The helm's levers, for every machine (World/DeepHelmLevers): throttle notch (- astern, 0 stop, + ahead), ballast -1 blown .. 1 flooded. */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	int32 HelmThrottleNotch = 0;
@@ -62,7 +69,7 @@ public:
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	float HelmSurgeMps = 0.f;
 
-	/** Parked, and the glide to the stop's frame is done (offset 0, yaw 0, the stop's depth): the hatch may open. */
+	/** Parked, and the glide to the stop's frame is done (offset 0, yaw 0, the stop's depth): the hatch may open. Caves: at S's berth only. */
 	bool IsSettledAtStop() const;
 
 	/** The hull for the HUD: 1 whole, 0 breached (HullDamage against Cave.HullBreachDamage). */

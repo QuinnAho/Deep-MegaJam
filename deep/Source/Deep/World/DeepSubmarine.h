@@ -92,6 +92,9 @@ public:
 	/** The home transform, or the hull's own until one is set. */
 	FTransform GetHomeTransform() const;
 
+	/** The home was set (the server when the arena is built; replicated to clients). */
+	bool HasHome() const { return bHasHome; }
+
 	/**
 	 * Deep.World.Still: puts the hull where the game state's depth, offset and yaw say (UDeepMovingSubRules::StillHull).
 	 * Every machine does it from the replicated state; the hull's movement is not replicated. No-op with the flag off.

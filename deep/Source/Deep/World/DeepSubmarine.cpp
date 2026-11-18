@@ -28,6 +28,7 @@
 #include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepShaft.h"
 #include "World/DeepShapes.h"
 #include "World/DeepArena.h"
@@ -567,7 +568,7 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	const bool bInRoomView = false;
 	const bool bLocalTrenchView = !bGreyBox && PC && TrenchShows(PC->GetViewTarget() == this, bInRoomView, bParked);
 	// The cave shaft (ADeepShaft) replaces the trench: the rock is all round the sub, not a cliff ahead.
-	const bool bLocalHelmView = bLocalTrenchView && !DeepShaft::IsOn() && !DeepArena::IsWorldStill(World);
+	const bool bLocalHelmView = bLocalTrenchView && !DeepShaft::IsOn(World) && !DeepArena::IsWorldStill(World);
 	if (bLocalHelmView && Trench->GetNumSections() == 0)
 	{
 		BuildTrench();
@@ -638,7 +639,17 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 	JoltAge += DeltaSeconds;
 	JoltDeg *= FMath::Exp(-FMath::Max(0.f, Cave.JoltDecayPerSecond) * DeltaSeconds);
 	const float Jolt = JoltDeg * FMath::Cos(UE_TWO_PI * 6.f * JoltAge);
-	if (State && !bParked && DeepShaft::IsOn())
+	if (State && !bParked && DeepArena::IsWorldCaves(World))
+	{
+		// The cave string: rubbing (or all but touching) the chunks' rock, from the replicated pose.
+		const ADeepCaveString* String = DeepCaveString::Find(World);
+		const FDeepCavePose Pose = DeepCaveString::HullPose(*State);
+		if (String && String->OverlapsHull(GetSolidBoundsLocal(false), Pose.LocationCm, Pose.YawDeg, Tuning.CaveString.ShiverNearCm))
+		{
+			Shiver += 0.25f * FMath::Sin(UE_TWO_PI * 23.f * T) + 0.15f * FMath::Sin(UE_TWO_PI * 37.f * T + 1.3);
+		}
+	}
+	else if (State && !bParked && DeepShaft::IsOn(World))
 	{
 		FVector BoxMin, BoxMax;
 		DeepShaft::SubBoxM(this, BoxMin, BoxMax);
@@ -839,7 +850,8 @@ void ADeepSubmarine::BeginPlay()
 	// The cave shaft's rock: one per machine (not replicated), placed from the replicated depth and offset.
 	if (UWorld* World = GetWorld())
 	{
-		bool bHasShaft = false;
+		// Not in a cave world: the chunk string is the rock there (DeepCaveString::Ensure also removes one spawned before the latch).
+		bool bHasShaft = DeepArena::IsWorldCaves(World);
 		for (TActorIterator<ADeepShaft> It(World); It; ++It)
 		{
 			bHasShaft = true;

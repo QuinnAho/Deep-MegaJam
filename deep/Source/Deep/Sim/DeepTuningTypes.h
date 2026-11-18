@@ -2663,3 +2663,48 @@ struct DEEP_API FDeepPilotTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
 	float LeverFollowPerS = 14.f;
 };
+
+/**
+ * Deep.World.Caves: the baked cave chunks strung into the dive (Sim/DeepCaveStringRules, World/DeepCaveString). The
+ * tables live in Content/Data; the string's frame is S's berth at stop 1, +X along S's passage, Z up, in cm.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepCaveStringTuning
+{
+	GENERATED_BODY()
+
+	FDeepCaveStringTuning()
+	{
+		String = { FName(TEXT("S")), FName(TEXT("A")), FName(TEXT("T1")), FName(TEXT("C1")), FName(TEXT("B")), FName(TEXT("E")) };
+		Berths = { FName(TEXT("S")), FName(TEXT("C1")) };
+	}
+
+	/** The chunks in dive order: the first has no entry joint (start), the last no exit (end). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	TArray<FName> String;
+
+	/** Chunks whose Park socket is a berth the helm parks at (ParkNear); the run starts at the first. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	TArray<FName> Berths;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FName ParkSocket = FName(TEXT("Park"));
+
+	/** Content/Data tables: chunks (exit frames, bounds), sockets, and the dive path (Content/Deep/CaveDive/export_cave_path.py). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FString ChunksCsv = TEXT("CaveChunks.csv");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FString SocketsCsv = TEXT("CaveChunkSockets.csv");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FString PathCsv = TEXT("CaveChunkPath.csv");
+
+	/** The hull stops this far short of the rock it is swept into (cm): the next sweep starts clear. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SkinCm = 2.f;
+
+	/** The helm camera shivers while the hull is this close to rock (cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float ShiverNearCm = 5.f;
+};

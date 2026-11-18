@@ -122,6 +122,9 @@ namespace DeepStateReport
 		Json->SetNumberField(TEXT("sub_offset_y_m"), State ? State->SubOffsetM.Y : 0.f);
 		// The helm's levers and the sub's heading (Sim/DeepPilotRules): notch -2..3, ballast -1 blown .. 1 flooded.
 		Json->SetNumberField(TEXT("sub_yaw_deg"), State ? State->SubYawDeg : 0.f);
+		// Deep.World.Caves: the baked chunk string is the rock, and parked means at one of its berths.
+		Json->SetBoolField(TEXT("world_caves"), State && State->bWorldCaves);
+		Json->SetBoolField(TEXT("parked"), State && State->bParked);
 		Json->SetNumberField(TEXT("throttle_notch"), State ? State->HelmThrottleNotch : 0);
 		Json->SetNumberField(TEXT("ballast"), State ? State->HelmBallast : 0.f);
 		Json->SetNumberField(TEXT("helm_speed_mps"), State ? State->HelmSpeedMps : 0.f);
