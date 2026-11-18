@@ -125,7 +125,56 @@ Quinn merged M2a (about 2:10 AM Nov 18, `7ac9d5b`) and chose: the caves lay 10 s
 
 **Frames**, from the diver unless noted: a pile in S; a pile in C1; the serpent in S and in C1, within sight; the relic in C1; the HUD parked at C1 (from the helm); the win at the end of the cave run. Package once at the end, with one packaged frame in caves.
 
-**After M2b:** stop 3's cavern (D-068), a new chunk past B that sinks from 300 to 500 m, with a berth, salvage sockets and a serpent socket; the relic moves there. Then the default flips on Quinn's OK, and moving-sub step 5 removes D-022's code.
+## Stop 3's cavern, C2 (D-069, from Nov 18)
+
+Quinn approved the plan at 2:37 AM Nov 18. C2 is a new last chunk joined to B's exit. E leaves the string; its mesh and its row in `CaveChunks.csv` stay. Part 1, the generator, starts now beside M2b on `build/cavestop3` in `.wt\cave3`. Part 2, the runtime, follows on the same branch once M2b has merged and main is merged in.
+
+**The shape**, in C2's frame (the entry joint's centre at the origin, +X in, Z up):
+- The entry is a bed joint, conformed to B's exit.
+- A tunnel drops about 8.5 m to the pit's lip, where a `SinkTop` socket sits on the path. B's floor reaches about 7.1 m below its joints, so the lip lies below all of B.
+- The pit is a vertical shaft like C1's sink: a clear radius of at least 9.5 m, and path bends of at least 10.5 m radius. After about 12 m it opens into the roof of the chamber.
+- The chamber is the run's biggest and darkest: a long hall, about 50 by 35 m, wider than it is tall. The shaft comes down at one end. The sub sinks through open water and berths about 24 m below SinkTop, a few metres above the floor, facing down the hall. The roof is about 12 m above the berth.
+- There is no exit: the chunk closes in rock (Type `stop`, InType `bed`, no OutType).
+
+**Depths:** SinkTop reads 308.5 m and the berth 500 m. That is the slope of C1's sink: 8.5 m read true, then 191.5 m of gauge over 24 m. The second gate's 400 m limit falls about 11.5 m below SinkTop, so until the hull upgrade is bought the sub hangs at the foot of the shaft, over the dark hall. In the hall the gauge reads from about 400 m at the roof to about 505 m at the floor, as C1's does over its sink.
+
+**Around the berth** (the stop-3 tether is 80 m: 40 m plus 20 m a stop):
+- Salvage: five sockets, for 10 pieces in piles of 2. They lie on open floor and ledges along the hall, each with 2 m clear around it, between about 10 and 45 m from the berth. Some are out of sight from the hatch, so the diver has to look.
+- The serpent's bay is a side pocket off the middle of the hall. Its `Serpent` socket is in the void, 3.8 to 5 m from rock.
+- The relic: a `Relic` socket on the floor of an alcove at the hall's far end, 35 to 55 m from the berth by an open swim, and at least 8 m from any salvage socket. The swim to it passes the serpent's bay.
+
+**Part 1, the generator (now):**
+- Build C2 in `cavegen.py` and `cavestring.py`, and bake `SM_CaveChunk_C2` in `deep/Content/Deep/CaveGen/`. Don't re-bake or change any other chunk.
+- `STRING` ends `B, C2`.
+- Add C2's row to `CaveChunks.csv`.
+- Add its sockets to `CaveChunkSockets.csv`: Park, SinkTop, Salvage1 to Salvage5, Serpent and Relic.
+- Add its path to `CaveChunkPath.csv` through `export_cave_path.py`.
+- Add frame cameras for C2.
+- Place C2 in L_CaveSpike and take E's actor out.
+- Every other chunk's rows in the three tables stay byte-identical.
+- The string's checks pass: joints, lips, overlap, the hull sweep, the shaft's column, the tether and the cameras.
+- With the C++ unchanged, the game is unchanged: the runtime ignores rows for a chunk outside its string (`PathPoses` skips them).
+- **Frames** (editor captures, as in round 8c):
+  - the string from above, with C2
+  - a cut along C2's path through the tunnel, the shaft and the hall
+  - the helm at the lip, looking down the shaft
+  - the view from the 400 m limit into the hall
+  - the hall from the berth's hatch
+  - the hall from the relic's end, looking back at the berth
+  - the serpent's bay
+  - the relic's alcove
+
+**Part 2, the runtime (after M2b):**
+1. `String = {S, A, T1, C1, B, C2}` and `Berths = {S, C1, C2}`.
+2. C2's salvage: the shaft's 10 pieces, 2 at each of its five sockets.
+3. The depth map: a later berth's chunk reads true down to its `SinkTop` socket if it has one, otherwise down to its entry joint. Below that it stretches so its berth reads the next stop's depth. `CaveDepthMap.csv` gains C2's two knots, about (141, 308.5) and (165, 500). C1's knots stay.
+4. The relic sits at the last berth's `Relic` socket, in C2. M2b derives the relic's stop from the string.
+5. The HUD at C1 names 500 m as the next stop. At C2 it names none.
+6. The hull upgrade's limit holds the sub at 400 m in C2's shaft until it is bought. Buying it sinks the sub to C2's berth.
+7. The serpent lurks at C2's socket while the sub is parked there.
+8. The cave run goes S, the flashlight, C1, the hull upgrade, C2, the relic and the win.
+
+Then frames, then Quinn's OK. After that the default flips to caves (D-068), and moving-sub step 5 removes D-022's code.
 
 ## Log
 
@@ -149,3 +198,4 @@ Quinn merged M2a (about 2:10 AM Nov 18, `7ac9d5b`) and chose: the caves lay 10 s
 - Nov 18, about 1:55 AM: main merged into `build/cavedive` (`e2c9997`); M2a's merge gate started.
 - Nov 18, 2:01 AM: M2a's merge gate passed on `e2c9997`: 198 tests, both playthroughs with the caves off (`devlog/media` untouched), the package (1.2 GB, zip 911 MB), smoke, and packaged frames of the room start and of the squeeze with the caves on. The build to drive is `Builds/CaveDive-M2a/Play-Caves.bat`. Page v41.
 - Nov 18, about 2:10 AM: Quinn merged M2a (`7ac9d5b`; its nine frames are in `devlog/media` as `2026-11-18-m2a-*.jpg`) and chose salvage in piles, 10 a stop (D-067), and the relic in C1 until stop 3's cavern exists, with the caves off by default until then (D-068). M2b starts.
+- Nov 18, 2:37 AM: Quinn approved stop 3's cavern, C2 (D-069). Its generator part starts beside M2b on `build/cavestop3` in `.wt\cave3`.

@@ -378,6 +378,15 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 
 ## Decided
 
+### D-069 Stop 3's cavern: C2, a pit below B into the run's biggest chamber, ends the string
+- **Status:** Decided.
+- **Date:** 2026-11-18, 2:37 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "go with that stop 3 plan, continue", to the plan: a new last chunk after B, where a tunnel drops about 8 m and a pit sinks about 24 m, so the gauge runs from about 300 to 500 m as in C1's sink. At the bottom the pit opens into the run's biggest, darkest chamber, where the sub berths with the salvage piles, the serpent's bay and the relic around it. E comes out of the string, and its mesh is kept. Until the second gate is bought the sub stops at 400 m, partway down the pit. Once Quinn OKs the frames, the caves can become the default game.
+- **Decided:** As planned. C2 is the reverse of C1: C1 is a room with its drop below it, and C2 is a drop into a room. The string is S, A, T1, C1, B, C2, with berths in S, C1 and C2. The gauge reads true from C1's berth down to the top of C2's pit (a `SinkTop` socket), so no part of B reads on the stretched slope.
+- **Why:** The default game has three stops, and the caves had two (S and C1), because B and E are no deeper than C1 (D-068). A last drop into the darkest room makes the third stop feel like the bottom of the run. Ending the string in C2 keeps the diver's line, the serpent and the relic in one cavern for the finale.
+- **What follows:** The generator part (C2's mesh, table rows, sockets, path and frames) starts now on `build/cavestop3`, beside M2b. The runtime part (the string, the depth map, the relic, the HUD, the second gate and the cave run) follows M2b's merge. The default flips on Quinn's OK.
+
 ### D-068 The relic waits in C1 until a stop-3 cavern exists; the caves stay off by default until then
 - **Status:** Decided.
 - **Date:** 2026-11-18, about 2:10 AM EST
