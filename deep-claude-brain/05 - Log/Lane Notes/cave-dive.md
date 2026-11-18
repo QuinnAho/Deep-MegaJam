@@ -114,6 +114,8 @@ Quinn merged M1 (about 1:09 AM Nov 18, `5659e71`) and named M2: salvage, the ser
 
 - The serpent at its sockets, kept inside the rock's open space.
 - The relic: Quinn's call on where it goes until stop 3's cavern exists.
+- The HUD's next stop in the caves: it reads 500 m, and the caves have no stop 3 yet.
+- Salvage: 10 a stop or fewer, on Quinn's answer to page v40.
 - A full cave playthrough scenario.
 - The default flips to 1 after Quinn's OK; the old shaft stays behind the switch.
 
@@ -132,3 +134,11 @@ Then moving-sub step 5 removes D-022's code.
   - Play build for Quinn: `Builds\CaveDive-1251\Play-Caves.bat` (caves on from `-ExecCmds`).
 - Nov 17, 1:02 PM: M1's merge gate green on `400b49d` (192 tests, S1-hatch and S7-run, package, smoke, two packaged frames, zip 911.1 MB).
 - Nov 18, about 1:10 AM: Quinn merged M1 (`5659e71`) and chose depth that follows the stops (D-065). M2a starts.
+- Nov 18, about 1:50 AM: M2a built and pushed (`7b90e9f`, `2e0784e`), its tests green. What it found:
+  - The shaft lays 10 salvage pieces a stop; S has 4 sockets and C1 has 5, so the caves lay 4 and 5, about half the pay. Quinn's call (page v40); recommended: 10 a stop, in piles of 2 or 3 around each socket.
+  - Every socket is within the tether: S 11.7 to 19.5 m of 40 m, C1 9.6 to 25.3 m of 60 m.
+  - C1's 24 m drop reads 108 to 300 m, so in C1 the diver's gauge moves about 8 m per metre swum, and the fog and light change from roof to floor.
+  - Between pings the caverns are black, and the diver's lamp needs the flashlight. The soft ping is a post-process drawn from depth, so it draws the cave rock: the helm's ping spreads to 50 m, the diver's to 100 m, and the helm's scope shows 60 m. Quinn judges by driving whether that is enough.
+  - The HUD's next stop reads 500 m in the caves (M2b).
+- Nov 18, about 1:55 AM: main merged into `build/cavedive` (`e2c9997`); M2a's merge gate started.
+- Nov 18, 2:01 AM: M2a's merge gate passed on `e2c9997`: 198 tests, both playthroughs with the caves off (`devlog/media` untouched), the package (1.2 GB, zip 911 MB), smoke, and packaged frames of the room start and of the squeeze with the caves on. The build to drive is `Builds/CaveDive-M2a/Play-Caves.bat`. Page v41.

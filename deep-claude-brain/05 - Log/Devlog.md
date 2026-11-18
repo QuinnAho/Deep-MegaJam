@@ -1343,3 +1343,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: Quinn merged M1 (`5659e71`); the caves stay off by default. M1's 11 frames went into `devlog/media` as JPEGs (`2026-11-17-dive1-*.jpg`, 412 KB in all). `tools/playtest.ps1` no longer copies its frames into `devlog/media`, and `tools/jpeg.ps1` converts frames for git.
 - Decided: depth in the caves follows the stops, so C1's sink reads 100 to 300 m from a table keyed on physical depth (D-065). Frames enter git as JPEG only, and the harness's frames stay out (D-066).
 - Next: M2a (depth, the gate limit, salvage at the cave sockets, the hatch and tether at both berths), then frames to Quinn.
+
+### 2:03 AM, Nov 18  Caves into the dive, M2a: depth, the limit, salvage and the hatch
+- Changed: on `build/cavedive` (`7b90e9f`, `2e0784e`; main merged in at `e2c9997`), depth in the caves follows the stops (S reads 100 m, C1's sink 100 to 300 m), the sub stops at the 200 m limit partway down C1's sink until a gate is bought, salvage lies at the caverns' sockets (4 in S, 5 in C1), and the hatch and tether work at both berths with every socket in reach. Still off by default.
+- Decided: the frames and three asks go to Quinn before the merge (page v41): the merge, how much salvage the caves lay, and whether the dark is playable. The merge gate passed at 2:01 AM: 198 tests, both playthroughs, the package and two frames from it. A build to drive is in `Builds/CaveDive-M2a` (`Play-Caves.bat`).
+- Failed: the caves lay 4 and 5 pieces where the shaft lays 10 a stop, so they pay about half. C1's 24 m drop reads 108 to 300 m, so the diver's gauge there moves about 8 m per metre. Between pings the caverns are black. The HUD's next stop reads 500 m in the caves.
+- Next: Quinn's answers, then the merge and M2b: the serpent, the relic, the HUD's next stop, a full cave run, then the switch on by default.
