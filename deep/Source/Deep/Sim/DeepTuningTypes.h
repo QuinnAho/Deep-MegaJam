@@ -2800,4 +2800,54 @@ struct DEEP_API FDeepCaveStringTuning
 	/** The helm camera shivers while the hull is this close to rock (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
 	float ShiverNearCm = 5.f;
+
+	/**
+	 * M2b, the serpent in the caves: it lurks round this socket of the cavern the sub berths in (stop n: Berths[n-1]),
+	 * and its path keeps to that cavern's room (DeepCaveDiveRules::BuildRoom, flooded from the socket).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FName SerpentSocket = FName(TEXT("Serpent"));
+
+	/** The room's grid cell (cm). Smaller follows the rock closer but costs more to build (once per cavern, on first use). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentRoomCellCm = 50.f;
+
+	/**
+	 * Every path point keeps a ball this big clear of the rock (m): the drawn body's reach off its path (the head's lunge
+	 * and stroke, its 0.55 m neck; Monster CaveBodyReachM is 2 m) plus a little water. The cavern's shaft-era 5 m does not
+	 * fit the caves' bays and passages.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentPathClearM = 2.5f;
+
+	/** The lurk circle is fitted to the cavern: the widest from this (m) up to the stop's LurkRadiusM... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkMinM = 6.f;
+
+	/** ...whose circle is at least this share in the room (else the one with the most, round the socket)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkFreeShare = 0.9f;
+
+	/** ...round a centre in the room within this of the Serpent socket (m; 0: the socket itself; the sockets sit by the wall, the open water is 15-25 m out)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkCentreReachM = 30.f;
+
+	/** ...tried every this (m) each way. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkCentreStepM = 2.f;
+
+	/**
+	 * The bite point: where the line can be reached, from the stop's BiteFromDiverM up it toward the anchor, tried in
+	 * these steps (m). A diver in a crack is bitten at the first reachable point of the line.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentBiteStepM = 1.f;
+
+	/** The first-sight pass in a cavern ends this share of the way out to its kept last point (the shaft's PassEndM, 24 m, does not fit every bay). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentPassEndShare = 0.8f;
+
+	/** Where the straight way through a cavern is blocked, the serpent steers up to this far (m) along its route through the room. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentRouteLookM = 8.f;
 };

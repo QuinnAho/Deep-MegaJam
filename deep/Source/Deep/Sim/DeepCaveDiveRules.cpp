@@ -253,6 +253,70 @@ namespace DeepCaveDiveRules
 			}
 		}
 
+		// One pool: only the largest set of free cells joined by faces stays free (a pocket by the seed, too tight to
+		// leave, would hold the serpent in place; two pools would let it jump through rock between them).
+		if (Queue.Num() > 0)
+		{
+			TArray<int32> Pool;
+			Pool.Init(INDEX_NONE, Count);
+			TArray<int32> Flood;
+			Flood.Reserve(Queue.Num());
+			int32 BestLabel = INDEX_NONE;
+			int32 BestSize = 0;
+			int32 Label = 0;
+			for (const int32 Root : Queue)
+			{
+				if (Pool[Root] != INDEX_NONE)
+				{
+					continue;
+				}
+				Flood.Reset();
+				Flood.Add(Root);
+				Pool[Root] = Label;
+				for (int32 Head = 0; Head < Flood.Num(); ++Head)
+				{
+					const FIntVector C = Room.CellOf(Flood[Head]);
+					for (const FIntVector& Fc : Faces)
+					{
+						const FIntVector Next = C + Fc;
+						if (Next.X < 0 || Next.Y < 0 || Next.Z < 0 || Next.X >= N.X || Next.Y >= N.Y || Next.Z >= N.Z)
+						{
+							continue;
+						}
+						const int32 I = Room.Index(Next);
+						if (Room.Free[I] && Pool[I] == INDEX_NONE)
+						{
+							Pool[I] = Label;
+							Flood.Add(I);
+						}
+					}
+				}
+				if (Flood.Num() > BestSize)
+				{
+					BestSize = Flood.Num();
+					BestLabel = Label;
+				}
+				++Label;
+			}
+			Room.PoolCount = Label;
+			TArray<int32> Kept;
+			Kept.Reserve(BestSize);
+			for (const int32 I : Queue)
+			{
+				if (Pool[I] == BestLabel)
+				{
+					Kept.Add(I);
+				}
+				else
+				{
+					Room.Free[I] = 0;
+					Room.Nearest[I] = INDEX_NONE;
+				}
+			}
+			Room.FreeCount = Kept.Num();
+			Queue = MoveTemp(Kept);
+		}
+
 		// Every other cell's nearest free cell: a breadth-first spread from all of them (26 neighbours).
 		for (int32 Head = 0; Head < Queue.Num(); ++Head)
 		{
@@ -313,5 +377,242 @@ namespace DeepCaveDiveRules
 			InFree += (Grid.IsInsideOrOn(P) && Room.Free[Room.Index(Room.CellAt(P))]) ? 1 : 0;
 		}
 		return float(InFree) / Samples;
+	}
+
+	float FitLurkRadiusCm(const FDeepCaveRoom& Room, const FVector& CentreCm, float MinCm, float MaxCm, float StepCm, float MinShare, int32 Samples)
+	{
+		const float Step = FMath::Max(1.f, StepCm);
+		const float Lo = FMath::Max(0.f, MinCm);
+		const float Hi = FMath::Max(Lo, MaxCm);
+		float Best = Lo;
+		float BestShare = -1.f;
+		for (float R = Hi; R >= Lo - 0.01f; R -= Step)
+		{
+			const float Share = FreeShareOfCircle(Room, CentreCm, R, Samples);
+			if (Share >= MinShare)
+			{
+				return R;
+			}
+			if (Share >= BestShare)
+			{
+				BestShare = Share;
+				Best = R;
+			}
+		}
+		return Best;
+	}
+
+	bool FitLurkCircle(const FDeepCaveRoom& Room, const FVector& SocketCm, float ReachCm, float StrideCm, float MinCm, float MaxCm, float StepCm,
+		float MinShare, int32 Samples, FVector& OutCentreCm, float& OutRadiusCm)
+	{
+		const float Step = FMath::Max(1.f, StepCm);
+		const float Lo = FMath::Max(0.f, MinCm);
+		const float Hi = FMath::Max(Lo, MaxCm);
+		const float Stride = FMath::Max(1.f, StrideCm);
+		const int32 Span = FMath::FloorToInt32(FMath::Max(0.f, ReachCm) / Stride);
+		bool bFound = false;
+		float BestR = 0.f;
+		double BestSq = 0.0;
+		FVector BestCentre = SocketCm;
+		if (Room.IsValid() && Room.FreeCount > 0)
+		{
+			for (int32 z = -Span; z <= Span; ++z)
+			{
+				for (int32 y = -Span; y <= Span; ++y)
+				{
+					for (int32 x = -Span; x <= Span; ++x)
+					{
+						const FVector Offset = FVector(x, y, z) * Stride;
+						const double Sq = Offset.SizeSquared();
+						if (Sq > FMath::Square(double(ReachCm)) + 1.0)
+						{
+							continue;
+						}
+						const FVector Centre = SocketCm + Offset;
+						if (!Room.Free[Room.Index(Room.CellAt(Centre))])
+						{
+							continue;
+						}
+						// Only radii that would win: wider than the best, or as wide and nearer the socket.
+						const float Floor = bFound ? BestR : Lo;
+						for (float R = Hi; R >= Floor - 0.01f; R -= Step)
+						{
+							if (FreeShareOfCircle(Room, Centre, R, Samples) >= MinShare)
+							{
+								if (!bFound || R > BestR + 0.01f || Sq < BestSq)
+								{
+									bFound = true;
+									BestR = R;
+									BestSq = Sq;
+									BestCentre = Centre;
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		if (bFound)
+		{
+			OutCentreCm = BestCentre;
+			OutRadiusCm = BestR;
+			return true;
+		}
+		OutCentreCm = SocketCm;
+		OutRadiusCm = FitLurkRadiusCm(Room, SocketCm, Lo, Hi, Step, MinShare, Samples);
+		return false;
+	}
+
+	bool LineFree(const FDeepCaveRoom& Room, const FVector& FromCm, const FVector& ToCm)
+	{
+		if (!Room.IsValid())
+		{
+			return true;
+		}
+		const double Length = FVector::Dist(FromCm, ToCm);
+		const int32 Samples = FMath::Max(1, FMath::CeilToInt32(Length / (0.5 * Room.CellCm)));
+		for (int32 i = 0; i <= Samples; ++i)
+		{
+			if (!Room.Free[Room.Index(Room.CellAt(FMath::Lerp(FromCm, ToCm, double(i) / Samples)))])
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static const FIntVector RouteFaces[6] = { FIntVector(1, 0, 0), FIntVector(-1, 0, 0), FIntVector(0, 1, 0), FIntVector(0, -1, 0), FIntVector(0, 0, 1), FIntVector(0, 0, -1) };
+
+	void BuildRoute(const FDeepCaveRoom& Room, int32 TargetIndex, FDeepCaveRoute& Route)
+	{
+		Route.Target = TargetIndex;
+		Route.Steps.Init(-1, Room.Num());
+		if (!Room.IsValid() || !Room.Free.IsValidIndex(TargetIndex) || !Room.Free[TargetIndex])
+		{
+			return;
+		}
+		TArray<int32> Queue;
+		Queue.Reserve(Room.FreeCount);
+		Queue.Add(TargetIndex);
+		Route.Steps[TargetIndex] = 0;
+		for (int32 Head = 0; Head < Queue.Num(); ++Head)
+		{
+			const int32 I = Queue[Head];
+			const FIntVector C = Room.CellOf(I);
+			for (const FIntVector& F : RouteFaces)
+			{
+				const FIntVector N = C + F;
+				if (N.X < 0 || N.Y < 0 || N.Z < 0 || N.X >= Room.Dims.X || N.Y >= Room.Dims.Y || N.Z >= Room.Dims.Z)
+				{
+					continue;
+				}
+				const int32 J = Room.Index(N);
+				if (Room.Free[J] && Route.Steps[J] < 0)
+				{
+					Route.Steps[J] = Route.Steps[I] + 1;
+					Queue.Add(J);
+				}
+			}
+		}
+	}
+
+	FVector RouteAim(const FDeepCaveRoom& Room, FDeepCaveRoute& Route, const FVector& FromCm, const FVector& ToCm, float LookCm)
+	{
+		if (!Room.IsValid() || Room.FreeCount == 0)
+		{
+			return ToCm;
+		}
+		const FVector From = KeepInRoom(Room, FromCm);
+		const FVector To = KeepInRoom(Room, ToCm);
+		if (LineFree(Room, From, To))
+		{
+			return ToCm;
+		}
+		const int32 Target = Room.Nearest[Room.Index(Room.CellAt(To))];
+		const int32 Start = Room.Nearest[Room.Index(Room.CellAt(From))];
+		if (Target == INDEX_NONE || Start == INDEX_NONE)
+		{
+			return ToCm;
+		}
+		if (Route.Target != Target || Route.Steps.Num() != Room.Num())
+		{
+			BuildRoute(Room, Target, Route);
+		}
+		if (Route.Steps[Start] < 0)
+		{
+			return ToCm;
+		}
+		// Down the steps toward the target; the farthest cell seen in a free straight line wins.
+		const int32 Look = FMath::Max(1, FMath::CeilToInt32(LookCm / Room.CellCm));
+		int32 Cell = Start;
+		FVector Best = Room.CentreCm(Room.CellOf(Start));
+		for (int32 k = 0; k < Look && Route.Steps[Cell] > 0; ++k)
+		{
+			const FIntVector C = Room.CellOf(Cell);
+			int32 Next = INDEX_NONE;
+			double NextSq = TNumericLimits<double>::Max();
+			for (const FIntVector& F : RouteFaces)
+			{
+				const FIntVector N = C + F;
+				if (N.X < 0 || N.Y < 0 || N.Z < 0 || N.X >= Room.Dims.X || N.Y >= Room.Dims.Y || N.Z >= Room.Dims.Z)
+				{
+					continue;
+				}
+				const int32 J = Room.Index(N);
+				// Of the steps down, the one nearest the target keeps the route from staircasing away from it.
+				const double Sq = FVector::DistSquared(Room.CentreCm(N), To);
+				if (Route.Steps[J] == Route.Steps[Cell] - 1 && Sq < NextSq)
+				{
+					Next = J;
+					NextSq = Sq;
+				}
+			}
+			if (Next == INDEX_NONE)
+			{
+				break;
+			}
+			Cell = Next;
+			const FVector P = Room.CentreCm(Room.CellOf(Cell));
+			if (LineFree(Room, From, P))
+			{
+				Best = P;
+			}
+		}
+		return Best;
+	}
+
+	FVector ReachableOnLine(const FDeepCaveRoom& Room, const FVector& AnchorCm, const FVector& DiverEndCm, float FromDiverCm, float ToleranceCm, float StepCm)
+	{
+		const FVector Line = AnchorCm - DiverEndCm;
+		const double Length = Line.Size();
+		if (Length < 1.0)
+		{
+			return DiverEndCm;
+		}
+		const FVector Dir = Line / Length;
+		const double Step = FMath::Max(1.f, StepCm);
+		FVector Best = DiverEndCm + Dir * FMath::Clamp<double>(FromDiverCm, 0.0, Length);
+		double BestGap = TNumericLimits<double>::Max();
+		for (double Along = FMath::Clamp<double>(FromDiverCm, 0.0, Length); ; Along += Step)
+		{
+			const double At = FMath::Min(Along, Length);
+			const FVector P = DiverEndCm + Dir * At;
+			const double Gap = FVector::Dist(KeepInRoom(Room, P), P);
+			if (Gap <= ToleranceCm)
+			{
+				return P;
+			}
+			if (Gap < BestGap)
+			{
+				BestGap = Gap;
+				Best = P;
+			}
+			if (At >= Length)
+			{
+				break;
+			}
+		}
+		return Best;
 	}
 }

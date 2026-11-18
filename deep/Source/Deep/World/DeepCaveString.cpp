@@ -13,6 +13,7 @@
 #include "Game/DeepGameState.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/FileHelper.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -336,6 +337,186 @@ int32 ADeepCaveString::FootprintRock(const FBox& WorldBox, float UpCm, float Dow
 		}
 	}
 	return Hits;
+}
+
+const FDeepSerpentCave* ADeepCaveString::SerpentCave(int32 Stop) const
+{
+	if (const TSharedPtr<FDeepSerpentCave>* Found = SerpentCaves.Find(Stop))
+	{
+		return Found->Get();
+	}
+	SerpentCaves.Add(Stop);
+	const FDeepCaveStringTuning& CS = UDeepTuningSettings::Get().CaveString;
+	if (!CS.Berths.IsValidIndex(Stop - 1))
+	{
+		return nullptr;
+	}
+	const FName Chunk = CS.Berths[Stop - 1];
+	const int32 PlaceIndex = Places.IndexOfByPredicate([Chunk](const FDeepCavePlace& P) { return P.Chunk == Chunk; });
+	const UStaticMeshComponent* Component = Chunks.IsValidIndex(PlaceIndex) ? Chunks[PlaceIndex].Get() : nullptr;
+	const UStaticMesh* Mesh = Component ? Component->GetStaticMesh() : nullptr;
+	FVector Socket;
+	if (!Mesh || !SocketWorld(Chunk, CS.SerpentSocket, Socket))
+	{
+		UE_LOG(LogDeepCaveString, Warning, TEXT("Deep.World.Caves: no serpent room at stop %d (%s has no mesh or no %s socket)"), Stop, *Chunk.ToString(), *CS.SerpentSocket.ToString());
+		return nullptr;
+	}
+
+	const double StartS = FPlatformTime::Seconds();
+	TSharedPtr<FDeepSerpentCave> Cave = MakeShared<FDeepSerpentCave>();
+	Cave->Stop = Stop;
+	Cave->Chunk = Chunk;
+	Cave->ToWorld = Component->GetComponentTransform();
+	Cave->SocketCm = Socket;
+	FDeepCaveRoom& Room = Cave->Room;
+	Room.CellCm = FMath::Max(10.f, CS.SerpentRoomCellCm);
+	const FBox Bounds = Mesh->GetBoundingBox();
+	Room.OriginCm = Bounds.Min;
+	const FVector Cells = Bounds.GetSize() / Room.CellCm;
+	Room.Dims = FIntVector(FMath::Max(1, FMath::CeilToInt32(Cells.X)), FMath::Max(1, FMath::CeilToInt32(Cells.Y)), FMath::Max(1, FMath::CeilToInt32(Cells.Z)));
+
+	// The rock: the cells the chunks' surfaces pass through, found coarse to fine (a block that touches no rock skips
+	// all its cells). Whatever the flood from the socket cannot reach counts as rock too (BuildRoom).
+	TArray<uint8> Rock;
+	Rock.Init(0, Room.Num());
+	const FQuat Rotation = Cave->ToWorld.GetRotation();
+	TFunction<void(const FIntVector&, int32)> Mark;
+	Mark = [&](const FIntVector& Lo, int32 Span)
+	{
+		const FIntVector Hi(FMath::Min(Lo.X + Span, Room.Dims.X), FMath::Min(Lo.Y + Span, Room.Dims.Y), FMath::Min(Lo.Z + Span, Room.Dims.Z));
+		if (Hi.X <= Lo.X || Hi.Y <= Lo.Y || Hi.Z <= Lo.Z)
+		{
+			return;
+		}
+		const FVector MinCm = Room.OriginCm + FVector(Lo) * Room.CellCm;
+		const FVector MaxCm = Room.OriginCm + FVector(Hi) * Room.CellCm;
+		++Cave->Queries;
+		if (!OverlapsBoxWorld(Cave->ToWorld.TransformPosition((MinCm + MaxCm) * 0.5), (MaxCm - MinCm) * 0.5 + FVector(1.0), Rotation))
+		{
+			return;
+		}
+		if (Span == 1)
+		{
+			Rock[Room.Index(Lo)] = 1;
+			++Cave->RockCells;
+			return;
+		}
+		const int32 Half = (Span + 1) / 2;
+		for (int32 i = 0; i < 8; ++i)
+		{
+			Mark(Lo + FIntVector((i & 1) ? Half : 0, (i & 2) ? Half : 0, (i & 4) ? Half : 0), Half);
+		}
+	};
+	constexpr int32 Block = 16;
+	for (int32 Z = 0; Z < Room.Dims.Z; Z += Block)
+	{
+		for (int32 Y = 0; Y < Room.Dims.Y; Y += Block)
+		{
+			for (int32 X = 0; X < Room.Dims.X; X += Block)
+			{
+				Mark(FIntVector(X, Y, Z), Block);
+			}
+		}
+	}
+	const FVector SeedLocal = Cave->ToWorld.InverseTransformPosition(Socket);
+	DeepCaveDiveRules::BuildRoom(Room, Rock, Room.CellAt(SeedLocal), CS.SerpentPathClearM * 100.f);
+	for (const uint8 R : Room.Reached)
+	{
+		Cave->ReachedCells += R;
+	}
+	Cave->BuildSeconds = FPlatformTime::Seconds() - StartS;
+	UE_LOG(LogDeepCaveString, Log, TEXT("Deep.World.Caves: serpent room at stop %d (%s): %d x %d x %d cells of %.0f cm, %d rock, %d water, %d free in the largest of %d pools (%.1f m clear), %d queries, %.2f s"),
+		Stop, *Chunk.ToString(), Room.Dims.X, Room.Dims.Y, Room.Dims.Z, Room.CellCm, Cave->RockCells, Cave->ReachedCells, Room.FreeCount, Room.PoolCount,
+		CS.SerpentPathClearM, Cave->Queries, Cave->BuildSeconds);
+	if (Room.FreeCount == 0)
+	{
+		UE_LOG(LogDeepCaveString, Warning, TEXT("Deep.World.Caves: the serpent room at stop %d has no free cell; it keeps no path there"), Stop);
+		return nullptr;
+	}
+	SerpentCaves[Stop] = Cave;
+	return Cave.Get();
+}
+
+FVector ADeepCaveString::KeepSerpentCm(int32 Stop, const FVector& WorldCm) const
+{
+	const FDeepSerpentCave* Cave = SerpentCave(Stop);
+	if (!Cave)
+	{
+		return WorldCm;
+	}
+	return Cave->ToWorld.TransformPosition(DeepCaveDiveRules::KeepInRoom(Cave->Room, Cave->ToWorld.InverseTransformPosition(WorldCm)));
+}
+
+float ADeepCaveString::SerpentLurkRadiusCm(int32 Stop, float MaxRadiusCm, FVector* OutCentreCm) const
+{
+	// The rooms live in a mutable cache; the fit is cached with them.
+	FDeepSerpentCave* Cave = const_cast<FDeepSerpentCave*>(SerpentCave(Stop));
+	if (!Cave)
+	{
+		return MaxRadiusCm;
+	}
+	if (!FMath::IsNearlyEqual(Cave->LurkForMaxCm, MaxRadiusCm))
+	{
+		const FDeepCaveStringTuning& CS = UDeepTuningSettings::Get().CaveString;
+		const FVector SocketLocal = Cave->ToWorld.InverseTransformPosition(Cave->SocketCm);
+		FVector CentreLocal;
+		float Radius = 0.f;
+		const double StartS = FPlatformTime::Seconds();
+		Cave->bLurkFits = DeepCaveDiveRules::FitLurkCircle(Cave->Room, SocketLocal, CS.SerpentLurkCentreReachM * 100.f, CS.SerpentLurkCentreStepM * 100.f,
+			FMath::Min(CS.SerpentLurkMinM * 100.f, MaxRadiusCm), MaxRadiusCm, 100.f, CS.SerpentLurkFreeShare, 72, CentreLocal, Radius);
+		Cave->LurkForMaxCm = MaxRadiusCm;
+		Cave->LurkRadiusCm = Radius;
+		Cave->LurkCentreCm = Cave->ToWorld.TransformPosition(CentreLocal);
+		UE_LOG(LogDeepCaveString, Log, TEXT("Deep.World.Caves: the serpent lurks %.0f m round a point %.1f m from %s's %s socket (%.0f%% of the circle in its room%s; at most %.0f m; %.2f s)"),
+			Radius / 100.f, FVector::Dist(CentreLocal, SocketLocal) / 100.f, *Cave->Chunk.ToString(), *CS.SerpentSocket.ToString(),
+			100.f * DeepCaveDiveRules::FreeShareOfCircle(Cave->Room, CentreLocal, Radius, 72), Cave->bLurkFits ? TEXT("") : TEXT(", NO circle fits"),
+			MaxRadiusCm / 100.f, FPlatformTime::Seconds() - StartS);
+	}
+	if (OutCentreCm)
+	{
+		*OutCentreCm = Cave->LurkCentreCm;
+	}
+	return Cave->LurkRadiusCm;
+}
+
+bool ADeepCaveString::SerpentLurkPoint(int32 Stop, float MaxRadiusCm, float AngleRad, FVector& OutCm, FVector& OutFacing) const
+{
+	if (!SerpentCave(Stop))
+	{
+		return false;
+	}
+	FVector Centre;
+	const float Radius = SerpentLurkRadiusCm(Stop, MaxRadiusCm, &Centre);
+	const FVector Out(FMath::Cos(AngleRad), FMath::Sin(AngleRad), 0.0);
+	OutCm = KeepSerpentCm(Stop, Centre + Out * Radius);
+	OutFacing = FVector(-Out.Y, Out.X, 0.0);
+	return true;
+}
+
+FVector ADeepCaveString::SerpentRouteCm(int32 Stop, const FVector& FromCm, const FVector& ToCm) const
+{
+	// The route lives in the room's mutable cache, rebuilt only when its target cell changes.
+	FDeepSerpentCave* Cave = const_cast<FDeepSerpentCave*>(SerpentCave(Stop));
+	if (!Cave)
+	{
+		return ToCm;
+	}
+	const float LookCm = UDeepTuningSettings::Get().CaveString.SerpentRouteLookM * 100.f;
+	return Cave->ToWorld.TransformPosition(DeepCaveDiveRules::RouteAim(Cave->Room, Cave->Route, Cave->ToWorld.InverseTransformPosition(FromCm),
+		Cave->ToWorld.InverseTransformPosition(ToCm), LookCm));
+}
+
+FVector ADeepCaveString::SerpentBitePoint(int32 Stop, const FVector& AnchorCm, const FVector& DiverEndCm, float FromDiverCm, float ToleranceCm) const
+{
+	const FDeepSerpentCave* Cave = SerpentCave(Stop);
+	if (!Cave)
+	{
+		const double Length = FVector::Dist(AnchorCm, DiverEndCm);
+		return Length > 1.0 ? FMath::Lerp(DiverEndCm, AnchorCm, FMath::Clamp(FromDiverCm / Length, 0.0, 1.0)) : DiverEndCm;
+	}
+	const float StepCm = UDeepTuningSettings::Get().CaveString.SerpentBiteStepM * 100.f;
+	return Cave->ToWorld.TransformPosition(DeepCaveDiveRules::ReachableOnLine(Cave->Room, Cave->ToWorld.InverseTransformPosition(AnchorCm),
+		Cave->ToWorld.InverseTransformPosition(DiverEndCm), FromDiverCm, ToleranceCm, StepCm));
 }
 
 bool ADeepCaveString::OverlapsBoxWorld(const FVector& CentreCm, const FVector& HalfCm, const FQuat& Rotation) const

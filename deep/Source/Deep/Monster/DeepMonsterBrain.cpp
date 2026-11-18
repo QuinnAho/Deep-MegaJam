@@ -15,6 +15,7 @@
 #include "Sim/DeepRules.h"
 #include "World/DeepAbyssFloor.h"
 #include "World/DeepArena.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepSubmarine.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepMonster, Log, All);
@@ -278,8 +279,19 @@ ADeepSerpent* UDeepMonsterBrain::SpawnSerpent(bool bForced)
 	// Somewhere on the lurk circle, swimming around it: heard and glimpsed, never on top of you.
 	const float Angle = FMath::FRandRange(0.f, 2.f * PI);
 	const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.f);
-	const FVector Location = Centre + Out * LurkRadiusCm(Target, Tuning);
-	const FVector Facing(-Out.Y, Out.X, 0.f);
+	FVector Location = Centre + Out * LurkRadiusCm(Target, Tuning);
+	FVector Facing(-Out.Y, Out.X, 0.f);
+	// The caves (M2b): on the lurk circle round the berth cavern's Serpent socket, kept in its room.
+	if (DeepArena::IsWorldCaves(World))
+	{
+		const ADeepCaveString* CaveString = DeepCaveString::Find(World);
+		FVector At, Way;
+		if (CaveString && CaveString->SerpentLurkPoint(CurrentStop(), Tuning.LurkRadiusM * CmPerM, Angle, At, Way))
+		{
+			Location = At;
+			Facing = Way;
+		}
+	}
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
