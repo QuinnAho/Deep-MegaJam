@@ -18,6 +18,8 @@
 #include "Sim/DeepTuningSettings.h"
 #include "World/DeepArena.h"
 #include "World/DeepCaveString.h"
+#include "World/DeepSalvage.h"
+#include "Components/CapsuleComponent.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 #include "World/DeepSubRoom.h"
@@ -354,6 +356,297 @@ bool FDeepCaveDiveParkTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("still on the berth"), FVector::Dist(After.LocationCm, Berth.LocationCm) < 2.0);
 	TestTrue(TEXT("still parked"), W.State->bParked);
 	TestFalse(TEXT("parked clear of rock"), String->OverlapsHull(W.Sub->GetSolidBoundsLocal(false), After.LocationCm, After.YawDeg));
+	return true;
+}
+
+namespace DeepCaveDiveTest
+{
+	/** C1's first sample in its sink (the path drops straight down onto the berth), FromTopCm below the sink's top. */
+	static int32 SinkSample(const ADeepCaveString& String, double FromTopCm)
+	{
+		const TArray<FDeepCavePathPoint>& Path = String.GetPath();
+		for (int32 Index = 0; Index < Path.Num(); ++Index)
+		{
+			if (Path[Index].Chunk == TEXT("C1") && Path[Index].LocalCm.Z <= -FromTopCm)
+			{
+				return Index;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/** Floods (ballast full) for up to Seconds or until the gauge reads StopAtM. */
+	static void Flood(const FDiveWorld& W, float Seconds, float StopAtM = TNumericLimits<float>::Max())
+	{
+		W.Run->SetPilotHold(1.f, 0.f);
+		for (float T = 0.f; T < Seconds && W.State->SubDepthM < StopAtM; T += 0.05f)
+		{
+			W.Fly(0.05f);
+		}
+	}
+
+	/** Each salvage piece in the world, with its bounds. */
+	static TArray<ADeepSalvage*> Salvage(UWorld* World)
+	{
+		TArray<ADeepSalvage*> Out;
+		for (TActorIterator<ADeepSalvage> It(World); It; ++It)
+		{
+			if (IsValid(*It))
+			{
+				Out.Add(*It);
+			}
+		}
+		return Out;
+	}
+
+	static FBox PieceBounds(const ADeepSalvage& Piece)
+	{
+		FBox Box(ForceInit);
+		Piece.ForEachComponent<UPrimitiveComponent>(false, [&Box](const UPrimitiveComponent* Prim)
+		{
+			if (Prim->IsRegistered() && (Prim->IsVisible() || Prim->IsCollisionEnabled()))
+			{
+				Box += Prim->Bounds.GetBox();
+			}
+		});
+		return Box;
+	}
+
+	/**
+	 * The stop's salvage sits at its cavern's sockets (by X and Y), rests on rock (rock within a few cm under its bottom)
+	 * and is clear of it (its bounds, lifted by the sink, overlap none). Each within the tether's reach of the anchor.
+	 */
+	static void CheckCavernSalvage(FAutomationTestBase& Test, const FDiveWorld& W, int32 Stop)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		const FDeepCaveStringTuning& CS = Tuning.CaveString;
+		const ADeepCaveString* String = W.String();
+		const FName Cavern = CS.Berths[Stop - 1];
+		const TArray<ADeepSalvage*> Pieces = Salvage(W.World);
+		int32 Slots = 0;
+		const FVector Anchor = W.Sub->GetAnchorLocation();
+		const float TetherCm = UDeepRules::TetherLengthM(Stop, Tuning.Tether) * UDeepRules::CmPerM;
+		for (const FDeepCaveSalvageSlot& Slot : CS.Salvage)
+		{
+			if (Slot.Chunk != Cavern)
+			{
+				continue;
+			}
+			++Slots;
+			FVector Socket;
+			if (!Test.TestTrue(FString::Printf(TEXT("%s.%s exists"), *Slot.Chunk.ToString(), *Slot.Socket.ToString()), String->SocketWorld(Slot.Chunk, Slot.Socket, Socket)))
+			{
+				continue;
+			}
+			const ADeepSalvage* const* Found = Pieces.FindByPredicate([&Socket](const ADeepSalvage* Piece)
+			{
+				return FVector::Dist2D(Piece->GetActorLocation(), Socket) < 1.0;
+			});
+			const FString Name = FString::Printf(TEXT("%s.%s"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
+			if (!Test.TestNotNull(FString::Printf(TEXT("a piece at %s"), *Name), Found))
+			{
+				continue;
+			}
+			const ADeepSalvage& Piece = **Found;
+			Test.TestEqual(FString::Printf(TEXT("%s is its slot's kind"), *Name), static_cast<int32>(Piece.GetKind().Size), static_cast<int32>(Slot.Size));
+			const FBox Box = PieceBounds(Piece);
+			double Highest = 0.0;
+			double Lowest = 0.0;
+			const bool bRock = String->FootprintRock(Box, float(Box.GetSize().Z), 30.f, Highest, Lowest) > 0;
+			const double Gap = bRock ? Box.Min.Z - Highest : -1.0;
+			const bool bClear = !DeepArena::SalvageInRock(*String, Piece, CS.SalvageSinkCm + 1.0);
+			const double Reach = FVector::Dist(Anchor, Piece.GetActorLocation());
+			Test.AddInfo(FString::Printf(TEXT("DEEPCAVESALVAGE %s: socket z %.0f, piece z %.0f, bottom %.1f cm above rock (footprint spans %.0f cm), %s, %.1f m from the anchor (tether %.0f m)"),
+				*Name, Socket.Z, Piece.GetActorLocation().Z, Gap, bRock ? Highest - Lowest : 0.0, bClear ? TEXT("clear") : TEXT("IN ROCK"), Reach / UDeepRules::CmPerM, TetherCm / UDeepRules::CmPerM));
+			// Not floating: 10 cm lower, its own shapes would be in rock.
+			Test.TestTrue(FString::Printf(TEXT("%s rests on rock (10 cm lower is in it)"), *Name), bRock && DeepArena::SalvageInRock(*String, Piece, -10.0));
+			Test.TestTrue(FString::Printf(TEXT("%s is clear of rock"), *Name), bClear);
+			Test.TestTrue(FString::Printf(TEXT("%s is within the tether from the anchor"), *Name), Reach < TetherCm);
+			Test.TestTrue(FString::Printf(TEXT("%s is within 3 m of its socket"), *Name), FMath::Abs(Piece.GetActorLocation().Z - Socket.Z) < 300.0);
+		}
+		Test.TestEqual(FString::Printf(TEXT("stop %d: one piece per %s slot, and no others"), Stop, *Cavern.ToString()), Pieces.Num(), Slots);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveReadDepthTest, "Deep.World.CaveDive.ReadsStops", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveReadDepthTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	TestEqual(TEXT("the string's map is CaveDepthMap.csv's three knots"), String->GetDepthMap().Num(), 3);
+	TestEqual(TEXT("S's berth reads stop 1"), W.State->SubDepthM, 100.f, 0.01f);
+	TestEqual(TEXT("stop 1"), W.State->Stop, 1);
+	TestEqual(TEXT("the hull's height reads 100 m"), String->ReadDepthAtZ(W.Sub->GetActorLocation().Z), 100.f, 0.05f);
+	TestTrue(TEXT("the hatch is open at S"), W.Sub->IsHatchOpen());
+
+	// C1's berth: 32.5 m below S, read as 300 m; NearestStop, the hatch and the diver's gauge agree.
+	FDeepCavePose Berth;
+	String->SocketPose(TEXT("C1"), UDeepTuningSettings::Get().CaveString.ParkSocket, Berth);
+	W.PlaceAt(Berth, true);
+	W.TickSub();
+	AddInfo(FString::Printf(TEXT("at C1: reads %.2f m, stop %d, hull z %.0f"), W.State->SubDepthM, W.State->Stop, W.Sub->GetActorLocation().Z));
+	TestEqual(TEXT("C1's berth reads stop 2"), W.State->SubDepthM, 300.f, 0.01f);
+	TestEqual(TEXT("stop 2"), W.State->Stop, 2);
+	TestTrue(TEXT("settled at the stop"), W.State->IsSettledAtStop());
+	TestTrue(TEXT("the hatch is open at C1"), W.Sub->IsHatchOpen());
+	TestTrue(TEXT("the hull stands at its true pose"), FVector::Dist(W.Sub->GetActorLocation(), String->GetActorTransform().TransformPosition(Berth.LocationCm)) < 1.0);
+	TestEqual(TEXT("the hull's height reads 300 m"), String->ReadDepthAtZ(W.Sub->GetActorLocation().Z), 300.f, 0.05f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveLimitTest, "Deep.World.CaveDive.LimitHoldsInSink", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveLimitTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const int32 Sample = SinkSample(*String, 150.0);
+	if (!TestTrue(TEXT("a sample at the top of C1's sink"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	// No gates: flooded hard down the sink, the hull stops where the gauge reads the limit, well above the berth.
+	W.PlaceAt(String->GetPathPoses()[Sample]);
+	TestEqual(TEXT("no gates bought"), W.State->GatesBought(), 0);
+	const float Limit = W.State->DepthLimitM();
+	Flood(W, 40.f);
+	const FDeepCavePose Held = W.Pose();
+	const float Physical = DeepCaveString::PhysicalDepthM(W.World, W.State->SubDepthM);
+	AddInfo(FString::Printf(TEXT("held at %s: reads %.2f m (limit %.0f), true %.2f m, stop %d"), *Describe(Held), W.State->SubDepthM, Limit, Physical, W.State->Stop));
+	TestEqual(TEXT("the gauge reads the limit"), W.State->SubDepthM, Limit, 0.05f);
+	TestEqual(TEXT("about 120 m true"), Physical, 120.f, 0.5f);
+	TestTrue(TEXT("the helm reports the limit"), W.Run->IsHelmAtLimit());
+	TestEqual(TEXT("still stop 1"), W.State->Stop, 1);
+	TestTrue(TEXT("in C1's sink, above its berth"), Held.LocationCm.Z > -3250.0 + 500.0 && Held.LocationCm.Z < -850.0);
+	TestFalse(TEXT("not parked"), W.State->bParked);
+	TestEqual(TEXT("no dents: nothing touched"), W.State->HullDamage, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveGateTest, "Deep.World.CaveDive.GateSinksToC1", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveGateTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const int32 Sample = SinkSample(*String, 150.0);
+	if (!TestTrue(TEXT("a sample at the top of C1's sink"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	// One gate bought: the limit reads 400, below C1's berth. Flooded until the gauge nears 300, then levers home.
+	W.State->HullRating = 2;
+	W.PlaceAt(String->GetPathPoses()[Sample]);
+	Flood(W, 60.f, 285.f);
+	W.Run->AllStop();
+	W.Run->SetPilotHold(0.f, 0.f);
+	W.Fly(20.f);
+	const FDeepCavePose Parked = W.Pose();
+	FDeepCavePose Berth;
+	String->SocketPose(TEXT("C1"), UDeepTuningSettings::Get().CaveString.ParkSocket, Berth);
+	AddInfo(FString::Printf(TEXT("parked at %s (berth %s): reads %.2f m, stop %d, deepest %d, damage %d"), *Describe(Parked), *Describe(Berth),
+		W.State->SubDepthM, W.State->Stop, W.State->DeepestStopReached, W.State->HullDamage));
+	TestTrue(TEXT("parked"), W.State->bParked);
+	TestTrue(TEXT("on C1's berth"), FVector::Dist(Parked.LocationCm, Berth.LocationCm) < 2.0);
+	TestEqual(TEXT("reads 300 m"), W.State->SubDepthM, 300.f, 0.01f);
+	TestEqual(TEXT("stop 2"), W.State->Stop, 2);
+	TestEqual(TEXT("the deepest stop reached is 2"), W.State->DeepestStopReached, 2);
+	W.TickSub();
+	TestTrue(TEXT("the hatch opens"), W.Sub->IsHatchOpen());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveSalvageTest, "Deep.World.CaveDive.SalvageAtSockets", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveSalvageTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// Stop 1: S's sockets, from S's berth. Then parked at C1: stop 2's pieces at C1's sockets.
+	CheckCavernSalvage(*this, W, 1);
+	FDeepCavePose Berth;
+	String->SocketPose(TEXT("C1"), UDeepTuningSettings::Get().CaveString.ParkSocket, Berth);
+	W.PlaceAt(Berth, true);
+	W.TickSub();
+	TestEqual(TEXT("stop 2"), W.State->Stop, 2);
+	CheckCavernSalvage(*this, W, 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveDiverTest, "Deep.World.CaveDive.DiverOutOfHatch", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveDiverTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const UCapsuleComponent* Capsule = W.Diver->GetCapsuleComponent();
+	const FVector Half(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight());
+	for (int32 Stop = 1; Stop <= 2; ++Stop)
+	{
+		const FName Cavern = UDeepTuningSettings::Get().CaveString.Berths[Stop - 1];
+		FDeepCavePose Berth;
+		String->SocketPose(Cavern, UDeepTuningSettings::Get().CaveString.ParkSocket, Berth);
+		W.PlaceAt(Berth, true);
+		W.TickSub();
+		TestTrue(FString::Printf(TEXT("%s: the hatch is open"), *Cavern.ToString()), W.Sub->IsHatchOpen());
+		// Out of the hatch: the diver's start is in open water, and the gauge reads the stop there or a little below.
+		const FTransform Start = W.Sub->GetDiverStartTransform();
+		TestFalse(FString::Printf(TEXT("%s: the diver starts clear of rock"), *Cavern.ToString()), String->OverlapsBoxWorld(Start.GetLocation(), Half, FQuat::Identity));
+		W.Diver->SetActorLocation(Start.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
+		const float Reads = String->ReadDepthAtZ(Start.GetLocation().Z);
+		AddInfo(FString::Printf(TEXT("%s: diver start reads %.1f m"), *Cavern.ToString(), Reads));
+		TestTrue(FString::Printf(TEXT("%s: the diver's gauge reads near the stop"), *Cavern.ToString()), Reads >= W.State->SubDepthM && Reads < W.State->SubDepthM + 40.f);
+
+		// The rock stops the diver: swept from above each piece straight down through the floor, it lands on it.
+		for (const ADeepSalvage* Piece : Salvage(W.World))
+		{
+			const FVector Above = Piece->GetActorLocation() + FVector(0.0, 0.0, Half.Z + 120.0);
+			W.Diver->SetActorLocation(Above, false, nullptr, ETeleportType::TeleportPhysics);
+			if (String->OverlapsBoxWorld(Above, Half, FQuat::Identity))
+			{
+				AddWarning(FString::Printf(TEXT("%s: no room for the diver above %s"), *Cavern.ToString(), *Piece->GetActorLocation().ToString()));
+				continue;
+			}
+			W.Diver->SetActorLocation(Above - FVector(0.0, 0.0, 800.0), true);
+			TestTrue(FString::Printf(TEXT("%s: the floor under %s stops the diver"), *Cavern.ToString(), *Piece->GetName()), W.Diver->GetActorLocation().Z > Piece->GetActorLocation().Z - 200.0);
+		}
+	}
 	return true;
 }
 

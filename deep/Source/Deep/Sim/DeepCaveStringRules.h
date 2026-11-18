@@ -116,6 +116,22 @@ struct DEEP_API FDeepCavePose
 	float YawDeg = 0.f;
 };
 
+/**
+ * One knot of CaveDepthMap.csv (D-065): a true depth (the string's Z below the surface, m) and what the gauge reads
+ * there. Between knots the reading is linear; past either end it moves metre for metre.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepCaveDepthKnot
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float PhysicalM = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float ReadM = 0.f;
+};
+
 UCLASS()
 class DEEP_API UDeepCaveStringRules : public UBlueprintFunctionLibrary
 {
@@ -162,6 +178,33 @@ public:
 
 	/** The other way: the game state's offset and depth for a hull origin in the string's frame. */
 	static void HullToState(const FVector& HullCm, float TopDepthM, FVector2D& OutOffsetM, float& OutDepthM);
+
+	/** As HullCm, with the game state's depth a reading on the depth map (D-065): converted to true depth first. */
+	static FVector HullCm(const FVector2D& OffsetM, float ReadDepthM, float TopDepthM, const TArray<FDeepCaveDepthKnot>& Map);
+
+	/** As HullToState, giving the depth as the map reads it. */
+	static void HullToState(const FVector& HullCm, float TopDepthM, const TArray<FDeepCaveDepthKnot>& Map, FVector2D& OutOffsetM, float& OutReadDepthM);
+
+	/** CaveDepthMap.csv text (PhysicalM, ReadM). False, with the reason, on a missing column, no knots or a map that is not strictly increasing. */
+	static bool ParseDepthMap(const FString& Csv, TArray<FDeepCaveDepthKnot>& OutKnots, FString& OutError);
+
+	/** Empty when the map has knots and both columns strictly increase, else what is wrong. */
+	static FString CheckDepthMap(const TArray<FDeepCaveDepthKnot>& Knots);
+
+	/** What the gauge reads at a true depth (no knots: the true depth). */
+	static float ReadDepthM(const TArray<FDeepCaveDepthKnot>& Knots, float PhysicalM);
+
+	/** The true depth where the gauge reads ReadM (the inverse of ReadDepthM). */
+	static float PhysicalDepthM(const TArray<FDeepCaveDepthKnot>& Knots, float ReadM);
+
+	/**
+	 * The depth map the composed string implies (D-065): the first berth reads the first stop's depth; each later berth's
+	 * chunk reads true down to its entry joint, then is stretched so its berth (ParkSocket) reads the next stop's depth.
+	 * The string's origin is the first berth, at the first stop's depth. False, with the reason, on a missing berth or a
+	 * map that would not strictly increase.
+	 */
+	static bool StringDepthMap(const TArray<FDeepCavePlace>& Places, const TArray<FDeepCaveSocketRow>& Sockets, const TArray<FName>& Berths, FName ParkSocket,
+		const TArray<float>& StopDepthsM, TArray<FDeepCaveDepthKnot>& OutKnots, FString& OutError);
 
 	/** The hull's motion (sub frame velocity m/s, heave + down) as a velocity in the string's frame (m/s, Z up). */
 	static FVector VelocityMps(const FVector2D& VelocityMps, float HeaveMps);

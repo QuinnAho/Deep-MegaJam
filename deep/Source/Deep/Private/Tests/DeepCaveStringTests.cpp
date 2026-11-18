@@ -5,6 +5,8 @@
 #include "Misc/AutomationTest.h"
 #include "Sim/DeepCaveStringRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "Misc/FileHelper.h"
+#include "Story/DeepCaptainLines.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -243,6 +245,100 @@ bool FDeepCaveStringPathTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("By chunk and metres"), UDeepCaveStringRules::FindPathSample(Known, Metres, TEXT("A"), 10.f), 4);
 	TestEqual(TEXT("By region: the middle of the first run"), UDeepCaveStringRules::FindPathSample(Known, Metres, TEXT("tunnel"), 0.f), 4);
 	TestEqual(TEXT("Unknown"), UDeepCaveStringRules::FindPathSample(Known, Metres, TEXT("squeeze"), 0.f), int32(INDEX_NONE));
+	return true;
+}
+
+// D-065: the depth the gauge reads follows the stops. True depth to the top of C1's sink, the sink stretched so C1's
+// berth reads stop 2's depth, then slope 1.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveStringDepthMapTest, "Deep.Sim.CaveString.DepthMap", DEEP_CAVESTRING_TEST_FLAGS)
+bool FDeepCaveStringDepthMapTest::RunTest(const FString& Parameters)
+{
+	using FKnot = FDeepCaveDepthKnot;
+	const TArray<float> Stops = { 100.f, 300.f, 500.f };
+
+	// The knots come from the composed string: S's berth, C1's entry joint, C1's berth.
+	TArray<FDeepCaveChunkRow> Rows;
+	TArray<FDeepCaveSocketRow> Sockets;
+	FString Error;
+	UDeepCaveStringRules::ParseChunks(DeepCaveStringTest::Chunks, Rows, Error);
+	UDeepCaveStringRules::ParseSockets(DeepCaveStringTest::Sockets, Sockets, Error);
+	const FDeepCaveStringTuning CS;
+	TArray<FDeepCavePlace> Places;
+	UDeepCaveStringRules::ComposeString(Rows, CS.String, *UDeepCaveStringRules::FindSocket(Sockets, CS.Berths[0], CS.ParkSocket), Places, Error);
+	TArray<FKnot> Map;
+	TestTrue(TEXT("The string gives a map"), UDeepCaveStringRules::StringDepthMap(Places, Sockets, CS.Berths, CS.ParkSocket, Stops, Map, Error));
+	TestEqual(TEXT("Three knots"), Map.Num(), 3);
+	if (Map.Num() == 3)
+	{
+		TestEqual(TEXT("S's berth: true"), Map[0].PhysicalM, 100.f, 0.001f);
+		TestEqual(TEXT("S's berth reads stop 1"), Map[0].ReadM, 100.f, 0.001f);
+		TestEqual(TEXT("C1's entry joint: 8.5 m below S's berth"), Map[1].PhysicalM, 108.5f, 0.001f);
+		TestEqual(TEXT("... still true"), Map[1].ReadM, 108.5f, 0.001f);
+		TestEqual(TEXT("C1's berth: 32.5 m below S's"), Map[2].PhysicalM, 132.5f, 0.001f);
+		TestEqual(TEXT("... reads stop 2"), Map[2].ReadM, 300.f, 0.001f);
+	}
+	TestTrue(TEXT("Strictly increasing"), UDeepCaveStringRules::CheckDepthMap(Map).IsEmpty());
+
+	// The shipped table agrees with the shipped chunks (re-export it if a chunk moves).
+	FString ChunksText, SocketsText, MapText;
+	TArray<FKnot> Table;
+	const bool bRead = FFileHelper::LoadFileToString(ChunksText, *DeepData::DataPath(CS.ChunksCsv))
+		&& FFileHelper::LoadFileToString(SocketsText, *DeepData::DataPath(CS.SocketsCsv))
+		&& FFileHelper::LoadFileToString(MapText, *DeepData::DataPath(CS.DepthMapCsv));
+	if (TestTrue(TEXT("The tables are on disk"), bRead))
+	{
+		TArray<FDeepCaveChunkRow> RealRows;
+		TArray<FDeepCaveSocketRow> RealSockets;
+		TArray<FDeepCavePlace> RealPlaces;
+		TArray<FKnot> FromString;
+		UDeepCaveStringRules::ParseChunks(ChunksText, RealRows, Error);
+		UDeepCaveStringRules::ParseSockets(SocketsText, RealSockets, Error);
+		const FDeepCaveSocketRow* Berth = UDeepCaveStringRules::FindSocket(RealSockets, CS.Berths[0], CS.ParkSocket);
+		TestTrue(TEXT("The real string composes"), Berth && UDeepCaveStringRules::ComposeString(RealRows, CS.String, *Berth, RealPlaces, Error));
+		TestTrue(TEXT("... and gives a map"), UDeepCaveStringRules::StringDepthMap(RealPlaces, RealSockets, CS.Berths, CS.ParkSocket, UDeepTuningSettings::Get().StopDepthsM(), FromString, Error));
+		TestTrue(FString::Printf(TEXT("%s parses (%s)"), *CS.DepthMapCsv, *Error), UDeepCaveStringRules::ParseDepthMap(MapText, Table, Error));
+		TestEqual(TEXT("The table has the string's knots"), Table.Num(), FromString.Num());
+		for (int32 Index = 0; Index < FMath::Min(Table.Num(), FromString.Num()); ++Index)
+		{
+			TestEqual(FString::Printf(TEXT("Knot %d: physical"), Index), Table[Index].PhysicalM, FromString[Index].PhysicalM, 0.01f);
+			TestEqual(FString::Printf(TEXT("Knot %d: read"), Index), Table[Index].ReadM, FromString[Index].ReadM, 0.01f);
+		}
+	}
+
+	// Piecewise linear, slope 1 past either end.
+	TestEqual(TEXT("Above the first knot: true"), UDeepCaveStringRules::ReadDepthM(Map, 95.f), 95.f, 0.001f);
+	TestEqual(TEXT("Neck: true"), UDeepCaveStringRules::ReadDepthM(Map, 104.f), 104.f, 0.001f);
+	TestEqual(TEXT("Half way down the sink"), UDeepCaveStringRules::ReadDepthM(Map, 120.5f), 204.25f, 0.01f);
+	TestEqual(TEXT("Below C1's berth: slope 1"), UDeepCaveStringRules::ReadDepthM(Map, 140.f), 307.5f, 0.001f);
+	TestEqual(TEXT("The 200 m limit is about 120 m true"), UDeepCaveStringRules::PhysicalDepthM(Map, 200.f), 108.5f + 91.5f * 24.f / 191.5f, 0.01f);
+	TestEqual(TEXT("No map: true depth"), UDeepCaveStringRules::ReadDepthM(TArray<FKnot>(), 123.f), 123.f);
+
+	// Round trip, both ways, across every piece.
+	for (float Physical = 80.f; Physical <= 160.f; Physical += 0.75f)
+	{
+		TestEqual(FString::Printf(TEXT("Round trip at %.2f m"), Physical), UDeepCaveStringRules::PhysicalDepthM(Map, UDeepCaveStringRules::ReadDepthM(Map, Physical)), Physical, 0.001f);
+	}
+	for (float Read = 80.f; Read <= 340.f; Read += 3.5f)
+	{
+		TestEqual(FString::Printf(TEXT("Round trip reading %.1f m"), Read), UDeepCaveStringRules::ReadDepthM(Map, UDeepCaveStringRules::PhysicalDepthM(Map, Read)), Read, 0.01f);
+	}
+
+	// The hull's pose: in caves the game state holds the read depth.
+	TestTrue(TEXT("C1's berth from 300 m read"), UDeepCaveStringRules::HullCm(FVector2D(125.f, 78.f), 300.f, 100.f, Map).Equals(FVector(12500.0, 7800.0, -3250.0), 0.05));
+	FVector2D Offset;
+	float Depth = 0.f;
+	UDeepCaveStringRules::HullToState(FVector(12500.0, 7800.0, -3250.0), 100.f, Map, Offset, Depth);
+	TestEqual(TEXT("... and back to 300 m"), Depth, 300.f, 0.01f);
+	TestTrue(TEXT("... offset unchanged"), Offset.Equals(FVector2D(125.f, 78.f), 0.001f));
+
+	// Strictly increasing, both columns, or it does not load.
+	TestTrue(TEXT("Parses"), UDeepCaveStringRules::ParseDepthMap(TEXT("PhysicalM,ReadM\n100,100\n108.5,108.5\n132.5,300\n"), Table, Error));
+	TestEqual(TEXT("... three knots"), Table.Num(), 3);
+	TestFalse(TEXT("A flat physical step fails"), UDeepCaveStringRules::ParseDepthMap(TEXT("PhysicalM,ReadM\n100,100\n100,120\n"), Table, Error));
+	TestFalse(TEXT("A reading that goes back up fails"), UDeepCaveStringRules::ParseDepthMap(TEXT("PhysicalM,ReadM\n100,100\n110,90\n"), Table, Error));
+	TestFalse(TEXT("... and says why"), Error.IsEmpty());
+	TestFalse(TEXT("A missing column fails"), UDeepCaveStringRules::ParseDepthMap(TEXT("PhysicalM\n100\n"), Table, Error));
+	TestFalse(TEXT("An empty map fails"), UDeepCaveStringRules::ParseDepthMap(TEXT("PhysicalM,ReadM\n"), Table, Error));
 	return true;
 }
 

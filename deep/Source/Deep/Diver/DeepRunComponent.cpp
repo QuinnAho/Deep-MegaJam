@@ -988,6 +988,11 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	const TArray<float> Stops = Tuning.StopDepthsM();
 	const float Top = Stops.IsEmpty() ? 0.f : Stops[0];
 	const float Dt0 = FMath::Max(0.f, DeltaSeconds);
+	// D-065: the game state's depth is the gauge's; the hull moves in true depth. The gates' limit is a reading too, so
+	// with none bought the hull stops partway down C1's sink, where the gauge reads the limit.
+	const TArray<FDeepCaveDepthKnot>& Map = String->GetDepthMap();
+	const float Limit = FMath::Max(Top, GameState->DepthLimitM());
+	const double LimitZ = (double(Top) - UDeepCaveStringRules::PhysicalDepthM(Map, Limit)) * UDeepRules::CmPerM;
 
 	GameState->HelmBallast = UDeepPilotRules::StepBallast(GameState->HelmBallast, PilotBallastInput, Dt0, BallastDetentLeftS, P);
 	const int32 Notch = GameState->HelmThrottleNotch;
@@ -1018,8 +1023,9 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	const double Skin = FMath::Max(0.f, CS.SkinCm);
 	FDeepPilotMotion Motion = PilotMotion;
 	Motion.YawDeg = GameState->SubYawDeg;
-	FVector At = UDeepCaveStringRules::HullCm(GameState->SubOffsetM, GameState->SubDepthM, Top);
+	FVector At = UDeepCaveStringRules::HullCm(GameState->SubOffsetM, GameState->SubDepthM, Top, Map);
 	bool bTouching = false;
+	bool bAtLimit = false;
 	float ImpactMps = 0.f;
 	const int32 Steps = Dt0 > 0.f ? FMath::Clamp(FMath::CeilToInt(Dt0 / 0.05f), 1, 40) : 0;
 	const float Dt = Steps > 0 ? Dt0 / Steps : 0.f;
@@ -1036,6 +1042,14 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 		}
 		FVector Velocity = UDeepCaveStringRules::VelocityMps(Motion.VelocityMps, Motion.HeaveMps);
 		FVector Move = Velocity * (UDeepRules::CmPerM * Dt);
+		// The hull's rated depth: buoyancy cannot take it below the limit's true depth (as StepPilot holds the shaft).
+		const double ZBefore = At.Z;
+		if (At.Z + Move.Z < LimitZ)
+		{
+			Move.Z = FMath::Min(0.0, LimitZ - At.Z);
+			Velocity.Z = FMath::Max(0.0, Velocity.Z);
+			bAtLimit = Ballast > 0.f;
+		}
 		// Swept, not placed: up to the rock (a skin short), the hit resolved (UDeepMovingSubRules::ResolveWallHit),
 		// then the rest of the move slides along it.
 		for (int32 Slide = 0; Slide < 3 && !Move.IsNearlyZero(0.01); ++Slide)
@@ -1068,6 +1082,14 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 			const FVector Rest = Hit.bStartPenetrating ? Move : Move * (1.0 - Hit.Time);
 			const double Into = FVector::DotProduct(Rest, Hit.Normal);
 			Move = Into < 0.0 ? Rest - Hit.Normal * Into : Rest;
+			if (At.Z + Move.Z < LimitZ)
+			{
+				Move.Z = FMath::Min(0.0, LimitZ - At.Z);
+			}
+		}
+		if (At.Z < LimitZ && ZBefore >= LimitZ)
+		{
+			At.Z = LimitZ;
 		}
 		Motion.VelocityMps = FVector2D(Velocity.X, Velocity.Y);
 		Motion.HeaveMps = static_cast<float>(-Velocity.Z);
@@ -1077,10 +1099,12 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	const bool bIdle = Notch == 0 && GameState->HelmBallast == 0.f && FMath::IsNearlyZero(PilotRudder);
 	const float SpeedMps = UDeepPilotRules::SpeedMps(Motion);
 	bool bArrived = false;
-	for (const FName& Berth : CS.Berths)
+	int32 ArrivedStop = 0;
+	for (int32 BerthIndex = 0; BerthIndex < CS.Berths.Num(); ++BerthIndex)
 	{
 		FDeepCavePose Pose;
-		if (!String->SocketPose(Berth, CS.ParkSocket, Pose))
+		// A berth below the limit is out of reach: no glide pulls the hull past it.
+		if (!String->SocketPose(CS.Berths[BerthIndex], CS.ParkSocket, Pose) || (Stops.IsValidIndex(BerthIndex) && Stops[BerthIndex] > Limit + 0.01f))
 		{
 			continue;
 		}
@@ -1091,6 +1115,7 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 			Motion = FDeepPilotMotion();
 			Motion.YawDeg = Park.YawDeg;
 			bArrived = Park.bArrived;
+			ArrivedStop = BerthIndex + 1;
 			break;
 		}
 	}
@@ -1098,10 +1123,19 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	PilotMotion = Motion;
 	GameState->HelmSpeedMps = UDeepPilotRules::SpeedMps(Motion);
 	GameState->HelmSurgeMps = FVector2D::DotProduct(Motion.VelocityMps, UDeepPilotRules::Ahead(Motion.YawDeg));
-	bHelmAtLimit = false;
+	if (bAtLimit && !bHelmAtLimit)
+	{
+		FireChatter(DeepEvent::HelmDepthLimit);
+	}
+	bHelmAtLimit = bAtLimit;
 	FVector2D Offset;
 	float DepthM = 0.f;
-	UDeepCaveStringRules::HullToState(At, Top, Offset, DepthM);
+	UDeepCaveStringRules::HullToState(At, Top, Map, Offset, DepthM);
+	if (bAtLimit || At.Z <= LimitZ)
+	{
+		// Held at the limit, the gauge reads the limit, not a float's width past it (NearestStop must not flip).
+		DepthM = FMath::Min(DepthM, Limit);
+	}
 	if (!Offset.Equals(GameState->SubOffsetM, 0.0001f) || DepthM != GameState->SubDepthM || Motion.YawDeg != GameState->SubYawDeg)
 	{
 		GameState->SubOffsetM = Offset;
@@ -1115,16 +1149,22 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	}
 	if (bArrived)
 	{
-		ParkInCave();
+		ParkInCave(ArrivedStop);
 	}
 }
 
-void UDeepRunComponent::ParkInCave()
+void UDeepRunComponent::ParkInCave(int32 Stop)
 {
 	ADeepGameState* GameState = GetGameState();
 	if (!GameState)
 	{
 		return;
+	}
+	// At a berth the gauge reads its stop (D-065): exactly, so the hatch opens (ADeepGameState::IsSettledAtStop).
+	const float StopDepthM = UDeepTuningSettings::Get().GetStop(Stop).SubDepthM;
+	if (Stop > 0 && FMath::IsNearlyEqual(GameState->SubDepthM, StopDepthM, 0.5f))
+	{
+		GameState->SubDepthM = StopDepthM;
 	}
 	GameState->bParked = true;
 	PilotMotion = FDeepPilotMotion();
@@ -1137,7 +1177,16 @@ void UDeepRunComponent::ParkInCave()
 	DeepArena::ApplySubDepth(GetWorld());
 	FDeepEventPayload Payload;
 	Payload.DepthM = GameState->SubDepthM;
-	Fire(DeepEvent::HelmArrive, Payload);
+	// As Park: the first time at a deeper stop is its own line.
+	if (Stop > GameState->DeepestStopReached && Stop >= 2)
+	{
+		Fire(Stop >= 3 ? DeepEvent::DescendStop3 : DeepEvent::DescendStop2, Payload);
+	}
+	else
+	{
+		Fire(DeepEvent::HelmArrive, Payload);
+	}
+	GameState->DeepestStopReached = FMath::Max(GameState->DeepestStopReached, Stop);
 }
 
 void UDeepRunComponent::PlaceInCave(const FVector& LocationCm, float YawDeg, bool bPark)
@@ -1148,9 +1197,16 @@ void UDeepRunComponent::PlaceInCave(const FVector& LocationCm, float YawDeg, boo
 		return;
 	}
 	const TArray<float> Stops = UDeepTuningSettings::Get().StopDepthsM();
-	UDeepCaveStringRules::HullToState(LocationCm, Stops.IsEmpty() ? 0.f : Stops[0], GameState->SubOffsetM, GameState->SubDepthM);
+	const ADeepCaveString* String = DeepCaveString::Find(GetWorld());
+	UDeepCaveStringRules::HullToState(LocationCm, Stops.IsEmpty() ? 0.f : Stops[0], String ? String->GetDepthMap() : TArray<FDeepCaveDepthKnot>(), GameState->SubOffsetM, GameState->SubDepthM);
 	GameState->SubYawDeg = YawDeg;
 	GameState->bParked = bPark;
+	const float StopDepthM = UDeepTuningSettings::Get().GetStop(UDeepRules::NearestStop(GameState->SubDepthM, Stops)).SubDepthM;
+	if (bPark && FMath::IsNearlyEqual(GameState->SubDepthM, StopDepthM, 0.5f))
+	{
+		// Placed on a berth: the gauge reads its stop exactly (D-065), as ParkInCave sets it.
+		GameState->SubDepthM = StopDepthM;
+	}
 	PilotMotion = FDeepPilotMotion();
 	PilotMotion.YawDeg = YawDeg;
 	PilotRudder = 0.f;

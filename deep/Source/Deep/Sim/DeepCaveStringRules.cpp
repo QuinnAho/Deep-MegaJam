@@ -264,6 +264,124 @@ void UDeepCaveStringRules::HullToState(const FVector& HullCm, float TopDepthM, F
 	OutDepthM = float(double(TopDepthM) - HullCm.Z / 100.0);
 }
 
+FVector UDeepCaveStringRules::HullCm(const FVector2D& OffsetM, float ReadDepthM, float TopDepthM, const TArray<FDeepCaveDepthKnot>& Map)
+{
+	return HullCm(OffsetM, PhysicalDepthM(Map, ReadDepthM), TopDepthM);
+}
+
+void UDeepCaveStringRules::HullToState(const FVector& HullCm, float TopDepthM, const TArray<FDeepCaveDepthKnot>& Map, FVector2D& OutOffsetM, float& OutReadDepthM)
+{
+	float Physical = 0.f;
+	HullToState(HullCm, TopDepthM, OutOffsetM, Physical);
+	OutReadDepthM = ReadDepthM(Map, Physical);
+}
+
+bool UDeepCaveStringRules::ParseDepthMap(const FString& Csv, TArray<FDeepCaveDepthKnot>& OutKnots, FString& OutError)
+{
+	using namespace DeepCaveString;
+	OutKnots.Reset();
+	FTable Table;
+	if (!ReadTable(Csv, { TEXT("PhysicalM"), TEXT("ReadM") }, Table, OutError))
+	{
+		return false;
+	}
+	for (const TArray<FString>& Row : Table.Rows)
+	{
+		FDeepCaveDepthKnot& Out = OutKnots.AddDefaulted_GetRef();
+		Out.PhysicalM = float(NumberCell(Table, Row, TEXT("PhysicalM")));
+		Out.ReadM = float(NumberCell(Table, Row, TEXT("ReadM")));
+	}
+	OutError = CheckDepthMap(OutKnots);
+	return OutError.IsEmpty();
+}
+
+FString UDeepCaveStringRules::CheckDepthMap(const TArray<FDeepCaveDepthKnot>& Knots)
+{
+	if (Knots.IsEmpty())
+	{
+		return TEXT("the depth map has no knots");
+	}
+	for (int32 Index = 1; Index < Knots.Num(); ++Index)
+	{
+		if (Knots[Index].PhysicalM <= Knots[Index - 1].PhysicalM || Knots[Index].ReadM <= Knots[Index - 1].ReadM)
+		{
+			return FString::Printf(TEXT("knot %d (%.2f m reads %.2f m) does not lie below knot %d (%.2f m reads %.2f m)"), Index, Knots[Index].PhysicalM, Knots[Index].ReadM,
+				Index - 1, Knots[Index - 1].PhysicalM, Knots[Index - 1].ReadM);
+		}
+	}
+	return FString();
+}
+
+namespace DeepCaveString
+{
+	/** Piecewise linear from one column to the other, slope 1 past either end. */
+	float MapDepth(const TArray<FDeepCaveDepthKnot>& Knots, float From, bool bToRead)
+	{
+		if (Knots.IsEmpty())
+		{
+			return From;
+		}
+		const auto In = [bToRead](const FDeepCaveDepthKnot& K) { return double(bToRead ? K.PhysicalM : K.ReadM); };
+		const auto Out = [bToRead](const FDeepCaveDepthKnot& K) { return double(bToRead ? K.ReadM : K.PhysicalM); };
+		if (From <= In(Knots[0]))
+		{
+			return float(Out(Knots[0]) + (From - In(Knots[0])));
+		}
+		for (int32 Index = 1; Index < Knots.Num(); ++Index)
+		{
+			if (From <= In(Knots[Index]))
+			{
+				const double Span = In(Knots[Index]) - In(Knots[Index - 1]);
+				const double Alpha = Span > 0.0 ? (From - In(Knots[Index - 1])) / Span : 1.0;
+				return float(Out(Knots[Index - 1]) + Alpha * (Out(Knots[Index]) - Out(Knots[Index - 1])));
+			}
+		}
+		return float(Out(Knots.Last()) + (From - In(Knots.Last())));
+	}
+}
+
+float UDeepCaveStringRules::ReadDepthM(const TArray<FDeepCaveDepthKnot>& Knots, float PhysicalM)
+{
+	return DeepCaveString::MapDepth(Knots, PhysicalM, true);
+}
+
+float UDeepCaveStringRules::PhysicalDepthM(const TArray<FDeepCaveDepthKnot>& Knots, float ReadM)
+{
+	return DeepCaveString::MapDepth(Knots, ReadM, false);
+}
+
+bool UDeepCaveStringRules::StringDepthMap(const TArray<FDeepCavePlace>& Places, const TArray<FDeepCaveSocketRow>& Sockets, const TArray<FName>& Berths, FName ParkSocket,
+	const TArray<float>& StopDepthsM, TArray<FDeepCaveDepthKnot>& OutKnots, FString& OutError)
+{
+	OutKnots.Reset();
+	if (Berths.IsEmpty() || StopDepthsM.IsEmpty())
+	{
+		OutError = TEXT("no berths or no stops");
+		return false;
+	}
+	const double Top = StopDepthsM[0];
+	const auto TrueDepth = [Top](double ZCm) { return float(Top - ZCm / 100.0); };
+	for (int32 Index = 0; Index < Berths.Num() && Index < StopDepthsM.Num(); ++Index)
+	{
+		const FDeepCavePlace* Place = FindPlace(Places, Berths[Index]);
+		const FDeepCaveSocketRow* Park = FindSocket(Sockets, Berths[Index], ParkSocket);
+		if (!Place || !Park)
+		{
+			OutError = FString::Printf(TEXT("no %s socket on a placed %s"), *ParkSocket.ToString(), *Berths[Index].ToString());
+			return false;
+		}
+		if (Index > 0)
+		{
+			// True down to the chunk's entry joint, carried on from the knots above.
+			const float Entry = TrueDepth(Place->LocationCm.Z);
+			OutKnots.Add({ Entry, ReadDepthM(OutKnots, Entry) });
+		}
+		OutKnots.Add({ TrueDepth(ToString(*Place, Park->LocalCm).Z), StopDepthsM[Index] });
+	}
+	OutError = CheckDepthMap(OutKnots);
+	return OutError.IsEmpty();
+}
+
 FVector UDeepCaveStringRules::VelocityMps(const FVector2D& VelocityMps, float HeaveMps)
 {
 	return FVector(VelocityMps.X, VelocityMps.Y, -HeaveMps);

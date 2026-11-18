@@ -926,7 +926,8 @@ void ADeepSubmarine::PlaceStill()
 		return;
 	}
 	const double DatumCm = UDeepTuningSettings::Get().MovingSub.DepthDatumZM * UDeepRules::CmPerM;
-	const FTransform Hull = UDeepMovingSubRules::StillHull(GetHomeTransform(), State->SubOffsetM, State->SubDepthM, State->SubYawDeg, DatumCm);
+	// Deep.World.Caves: the gauge's depth placed at its true depth (D-065); the same depth with caves off.
+	const FTransform Hull = UDeepMovingSubRules::StillHull(GetHomeTransform(), State->SubOffsetM, DeepCaveString::PhysicalDepthM(World, State->SubDepthM), State->SubYawDeg, DatumCm);
 	if (!GetActorTransform().Equals(Hull, 0.001))
 	{
 		// Teleport: the hull is placed, not swept (its walls are the analytic shaft, UDeepCaveRules); nothing inside rides it.

@@ -170,7 +170,8 @@ namespace DeepArena
 		{
 			return FTransform::Identity;
 		}
-		return UDeepMovingSubRules::StillMap(Sub->GetHomeTransform(), State->SubOffsetM, State->SubDepthM, State->SubYawDeg, DatumCm());
+		// Deep.World.Caves: the game state's depth is the gauge's; the hull is placed at the true depth (D-065).
+		return UDeepMovingSubRules::StillMap(Sub->GetHomeTransform(), State->SubOffsetM, DeepCaveString::PhysicalDepthM(World, State->SubDepthM), State->SubYawDeg, DatumCm());
 	}
 
 	/** Where D-022 puts the arena root for the game state: by the depth below the loaded stop, the offset and the yaw, round the hull at Home. */
@@ -202,6 +203,12 @@ namespace DeepArena
 
 	FVector ArenaAnchor(const UWorld* World)
 	{
+		if (IsWorldCaves(World))
+		{
+			// The caves place the hull where it is (ADeepSubmarine::PlaceStill): its own anchor is the arena's.
+			const ADeepSubmarine* Sub = FindSubmarine(World);
+			return Sub ? Sub->GetAnchorLocation() : FVector::ZeroVector;
+		}
 		if (!IsWorldStill(World))
 		{
 			return MovingAnchor(World);
@@ -254,14 +261,123 @@ namespace DeepArena
 		return SpawnSalvageAt(World, Kind, FTransform(FQuat::Identity, LocationCm));
 	}
 
+	/** A spawned piece's visible and grab shapes' bounds (world), so it can rest on rock by its own bottom. */
+	static FBox SalvageBounds(const ADeepSalvage& Salvage)
+	{
+		FBox Box(ForceInit);
+		Salvage.ForEachComponent<UPrimitiveComponent>(false, [&Box](const UPrimitiveComponent* Prim)
+		{
+			if (Prim->IsRegistered() && (Prim->IsVisible() || Prim->IsCollisionEnabled()))
+			{
+				Box += Prim->Bounds.GetBox();
+			}
+		});
+		return Box;
+	}
+
+	bool SalvageInRock(const ADeepCaveString& String, const ADeepSalvage& Salvage, double LiftCm)
+	{
+		bool bIn = false;
+		Salvage.ForEachComponent<UPrimitiveComponent>(false, [&](const UPrimitiveComponent* Prim)
+		{
+			if (bIn || !Prim->IsRegistered() || !(Prim->IsVisible() || Prim->IsCollisionEnabled()))
+			{
+				return;
+			}
+			const FTransform& ToWorld = Prim->GetComponentTransform();
+			const FBox Local = Prim->CalcBounds(FTransform::Identity).GetBox();
+			if (!Local.IsValid)
+			{
+				return;
+			}
+			const FVector Centre = ToWorld.TransformPosition(Local.GetCenter()) + FVector(0.0, 0.0, LiftCm);
+			bIn = String.OverlapsBoxWorld(Centre, Local.GetExtent() * ToWorld.GetScale3D().GetAbs(), ToWorld.GetRotation());
+		});
+		return bIn;
+	}
+
+	int32 SpawnCaveSalvage(UWorld* World, int32 Stop)
+	{
+		const ADeepCaveString* String = DeepCaveString::Find(World);
+		if (!String || !World || World->GetNetMode() == NM_Client)
+		{
+			return 0;
+		}
+		// Deep.World.Caves (D-065): a stop's salvage sits at its berth cavern's sockets (CaveString.Salvage), each resting
+		// on the rock below it by its own bottom, sunk a little so it reads as lying there.
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		const FDeepCaveStringTuning& CS = Tuning.CaveString;
+		if (!CS.Berths.IsValidIndex(Stop - 1))
+		{
+			return 0;
+		}
+		const FName Cavern = CS.Berths[Stop - 1];
+		int32 Spawned = 0;
+		for (const FDeepCaveSalvageSlot& Slot : CS.Salvage)
+		{
+			FDeepSalvageKind Kind;
+			FVector At;
+			if (Slot.Chunk != Cavern)
+			{
+				continue;
+			}
+			if (!Tuning.FindSalvageKind(Slot.Size, Kind) || !String->SocketWorld(Slot.Chunk, Slot.Socket, At))
+			{
+				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no salvage at %s.%s (kind or socket missing)"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
+				continue;
+			}
+			ADeepSalvage* Salvage = SpawnSalvageAt(World, Kind, FTransform(FQuat::Identity, At));
+			if (!Salvage)
+			{
+				continue;
+			}
+			// Rests on the highest rock under its footprint (so a slope does not swallow its uphill side), a little sunk.
+			const double Search = FMath::Max(0.f, CS.SalvageRestSearchCm);
+			const FBox Box = SalvageBounds(*Salvage);
+			double Highest = 0.0;
+			double Lowest = 0.0;
+			if (Box.IsValid && String->FootprintRock(Box, CS.SalvageRestUpCm, float(Search), Highest, Lowest) > 0)
+			{
+				// Its bounds' bottom on the footprint's highest rock; then by its own shapes (smaller than its bounds): raised
+				// a step at a time off a wall or a steeper slope, or lowered until the next step down would touch. Then sunk.
+				const double Bottom = At.Z - Box.Min.Z;
+				Salvage->SetActorLocation(FVector(At.X, At.Y, Highest + Bottom));
+				const double Step = FMath::Max(0.5f, CS.SalvageLiftStepCm);
+				double Lifted = 0.0;
+				while (SalvageInRock(*String, *Salvage, 0.0) && Lifted + Step <= CS.SalvageLiftMaxCm)
+				{
+					Lifted += Step;
+					Salvage->AddActorWorldOffset(FVector(0.0, 0.0, Step));
+				}
+				if (SalvageInRock(*String, *Salvage, 0.0))
+				{
+					UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: %s.%s still touches rock %.0f cm up"), *Slot.Chunk.ToString(), *Slot.Socket.ToString(), Lifted);
+				}
+				for (double Lowered = 0.0; Lifted <= 0.0 && Lowered + Step <= Search && !SalvageInRock(*String, *Salvage, -Step); Lowered += Step)
+				{
+					Salvage->AddActorWorldOffset(FVector(0.0, 0.0, -Step));
+				}
+				Salvage->AddActorWorldOffset(FVector(0.0, 0.0, -CS.SalvageSinkCm));
+			}
+			else
+			{
+				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no rock within %.0f cm of %s.%s; the piece floats at the socket"), Search, *Slot.Chunk.ToString(), *Slot.Socket.ToString());
+			}
+			++Spawned;
+		}
+		UE_LOG(LogDeepArena, Log, TEXT("Spawned %d salvage pieces in %s"), Spawned, *Cavern.ToString());
+		return Spawned;
+	}
+
 	static int32 SpawnSalvageRing(UWorld* World, const ADeepSubmarine* Sub)
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 		int32 Spawned = 0;
 		if (IsWorldCaves(World))
 		{
-			// The caves' salvage sits at the chunks' sockets (M2); the ring is for the open stops.
-			return 0;
+			// The caves' salvage sits at the berth cavern's sockets; the ring is for the open stops.
+			const ADeepGameState* State = World->GetGameState<ADeepGameState>();
+			return SpawnCaveSalvage(World, State ? State->Stop : 1);
 		}
 		for (const FDeepSalvageSpot& Spot : Tuning.Arena.SalvageSpots)
 		{
@@ -366,7 +482,8 @@ namespace DeepArena
 		}
 		const int32 Was = Root->StillContentStop;
 		Root->StillContentStop = Stop;
-		if (Was <= 0 || Was == Stop)
+		// The caves' salvage is placed at its cavern's rock, which does not move: nothing to carry.
+		if (Was <= 0 || Was == Stop || IsWorldCaves(World))
 		{
 			return;
 		}
@@ -427,6 +544,13 @@ namespace DeepArena
 			World->SpawnActor<ADeepArenaRoot>(bStill ? FVector::ZeroVector : Sub->GetActorLocation(), FRotator::ZeroRotator, SpawnParams());
 		}
 
+		// Deep.World.Caves: the chunks are the rock, the floors and the caverns (no beds, shells or dressing). Built
+		// before the salvage, which rests on their rock.
+		if (bCaves)
+		{
+			DeepCaveString::Ensure(World);
+		}
+
 		if (!FindFirst<ADeepSalvage>(World))
 		{
 			SpawnSalvageRing(World, Sub);
@@ -434,12 +558,6 @@ namespace DeepArena
 			{
 				Root->StillContentStop = CurrentStop(World);
 			}
-		}
-
-		// Deep.World.Caves: the chunks are the rock, the floors and the caverns (no beds, shells or dressing).
-		if (bCaves)
-		{
-			DeepCaveString::Ensure(World);
 		}
 		if (!bCaves && !FindFirst<ADeepAbyssFloor>(World))
 		{
