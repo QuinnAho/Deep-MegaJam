@@ -349,7 +349,8 @@ FDeepWell UDeepMonsterBrain::GetWell() const
 	FDeepWell Well;
 	const UWorld* World = GetWorld();
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
-	if (!World || CurrentStop() != Tuning.Arena.RelicStop)
+	// The well is the shaft's (cut in the abyss floor); the caves' relic lies on a cavern floor (D-068).
+	if (!World || DeepArena::IsWorldCaves(World) || CurrentStop() != Tuning.Arena.RelicStop)
 	{
 		return Well;
 	}

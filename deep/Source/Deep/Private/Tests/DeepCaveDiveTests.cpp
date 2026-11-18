@@ -3,6 +3,10 @@
 // it parks on C1's berth and stays there, and with the switch off the shaft world is as before.
 
 #include "CoreMinimal.h"
+#include "AIController.h"
+#include "Diver/DeepTetherComponent.h"
+#include "Story/DeepEventBus.h"
+#include "Components/StaticMeshComponent.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
 #include "Engine/Engine.h"
@@ -12,6 +16,7 @@
 #include "Game/DeepGameState.h"
 #include "Misc/AutomationTest.h"
 #include "Private/Tests/DeepTestCVar.h"
+#include "Sim/DeepCaveDiveRules.h"
 #include "Sim/DeepCaveStringRules.h"
 #include "Sim/DeepPilotRules.h"
 #include "Sim/DeepRules.h"
@@ -413,8 +418,10 @@ namespace DeepCaveDiveTest
 	}
 
 	/**
-	 * The stop's salvage sits at its cavern's sockets (by X and Y), rests on rock (rock within a few cm under its bottom)
-	 * and is clear of it (its bounds, lifted by the sink, overlap none). Each within the tether's reach of the anchor.
+	 * D-067: the stop's salvage lies in piles at its cavern's sockets. Each piece belongs to its nearest socket (by X and
+	 * Y); each pile is its slot's kinds, within SalvagePileReachCm of its socket, its pieces apart from each other. Every
+	 * piece rests on rock (rock within a few cm under its bottom), is clear of it (its bounds, lifted by the sink, overlap
+	 * none), and is within the tether's reach of the anchor. The stop's kinds are the shaft's (Arena.SalvageSpots).
 	 */
 	static void CheckCavernSalvage(FAutomationTestBase& Test, const FDiveWorld& W, int32 Stop)
 	{
@@ -422,50 +429,107 @@ namespace DeepCaveDiveTest
 		const FDeepCaveStringTuning& CS = Tuning.CaveString;
 		const ADeepCaveString* String = W.String();
 		const FName Cavern = CS.Berths[Stop - 1];
-		const TArray<ADeepSalvage*> Pieces = Salvage(W.World);
-		int32 Slots = 0;
+		TArray<ADeepSalvage*> Pieces = Salvage(W.World);
+		Pieces.RemoveAll([](const ADeepSalvage* Piece) { return Piece->GetKind().Size == EDeepSalvageSize::Relic; });
 		const FVector Anchor = W.Sub->GetAnchorLocation();
 		const float TetherCm = UDeepRules::TetherLengthM(Stop, Tuning.Tether) * UDeepRules::CmPerM;
+		const double Reach = CS.SalvagePileReachCm + 1.0;
+
+		// The piles: this cavern's slots and their sockets.
+		TArray<const FDeepCaveSalvageSlot*> Slots;
+		TArray<FVector> Sockets;
 		for (const FDeepCaveSalvageSlot& Slot : CS.Salvage)
 		{
-			if (Slot.Chunk != Cavern)
-			{
-				continue;
-			}
-			++Slots;
 			FVector Socket;
-			if (!Test.TestTrue(FString::Printf(TEXT("%s.%s exists"), *Slot.Chunk.ToString(), *Slot.Socket.ToString()), String->SocketWorld(Slot.Chunk, Slot.Socket, Socket)))
+			if (Slot.Chunk == Cavern && Test.TestTrue(FString::Printf(TEXT("%s.%s exists"), *Slot.Chunk.ToString(), *Slot.Socket.ToString()), String->SocketWorld(Slot.Chunk, Slot.Socket, Socket)))
 			{
-				continue;
+				Slots.Add(&Slot);
+				Sockets.Add(Socket);
 			}
-			const ADeepSalvage* const* Found = Pieces.FindByPredicate([&Socket](const ADeepSalvage* Piece)
-			{
-				return FVector::Dist2D(Piece->GetActorLocation(), Socket) < 1.0;
-			});
-			const FString Name = FString::Printf(TEXT("%s.%s"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
-			if (!Test.TestNotNull(FString::Printf(TEXT("a piece at %s"), *Name), Found))
-			{
-				continue;
-			}
-			const ADeepSalvage& Piece = **Found;
-			Test.TestEqual(FString::Printf(TEXT("%s is its slot's kind"), *Name), static_cast<int32>(Piece.GetKind().Size), static_cast<int32>(Slot.Size));
-			const FBox Box = PieceBounds(Piece);
-			double Highest = 0.0;
-			double Lowest = 0.0;
-			const bool bRock = String->FootprintRock(Box, float(Box.GetSize().Z), 30.f, Highest, Lowest) > 0;
-			const double Gap = bRock ? Box.Min.Z - Highest : -1.0;
-			const bool bClear = !DeepArena::SalvageInRock(*String, Piece, CS.SalvageSinkCm + 1.0);
-			const double Reach = FVector::Dist(Anchor, Piece.GetActorLocation());
-			Test.AddInfo(FString::Printf(TEXT("DEEPCAVESALVAGE %s: socket z %.0f, piece z %.0f, bottom %.1f cm above rock (footprint spans %.0f cm), %s, %.1f m from the anchor (tether %.0f m); piece at %s, anchor at %s, string yaw %.1f"),
-				*Name, Socket.Z, Piece.GetActorLocation().Z, Gap, bRock ? Highest - Lowest : 0.0, bClear ? TEXT("clear") : TEXT("IN ROCK"), Reach / UDeepRules::CmPerM, TetherCm / UDeepRules::CmPerM,
-				*Piece.GetActorLocation().ToCompactString(), *Anchor.ToCompactString(), String->GetActorRotation().Yaw));
-			// Not floating: 10 cm lower, its own shapes would be in rock.
-			Test.TestTrue(FString::Printf(TEXT("%s rests on rock (10 cm lower is in it)"), *Name), bRock && DeepArena::SalvageInRock(*String, Piece, -10.0));
-			Test.TestTrue(FString::Printf(TEXT("%s is clear of rock"), *Name), bClear);
-			Test.TestTrue(FString::Printf(TEXT("%s is within the tether from the anchor"), *Name), Reach < TetherCm);
-			Test.TestTrue(FString::Printf(TEXT("%s is within 3 m of its socket"), *Name), FMath::Abs(Piece.GetActorLocation().Z - Socket.Z) < 300.0);
 		}
-		Test.TestEqual(FString::Printf(TEXT("stop %d: one piece per %s slot, and no others"), Stop, *Cavern.ToString()), Pieces.Num(), Slots);
+		if (Slots.Num() == 0)
+		{
+			Test.AddError(FString::Printf(TEXT("stop %d: %s has no salvage slots"), Stop, *Cavern.ToString()));
+			return;
+		}
+
+		// The stop's kinds are the shaft's ten.
+		TArray<int32> Want;
+		for (const FDeepSalvageSpot& Spot : Tuning.Arena.SalvageSpots)
+		{
+			Want.Add(static_cast<int32>(Spot.Size));
+		}
+		TArray<int32> Have;
+		for (const ADeepSalvage* Piece : Pieces)
+		{
+			Have.Add(static_cast<int32>(Piece->GetKind().Size));
+		}
+		Want.Sort();
+		Have.Sort();
+		Test.TestEqual(FString::Printf(TEXT("stop %d: the shaft's %d pieces"), Stop, Want.Num()), Have.Num(), Want.Num());
+		Test.TestTrue(FString::Printf(TEXT("stop %d: the shaft's kinds"), Stop), Have == Want);
+
+		// Each piece to its nearest socket.
+		TArray<TArray<const ADeepSalvage*>> Piles;
+		Piles.SetNum(Slots.Num());
+		for (const ADeepSalvage* Piece : Pieces)
+		{
+			int32 Best = 0;
+			for (int32 i = 1; i < Sockets.Num(); ++i)
+			{
+				if (FVector::Dist2D(Piece->GetActorLocation(), Sockets[i]) < FVector::Dist2D(Piece->GetActorLocation(), Sockets[Best]))
+				{
+					Best = i;
+				}
+			}
+			Piles[Best].Add(Piece);
+		}
+
+		for (int32 p = 0; p < Slots.Num(); ++p)
+		{
+			const FDeepCaveSalvageSlot& Slot = *Slots[p];
+			const FVector& Socket = Sockets[p];
+			const FString Name = FString::Printf(TEXT("%s.%s"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
+			TArray<int32> PileWant;
+			for (const EDeepSalvageSize Size : Slot.Pile)
+			{
+				PileWant.Add(static_cast<int32>(Size));
+			}
+			TArray<int32> PileHave;
+			for (const ADeepSalvage* Piece : Piles[p])
+			{
+				PileHave.Add(static_cast<int32>(Piece->GetKind().Size));
+			}
+			PileWant.Sort();
+			PileHave.Sort();
+			Test.TestTrue(FString::Printf(TEXT("%s: a pile of %d, its slot's kinds (has %d)"), *Name, PileWant.Num(), PileHave.Num()), PileHave == PileWant);
+
+			for (int32 i = 0; i < Piles[p].Num(); ++i)
+			{
+				const ADeepSalvage& Piece = *Piles[p][i];
+				const FString What = FString::Printf(TEXT("%s piece %d"), *Name, i + 1);
+				const FVector At = Piece.GetActorLocation();
+				const FBox Box = PieceBounds(Piece);
+				double Highest = 0.0;
+				double Lowest = 0.0;
+				const bool bRock = String->FootprintRock(Box, float(Box.GetSize().Z), 30.f, Highest, Lowest) > 0;
+				const double Gap = bRock ? Box.Min.Z - Highest : -1.0;
+				const bool bClear = !DeepArena::SalvageInRock(*String, Piece, CS.SalvageSinkCm + 1.0);
+				const double FromAnchor = FVector::Dist(Anchor, At);
+				Test.AddInfo(FString::Printf(TEXT("DEEPCAVESALVAGE %s (%s): %.0f cm across and %.0f cm up from the socket, bottom %.1f cm above rock, %s, %.1f m from the anchor (tether %.0f m); at %s"),
+					*What, *UEnum::GetValueAsString(Piece.GetKind().Size), FVector::Dist2D(At, Socket), At.Z - Socket.Z, Gap, bClear ? TEXT("clear") : TEXT("IN ROCK"),
+					FromAnchor / UDeepRules::CmPerM, TetherCm / UDeepRules::CmPerM, *At.ToCompactString()));
+				// Not floating: 10 cm lower, its own shapes would be in rock.
+				Test.TestTrue(FString::Printf(TEXT("%s rests on rock (10 cm lower is in it)"), *What), bRock && DeepArena::SalvageInRock(*String, Piece, -10.0));
+				Test.TestTrue(FString::Printf(TEXT("%s is clear of rock"), *What), bClear);
+				Test.TestTrue(FString::Printf(TEXT("%s is within the tether from the anchor"), *What), FromAnchor < TetherCm);
+				Test.TestTrue(FString::Printf(TEXT("%s is within %.0f cm of its socket"), *What, Reach), FVector::Dist2D(At, Socket) <= Reach && FMath::Abs(At.Z - Socket.Z) <= Reach);
+				for (int32 j = i + 1; j < Piles[p].Num(); ++j)
+				{
+					Test.TestFalse(FString::Printf(TEXT("%s is apart from piece %d"), *What, j + 1), Box.Intersect(PieceBounds(*Piles[p][j])));
+				}
+			}
+		}
 	}
 }
 
@@ -603,6 +667,106 @@ bool FDeepCaveDiveSalvageTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveRelicTest, "Deep.World.CaveDive.RelicAtLastBerth", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveRelicTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W;
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepCaveStringTuning& CS = Tuning.CaveString;
+	UDeepEventBus* Bus = UDeepEventBus::Get(W.World);
+	UTEST_NOT_NULL(TEXT("the event bus"), Bus);
+
+	// D-068: the relic waits at the last berth (today C1, stop 2), not at the shaft's stop 3.
+	const int32 LastStop = CS.Berths.Num();
+	const FName Last = CS.Berths.Last();
+	TestEqual(TEXT("the caves' relic stop is the last berth's"), DeepArena::RelicStop(W.World), LastStop);
+	TestNull(TEXT("no relic at stop 1"), DeepArena::FindRelic(W.World));
+
+	FDeepCavePose Berth;
+	String->SocketPose(Last, CS.ParkSocket, Berth);
+	W.PlaceAt(Berth, true);
+	W.TickSub();
+	TestEqual(TEXT("parked at the last berth"), W.State->Stop, LastStop);
+	const ADeepSalvage* Relic = DeepArena::FindRelic(W.World);
+	UTEST_NOT_NULL(TEXT("the relic lies at the last berth"), Relic);
+
+	// At its socket, on the floor and clear of the rock, inside the tether, apart from the piles, in sight of the anchor.
+	FVector Socket;
+	UTEST_TRUE(TEXT("the last berth has a Relic socket"), String->SocketWorld(Last, CS.RelicSocket, Socket));
+	const FVector At = Relic->GetActorLocation();
+	const FVector Anchor = W.Sub->GetAnchorLocation();
+	const float TetherCm = UDeepRules::TetherLengthM(LastStop, Tuning.Tether) * UDeepRules::CmPerM;
+	double NearestPileCm = TNumericLimits<double>::Max();
+	for (const ADeepSalvage* Piece : Salvage(W.World))
+	{
+		if (Piece != Relic)
+		{
+			NearestPileCm = FMath::Min(NearestPileCm, FVector::Dist(Piece->GetActorLocation(), At));
+		}
+	}
+	bool bSeen = true;
+	for (const UStaticMeshComponent* Chunk : String->GetChunks())
+	{
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepCaveRelicSight), true);
+		const FVector Above = At + FVector(0.0, 0.0, 30.0);
+		bSeen &= !(Chunk && const_cast<UStaticMeshComponent*>(Chunk)->LineTraceComponent(Hit, Anchor, Above, Params));
+	}
+	FVector Serpent;
+	String->SocketWorld(Last, TEXT("Serpent"), Serpent);
+	AddInfo(FString::Printf(TEXT("DEEPCAVERELIC at %s: %.0f cm across and %.0f cm down from %s.%s, %.1f m from the anchor (tether %.0f m), %.1f m below it, %.1f m from the nearest salvage, %.1f m from the Serpent socket, %s"),
+		*At.ToCompactString(), FVector::Dist2D(At, Socket), Socket.Z - At.Z, *Last.ToString(), *CS.RelicSocket.ToString(), FVector::Dist(At, Anchor) / UDeepRules::CmPerM,
+		TetherCm / UDeepRules::CmPerM, (Anchor.Z - At.Z) / UDeepRules::CmPerM, NearestPileCm / UDeepRules::CmPerM, FVector::Dist(At, Serpent) / UDeepRules::CmPerM,
+		bSeen ? TEXT("in sight of the anchor") : TEXT("HIDDEN from the anchor")));
+	TestTrue(TEXT("at its socket (within a step)"), FVector::Dist2D(At, Socket) <= CS.SalvagePileStepCm + 1.0 && FMath::Abs(At.Z - Socket.Z) < CS.SalvageRestSearchCm);
+	TestTrue(TEXT("rests on rock (10 cm lower is in it)"), DeepArena::SalvageInRock(*String, *Relic, -10.0));
+	TestFalse(TEXT("clear of rock"), DeepArena::SalvageInRock(*String, *Relic, CS.SalvageSinkCm + 1.0));
+	TestTrue(TEXT("inside the tether from the anchor"), FVector::Dist(At, Anchor) < TetherCm);
+	TestTrue(TEXT("apart from the piles (over 5 m)"), NearestPileCm > 500.0);
+	TestTrue(TEXT("in sight of the anchor: the line runs clear to it"), bSeen);
+
+	// Out of the hatch, to the relic, grabbed, winched up through the hatch, banked at the console: won.
+	AAIController* Controller = W.World->SpawnActor<AAIController>();
+	UTEST_NOT_NULL(TEXT("a controller"), Controller);
+	Controller->Possess(W.Diver);
+	W.Run->LeaveHelm();
+	GEngine->Exec(W.World, TEXT("Deep.Hatch"));
+	UTEST_EQUAL(TEXT("diving"), W.Run->GetState(), EDeepRunState::Tethered);
+	W.Diver->GetTether()->UpdateTether(0.f);
+	TestEqual(TEXT("the last berth's tether"), W.Diver->GetTether()->GetSolve().LengthM, UDeepRules::TetherLengthM(LastStop, Tuning.Tether), 0.01f);
+	GEngine->Exec(W.World, TEXT("Deep.Relic"));
+	const UCapsuleComponent* Capsule = W.Diver->GetCapsuleComponent();
+	const FVector Half(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight());
+	TestFalse(TEXT("Deep.Relic leaves the diver clear of rock"), String->OverlapsBoxWorld(W.Diver->GetActorLocation(), Half, FQuat::Identity));
+	W.Run->StepRun(0.05f);
+	TestEqual(TEXT("relic_seen fired"), Bus->CountOf(DeepEvent::RelicSeen), 1);
+	W.Diver->Grab();
+	UTEST_TRUE(TEXT("carrying the relic"), W.Run->CarriesRelic());
+	W.Diver->SetWinching(true);
+	for (float T = 0.f; T < 60.f && W.Run->GetState() == EDeepRunState::Tethered; T += 0.1f)
+	{
+		W.Diver->GetTether()->UpdateTether(0.1f);
+		W.Run->StepRun(0.1f);
+	}
+	TestEqual(TEXT("relic_winch fired"), Bus->CountOf(DeepEvent::RelicWinch), 1);
+	TestEqual(TEXT("the winch brings it aboard"), W.Run->GetState(), EDeepRunState::Aboard);
+	TestTrue(TEXT("still carrying it aboard"), W.Run->CarriesRelic());
+	GEngine->Exec(W.World, TEXT("Deep.Console"));
+	TestEqual(TEXT("banking the relic wins"), W.Run->GetState(), EDeepRunState::Won);
+	TestTrue(TEXT("the game state says won"), W.State->bWon);
+	TestEqual(TEXT("win fired"), Bus->CountOf(DeepEvent::Win), 1);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveDiverTest, "Deep.World.CaveDive.DiverOutOfHatch", DEEP_CAVEDIVE_TEST_FLAGS)
 
 bool FDeepCaveDiveDiverTest::RunTest(const FString& Parameters)
@@ -673,6 +837,119 @@ bool FDeepCaveDiveOffTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("the shaft's rock is there"), Shafts > 0);
 	TestTrue(TEXT("the shaft is on"), DeepShaft::IsOn(W.World));
+	return true;
+}
+
+// ---- Deep.Sim.CaveDive: the pure rules (Sim/DeepCaveDiveRules) ----
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDivePileSpotsTest, "Deep.Sim.CaveDive.PileSpots", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDivePileSpotsTest::RunTest(const FString& Parameters)
+{
+	// A pile of three, 70 cm out, 25 cm steps, 200 cm reach, facing +X.
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const TArray<FVector2D> Spots = DeepCaveDiveRules::PileSpotsCm(Index, 3, 70.f, 25.f, 200.f, 0.f);
+		if (!TestTrue(FString::Printf(TEXT("piece %d has spots"), Index), Spots.Num() > 3))
+		{
+			return false;
+		}
+		const double Want = FMath::DegreesToRadians(120.0 * Index);
+		TestEqual(FString::Printf(TEXT("piece %d first: 70 cm out"), Index), Spots[0].Size(), 70.0, 0.01);
+		TestTrue(FString::Printf(TEXT("piece %d first: at its share"), Index), Spots[0].Equals(FVector2D(FMath::Cos(Want), FMath::Sin(Want)) * 70.0, 0.01));
+		for (const FVector2D& Spot : Spots)
+		{
+			TestTrue(FString::Printf(TEXT("piece %d: within the reach"), Index), Spot.Size() <= 200.01);
+			if (Spot.Size() > 1.0)
+			{
+				const double Off = FMath::Abs(FMath::FindDeltaAngleDegrees(FMath::RadiansToDegrees(FMath::Atan2(Spot.Y, Spot.X)), 120.0 * Index));
+				TestTrue(FString::Printf(TEXT("piece %d: keeps its side (%.0f deg off)"), Index, Off), Off < 60.0);
+			}
+		}
+	}
+	// A pile of one starts at the socket; yaw turns the pile.
+	TestTrue(TEXT("a pile of one starts at the socket"), DeepCaveDiveRules::PileSpotsCm(0, 1, 70.f, 25.f, 200.f, 0.f)[0].IsNearlyZero());
+	TestTrue(TEXT("the socket's yaw turns the pile"), DeepCaveDiveRules::PileSpotsCm(0, 2, 70.f, 25.f, 200.f, 90.f)[0].Equals(FVector2D(0.0, 70.0), 0.01));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveStopsTest, "Deep.Sim.CaveDive.RelicAndShownStops", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveStopsTest::RunTest(const FString& Parameters)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	TestEqual(TEXT("the shaft's relic stop"), DeepCaveDiveRules::RelicStop(false, 3, 2), 3);
+	TestEqual(TEXT("the caves' relic stop"), DeepCaveDiveRules::RelicStop(true, 3, 2), 2);
+	TestEqual(TEXT("a third berth moves it to stop 3"), DeepCaveDiveRules::RelicStop(true, 3, 3), 3);
+	TestEqual(TEXT("tuning: the shaft's relic stays at 3"), Tuning.Arena.RelicStop, 3);
+	TestEqual(TEXT("the shaft names all its stops"), DeepCaveDiveRules::ShownStops(false, 3, 2), 3);
+	TestEqual(TEXT("the caves name their berths"), DeepCaveDiveRules::ShownStops(true, 3, 2), 2);
+	TestEqual(TEXT("never more than the shaft has"), DeepCaveDiveRules::ShownStops(true, 3, 5), 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDiveRoomTest, "Deep.Sim.CaveDive.Room", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDiveRoomTest::RunTest(const FString& Parameters)
+{
+	// A 40 x 20 x 20 grid of 50 cm cells: a box room (cells 2..17 in Y and Z) with a wall at x = 20, open below its
+	// middle (z 2..5) so the two halves join, and a shelf at x 28..29 that seals the pocket past it (x 30..37) off.
+	FDeepCaveRoom Room;
+	Room.CellCm = 50.f;
+	Room.Dims = FIntVector(40, 20, 20);
+	Room.OriginCm = FVector(-1000.0, -500.0, -500.0);
+	TArray<uint8> Rock;
+	Rock.Init(1, Room.Num());
+	for (int32 i = 0; i < Room.Num(); ++i)
+	{
+		const FIntVector C = Room.CellOf(i);
+		const bool bBox = C.X >= 2 && C.X <= 37 && C.Y >= 2 && C.Y <= 17 && C.Z >= 2 && C.Z <= 17;
+		const bool bWall = C.X == 20 && C.Z > 5;
+		const bool bShelf = C.X >= 28 && C.X <= 29;
+		Rock[i] = (bBox && !bWall && !bShelf) ? 0 : 1;
+	}
+	DeepCaveDiveRules::BuildRoom(Room, Rock, FIntVector(10, 10, 10), 100.f);
+	UTEST_TRUE(TEXT("the room is built"), Room.IsValid());
+	TestTrue(TEXT("the room has free cells"), Room.FreeCount > 0);
+	TestTrue(TEXT("the seed is reached"), Room.Reached[Room.Index(FIntVector(10, 10, 10))] != 0);
+	TestTrue(TEXT("the far side of the wall is reached, under it"), Room.Reached[Room.Index(FIntVector(25, 10, 10))] != 0);
+	TestFalse(TEXT("the pocket past the shelf is not"), Room.Reached[Room.Index(FIntVector(33, 10, 10))] != 0);
+
+	// Every free cell is ClearCm plus a diagonal off rock (here: the box's faces and the wall).
+	int32 Bad = 0;
+	for (int32 i = 0; i < Room.Num(); ++i)
+	{
+		if (!Room.Free[i])
+		{
+			continue;
+		}
+		const FIntVector C = Room.CellOf(i);
+		const FVector P = Room.CentreCm(C);
+		for (int32 j = 0; j < Room.Num(); ++j)
+		{
+			if (!Room.Reached[j] && FVector::Dist(P, Room.CentreCm(Room.CellOf(j))) < 100.0 + 50.0 * UE_SQRT_3 - 0.01)
+			{
+				++Bad;
+				break;
+			}
+		}
+	}
+	TestEqual(TEXT("free cells stand clear of every solid cell"), Bad, 0);
+
+	// Kept: a free point is unchanged; a point in the wall, in the rock or in the pocket comes back into a free cell.
+	const FVector Middle = Room.CentreCm(FIntVector(10, 10, 10));
+	TestTrue(TEXT("a free point is unchanged"), DeepCaveDiveRules::KeepInRoom(Room, Middle).Equals(Middle, 0.01));
+	for (const FIntVector& From : { FIntVector(20, 10, 12), FIntVector(0, 0, 0), FIntVector(33, 10, 10), FIntVector(39, 19, 19) })
+	{
+		const FVector P = Room.CentreCm(From);
+		const FVector Kept = DeepCaveDiveRules::KeepInRoom(Room, P);
+		const int32 At = Room.Index(Room.CellAt(Kept));
+		TestTrue(FString::Printf(TEXT("%s is kept in a free cell"), *From.ToString()), Room.Free[At] != 0);
+		TestTrue(FString::Printf(TEXT("%s is kept nearby (%.0f cm)"), *From.ToString(), FVector::Dist(P, Kept)), FVector::Dist(P, Kept) < 1500.0);
+	}
+	// The circle's free share: all of a small one round the middle, none of one in the pocket.
+	TestEqual(TEXT("a circle in the open is all free"), DeepCaveDiveRules::FreeShareOfCircle(Room, Middle, 200.f, 24), 1.f, 0.001f);
+	TestEqual(TEXT("a circle in the pocket is not"), DeepCaveDiveRules::FreeShareOfCircle(Room, Room.CentreCm(FIntVector(33, 10, 10)), 100.f, 24), 0.f, 0.001f);
 	return true;
 }
 
