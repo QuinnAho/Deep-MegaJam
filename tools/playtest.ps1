@@ -20,7 +20,7 @@ Scenarios (the game since the submarine room, Nov 15):
   S8-keys     stop 1 on simulated keys only (walk to hatch, grab with E, console, helm, hold C), then lamp/winch/cut/harpoon/pause
 Starts the editor if the port does not answer, runs PIE per scenario, asserts on DeepToolset.GetState JSON
 (and the DEEPMONSTER log line for the serpent), saves a viewport PNG per scenario to
-deep\Saved\Harness\playtest\<scenario>.png and devlog\media\2026-11-15-play-<scenario>.png, stops PIE and prints
+deep\Saved\Harness\playtest\<scenario>.png (harness only, never in git, D-066), stops PIE and prints
 PASS or FAIL <scenario>: <reason>. Exit code 0 only if everything passed.
 Keys: W/A/S/D move, Space up/jump, C down, E use/grab, G drop, R winch, F lamp, LMB harpoon (ADeepPlayerController).
 #>
@@ -36,9 +36,7 @@ $ErrorActionPreference = 'Stop'
 $Tools = $PSScriptRoot
 $Repo = Split-Path -Parent $PSScriptRoot
 $ShotDir = Join-Path $Repo 'deep\Saved\Harness\playtest'
-$MediaDir = Join-Path $Repo 'devlog\media'
 New-Item -ItemType Directory -Force -Path $ShotDir | Out-Null
-New-Item -ItemType Directory -Force -Path $MediaDir | Out-Null
 $All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys', 'S9-floor', 'S10-relic', 'S10-cutdrop', 'S11-pass', 'S12-sidehome')
 $script:Notes = @()
 
@@ -220,13 +218,12 @@ function Stop-Pie {
         Start-Sleep -Milliseconds 150
     }
 }
-# One viewport PNG: kept in the harness folder and in devlog\media (named for the dev log).
+# One viewport PNG, kept in the harness folder only (D-066: frames enter git as JPEG via tools\jpeg.ps1).
 function Shot([string]$name) {
     $r = Mcp 'call' 'SceneCaptureToolset.SceneCaptureToolset.CaptureGameViewport' '{"world":null,"maxResolution":1280}'
     if ($r.Ok -and $r.Text -match 'image saved: (.+\.png)') {
         $src = $Matches[1].Trim()
         Copy-Item -LiteralPath $src -Destination (Join-Path $ShotDir ($name + '.png')) -Force
-        Copy-Item -LiteralPath $src -Destination (Join-Path $MediaDir ('2026-11-15-play2-' + $name + '.png')) -Force
     } else { $script:Notes += ($name + ': screenshot failed: ' + $r.Text) }
 }
 
@@ -1126,7 +1123,7 @@ foreach ($n in $list) {
     if ($err) { $fail++; Write-Host ('FAIL {0}: {1} ({2:N0}s)' -f $n, $err, $sw.Elapsed.TotalSeconds) }
     else { $pass++; Write-Host ('PASS {0} ({1:N0}s)' -f $n, $sw.Elapsed.TotalSeconds) }
 }
-Write-Host ('TOTAL {0} passed, {1} failed in {2:N0}s; screenshots in {3} and {4}' -f $pass, $fail, $total.Elapsed.TotalSeconds, $ShotDir, $MediaDir)
+Write-Host ('TOTAL {0} passed, {1} failed in {2:N0}s; screenshots in {3}' -f $pass, $fail, $total.Elapsed.TotalSeconds, $ShotDir)
 if ($startedEditor -and -not $KeepEditor) { $null = Mcp 'call' 'EditorToolset.EditorAppToolset.ExitEditor' '{}' }
 if ($fail -eq 0) { exit 0 } else { exit 1 }
 
