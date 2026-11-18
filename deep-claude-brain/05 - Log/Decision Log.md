@@ -378,6 +378,24 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 
 ## Decided
 
+### D-068 The relic waits in C1 until a stop-3 cavern exists; the caves stay off by default until then
+- **Status:** Decided.
+- **Date:** 2026-11-18, about 2:10 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "C1 now, stop 3 next", to: "M2b puts the relic in C1 so the whole cave run (S, a gate, C1, the relic) can be played now. The caves stay off by default until a deeper cavern for stop 3 is built past B, so the default game keeps its third stop."
+- **Decided:** In the caves the relic's stop is 2: it waits in C1 at 300 m. The caves stay off by default until a stop-3 cavern exists: a new chunk past B that sinks from 300 to 500 m. Then the relic moves there, and the default flips on Quinn's OK. In the shaft the relic stays at stop 3.
+- **Why:** The caves end at C1, and the chambers past it, B and E, are no deeper. A relic in C1 makes a whole cave run playable now, and keeping the shaft as the default keeps the game's third stop.
+- **What follows:** M2b places the relic in C1 and adds a cave run to the win. Stop 3's cavern is the next cave job after M2b.
+
+### D-067 The caves lay 10 salvage pieces a stop, in piles of 2 or 3
+- **Status:** Decided.
+- **Date:** 2026-11-18, about 2:10 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "10 a stop, in piles", to: "Keep 10 pieces a stop, 2 or 3 in a pile at each place, so each place is a small wreck worth the swim and the caves pay like the shaft."
+- **Decided:** Each cave stop lays the shaft's 10 salvage pieces, with the shaft's kinds and values, in piles of 2 or 3 at the cavern's salvage sockets: S lays 3, 3, 2 and 2 over its four sockets, C1 lays 2 at each of its five.
+- **Why:** S has 4 salvage sockets and C1 has 5, so one piece a socket paid about half the shaft, and each gate took about twice as many dives.
+- **What follows:** M2b lays the piles. A new cavern gets enough sockets for its stop's pieces to fall in piles of 2 or 3.
+
 ### D-066 Frames go into git as JPEG only; the test harness's frames stay out of git
 - **Status:** Decided.
 - **Date:** 2026-11-18, about 1:09 AM EST

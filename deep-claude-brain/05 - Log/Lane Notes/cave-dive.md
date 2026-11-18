@@ -110,16 +110,22 @@ Quinn merged M1 (about 1:09 AM Nov 18, `5659e71`) and named M2: salvage, the ser
 
 **Frames**, from the helm unless noted: S's berth reading 100 m; held at the limit in C1's sink, reading 200 m; parked at C1's berth, reading 300 m; S's salvage from the helm and from the diver; the diver at C1 on the tether by a salvage item. Package once at the end, with one packaged frame in caves.
 
-## M2b, after Quinn sees M2a
+## M2b: salvage in piles, the serpent, the relic in C1 (from Nov 18)
 
-- The serpent at its sockets, kept inside the rock's open space.
-- The relic: Quinn's call on where it goes until stop 3's cavern exists.
-- The HUD's next stop in the caves: it reads 500 m, and the caves have no stop 3 yet.
-- Salvage: 10 a stop or fewer, on Quinn's answer to page v40.
-- A full cave playthrough scenario.
-- The default flips to 1 after Quinn's OK; the old shaft stays behind the switch.
+Quinn merged M2a (about 2:10 AM Nov 18, `7ac9d5b`) and chose: the caves lay 10 salvage pieces a stop in piles (D-067), and the relic waits in C1 until a stop-3 cavern exists, with the caves off by default until then (D-068). `build/cavedive` continues from `origin/main`.
 
-Then moving-sub step 5 removes D-022's code.
+1. **Salvage in piles (D-067):** each stop lays the shaft's 10 pieces, with the shaft's kinds and values, in piles of 2 or 3 at the cavern's salvage sockets: S lays 3, 3, 2 and 2 over its four, C1 lays 2 at each of its five. A pile's pieces rest on the rock within about 2 m of the socket, clear of rock and of each other, and every piece is within the tether's reach from that cavern's berth.
+2. **The serpent:** it behaves as in the shaft (the same states, noise and per-stop tuning), but in the caves it lurks around the Serpent socket of the cavern the sub is parked in, and its drawn body keeps clear of the chunks' rock in every state, as it already does in `ADeepCavern` (the clearance at `DeepMonsterTypes.h:387`). Where a shaft distance doesn't fit a cavern (the 45 m lurk radius, the pass line, the stalk's arcs), fit it to the cavern's open space and report the numbers. It must still reach the diver and the line anywhere the tether reaches.
+3. **The relic in C1 (D-068):** in the caves the relic's stop is 2. It spawns once in C1 at a new `Relic` socket in `CaveChunkSockets.csv`: on the floor, clear of rock, within the 60 m tether from C1's berth, and apart from the salvage piles, so finding it is its own goal. Winching it in and banking it wins the run as in the shaft. In the shaft the relic stays at stop 3. Report the socket and why it sits there.
+4. **The HUD's next stop:** in the caves the HUD names only stops the cave string has. At C1, the last stop until stop 3 exists, it shows no next stop rather than 500 m.
+5. **A full cave run:** a playtest scenario with `Deep.World.Caves 1`: start parked in S, dive and bank salvage, buy the first gate, sink to C1, fetch the relic and bank it, ending in the win. Use the harness's commands; add what the run lacks.
+6. **The default stays off** (D-068) until stop 3's cavern exists and Quinn says so. With Caves = 0 the game is unchanged.
+
+**Tests**, by filter: 10 pieces a stop in piles of 2 or 3, clear of rock and in reach; the serpent's lurk at each cavern's socket and its body clear of rock over sampled lurk, stalk and pass paths; the relic at C1's socket, in reach, and the win; the HUD's next stop in the caves; with Caves = 0 the suites pass as before.
+
+**Frames**, from the diver unless noted: a pile in S; a pile in C1; the serpent in S and in C1, within sight; the relic in C1; the HUD parked at C1 (from the helm); the win at the end of the cave run. Package once at the end, with one packaged frame in caves.
+
+**After M2b:** stop 3's cavern (D-068), a new chunk past B that sinks from 300 to 500 m, with a berth, salvage sockets and a serpent socket; the relic moves there. Then the default flips on Quinn's OK, and moving-sub step 5 removes D-022's code.
 
 ## Log
 
@@ -142,3 +148,4 @@ Then moving-sub step 5 removes D-022's code.
   - The HUD's next stop reads 500 m in the caves (M2b).
 - Nov 18, about 1:55 AM: main merged into `build/cavedive` (`e2c9997`); M2a's merge gate started.
 - Nov 18, 2:01 AM: M2a's merge gate passed on `e2c9997`: 198 tests, both playthroughs with the caves off (`devlog/media` untouched), the package (1.2 GB, zip 911 MB), smoke, and packaged frames of the room start and of the squeeze with the caves on. The build to drive is `Builds/CaveDive-M2a/Play-Caves.bat`. Page v41.
+- Nov 18, about 2:10 AM: Quinn merged M2a (`7ac9d5b`; its nine frames are in `devlog/media` as `2026-11-18-m2a-*.jpg`) and chose salvage in piles, 10 a stop (D-067), and the relic in C1 until stop 3's cavern exists, with the caves off by default until then (D-068). M2b starts.

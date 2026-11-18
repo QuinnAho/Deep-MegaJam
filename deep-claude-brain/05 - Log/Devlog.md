@@ -1349,3 +1349,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided: the frames and three asks go to Quinn before the merge (page v41): the merge, how much salvage the caves lay, and whether the dark is playable. The merge gate passed at 2:01 AM: 198 tests, both playthroughs, the package and two frames from it. A build to drive is in `Builds/CaveDive-M2a` (`Play-Caves.bat`).
 - Failed: the caves lay 4 and 5 pieces where the shaft lays 10 a stop, so they pay about half. C1's 24 m drop reads 108 to 300 m, so the diver's gauge there moves about 8 m per metre. Between pings the caverns are black. The HUD's next stop reads 500 m in the caves.
 - Next: Quinn's answers, then the merge and M2b: the serpent, the relic, the HUD's next stop, a full cave run, then the switch on by default.
+
+### 2:23 AM, Nov 18  M2a merged; salvage in piles; the relic waits in C1
+- Changed: Quinn merged M2a (`7ac9d5b`); the caves stay off by default. Its nine frames went into `devlog/media` as JPEGs (`2026-11-18-m2a-*.jpg`, 303 KB in all).
+- Decided: the caves lay the shaft's 10 salvage pieces a stop, in piles of 2 or 3 at each place (D-067). The relic waits in C1 until a stop-3 cavern is built past B, and the caves stay off by default until then (D-068).
+- Next: M2b (the piles, the serpent in S and C1, the relic in C1, the HUD's next stop, a cave run to the win), then stop 3's cavern.
