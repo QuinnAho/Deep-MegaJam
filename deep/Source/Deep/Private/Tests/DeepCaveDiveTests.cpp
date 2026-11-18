@@ -456,8 +456,9 @@ namespace DeepCaveDiveTest
 			const double Gap = bRock ? Box.Min.Z - Highest : -1.0;
 			const bool bClear = !DeepArena::SalvageInRock(*String, Piece, CS.SalvageSinkCm + 1.0);
 			const double Reach = FVector::Dist(Anchor, Piece.GetActorLocation());
-			Test.AddInfo(FString::Printf(TEXT("DEEPCAVESALVAGE %s: socket z %.0f, piece z %.0f, bottom %.1f cm above rock (footprint spans %.0f cm), %s, %.1f m from the anchor (tether %.0f m)"),
-				*Name, Socket.Z, Piece.GetActorLocation().Z, Gap, bRock ? Highest - Lowest : 0.0, bClear ? TEXT("clear") : TEXT("IN ROCK"), Reach / UDeepRules::CmPerM, TetherCm / UDeepRules::CmPerM));
+			Test.AddInfo(FString::Printf(TEXT("DEEPCAVESALVAGE %s: socket z %.0f, piece z %.0f, bottom %.1f cm above rock (footprint spans %.0f cm), %s, %.1f m from the anchor (tether %.0f m); piece at %s, anchor at %s, string yaw %.1f"),
+				*Name, Socket.Z, Piece.GetActorLocation().Z, Gap, bRock ? Highest - Lowest : 0.0, bClear ? TEXT("clear") : TEXT("IN ROCK"), Reach / UDeepRules::CmPerM, TetherCm / UDeepRules::CmPerM,
+				*Piece.GetActorLocation().ToCompactString(), *Anchor.ToCompactString(), String->GetActorRotation().Yaw));
 			// Not floating: 10 cm lower, its own shapes would be in rock.
 			Test.TestTrue(FString::Printf(TEXT("%s rests on rock (10 cm lower is in it)"), *Name), bRock && DeepArena::SalvageInRock(*String, Piece, -10.0));
 			Test.TestTrue(FString::Printf(TEXT("%s is clear of rock"), *Name), bClear);
