@@ -41,8 +41,14 @@ namespace DeepCaveString
 	 */
 	DEEP_API ADeepCaveString* Ensure(UWorld* World);
 
-	/** The hull's pose in the string's frame from the game state (cm, degrees). */
+	/** The hull's pose in the string's frame from the game state (cm, degrees); its depth is read on the depth map (D-065). */
 	DEEP_API FDeepCavePose HullPose(const ADeepGameState& State);
+
+	/** The true depth where the gauge reads ReadM: the world's string's depth map, else ReadM (caves off, or not built yet). */
+	DEEP_API float PhysicalDepthM(const UWorld* World, float ReadM);
+
+	/** What the gauge reads at a true depth (the inverse; PhysicalM with no string). */
+	DEEP_API float ReadDepthM(const UWorld* World, float PhysicalM);
 }
 
 UCLASS(Transient, NotPlaceable)
@@ -61,6 +67,25 @@ public:
 	const TArray<FDeepCavePathPoint>& GetPath() const { return Path; }
 	const TArray<FDeepCavePose>& GetPathPoses() const { return PathPoses; }
 	const TArray<float>& GetPathMetres() const { return PathMetres; }
+	const TArray<FDeepCaveDepthKnot>& GetDepthMap() const { return DepthMap; }
+
+	/** What the gauge reads at a world height (D-065): the string's origin is the first stop's depth. */
+	float ReadDepthAtZ(double WorldZCm) const;
+
+	/** A chunk's socket in the world (cm); false if there is none. */
+	bool SocketWorld(FName Chunk, FName Socket, FVector& OutWorldCm) const;
+
+	/** The first rock straight down from a world point within MaxDownCm (complex collision, the chunks only). */
+	bool RockBelow(const FVector& WorldCm, float MaxDownCm, FHitResult& OutHit) const;
+
+	/**
+	 * The rock under a world box's footprint: straight down at its centre and its four corners (pulled in 10%), from
+	 * UpCm above its bottom to DownCm below it. The highest and lowest hits' heights; the number of points that hit.
+	 */
+	int32 FootprintRock(const FBox& WorldBox, float UpCm, float DownCm, double& OutHighestZ, double& OutLowestZ) const;
+
+	/** A box (world centre, half size, rotation) overlaps a chunk's rock. */
+	bool OverlapsBoxWorld(const FVector& CentreCm, const FVector& HalfCm, const FQuat& Rotation) const;
 	const TArray<TObjectPtr<UStaticMeshComponent>>& GetChunks() const { return Chunks; }
 
 	/** A chunk's socket as a hull pose in the string's frame; false if there is none. */
@@ -87,6 +112,7 @@ private:
 	TArray<FDeepCavePathPoint> Path;
 	TArray<FDeepCavePose> PathPoses;
 	TArray<float> PathMetres;
+	TArray<FDeepCaveDepthKnot> DepthMap;
 
 	/** World shape transform for the box at a hull pose (string frame). */
 	FTransform BoxWorld(const FBox& Box, const FVector& AtCm, float YawDeg) const;

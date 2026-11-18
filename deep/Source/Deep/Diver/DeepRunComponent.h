@@ -229,7 +229,8 @@ protected:
 	/** Parks at Stop: snaps to its depth, or (bGlide, the pilot) leaves the game state to glide there. */
 	void Park(int32 Stop, bool bGlide = false);
 	/** Deep.World.Caves: parked where the hull is (a berth), levers home, helm_arrive. */
-	void ParkInCave();
+	/** Parks at the berth of Stop (1-based, CaveString.Berths): the gauge snaps to its depth and the stop's line plays. */
+	void ParkInCave(int32 Stop);
 	/** relic_seen, once per run, the first time the relic is near or in view. */
 	void StepRelicSeen();
 	/** Banking the relic: the run is won, the review goes up. */

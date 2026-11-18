@@ -2664,6 +2664,23 @@ struct DEEP_API FDeepPilotTuning
 	float LeverFollowPerS = 14.f;
 };
 
+/** Deep.World.Caves: one salvage piece at a chunk's socket. A berth's cavern holds its stop's salvage (stop n: Berths[n-1]). */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepCaveSalvageSlot
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FName Chunk;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FName Socket;
+
+	/** The kind (its weight and value are the shaft's, from SalvageKinds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	EDeepSalvageSize Size = EDeepSalvageSize::Small;
+};
+
 /**
  * Deep.World.Caves: the baked cave chunks strung into the dive (Sim/DeepCaveStringRules, World/DeepCaveString). The
  * tables live in Content/Data; the string's frame is S's berth at stop 1, +X along S's passage, Z up, in cm.
@@ -2677,6 +2694,27 @@ struct DEEP_API FDeepCaveStringTuning
 	{
 		String = { FName(TEXT("S")), FName(TEXT("A")), FName(TEXT("T1")), FName(TEXT("C1")), FName(TEXT("B")), FName(TEXT("E")) };
 		Berths = { FName(TEXT("S")), FName(TEXT("C1")) };
+		// The shaft lays 10 pieces a stop (Arena.SalvageSpots: 3 small, 3 medium, 2 large, 2 pearls); S has 4 sockets
+		// and C1 has 5, so each cavern gets one of each kind (C1 one more small) at the shaft's weights and values.
+		const auto Slot = [](const TCHAR* Chunk, const TCHAR* Socket, EDeepSalvageSize Size)
+		{
+			FDeepCaveSalvageSlot Out;
+			Out.Chunk = FName(Chunk);
+			Out.Socket = FName(Socket);
+			Out.Size = Size;
+			return Out;
+		};
+		Salvage = {
+			Slot(TEXT("S"), TEXT("Salvage1"), EDeepSalvageSize::Medium),
+			Slot(TEXT("S"), TEXT("Salvage2"), EDeepSalvageSize::Small),
+			Slot(TEXT("S"), TEXT("Salvage3"), EDeepSalvageSize::Large),
+			Slot(TEXT("S"), TEXT("Salvage4"), EDeepSalvageSize::Pearl),
+			Slot(TEXT("C1"), TEXT("Salvage1"), EDeepSalvageSize::Medium),
+			Slot(TEXT("C1"), TEXT("Salvage2"), EDeepSalvageSize::Small),
+			Slot(TEXT("C1"), TEXT("Salvage3"), EDeepSalvageSize::Pearl),
+			Slot(TEXT("C1"), TEXT("Salvage4"), EDeepSalvageSize::Large),
+			Slot(TEXT("C1"), TEXT("Salvage5"), EDeepSalvageSize::Small),
+		};
 	}
 
 	/** The chunks in dive order: the first has no entry joint (start), the last no exit (end). */
@@ -2699,6 +2737,34 @@ struct DEEP_API FDeepCaveStringTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
 	FString PathCsv = TEXT("CaveChunkPath.csv");
+
+	/** D-065: true depth to what the gauge reads (PhysicalM, ReadM), so each berth reads its stop. UDeepCaveStringRules::StringDepthMap derives it from the string. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FString DepthMapCsv = TEXT("CaveDepthMap.csv");
+
+	/** Each stop's salvage at its berth's cavern sockets. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	TArray<FDeepCaveSalvageSlot> Salvage;
+
+	/** A piece rests on the rock found within this far below its socket (cm); with none it stays at the socket. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvageRestSearchCm = 300.f;
+
+	/** It sinks this far into the rock it rests on (cm), so it sits in it rather than on a point. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvageSinkCm = 4.f;
+
+	/** The search for that rock starts this far above the socket (cm): low enough to stay under an overhang. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvageRestUpCm = 60.f;
+
+	/** From its footprint's highest rock it is moved in these steps (cm): down until its own shapes touch, or up off a wall... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvageLiftStepCm = 2.f;
+
+	/** ...at most this far (cm); still in rock, it stays there and a warning says so. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvageLiftMaxCm = 60.f;
 
 	/** The hull stops this far short of the rock it is swept into (cm): the next sweep starts clear. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")

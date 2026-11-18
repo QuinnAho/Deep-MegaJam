@@ -10,6 +10,7 @@ class ADeepSubmarine;
 class ADeepSubRoom;
 class ADeepArenaRoot;
 class ADeepSalvage;
+class ADeepCaveString;
 class ADeepAbyssFloor;
 struct FDeepSalvageKind;
 
@@ -71,6 +72,12 @@ namespace DeepArena
 	 * Arena.RelicStop and deeper (the stop is read from the game state). Returns pieces spawned.
 	 */
 	DEEP_API int32 RespawnSalvage(UWorld* World);
+
+	/** Deep.World.Caves (server): spawns a stop's salvage at its berth cavern's sockets, resting on the rock. The count. */
+	DEEP_API int32 SpawnCaveSalvage(UWorld* World, int32 Stop);
+
+	/** Deep.World.Caves: a piece's shapes (each its own rotated box), raised LiftCm, overlap the string's rock. */
+	DEEP_API bool SalvageInRock(const ADeepCaveString& String, const ADeepSalvage& Salvage, double LiftCm);
 
 	/** Applies the stop's light and fog to the world's environment actor, and adds or removes the relic for the stop. */
 	DEEP_API void ApplyStop(UWorld* World, int32 Stop);

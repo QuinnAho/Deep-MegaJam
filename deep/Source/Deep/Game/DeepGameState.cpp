@@ -71,6 +71,11 @@ float ADeepGameState::GetHullIntegrity01() const
 
 bool ADeepGameState::IsSettledAtStop() const
 {
+	if (DeepArena::IsWorldCaves(GetWorld()))
+	{
+		// The caves park at a berth's own place and heading (ParkInCave): at its stop's depth on the gauge (D-065).
+		return bParked && FMath::IsNearlyEqual(SubDepthM, UDeepTuningSettings::Get().GetStop(Stop).SubDepthM, 0.05f);
+	}
 	return bParked && SubOffsetM.IsNearlyZero(0.01f) && FMath::IsNearlyZero(FRotator::NormalizeAxis(SubYawDeg), 0.05f)
 		&& FMath::IsNearlyEqual(SubDepthM, UDeepTuningSettings::Get().GetStop(Stop).SubDepthM, 0.01f);
 }

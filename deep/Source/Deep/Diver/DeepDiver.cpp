@@ -22,6 +22,7 @@
 #include "Net/UnrealNetwork.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepShaft.h"
@@ -282,6 +283,11 @@ float ADeepDiver::GetDepthM() const
 	if (Run && Run->IsInside())
 	{
 		return Tether->GetAnchorDepthM();
+	}
+	// Deep.World.Caves: the gauge reads the depth map at the diver's height (D-065), as it does for the hull.
+	if (const ADeepCaveString* String = DeepCaveString::Find(GetWorld()))
+	{
+		return FMath::Max(0.f, String->ReadDepthAtZ(GetActorLocation().Z));
 	}
 	return UDeepRules::DepthM(static_cast<float>(GetActorLocation().Z), static_cast<float>(Tether->GetAnchorLocation().Z), Tether->GetAnchorDepthM());
 }
