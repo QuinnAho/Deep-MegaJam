@@ -1,6 +1,6 @@
 // Immersion I1 (D-072): silt, the thing that steals your sight in a flooded cave. One per machine (transient, not
 // replicated; UDeepImmersion spawns it), hung from the arena root so the puffs stay put in the cave while the hull moves.
-// A few times a second it probes the rock round the hull's solid box (three traces down, five out) and round each
+// A few times a second it probes the rock round the hull's solid box (3 traces down, 23 out round it) and under each
 // swimming diver (one down): the hull running within LiftHeightM of the floor lifts puffs there, rock within
 // ScrapeGapM of a side while moving scrapes puffs off it, a knock (hull_hit) bursts them, a diver kicking near the
 // floor lifts a small one. Each puff rises off the surface on its open side, spreads, hangs 10 to 20 s, drifts and
@@ -110,8 +110,8 @@ private:
 	FDelegateHandle EventHandle;
 	float ProbeClock = 0.f;
 	float LiftCarry = 0.f;
-	/** Seconds since each hull probe last scraped a puff off (3 down + 5 out). */
-	float ScrapeClocks[8] = { 0.f };
+	/** Seconds since the hull last scraped a puff off the rock. */
+	float ScrapeClock = 0.f;
 	TMap<TWeakObjectPtr<AActor>, float> DiverClocks;
 	TArray<FContact> Contacts;
 	FVector LastHullSiltCm = FVector::ZeroVector;
@@ -121,6 +121,8 @@ private:
 	float HullSpeedMps = 0.f;
 	/** The hull's velocity through the water (silt frame, m/s) at the last probe. */
 	FVector HullVelocityMps = FVector::ZeroVector;
+	/** The speed the silt felt at the last probe (DeepImmersionRules::WashSpeedMps). */
+	float HullWashMps = 0.f;
 	bool bDrawHidden = false;
 	bool bWarnedMaterial = false;
 	int32 Lifted = 0;

@@ -249,6 +249,9 @@ bool FDeepImmersionSiltTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Nearer lifts more"), DeepImmersionRules::LiftPuffsPerS(0.2f, 2.f, T) > DeepImmersionRules::LiftPuffsPerS(1.2f, 2.f, T));
 	TestTrue(TEXT("Faster lifts more"), DeepImmersionRules::LiftPuffsPerS(0.5f, T.LiftFullMps, T) > DeepImmersionRules::LiftPuffsPerS(0.5f, 0.5f * T.LiftFullMps, T));
 	TestTrue(TEXT("A scrape is rock within the gap"), DeepImmersionRules::IsScrape(0.1f, T) && !DeepImmersionRules::IsScrape(T.ScrapeGapM + 0.2f, T));
+	TestEqual(TEXT("Moving with no thrust: its own speed"), DeepImmersionRules::WashSpeedMps(1.f, 0.f, T), 1.f);
+	TestEqual(TEXT("Pinned on rock, thrusters full: full wash"), DeepImmersionRules::WashSpeedMps(0.f, 1.f, T), T.LiftFullMps);
+	TestTrue(TEXT("Pinned near the floor and pushing: silt lifts"), DeepImmersionRules::LiftPuffsPerS(0.5f, DeepImmersionRules::WashSpeedMps(0.f, 0.8f, T), T) > 0.f);
 	TestEqual(TEXT("No knock, no burst"), DeepImmersionRules::KnockPuffs(0.f, T), 0);
 	TestTrue(TEXT("A harder knock bursts more, within the cap"), DeepImmersionRules::KnockPuffs(4.f, T) > DeepImmersionRules::KnockPuffs(1.f, T)
 		&& DeepImmersionRules::KnockPuffs(100.f, T) == T.KnockPuffsMax);

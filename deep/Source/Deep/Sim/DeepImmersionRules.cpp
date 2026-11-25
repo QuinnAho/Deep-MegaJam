@@ -176,6 +176,11 @@ namespace DeepImmersionRules
 		return FMath::Max(0.f, T.LiftPuffsPerS) * Near * Fast;
 	}
 
+	float WashSpeedMps(float MeasuredMps, float Effort01, const FDeepSiltTuning& T)
+	{
+		return FMath::Max(FMath::Max(0.f, MeasuredMps), FMath::Clamp(Effort01, 0.f, 1.f) * T.LiftFullMps);
+	}
+
 	bool IsScrape(float GapM, const FDeepSiltTuning& T)
 	{
 		return GapM >= -0.5f && GapM <= T.ScrapeGapM;

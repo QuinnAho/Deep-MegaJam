@@ -6,6 +6,7 @@
 #include "Misc/App.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
+#include "Game/DeepGameState.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/IConsoleManager.h"
@@ -31,9 +32,8 @@ namespace
 
 	double SiltRound2(float V) { return FMath::RoundToDouble(double(V) * 100.0) / 100.0; }
 
-	/** Hull probes: three down (bow, middle, stern; stern weighted: the thrusters' wash) and five out (sides, top, ends). */
+	/** Hull probes down: bow, middle, stern (stern weighted: the thrusters' wash). The probes out are in ProbeHull. */
 	constexpr int32 SiltDownProbes = 3;
-	constexpr int32 SiltOutProbes = 5;
 	const float SiltDownAlong[SiltDownProbes] = { 0.6f, 0.f, -0.6f };
 	const float SiltDownWeight[SiltDownProbes] = { 0.7f, 1.f, 1.3f };
 }
@@ -326,6 +326,15 @@ void ADeepSilt::ProbeHull(float ProbeDt)
 		HullVelocityMps = HullSpeedMps > 0.f ? (HullSilt - LastHullSiltCm) / ProbeDt / UDeepRules::CmPerM : FVector::ZeroVector;
 	}
 	LastHullSiltCm = HullSilt;
+	// The wash the silt feels: the hull's speed, or its thrusters' effort when it is pinned on rock and pushing.
+	float Effort01 = 0.f;
+	if (const ADeepGameState* State = GetWorld()->GetGameState<ADeepGameState>(); State && Sub->IsHelmManned())
+	{
+		const FDeepDriveInput& Hold = State->HelmHold;
+		Effort01 = FMath::Max3(FMath::Abs(Hold.Surge), FMath::Abs(Hold.Strafe), FMath::Abs(Hold.Heave));
+	}
+	const float WashMps = DeepImmersionRules::WashSpeedMps(HullSpeedMps, Effort01, S);
+	HullWashMps = WashMps;
 	bHasLastHull = true;
 
 	auto Keep = [&](const FHitResult& Hit, float GapM)
@@ -337,21 +346,6 @@ void ADeepSilt::ProbeHull(float ProbeDt)
 		Contacts.Add(C);
 		HullGapM = HullGapM < 0.f ? GapM : FMath::Min(HullGapM, GapM);
 		return Contacts.Num() - 1;
-	};
-	auto Scrape = [&](int32 Probe, int32 ContactIndex)
-	{
-		if (ContactIndex == INDEX_NONE || !DeepImmersionRules::IsScrape(Contacts[ContactIndex].GapM, S) || HullSpeedMps <= S.LiftMinMps)
-		{
-			// Ready at once for the next touch.
-			ScrapeClocks[Probe] = S.ScrapeEveryS;
-			return;
-		}
-		ScrapeClocks[Probe] += ProbeDt;
-		if (ScrapeClocks[Probe] >= S.ScrapeEveryS)
-		{
-			ScrapeClocks[Probe] = 0.f;
-			Scraped += AddPuffs(Contacts[ContactIndex].HitCm, Contacts[ContactIndex].Normal, 1, 1.f, 30.f);
-		}
 	};
 
 	// Down: bow, middle and stern, from the box's centre straight down past the lift height.
@@ -369,9 +363,8 @@ void ADeepSilt::ProbeHull(float ProbeDt)
 			ContactIndex = Keep(Hit, GapM);
 			LiftContact[K] = ContactIndex;
 			HullClearanceM = HullClearanceM < 0.f ? GapM : FMath::Min(HullClearanceM, GapM);
-			LiftRate += DeepImmersionRules::LiftPuffsPerS(GapM, HullSpeedMps, S) * SiltDownWeight[K] / SiltDownProbes;
+			LiftRate += DeepImmersionRules::LiftPuffsPerS(GapM, WashMps, S) * SiltDownWeight[K] / SiltDownProbes;
 		}
-		Scrape(K, ContactIndex);
 	}
 	// The lift: puffs at the down probes' floor points, spread across the hull's beam.
 	LiftCarry += LiftRate * ProbeDt;
@@ -396,20 +389,64 @@ void ADeepSilt::ProbeHull(float ProbeDt)
 		LiftCarry = 0.f;
 	}
 
-	// Out: both sides, the top and both ends, a little past the scrape gap.
-	const FVector Dirs[SiltOutProbes] = { FVector(0, 1, 0), FVector(0, -1, 0), FVector(0, 0, 1), FVector(1, 0, 0), FVector(-1, 0, 0) };
-	const double Extents[SiltOutProbes] = { Ext.Y, Ext.Y, Ext.Z, Ext.X, Ext.X };
-	for (int32 K = 0; K < SiltOutProbes; ++K)
+	// Out: both ends from the middle, and round the hull's section (both sides, the top and the four edges) at three
+	// stations (near the bow, the middle, near the stern), a little past the scrape gap. A round tunnel touches a box
+	// hull along its edges, not the middles of its faces, so the edge probes matter most in a squeeze.
+	struct FOutProbe { double AlongX; FVector Dir; };
+	const FVector Edge = FVector(0.0, Ext.Y, Ext.Z).GetSafeNormal();
+	const FVector Section[] = { FVector(0, 1, 0), FVector(0, -1, 0), FVector(0, 0, 1), FVector(0, Edge.Y, Edge.Z), FVector(0, -Edge.Y, Edge.Z), FVector(0, Edge.Y, -Edge.Z), FVector(0, -Edge.Y, -Edge.Z) };
+	TArray<FOutProbe, TInlineAllocator<24>> Outs;
+	Outs.Add({ 0.0, FVector(1, 0, 0) });
+	Outs.Add({ 0.0, FVector(-1, 0, 0) });
+	for (const double Station : { 0.85, 0.0, -0.85 })
 	{
-		const double ReachCm = Extents[K] + (S.ScrapeGapM + 0.5) * UDeepRules::CmPerM;
-		const FVector Dir = Hull.TransformVectorNoScale(Dirs[K]);
-		FHitResult Hit;
-		int32 ContactIndex = INDEX_NONE;
-		if (Trace(CentreW, CentreW + Dir * ReachCm, Hit))
+		for (const FVector& Dir : Section)
 		{
-			ContactIndex = Keep(Hit, static_cast<float>((Hit.Distance - Extents[K]) / UDeepRules::CmPerM));
+			Outs.Add({ Station * Ext.X, Dir });
 		}
-		Scrape(SiltDownProbes + K, ContactIndex);
+	}
+	for (const FOutProbe& Probe : Outs)
+	{
+		// Centre to the box's face along this direction.
+		double FaceCm = TNumericLimits<double>::Max();
+		for (int32 Axis = 0; Axis < 3; ++Axis)
+		{
+			if (FMath::Abs(Probe.Dir[Axis]) > 1e-3)
+			{
+				FaceCm = FMath::Min(FaceCm, Ext[Axis] / FMath::Abs(Probe.Dir[Axis]));
+			}
+		}
+		const double ReachCm = FaceCm + (S.ScrapeGapM + 0.5) * UDeepRules::CmPerM;
+		const FVector From = Hull.TransformPosition(CentreLocal + FVector(Probe.AlongX, 0.0, 0.0));
+		const FVector Dir = Hull.TransformVectorNoScale(Probe.Dir);
+		FHitResult Hit;
+		if (Trace(From, From + Dir * ReachCm, Hit))
+		{
+			Keep(Hit, static_cast<float>((Hit.Distance - FaceCm) / UDeepRules::CmPerM));
+		}
+	}
+
+	// The scrape: rock within the gap of the moving hull anywhere it was probed sheds a puff at the nearest touch,
+	// every ScrapeEveryS (one stream of silt, however many probes touch in a squeeze).
+	int32 Nearest = INDEX_NONE;
+	for (int32 I = 0; I < Contacts.Num(); ++I)
+	{
+		if (DeepImmersionRules::IsScrape(Contacts[I].GapM, S) && (Nearest == INDEX_NONE || Contacts[I].GapM < Contacts[Nearest].GapM))
+		{
+			Nearest = I;
+		}
+	}
+	if (Nearest == INDEX_NONE || WashMps <= S.LiftMinMps)
+	{
+		// Ready at once for the next touch.
+		ScrapeClock = S.ScrapeEveryS;
+		return;
+	}
+	ScrapeClock += ProbeDt;
+	if (ScrapeClock >= S.ScrapeEveryS)
+	{
+		ScrapeClock = 0.f;
+		Scraped += AddPuffs(Contacts[Nearest].HitCm, Contacts[Nearest].Normal, 1, 1.f, 40.f, HullVelocityMps);
 	}
 }
 
@@ -619,6 +656,7 @@ TSharedRef<FJsonObject> ADeepSilt::BuildStateJson() const
 	Json->SetNumberField(TEXT("clearance_m"), SiltRound2(HullClearanceM));
 	Json->SetNumberField(TEXT("gap_m"), SiltRound2(HullGapM));
 	Json->SetNumberField(TEXT("speed_mps"), SiltRound2(HullSpeedMps));
+	Json->SetNumberField(TEXT("wash_mps"), SiltRound2(HullWashMps));
 	Json->SetBoolField(TEXT("material"), PuffMaterial != nullptr);
 	Json->SetBoolField(TEXT("hidden"), bDrawHidden);
 	Json->SetBoolField(TEXT("in_hull"), AnyPuffInHull());

@@ -143,6 +143,12 @@ namespace DeepImmersionRules
 	/** Puffs a second the hull lifts with its underside ClearanceM over the floor (< 0 = no floor found) at SpeedMps. */
 	DEEP_API float LiftPuffsPerS(float ClearanceM, float SpeedMps, const FDeepSiltTuning& T);
 
+	/**
+	 * The speed the silt feels from the hull: its own speed, or the thrusters' effort (0..1, the held keys) at full lift
+	 * speed when that is more. A hull pinned on rock with its thrusters pushing still blows silt off it.
+	 */
+	DEEP_API float WashSpeedMps(float MeasuredMps, float Effort01, const FDeepSiltTuning& T);
+
 	/** True when rock this far from a side of the hull counts as a scrape. */
 	DEEP_API bool IsScrape(float GapM, const FDeepSiltTuning& T);
 

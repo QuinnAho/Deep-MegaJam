@@ -129,10 +129,10 @@ struct DEEP_API FDeepSiltTuning
 
 	/** Puffs a second at the floor (clearance 0) at LiftFullMps; fewer higher up (by LiftFalloff) and slower. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Lift", meta = (ClampMin = "0"))
-	float LiftPuffsPerS = 7.f;
+	float LiftPuffsPerS = 9.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Lift", meta = (ClampMin = "0.5"))
-	float LiftFalloff = 1.6f;
+	float LiftFalloff = 1.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Lift", meta = (ClampMin = "0.1"))
 	float LiftFullMps = 2.5f;
@@ -143,7 +143,7 @@ struct DEEP_API FDeepSiltTuning
 
 	/** Rock this close to a side of the hull (m) counts as a scrape: a puff at the contact every ScrapeEveryS while moving. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Scrape", meta = (ClampMin = "0"))
-	float ScrapeGapM = 0.35f;
+	float ScrapeGapM = 0.6f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Scrape", meta = (ClampMin = "0.05"))
 	float ScrapeEveryS = 0.25f;
