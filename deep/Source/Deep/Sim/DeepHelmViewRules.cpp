@@ -112,17 +112,42 @@ namespace DeepHelmView
 		return float(-(Local.Z / Local.X) / FMath::Max(1e-4, TanHalfV));
 	}
 
-	float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T,
-		float TravelPitchDeg)
+	float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T)
 	{
 		const FVector To = HullTopCm - CameraCm;
 		const double Flat = FVector(To.X, To.Y, 0.0).Size();
 		const double TopDeg = FMath::RadiansToDegrees(FMath::Atan2(To.Z, FMath::Max(1.0, Flat)));
 		const double TanHalfV = FMath::Tan(FMath::DegreesToRadians(VerticalFovDeg(HorizontalFovDeg, T.FrameAspect) * 0.5));
-		const float Sink = FMath::Clamp(-TravelPitchDeg / FMath::Max(1.f, T.HullTopSinkDeg), 0.f, 1.f);
-		const double Frac = FMath::Clamp(T.HullTopFrameFrac, 0.f, 0.95f) * (1.f - Sink);
-		const double BelowDeg = FMath::RadiansToDegrees(FMath::Atan(Frac * TanHalfV));
-		const float Want = FMath::Max(LookPitchDeg, float(TopDeg + BelowDeg));
+		// The pitch that puts the hull's top this share of the half frame under the centre (negative: over it).
+		const auto PitchFor = [&](float Frac) { return float(TopDeg + FMath::RadiansToDegrees(FMath::Atan(FMath::Clamp(Frac, -0.95f, 0.95f) * TanHalfV))); };
+		const float Want = FMath::Min(FMath::Max(LookPitchDeg, PitchFor(T.HullTopFrameFrac)), PitchFor(FMath::Max(T.HullTopFrameFrac, T.HullTopMaxFrameFrac)));
 		return FMath::Clamp(Want, FMath::Min(T.LookMinPitchDeg, T.LookMaxPitchDeg), FMath::Max(T.LookMinPitchDeg, T.LookMaxPitchDeg));
+	}
+
+	float HeaveShare(float TravelPitchDeg, const FDeepHelmViewTuning& T)
+	{
+		return FMath::Clamp(TravelPitchDeg / FMath::Max(1.f, T.HeaveFullDeg), -1.f, 1.f);
+	}
+
+	FDeepHelmViewTuning Heaved(const FDeepHelmViewTuning& T, float Heave)
+	{
+		FDeepHelmViewTuning Out = T;
+		const float Sink = FMath::Clamp(-Heave, 0.f, 1.f);
+		const float Rise = FMath::Clamp(Heave, 0.f, 1.f);
+		if (Sink > 0.f)
+		{
+			Out.ChaseBackM = FMath::Lerp(T.ChaseBackM, T.SinkBackM, Sink);
+			Out.ChaseUpM = FMath::Lerp(T.ChaseUpM, T.SinkUpM, Sink);
+			Out.LookMinPitchDeg = FMath::Lerp(T.LookMinPitchDeg, FMath::Min(T.LookMinPitchDeg, T.SinkMinPitchDeg), Sink);
+			Out.HullTopFrameFrac = FMath::Lerp(T.HullTopFrameFrac, T.SinkHullTopFrac, Sink);
+		}
+		else if (Rise > 0.f)
+		{
+			Out.ChaseBackM = FMath::Lerp(T.ChaseBackM, T.RiseBackM, Rise);
+			Out.ChaseUpM = FMath::Lerp(T.ChaseUpM, T.RiseUpM, Rise);
+			Out.ChaseUpMinM = FMath::Min(T.ChaseUpMinM, Out.ChaseUpM);
+			Out.LookMaxPitchDeg = FMath::Lerp(T.LookMaxPitchDeg, FMath::Max(T.LookMaxPitchDeg, T.RiseMaxPitchDeg), Rise);
+		}
+		return Out;
 	}
 }

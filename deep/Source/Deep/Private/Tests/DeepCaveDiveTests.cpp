@@ -1825,7 +1825,8 @@ bool FDeepCaveChaseViewTest::RunTest(const FString& Parameters)
 	const TArray<FDeepCavePose>& Poses = String->GetPathPoses();
 	UCameraComponent* Camera = W.Sub->GetHelmCamera();
 	// Every 10 m from S to E: the hull driven the last 12 m along the path to the sample (its trail), then held there
-	// for 1.5 s while the view settles. The chase view is out of the rock and out of the hull, and sees the hull.
+	// for 2.5 s while the view settles (D1c: after a vertical run the heave framing eases back over about 2 s). The chase view
+	// is out of the rock and out of the hull, and sees the hull.
 	int32 Checks = 0;
 	int32 InRock = 0;
 	int32 InHull = 0;
@@ -1844,7 +1845,7 @@ bool FDeepCaveChaseViewTest::RunTest(const FString& Parameters)
 			W.PlaceAt(Poses[Back]);
 			W.TickSub();
 		}
-		for (int32 Settle = 0; Settle < 45; ++Settle)
+		for (int32 Settle = 0; Settle < 75; ++Settle)
 		{
 			W.TickSub();
 		}
@@ -2124,6 +2125,153 @@ bool FDeepCaveFloodsReachSTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("the fill reaches S's walls (80% of its rays)"), Reached * 5 >= Walls * 4);
 	TestTrue(TEXT("a flood or the fill reaches S's way out"), bExitLit);
 	TestTrue(TEXT("the throws are not dimmed to nothing on S's berth"), W.Sub->GetFloodNear(0) >= 0.2f && W.Sub->GetFloodNear(1) >= 0.2f);
+	return true;
+}
+
+namespace DeepCaveDiveTest
+{
+	/**
+	 * D1c: how much of the chase frame shows rock below the hull's keel (the floor or the sink's lower walls) that the hull
+	 * does not hide: a grid of rays through the frame.
+	 */
+	static float FloorSeenShare(const FDiveWorld& W, int32& OutRays)
+	{
+		const UCameraComponent* Camera = W.Sub->GetHelmCamera();
+		const FDeepHelmViewTuning& ViewT = UDeepTuningSettings::Get().HelmView;
+		const FVector Cam = Camera->GetComponentLocation();
+		const FRotator View = Camera->GetComponentRotation();
+		const double TanH = FMath::Tan(FMath::DegreesToRadians(Camera->FieldOfView * 0.5));
+		const double TanV = TanH / FMath::Max(0.1f, ViewT.FrameAspect);
+		const FBox Box = W.Sub->GetSolidBoundsLocal(false);
+		const double KeelZ = W.Sub->GetHullCentreWorld().Z - Box.GetExtent().Z - 50.0;
+		const FTransform Visual = W.Sub->GetHullVisual()->GetComponentTransform();
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepTestFloorSeen), true, W.Sub);
+		int32 Seen = 0;
+		OutRays = 0;
+		for (int32 Row = 0; Row < 7; ++Row)
+		{
+			for (int32 Col = 0; Col < 11; ++Col)
+			{
+				const double U = -1.0 + 2.0 * Col / 10.0;
+				const double V = -1.0 + 2.0 * Row / 6.0;
+				const FVector Dir = View.RotateVector(FVector(1.0, U * TanH, -V * TanV)).GetSafeNormal();
+				++OutRays;
+				FHitResult Hit;
+				if (!W.World->LineTraceSingleByObjectType(Hit, Cam, Cam + Dir * 8000.0, FCollisionObjectQueryParams(ECC_WorldStatic), Params) || Hit.ImpactPoint.Z > KeelZ)
+				{
+					continue;
+				}
+				FVector At, Normal;
+				const bool bHidden = W.Sub->TraceHullSurface(Visual.InverseTransformPosition(Cam), Visual.InverseTransformPosition(Hit.ImpactPoint), At, Normal);
+				Seen += bHidden ? 0 : 1;
+			}
+		}
+		return OutRays > 0 ? float(Seen) / OutRays : 0.f;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveSinkViewTest, "Deep.World.CaveDive.View.SinkShowsWay", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveSinkViewTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// D1c: heaving down C1's sink in the chase view, the view shows where the hull is going: the floor and the sink's lower
+	// walls fill much of the frame past the hull, from the top of the sink to the berth; the view is never in rock or in
+	// the hull; the floods tip down the sink; let go, the view eases back to level.
+	FDeepCavePose Berth;
+	if (!TestTrue(TEXT("C1 has a berth"), String->SocketPose(TEXT("C1"), UDeepTuningSettings::Get().CaveString.ParkSocket, Berth)))
+	{
+		return false;
+	}
+	W.State->HullRating = 2;
+	W.Run->TakeHelm();
+	W.Sub->SetHelmCockpit(false);
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("C1"), 31.5f);
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	for (int32 Tick = 0; Tick < 45; ++Tick)
+	{
+		W.TickSub();
+	}
+	int32 Rays = 0;
+	const float LevelShare = FloorSeenShare(W, Rays);
+	// The sink's shape round the hull at its top (m to rock): ahead, astern, port, starboard, down.
+	{
+		const FVector C = W.Sub->GetHullCentreWorld();
+		const FVector Fwd = W.Sub->GetActorForwardVector();
+		const FVector Right = W.Sub->GetActorRightVector();
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepTestSinkShape), true, W.Sub);
+		FString Shape;
+		for (const FVector& Dir : { Fwd, -Fwd, -Right, Right, FVector(0.0, 0.0, -1.0) })
+		{
+			FHitResult Hit;
+			const bool bHit = W.World->LineTraceSingleByObjectType(Hit, C, C + Dir * 10000.0, FCollisionObjectQueryParams(ECC_WorldStatic), Params);
+			Shape += FString::Printf(TEXT(" %.1f"), bHit ? Hit.Distance / 100.0 : 100.0);
+		}
+		AddInfo(TEXT("the sink from the hull's centre (ahead astern port starboard down, m):") + Shape);
+	}
+	const FBox Hull = W.Sub->GetSolidBoundsLocal(false);
+	const UCameraComponent* Camera = W.Sub->GetHelmCamera();
+	Hold(W, 0.f, 0.f, 1.f);
+	int32 InRock = 0;
+	int32 InHull = 0;
+	int32 Low = 0;
+	int32 Checks = 0;
+	float LeastShare = 1.f;
+	float MostLampHeave = 0.f;
+	float Start = -1.f;
+	const float StartM = (W.Pose().LocationCm.Z - Berth.LocationCm.Z) / 100.f;
+	float T = 0.f;
+	int32 Step = 0;
+	for (; T < 12.f && !W.State->bParked; T += 0.05f, ++Step)
+	{
+		W.Run->StepRun(0.05f);
+		static_cast<AActor*>(W.Sub)->Tick(0.05f);
+		const FVector Cam = Camera->GetComponentLocation();
+		InRock += String->OverlapsBoxWorld(Cam, FVector(20.0), FQuat::Identity) ? 1 : 0;
+		InHull += Hull.ExpandBy(10.0).IsInside(W.Sub->GetActorTransform().InverseTransformPosition(Cam)) ? 1 : 0;
+		MostLampHeave = FMath::Min(MostLampHeave, W.Sub->GetLampHeave());
+		const float AboveM = (W.Pose().LocationCm.Z - Berth.LocationCm.Z) / 100.f;
+		// Every half second once the heave is under way (1.5 s), down to 2 m over the berth.
+		if (T >= 1.5f && AboveM > 2.f && Step % 10 == 0)
+		{
+			const float Share = FloorSeenShare(W, Rays);
+			++Checks;
+			Low += Share < 0.3f ? 1 : 0;
+			LeastShare = FMath::Min(LeastShare, Share);
+			if (Start < 0.f || FMath::Abs(AboveM - StartM * 0.5f) < 0.6f || AboveM < 4.f)
+			{
+				AddInfo(FString::Printf(TEXT("sinking %.1f s, %.1f m over the berth: floor in %.0f%% of the frame, view heave %.2f, pitch %.1f, camera %.1f m over the hull; floods %.2f %.2f, fill %.2f"),
+					T, AboveM, Share * 100.f, W.Sub->GetViewHeave(), Camera->GetComponentRotation().Pitch, (Cam.Z - W.Sub->GetHullCentreWorld().Z) / 100.0, W.Sub->GetFloodNear(0), W.Sub->GetFloodNear(1), W.Sub->GetFillNear()));
+				Start = T;
+			}
+		}
+	}
+	AddInfo(FString::Printf(TEXT("DEEPVIEW sink: %.1f m in %.1f s, parked %d; level frame showed the floor in %.0f%%; %d checks, least %.0f%%, under 30%%: %d; lamps heave %.2f; in rock %d, in hull %d"),
+		StartM, T, W.State->bParked, LevelShare * 100.f, Checks, LeastShare * 100.f, Low, MostLampHeave, InRock, InHull));
+	TestTrue(TEXT("the sink was sampled"), Checks >= 6);
+	TestTrue(TEXT("sinking, the floor and the sink's lower walls show in 30% of the frame or more (at least 80% of samples)"), Low * 5 <= Checks);
+	TestTrue(TEXT("sinking, the floor always shows (15% or more)"), LeastShare >= 0.15f);
+	TestEqual(TEXT("the view is never in rock"), InRock, 0);
+	TestEqual(TEXT("the view is never in the hull"), InHull, 0);
+	TestTrue(TEXT("the floods tip down the sink"), MostLampHeave < -0.6f);
+	// Let go (parked at the berth): the view eases back to level within 3 s.
+	Hold(W, 0.f);
+	for (int32 Tick = 0; Tick < 60; ++Tick)
+	{
+		W.Run->StepRun(0.05f);
+		static_cast<AActor*>(W.Sub)->Tick(0.05f);
+	}
+	AddInfo(FString::Printf(TEXT("3 s after: view heave %.2f, pitch %.1f, lamps %.2f"), W.Sub->GetViewHeave(), Camera->GetComponentRotation().Pitch, W.Sub->GetLampHeave()));
+	TestTrue(TEXT("let go, the view eases back to level"), FMath::Abs(W.Sub->GetViewHeave()) < 0.15f);
+	TestTrue(TEXT("and the floods come back up"), FMath::Abs(W.Sub->GetLampHeave()) < 0.15f);
 	return true;
 }
 

@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Sim/DeepHelmLightRules.h"
 #include "Sim/DeepMovingSubRules.h"
 #include "DeepSubmarine.generated.h"
 
@@ -187,6 +188,16 @@ public:
 	float GetChaseUpM() const { return float(ChaseUpCm / 100.0); }
 	float GetFloodNear(int32 Index) const { return Index >= 0 && Index < 2 ? FloodNear[Index] : 1.f; }
 	float GetFillNear() const { return FillNear; }
+	/** D1c: the chase view's heave share (local, from the eased travel; -1 sinking .. +1 rising) and the lamps' (every machine, from the replicated heave). */
+	float GetViewHeave() const { return ViewHeave; }
+	float GetLampHeave() const { return LampHeave; }
+	/** D1c: the hull's travel in the world (m/s, eased) as the pilot's view last measured it; zero when nobody is at the helm here. */
+	FVector GetHelmTravelWorldMps() const;
+	/**
+	 * D1c: the sub's lights that are on, as the marine snow sees them (Sim/DeepHelmLightRules: a speck shows only where one
+	 * reaches): the floods, the fill, the work lamps, the spills, the markers and the outside lights.
+	 */
+	void GatherSnowLights(TArray<DeepHelmLight::FSnowLight>& Out, float LitMin) const;
 
 protected:
 	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
@@ -210,6 +221,9 @@ protected:
 	/** Each helm flood's share of full for the rock in front of it (D-070: no white-out up close). */
 	float FloodNear[2] = { 1.f, 1.f };
 	float FillNear = 1.f;
+	/** D1c: the heave shares (see GetViewHeave), and the floods' base pitch while manned (the toe-out is kept on each). */
+	float ViewHeave = 0.f;
+	float LampHeave = 0.f;
 
 	/** D-070's pilot view (local): cockpit or chase, the mouse's look and how long since it moved, the hull's trail. */
 	bool bHelmCockpit = false;

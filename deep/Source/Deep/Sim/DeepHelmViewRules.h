@@ -48,10 +48,18 @@ namespace DeepHelmView
 
 	/**
 	 * D1b: the chase view's pitch. LookPitchDeg (the look ahead), raised until HullTopCm shows HullTopFrameFrac of the half
-	 * frame under the centre, so the passage shows over and past the hull; inside the look's pitch limits. Sinking (the travel
-	 * TravelPitchDeg under level) the way lies below the hull, so the share eases to 0 at HullTopSinkDeg down: the view may
-	 * look down past the hull, never so far that the hull's top rises over the centre.
+	 * frame under the centre, so the passage shows over and past the hull; never so high that the hull's top falls under
+	 * HullTopMaxFrameFrac (D1c); inside the look's pitch limits. Pass Heaved(T, ...) while the hull heaves.
 	 */
-	DEEP_API float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T,
-		float TravelPitchDeg = 0.f);
+	DEEP_API float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T);
+
+	/** D1c: how much the hull heaves, from its travel's pitch (deg, + up): -1 sinking at HeaveFullDeg or steeper, +1 rising, 0 level. */
+	DEEP_API float HeaveShare(float TravelPitchDeg, const FDeepHelmViewTuning& T);
+
+	/**
+	 * D1c: the chase tuning for a heave share (HeaveShare): sinking, the place moves toward SinkBackM astern and SinkUpM
+	 * over the hull, the look may pitch down to SinkMinPitchDeg and the hull's top may rise to SinkHullTopFrac; rising,
+	 * toward RiseBackM and RiseUpM, and the look may pitch up to RiseMaxPitchDeg. 0 returns T unchanged.
+	 */
+	DEEP_API FDeepHelmViewTuning Heaved(const FDeepHelmViewTuning& T, float Heave);
 }

@@ -489,7 +489,6 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 	}
 	SnowTime += DeltaSeconds;
 	const FVector View = PC->PlayerCameraManager->GetCameraLocation();
-	const double Box = Look.SnowBoxM * UDeepRules::CmPerM;
 	const double ClearSq = FMath::Square(Look.SnowClearM * UDeepRules::CmPerM);
 
 	// The specks hang in the arena: when the sub drives, the root moves and the snow streams past the still sub.
@@ -502,43 +501,57 @@ void ADeepEnvironment::UpdateSnow(float DeltaSeconds, const FDeepLookTuning& Loo
 	// No specks inside the hull: the room is dry.
 	FBox Hull(ForceInit);
 	FTransform HullXf = FTransform::Identity;
-	// Seen through the helm camera, specks are larger and streak along the sub's travel, by its speed (a shutter).
-	bool bHelmView = false;
-	float SpeedMps = 0.f;
+	// Seen through the helm camera (D1c, Sim/DeepHelmLightRules): the specks fill a bigger box round a point ahead of the
+	// camera, where the floods' beams are; only specks a sub light reaches show (an unlit speck in front of lit rock read as a
+	// dark dash); far ones keep about a pixel; the cockpit streaks them along the hull's real travel, the chase view never.
+	const ADeepSubmarine* HelmSub = nullptr;
 	for (TActorIterator<ADeepSubmarine> It(GetWorld()); It; ++It)
 	{
 		Hull = It->GetSolidBoundsLocal(false);
 		HullXf = It->GetActorTransform();
-		bHelmView = PC->GetViewTarget() == *It;
-		SpeedMps = It->GetDriveSpeedMps();
+		HelmSub = PC->GetViewTarget() == *It ? *It : nullptr;
 		break;
 	}
-	const double SizeScale = bHelmView ? FMath::Max(0.1f, Look.HelmSnowSizeScale) : 1.0;
-	const double StreakCm = bHelmView ? ADeepSubmarine::HelmStreakM(SpeedMps, Look.HelmStreakSeconds) * UDeepRules::CmPerM : 0.0;
-	// Below a few cm of streak a speck keeps its tumble; above, it is a line along the world's vertical (the travel).
+	const bool bHelmView = HelmSub != nullptr;
+	const bool bCockpit = bHelmView && HelmSub->IsHelmCockpit();
+	const double Box = (bHelmView ? FMath::Max(Look.SnowBoxM, Look.HelmSnowBoxM) : Look.SnowBoxM) * UDeepRules::CmPerM;
+	// The homes were laid out in SnowBoxM: spread them over the helm's bigger box.
+	const double HomeScale = Box / FMath::Max(1.0, double(Look.SnowBoxM) * UDeepRules::CmPerM);
+	const FVector Centre = bHelmView
+		? View + PC->PlayerCameraManager->GetCameraRotation().Vector() * ((bCockpit ? Look.HelmSnowCockpitAheadM : Look.HelmSnowChaseAheadM) * UDeepRules::CmPerM)
+		: View;
+	const FVector TravelMps = bHelmView ? HelmSub->GetHelmTravelWorldMps() : FVector::ZeroVector;
+	const double StreakCm = bHelmView ? DeepHelmLight::SnowStreakCm(float(TravelMps.Size()), bCockpit, Look) : 0.0;
+	// Below a few cm of streak a speck keeps its tumble; above, it is a line along the hull's travel.
 	const bool bStreak = StreakCm > 1.0;
-	const FQuat Upright = FQuat::Identity;
+	const FQuat Along = bStreak ? FRotationMatrix::MakeFromZ(TravelMps.GetSafeNormal()).ToQuat() : FQuat::Identity;
+	if (bHelmView)
+	{
+		HelmSub->GatherSnowLights(SnowLights, Look.HelmSnowLitMin);
+	}
 	// In the room set (far above the dive, World/DeepSubRoom) there is no water: no specks at all.
 	const ADeepSubRoom* Room = DeepArena::FindRoom(GetWorld());
 	const bool bInRoom = Room01 > 0.f || (Room && Room->IsInRoomLook(View, 100.0));
 
 	for (int32 i = 0; i < SnowHome.Num(); ++i)
 	{
-		const FVector P = Origin + SnowHome[i] + SnowDrift[i] * SnowTime;
-		const FVector At = View + FVector(Wrap(P.X - View.X, Box), Wrap(P.Y - View.Y, Box), Wrap(P.Z - View.Z, Box));
-		const bool bInHull = bInRoom || (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At)))
-			|| FVector::DistSquared(At, View) < ClearSq;
+		const FVector P = Origin + SnowHome[i] * HomeScale + SnowDrift[i] * SnowTime;
+		const FVector At = Centre + FVector(Wrap(P.X - Centre.X, Box), Wrap(P.Y - Centre.Y, Box), Wrap(P.Z - Centre.Z, Box));
+		const double DistSq = FVector::DistSquared(At, View);
+		const bool bSpeckHidden = bInRoom || (Hull.IsValid && Hull.IsInsideOrOn(HullXf.InverseTransformPosition(At))) || DistSq < ClearSq
+			|| (bHelmView && !DeepHelmLight::SnowLit(At, SnowLights));
 		SnowXforms[i].SetLocation(At);
-		if (bInHull)
+		if (bSpeckHidden)
 		{
 			SnowXforms[i].SetScale3D(FVector::ZeroVector);
 			continue;
 		}
-		const double S = SnowScale[i] * SizeScale;
+		const double S = bHelmView ? DeepHelmLight::SnowSizeCm(SnowScale[i] * DeepShapes::ShapeSizeCm, float(FMath::Sqrt(DistSq)), Look) / DeepShapes::ShapeSizeCm
+			: SnowScale[i];
 		if (bStreak)
 		{
 			// Thin the streak as it lengthens so a fast speck does not read as a rod.
-			SnowXforms[i].SetRotation(Upright);
+			SnowXforms[i].SetRotation(Along);
 			SnowXforms[i].SetScale3D(FVector(S * 0.7, S * 0.7, S + StreakCm / DeepShapes::ShapeSizeCm));
 		}
 		else

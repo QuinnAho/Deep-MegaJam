@@ -25,6 +25,7 @@
 #include "Engine/StaticMesh.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Sim/DeepCaveRules.h"
+#include "Sim/DeepHelmLightRules.h"
 #include "Sim/DeepHelmViewRules.h"
 #include "Sim/DeepHullLightRules.h"
 #include "World/DeepArenaRoot.h"
@@ -612,7 +613,8 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 			if (bManned)
 			{
 				Light->SetIntensity(Look.HelmFloodIntensity);
-				Light->SetInnerConeAngle(Look.HelmFloodConeDeg * 0.45f);
+				// D1c: a bright core over most of the cone and a hard edge: the floods shape the rock.
+				Light->SetInnerConeAngle(Look.HelmFloodConeDeg * FMath::Clamp(Look.HelmFloodInnerFrac, 0.f, 0.98f));
 				Light->SetOuterConeAngle(Look.HelmFloodConeDeg);
 				Light->SetAttenuationRadius(Look.HelmFloodRangeM * UDeepRules::CmPerM);
 				Light->SetVolumetricScatteringIntensity(Look.HelmFloodFog);
@@ -655,7 +657,7 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		}
 		HelmFill->SetRelativeRotation(FRotator(Look.HelmFillPitchDeg, 0.f, 0.f));
 		HelmFill->SetIntensity(Look.HelmFillIntensity);
-		HelmFill->SetInnerConeAngle(Look.HelmFillConeDeg * 0.5f);
+		HelmFill->SetInnerConeAngle(Look.HelmFillConeDeg * FMath::Clamp(Look.HelmFillInnerFrac, 0.f, 0.98f));
 		HelmFill->SetOuterConeAngle(Look.HelmFillConeDeg);
 		HelmFill->SetAttenuationRadius(Look.HelmFillRangeM * UDeepRules::CmPerM);
 		HelmFill->SetVolumetricScatteringIntensity(Look.HelmFillFog);
@@ -771,6 +773,19 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 			const float Fade = 1.f - JoltAge / FlickerS;
 			Dip = FMath::Clamp(Look.HelmFloodFlickerDip, 0.f, 1.f) * Fade * (0.5f + 0.5f * FMath::Cos(UE_TWO_PI * 11.f * JoltAge));
 		}
+		// D1c: heaving, the throws and the fill tip toward the way the hull goes (every machine, from the replicated heave),
+		// easing so the beams sweep down the sink's walls to its floor, or up toward the way out.
+		{
+			const float Want = DeepHelmLight::HeaveFromSpeed(State ? State->HelmHeaveMps : 0.f, Tuning.Drive.HeaveSpeedMps);
+			LampHeave = FMath::FInterpTo(LampHeave, Want, DeltaSeconds, FMath::Max(0.f, Look.HelmFloodSweepPerS));
+			for (int32 Index = 0; Index < BowLights.Num() && Index < 2; ++Index)
+			{
+				const float Level = Index == 0 ? Look.HelmFloodPitchDeg : Look.HelmFloodLowPitchDeg;
+				const float ToeOut = (Index == 0 ? -1.f : 1.f) * FMath::Lerp(Look.HelmFloodToeOutDeg, Look.HelmFloodSinkToeOutDeg, FMath::Clamp(-LampHeave, 0.f, 1.f));
+				BowLights[Index]->SetRelativeRotation(FRotator(DeepHelmLight::HeavePitchDeg(Level, LampHeave, Look.HelmFloodSinkPitchDeg, Look.HelmFloodRisePitchDeg), ToeOut, 0.f));
+			}
+			HelmFill->SetRelativeRotation(FRotator(DeepHelmLight::HeavePitchDeg(Look.HelmFillPitchDeg, LampHeave, Look.HelmFillSinkPitchDeg, Look.HelmFillRisePitchDeg), 0.f, 0.f));
+		}
 		// Up close the long throws would burn the rock white (inverse square): each dims for the nearest rock in its cone
 		// (its axis and the cone's two sides), fast going in, slower coming back, so a wall a few metres off reads like
 		// one far down the passage.
@@ -792,7 +807,9 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 					NearestCm = FMath::Min(NearestCm, float(Hit.Distance));
 				}
 			}
-			const float Want = FMath::Clamp(FMath::Square(NearestCm / NearFullCm), FMath::Clamp(Look.HelmFloodNearMin, 0.f, 1.f), 1.f);
+			// D1c: sinking, a throw is lifted for the far floor (up to HelmFloodSinkBoost), so the way down reads before the hull is on it.
+			const float Boost = FMath::Lerp(1.f, FMath::Max(1.f, Look.HelmFloodSinkBoost), FMath::Clamp(-LampHeave, 0.f, 1.f));
+			const float Want = DeepHelmLight::NearShare(NearestCm / UDeepRules::CmPerM, NearFullCm / UDeepRules::CmPerM, 2.f, Look.HelmFloodNearMin, Boost);
 			FloodNear[Index] = FMath::FInterpTo(FloodNear[Index], Want, DeltaSeconds, Want < FloodNear[Index] ? 12.f : 3.f);
 			Light->SetIntensity(Look.HelmFloodIntensity * FloodNear[Index] * (1.f - Dip));
 			// D1b: the beams stand in the water beside the hull in the chase view; in this machine's cockpit view, less (no
@@ -822,11 +839,15 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 					NearestCm = FMath::Min(NearestCm, float(Hit.Distance));
 				}
 			}
-			const float FillFullCm = FMath::Max(1.f, Look.HelmFillNearFullM) * UDeepRules::CmPerM;
-			const float Want = FMath::Clamp(FMath::Square(NearestCm / FillFullCm), FMath::Clamp(Look.HelmFillNearMin, 0.f, 1.f), 1.f);
+			// D1c: in this machine's cockpit view the fill sits by the camera and would flatten a small chamber: a stronger cap
+			// (a small chamber's walls get less than a cavern's), graded from its axis out, less glaze; the floods shape the rock.
+			const float Power = bHelmCockpit ? Look.HelmFillCockpitNearPower : Look.HelmFillNearPower;
+			const float Want = DeepHelmLight::NearShare(NearestCm / UDeepRules::CmPerM, Look.HelmFillNearFullM, Power, Look.HelmFillNearMin);
 			FillNear = FMath::FInterpTo(FillNear, Want, DeltaSeconds, Want < FillNear ? 12.f : 3.f);
 		}
 		HelmFill->SetIntensity(Look.HelmFillIntensity * FillNear * (1.f - Dip));
+		HelmFill->SetInnerConeAngle(Look.HelmFillConeDeg * FMath::Clamp(bHelmCockpit ? Look.HelmFillCockpitInnerFrac : Look.HelmFillInnerFrac, 0.f, 0.98f));
+		HelmFill->SetSpecularScale(bHelmCockpit ? Look.HelmFillCockpitSpecular : Look.HelmFillSpecular);
 	}
 	if (State && !bParked && DeepArena::IsWorldCaves(World))
 	{
@@ -897,6 +918,7 @@ void ADeepSubmarine::ResetHelmView()
 	bHelmViewInit = false;
 	HelmTrail.Reset();
 	TravelLocalMps = FVector::ZeroVector;
+	ViewHeave = 0.f;
 }
 
 void ADeepSubmarine::TickIdle(float DeltaSeconds)
@@ -917,6 +939,36 @@ void ADeepSubmarine::TickIdle(float DeltaSeconds)
 	IdleAmount = UDeepMovingSubRules::IdleStep(IdleAmount, UDeepMovingSubRules::IdleTarget(SpeedMps, bDiverOut, T), DeltaSeconds, T);
 	IdleNow = UDeepMovingSubRules::IdleBob(TimeS, IdleAmount, T);
 	HullVisual->SetRelativeLocationAndRotation(FVector(0.0, 0.0, IdleNow.HeaveCm), FRotator(IdleNow.PitchDeg, IdleNow.YawDeg, IdleNow.RollDeg));
+}
+
+FVector ADeepSubmarine::GetHelmTravelWorldMps() const
+{
+	return bHelmViewInit ? HelmTrailFrame().TransformVectorNoScale(TravelLocalMps) : FVector::ZeroVector;
+}
+
+void ADeepSubmarine::GatherSnowLights(TArray<DeepHelmLight::FSnowLight>& Out, float LitMin) const
+{
+	Out.Reset();
+	TInlineComponentArray<ULocalLightComponent*> Lights(this);
+	for (const ULocalLightComponent* Light : Lights)
+	{
+		if (!Light || !Light->IsVisible() || Light->Intensity <= 0.f)
+		{
+			continue;
+		}
+		DeepHelmLight::FSnowLight Snow;
+		Snow.AtCm = Light->GetComponentLocation();
+		Snow.Dir = Light->GetForwardVector();
+		Snow.ReachCm = DeepHelmLight::SnowReachCm(Light->Intensity, Light->AttenuationRadius, LitMin);
+		if (const USpotLightComponent* Spot = Cast<USpotLightComponent>(Light))
+		{
+			Snow.CosOuter = FMath::Cos(FMath::DegreesToRadians(FMath::Clamp(Spot->OuterConeAngle, 0.f, 89.f)));
+		}
+		if (Snow.ReachCm > 1.f)
+		{
+			Out.Add(Snow);
+		}
+	}
 }
 
 FVector ADeepSubmarine::GetHullCentreWorld() const
@@ -1019,17 +1071,22 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 		HelmCamera->SetRelativeRotation(FRotator(T.CockpitPitchDeg + HelmLookDeg.Y + PitchShakeDeg + IdleNow.PitchDeg * CockpitIdle,
 			HelmLookDeg.X + YawShakeDeg + IdleNow.YawDeg * CockpitIdle, RollShakeDeg + IdleNow.RollDeg * CockpitIdle));
 		HelmCamera->SetFieldOfView(T.CockpitFovDeg);
+		ViewHeave = 0.f;
 		bHelmViewInit = true;
 		return;
 	}
 
+	// D1c: heaving, the view shows where the hull goes: the eased travel's pitch picks a heaved place and framing (sinking:
+	// high over the hull, looking down past it at the floor; rising: low astern, looking up the way out).
+	ViewHeave = bJump ? 0.f : DeepHelmView::HeaveShare(float(FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Frame.TransformVectorNoScale(LookDirLocal).Z, -1.0, 1.0)))), T);
+	const FDeepHelmViewTuning H = DeepHelmView::Heaved(T, ViewHeave);
 	// The chase view: its spot on the trail (else straight astern), followed smoothly, then the probe from over the hull.
 	const FVector AheadL = Frame.InverseTransformVectorNoScale(GetActorForwardVector());
-	const FVector ChaseBaseW = Frame.TransformPosition(DeepHelmView::ChaseAim(HelmTrail, HullL, AheadL, 0.f, T));
+	const FVector ChaseBaseW = Frame.TransformPosition(DeepHelmView::ChaseAim(HelmTrail, HullL, AheadL, 0.f, H));
 	// As high over it as the roof allows (up to ChaseUpM): a probe straight up from inside the hull's own sweep.
 	{
-		const double Low = FMath::Max(0.f, T.ChaseUpMinM) * UDeepRules::CmPerM;
-		const double High = FMath::Max(T.ChaseUpM, T.ChaseUpMinM) * UDeepRules::CmPerM;
+		const double Low = FMath::Max(0.f, H.ChaseUpMinM) * UDeepRules::CmPerM;
+		const double High = FMath::Max(H.ChaseUpM, H.ChaseUpMinM) * UDeepRules::CmPerM;
 		const double From = FMath::Min(150.0, Low);
 		const double Radius = FMath::Max(1.f, T.ProbeRadiusM * UDeepRules::CmPerM);
 		double Room = High;
@@ -1077,11 +1134,11 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 		}
 	}
 	const FVector Camera = ProbeChase(ChaseAnchorCm, ChaseSpotCm);
-	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), T);
-	// D1b: the hull never hides the way ahead: pitch up until the top of the hull sits in the lower part of the frame.
+	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), H);
+	// D1b: the hull never hides the way ahead: pitch up until the top of the hull sits in the lower part of the frame (D1c:
+	// sinking, the look down past the hull stands; rising, the hull stays at the frame's foot).
 	const FVector HullTopW = GetActorTransform().TransformPosition(FVector(Centre.X, Centre.Y, Box.Max.Z));
-	const float TravelPitchDeg = float(FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Frame.TransformVectorNoScale(LookDirLocal).Z, -1.0, 1.0))));
-	Rotation.Pitch = DeepHelmView::FramePitch(Camera, HullTopW, Rotation.Pitch, T.ChaseFovDeg, T, TravelPitchDeg);
+	Rotation.Pitch = DeepHelmView::FramePitch(Camera, HullTopW, Rotation.Pitch, T.ChaseFovDeg, H);
 	Rotation.Yaw += HelmLookDeg.X + YawShakeDeg;
 	Rotation.Pitch = FMath::Clamp(Rotation.Pitch + HelmLookDeg.Y + PitchShakeDeg, -85.f, 85.f);
 	// The idle hull's breathing, a hint of it (D-070): the view stays calm.

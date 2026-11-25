@@ -146,6 +146,9 @@ namespace DeepStateReport
 			View->SetNumberField(TEXT("chase_up_m"), Sub->GetChaseUpM());
 			View->SetStringField(TEXT("flood_near"), FString::Printf(TEXT("%.2f %.2f"), Sub->GetFloodNear(0), Sub->GetFloodNear(1)));
 			View->SetNumberField(TEXT("fill_near"), Sub->GetFillNear());
+			// D1c: the chase view's heave share (-1 sinking .. +1 rising) and the lamps' (from the replicated heave).
+			View->SetNumberField(TEXT("view_heave"), Sub->GetViewHeave());
+			View->SetNumberField(TEXT("lamp_heave"), Sub->GetLampHeave());
 			View->SetBoolField(TEXT("work_lamps"), Sub->AreWorkLampsPlaced());
 			const FBox Box = Sub->GetSolidBoundsLocal(false);
 			View->SetStringField(TEXT("hull_box_m"), FString::Printf(TEXT("%.2f %.2f %.2f / %.2f %.2f %.2f"), Box.Min.X / 100.0, Box.Min.Y / 100.0, Box.Min.Z / 100.0,

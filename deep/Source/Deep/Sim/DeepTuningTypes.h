@@ -1269,6 +1269,97 @@ struct FDeepLookTuning
 	float HelmStreakSeconds = 0.025f;
 
 	/**
+	 * D1c: the chase view shows specks, never streaks (a streak seen from 10 m astern read as black rain); the cockpit
+	 * streaks them along the hull's real travel by its real speed (Sim/DeepHelmLightRules: SnowStreakCm).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	bool bHelmStreakInChase = false;
+
+	/**
+	 * D1c: seen from the helm, only specks a light reaches show (style guide: particles light up in the cone, darkness
+	 * everywhere else); an unlit speck in front of lit rock read as a dark dash. A speck shows inside a sub light's cone
+	 * where its intensity over the distance squared (per m2) is at least this (Sim/DeepHelmLightRules: SnowReachCm).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSnowLitMin = 60.f;
+
+	/**
+	 * D1c: from the helm the specks fill a box this big (m) round a point this far ahead of the camera (chase, cockpit), so
+	 * they sit in the floods' beams ahead of the bow, not round a chase camera 12 m astern.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSnowBoxM = 28.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSnowChaseAheadM = 15.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSnowCockpitAheadM = 9.f;
+
+	/** D1c: a speck from the helm is never smaller than this angle (radians, about a pixel at 1080p), so specks in a far beam still read. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmSnowMinAngle = 0.0012f;
+
+	/**
+	 * D1c: the fill dims for the nearest rock with this power of its distance under HelmFillNearFullM (2 keeps the light on
+	 * that rock the same; higher dims a small chamber's walls more than a cavern's, so the floods shape it, not the fill).
+	 * Seen from the chase view the fill stands 12 m off the camera and shapes the rock (D1b's S): 2. From the cockpit it sits
+	 * by the camera and flattened B's chamber into pale grey (frames, Nov 25), so a pilot in the cockpit view gets the
+	 * cockpit values on this machine: a stronger cap, a fill graded from its axis out, less glaze.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillNearPower = 2.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillCockpitNearPower = 2.5f;
+
+	/** D1c: the fill's even core is this share of its cone (D1b: 0.5); 0 grades it from the axis out, so it shapes instead of flattening. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillInnerFrac = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillCockpitInnerFrac = 0.f;
+
+	/** D1c: the fill's share of specular: chase, cockpit (a wide lamp by the camera glazes wet rock flat; the throws keep the wet highlights). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillSpecular = 1.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillCockpitSpecular = 0.4f;
+
+	/** D1c: a throw's bright core is this share of its cone (the edge falls off hard outside it). Was 0.45. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodInnerFrac = 0.7f;
+
+	/**
+	 * D1c: heaving, the throws and the fill tip toward the way the hull goes (sinking down the sink's walls to its floor,
+	 * rising up toward the way out), by the replicated heave over Drive.HeaveSpeedMps, easing at this share per second
+	 * so the beams sweep (Sim/DeepHelmLightRules: HeavePitchDeg).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodSinkPitchDeg = -65.f;
+
+	/** D1c: sinking, the throws also fan out to their own sides (deg), so their pools land on the floor beside the hull, where the chase view sees past it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodSinkToeOutDeg = 40.f;
+
+	/** D1c: sinking, a throw whose rock lies farther than HelmFloodNearFullM is lifted by the square of the distance, up to this share of full (its beam in the water is not). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodSinkBoost = 3.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodRisePitchDeg = 35.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillSinkPitchDeg = -60.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillRisePitchDeg = 30.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodSweepPerS = 1.5f;
+
+	/**
 	 * Dressing (ADeepDressing): rock and ruin from owned packs, placed by rows of Content/Data/<DressingFile>. It has no
 	 * collision, so it is kept out of every path a diver uses: no piece comes within DressingClearM of the straight line
 	 * from the hatch to a salvage spot, or within the sinkhole's radius of the shaft under the hatch.
@@ -2943,12 +3034,45 @@ struct DEEP_API FDeepHelmViewTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float HullTopFrameFrac = 0.3f;
 
-	/** Sinking this steeply (deg under level) or more, the hull may sit up to the frame's centre: the way lies below it. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
-	float HullTopSinkDeg = 40.f;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float FrameAspect = 1.7778f;
+
+	/** D1c: the hull's top never sinks lower in the frame than this share of the half frame (it stays in view when the view looks up). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float HullTopMaxFrameFrac = 0.85f;
+
+	/**
+	 * D1c: heaving, the chase view shows where the hull is going (DeepHelmView::Heaved). The heave share is the travel's
+	 * pitch over this (deg), -1 sinking, +1 rising; at full share the values below replace the level ones, between they blend.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float HeaveFullDeg = 50.f;
+
+	/**
+	 * Sinking: the view climbs high over the hull, a little astern (in the water the hull has just sunk through), and
+	 * looks steeply down past its sides at the floor; the hull's top may sit over the frame's centre (a negative share).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float SinkBackM = 5.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float SinkUpM = 16.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float SinkMinPitchDeg = -72.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float SinkHullTopFrac = -0.6f;
+
+	/** Rising: the view drops level with the hull's top, well astern, and looks up the way out (the hull stays at the frame's foot). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float RiseBackM = 12.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float RiseUpM = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Heave")
+	float RiseMaxPitchDeg = 40.f;
 };
 
 /**

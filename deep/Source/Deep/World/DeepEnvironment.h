@@ -11,6 +11,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Sim/DeepHelmLightRules.h"
 #include "Sim/DeepTuningTypes.h"
 #include "DeepEnvironment.generated.h"
 
@@ -120,5 +121,7 @@ protected:
 	TArray<float> SnowScale;
 	TArray<FQuat> SnowSpin;
 	TArray<FTransform> SnowXforms;
+	/** D1c: the sub lights the specks see from the helm, gathered each frame (Sim/DeepHelmLightRules). */
+	TArray<DeepHelmLight::FSnowLight> SnowLights;
 	float SnowTime = 0.f;
 };
