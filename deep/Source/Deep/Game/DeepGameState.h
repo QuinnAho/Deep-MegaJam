@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameStateBase.h"
 #include "Sim/DeepTuningTypes.h"
+#include "Sim/DeepPilotRules.h"
 #include "DeepGameState.generated.h"
 
 UCLASS()
@@ -68,6 +69,27 @@ public:
 
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
 	float HelmSurgeMps = 0.f;
+
+	/** The sub's vertical speed (m/s, + = down), for the HUD. */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	float HelmHeaveMps = 0.f;
+
+	/**
+	 * D-070: the helm drives direct (held keys, Sim/DeepPilotRules::StepDrive) or by the levers (D-048). The server keeps
+	 * it on WantsDirectDrive each tick (Deep.Pilot.Levers); every machine reads it (the pilot's keys, the HUD's words).
+	 */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	bool bHelmDirect = true;
+
+	/** D-070: what the pilot holds now (the HUD's readout, the levers' prop). */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Deep")
+	FDeepDriveInput HelmHold;
+
+	/** Server: the mode the helm should be in (Deep.Pilot.Levers 0|1, else Drive.bDirect). */
+	static bool WantsDirectDrive();
+
+	/** The helm's mode on any machine: the server's live wish (a switch counts at once), a client's replicated copy. */
+	bool IsHelmDirect() const { return HasAuthority() ? WantsDirectDrive() : bHelmDirect; }
 
 	/** Parked, and the glide to the stop's frame is done (offset 0, yaw 0, the stop's depth): the hatch may open. Caves: at S's berth only. */
 	bool IsSettledAtStop() const;

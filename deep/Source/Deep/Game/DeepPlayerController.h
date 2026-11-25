@@ -64,6 +64,8 @@ protected:
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
 	void OnVertical(const FInputActionValue& Value);
+	/** D-070: Q/E strafe at the helm. */
+	void OnStrafe(const FInputActionValue& Value);
 	void OnSprint(const FInputActionValue& Value);
 	void OnGrab();
 	/** The grab/use key let go (the airlock valve stops turning). */
@@ -110,6 +112,9 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> VerticalAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> StrafeAction;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> SprintAction;

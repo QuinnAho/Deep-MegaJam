@@ -115,6 +115,14 @@ public:
 	/** Server: the sub's motion under the pilot (stop frame). */
 	const FDeepPilotMotion& GetPilotMotion() const { return PilotMotion; }
 
+	// ---- D-070 direct drive (the default; the levers above stay behind Deep.Pilot.Mode levers) ----
+	/** The pilot's held keys (Sim/DeepPilotRules::StepDrive); sent to the server when they change. Nothing latches. */
+	void SetDriveHold(const FDeepDriveInput& Hold);
+	/** Server: what the pilot holds now. */
+	const FDeepDriveInput& GetDriveHold() const { return DriveHold; }
+	/** The helm drives direct (true) or by the levers: the server's wish (ADeepGameState::WantsDirectDrive), else the replicated mode. */
+	bool IsDirectDrive() const;
+
 	// ---- Server ----
 	/** Advances the state machine. Ticks call it; tests call it with chosen steps. */
 	void StepRun(float DeltaSeconds);
@@ -224,6 +232,16 @@ protected:
 	 * motion along the wall (the shaft; null in the caves, which resolve it per hit). False when the diver is no longer at the helm.
 	 */
 	bool StepRockToll(float DeltaSeconds, float ImpactMps, bool bTouching, const FVector2D* KnockNormal);
+	/**
+	 * D-070, the caves: the hull turned from YawBefore to YawWant and its box overlaps rock. Pushes it clear along the
+	 * rock's normal (Drive.TurnPushMaxM at most), then tries half the turn, then a quarter; returns the heading it got
+	 * (YawBefore if none fits) and moves AtCm by the push.
+	 */
+	float TurnClearOfRock(const class ADeepCaveString& String, const FBox& Box, FVector& AtCm, float YawBefore, float YawWant) const;
+	/** Server: keeps the game state's mode and the held controls in step with WantsDirectDrive (a switch lets go of everything). */
+	void SyncDriveMode();
+	/** The held controls ask for nothing: the levers home and the rudder amidships, or no key held. */
+	bool ControlsIdle() const;
 	/** The old direct controls are in use (tests, cheats, the autopilot, a sideways drift still settling). */
 	bool UsesDirectHelm() const;
 	/** Parks at Stop: snaps to its depth, or (bGlide, the pilot) leaves the game state to glide there. */
@@ -268,6 +286,9 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerAllStop();
+
+	UFUNCTION(Server, Reliable)
+	void ServerSetDriveHold(FDeepDriveInput Hold);
 
 	UFUNCTION(Client, Reliable)
 	void ClientEvent(FName Event, const FDeepEventPayload& Payload);
@@ -337,6 +358,9 @@ protected:
 	float PilotRudder = 0.f;
 	float BallastDetentLeftS = 0.f;
 	FDeepPilotMotion PilotMotion;
+	/** Server: D-070's held keys, and the mode they were held in (a switch lets go). */
+	FDeepDriveInput DriveHold;
+	int8 LastDriveMode = -1;
 
 	UPROPERTY(Replicated)
 	float LastRefillFraction = 0.f;

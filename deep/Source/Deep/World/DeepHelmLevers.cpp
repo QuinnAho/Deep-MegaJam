@@ -93,18 +93,21 @@ void UDeepHelmLevers::TickComponent(float DeltaTime, ELevelTick TickType, FActor
 		return;
 	}
 	const FDeepPilotTuning& P = UDeepTuningSettings::Get().Pilot;
-	// Forward is ahead (and flood: the bow goes down); a pitch below zero tips the arm forward.
-	const float WantThrottle = -UDeepPilotRules::NotchFraction(State->HelmThrottleNotch, P) * P.LeverThrowDeg;
-	const float WantBallast = -FMath::Clamp(State->HelmBallast, -1.f, 1.f) * P.LeverThrowDeg;
+	// Forward is ahead (and flood: the bow goes down); a pitch below zero tips the arm forward. D-070's direct drive:
+	// the levers follow the held keys (W/S, C/Space) and spring back when let go.
+	const float ThrottleShare = State->IsHelmDirect() ? FMath::Clamp(State->HelmHold.Surge, -1.f, 1.f) : UDeepPilotRules::NotchFraction(State->HelmThrottleNotch, P);
+	const float BallastShare = State->IsHelmDirect() ? FMath::Clamp(State->HelmHold.Heave, -1.f, 1.f) : FMath::Clamp(State->HelmBallast, -1.f, 1.f);
+	const float WantThrottle = -ThrottleShare * P.LeverThrowDeg;
+	const float WantBallast = -BallastShare * P.LeverThrowDeg;
 	const float Follow = 1.f - FMath::Exp(-FMath::Max(0.f, P.LeverFollowPerS) * FMath::Max(0.f, DeltaTime));
 	ThrottlePitchDeg += (WantThrottle - ThrottlePitchDeg) * Follow;
 	BallastPitchDeg += (WantBallast - BallastPitchDeg) * Follow;
 	Throttle.Pivot->SetRelativeRotation(FRotator(ThrottlePitchDeg, 0.f, 0.f));
 	Ballast.Pivot->SetRelativeRotation(FRotator(BallastPitchDeg, 0.f, 0.f));
 
-	// A click per notch, and as the ballast lever leaves or drops into its neutral detent.
+	// A click per notch, and as the ballast lever leaves or drops into its neutral detent (the levers' mode only).
 	const int32 BallastStep = State->HelmBallast > 0.f ? 1 : (State->HelmBallast < 0.f ? -1 : 0);
-	if (State->HelmThrottleNotch != LastNotch || BallastStep != LastBallastStep)
+	if (!State->IsHelmDirect() && (State->HelmThrottleNotch != LastNotch || BallastStep != LastBallastStep))
 	{
 		LastNotch = State->HelmThrottleNotch;
 		LastBallastStep = BallastStep;
@@ -169,7 +172,15 @@ namespace
 			{
 				return;
 			}
-			if (Args[0].ToLower() == TEXT("set") && Args.Num() >= 2)
+			if (Run->IsDirectDrive())
+			{
+				// D-070: holds W (+) or S (-) as the keys would; 'set <notch>' holds that share of full ahead or astern.
+				FDeepDriveInput Hold = Run->GetDriveHold();
+				const bool bSet = Args[0].ToLower() == TEXT("set") && Args.Num() >= 2;
+				Hold.Surge = bSet ? UDeepPilotRules::NotchFraction(FCString::Atoi(*Args[1]), UDeepTuningSettings::Get().Pilot) : FMath::Clamp(FCString::Atof(*Args[0]), -1.f, 1.f);
+				Run->SetDriveHold(Hold);
+			}
+			else if (Args[0].ToLower() == TEXT("set") && Args.Num() >= 2)
 			{
 				const int32 Want = FCString::Atoi(*Args[1]);
 				for (int32 Guard = 0; Guard < 12 && Run->GetThrottleNotch() != Want; ++Guard)
@@ -191,7 +202,7 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs PilotBallastCommand(
 		TEXT("Deep.Pilot.Ballast"),
-		TEXT("Deep.Pilot.Ballast <-1..1>: sets the ballast lever (+ floods: sinks, - blows: rises, 0 neutral). Takes the helm."),
+		TEXT("Deep.Pilot.Ballast <-1..1>: sets the ballast lever (+ floods: sinks, - blows: rises, 0 neutral); direct drive: holds C (+) or Space (-). Takes the helm."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			UDeepRunComponent* Run = PilotRun(World, TEXT("Deep.Pilot.Ballast"));
@@ -200,7 +211,16 @@ namespace
 			{
 				return;
 			}
-			State->HelmBallast = FMath::Clamp(FCString::Atof(*Args[0]), -1.f, 1.f);
+			if (Run->IsDirectDrive())
+			{
+				FDeepDriveInput Hold = Run->GetDriveHold();
+				Hold.Heave = FMath::Clamp(FCString::Atof(*Args[0]), -1.f, 1.f);
+				Run->SetDriveHold(Hold);
+			}
+			else
+			{
+				State->HelmBallast = FMath::Clamp(FCString::Atof(*Args[0]), -1.f, 1.f);
+			}
 			DeepStateReport::LogState(World);
 		}));
 
@@ -214,13 +234,76 @@ namespace
 			{
 				return;
 			}
-			Run->SetPilotHold(0.f, FCString::Atof(*Args[0]));
+			if (Run->IsDirectDrive())
+			{
+				FDeepDriveInput Hold = Run->GetDriveHold();
+				Hold.Turn = FMath::Clamp(FCString::Atof(*Args[0]), -1.f, 1.f);
+				Run->SetDriveHold(Hold);
+			}
+			else
+			{
+				Run->SetPilotHold(0.f, FCString::Atof(*Args[0]));
+			}
 			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs PilotStrafeCommand(
+		TEXT("Deep.Pilot.Strafe"),
+		TEXT("Deep.Pilot.Strafe <-1..1>: direct drive: holds E (+ starboard) or Q (- port). Takes the helm."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepRunComponent* Run = PilotRun(World, TEXT("Deep.Pilot.Strafe"));
+			if (!Run || Args.Num() < 1)
+			{
+				return;
+			}
+			FDeepDriveInput Hold = Run->GetDriveHold();
+			Hold.Strafe = FMath::Clamp(FCString::Atof(*Args[0]), -1.f, 1.f);
+			Run->SetDriveHold(Hold);
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs PilotHoldCommand(
+		TEXT("Deep.Pilot.Hold"),
+		TEXT("Deep.Pilot.Hold <ahead> <turn> <down> <strafe>: direct drive: holds the keys as -1..1 each (W/S, D/A, C/Space, E/Q) until changed; 0 0 0 0 lets go. Takes the helm."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UDeepRunComponent* Run = PilotRun(World, TEXT("Deep.Pilot.Hold"));
+			if (!Run)
+			{
+				return;
+			}
+			FDeepDriveInput Hold;
+			Hold.Surge = Args.Num() > 0 ? FCString::Atof(*Args[0]) : 0.f;
+			Hold.Turn = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.f;
+			Hold.Heave = Args.Num() > 2 ? FCString::Atof(*Args[2]) : 0.f;
+			Hold.Strafe = Args.Num() > 3 ? FCString::Atof(*Args[3]) : 0.f;
+			Run->SetDriveHold(Hold);
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs PilotModeCommand(
+		TEXT("Deep.Pilot.Mode"),
+		TEXT("Deep.Pilot.Mode <direct|levers>: the helm's controls (D-070): direct drive (held keys, the default) or the levers (D-048), for comparison. Lets go of everything."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const FString Mode = Args.Num() > 0 ? Args[0].ToLower() : FString();
+			IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Pilot.Levers"));
+			if (!Var || (Mode != TEXT("direct") && Mode != TEXT("levers")))
+			{
+				UE_LOG(LogDeepPilot, Warning, TEXT("Usage: Deep.Pilot.Mode direct|levers (now %s)"), ADeepGameState::WantsDirectDrive() ? TEXT("direct") : TEXT("levers"));
+				return;
+			}
+			Var->Set(Mode == TEXT("levers") ? 1 : 0, ECVF_SetByConsole);
+			if (World)
+			{
+				DeepStateReport::LogState(World);
+			}
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs PilotAllStopCommand(
 		TEXT("Deep.Pilot.AllStop"),
-		TEXT("Deep.Pilot.AllStop: throttle to stop, ballast to neutral, rudder amidships (X at the helm)."),
+		TEXT("Deep.Pilot.AllStop: throttle to stop, ballast to neutral, rudder amidships; direct drive: lets go of every key."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UDeepRunComponent* Run = PilotRun(World, TEXT("Deep.Pilot.AllStop")))

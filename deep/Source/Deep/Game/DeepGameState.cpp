@@ -9,10 +9,26 @@
 #include "World/DeepShaft.h"
 #include "World/DeepHelmLevers.h"
 
+namespace
+{
+	TAutoConsoleVariable<int32> CVarPilotLevers(
+		TEXT("Deep.Pilot.Levers"),
+		-1,
+		TEXT("D-070: the helm's controls. 0 = direct drive (held keys, nothing latches), 1 = the levers (D-048), -1 = Drive.bDirect (direct). Deep.Pilot.Mode levers|direct sets it."),
+		ECVF_Default);
+}
+
 ADeepGameState::ADeepGameState()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	bHelmDirect = UDeepTuningSettings::Get().Drive.bDirect;
+}
+
+bool ADeepGameState::WantsDirectDrive()
+{
+	const int32 Levers = CVarPilotLevers.GetValueOnGameThread();
+	return Levers < 0 ? UDeepTuningSettings::Get().Drive.bDirect : Levers == 0;
 }
 
 void ADeepGameState::ResetRun()
@@ -27,6 +43,8 @@ void ADeepGameState::ResetRun()
 	HelmBallast = 0.f;
 	HelmSpeedMps = 0.f;
 	HelmSurgeMps = 0.f;
+	HelmHeaveMps = 0.f;
+	HelmHold = FDeepDriveInput();
 	bParked = true;
 	DeepestStopReached = 1;
 	DiverNumber = 1;
@@ -59,6 +77,8 @@ void ADeepGameState::Tick(float DeltaSeconds)
 	if (HasAuthority())
 	{
 		StepParkGlide(DeltaSeconds);
+		// The helm's mode follows Deep.Pilot.Levers live; the pilot's run lets go of everything on a switch.
+		bHelmDirect = WantsDirectDrive();
 	}
 	// Every machine: the helm's levers on the sub, moving with the replicated state.
 	DeepHelmLevers::Ensure(GetWorld());
@@ -134,6 +154,9 @@ void ADeepGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLi
 	DOREPLIFETIME(ADeepGameState, HelmBallast);
 	DOREPLIFETIME(ADeepGameState, HelmSpeedMps);
 	DOREPLIFETIME(ADeepGameState, HelmSurgeMps);
+	DOREPLIFETIME(ADeepGameState, HelmHeaveMps);
+	DOREPLIFETIME(ADeepGameState, bHelmDirect);
+	DOREPLIFETIME(ADeepGameState, HelmHold);
 	DOREPLIFETIME(ADeepGameState, bParked);
 	DOREPLIFETIME(ADeepGameState, DeepestStopReached);
 	DOREPLIFETIME(ADeepGameState, Credits);

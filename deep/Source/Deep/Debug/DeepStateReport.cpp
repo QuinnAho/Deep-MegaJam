@@ -128,6 +128,14 @@ namespace DeepStateReport
 		Json->SetNumberField(TEXT("throttle_notch"), State ? State->HelmThrottleNotch : 0);
 		Json->SetNumberField(TEXT("ballast"), State ? State->HelmBallast : 0.f);
 		Json->SetNumberField(TEXT("helm_speed_mps"), State ? State->HelmSpeedMps : 0.f);
+		// D-070: the helm's mode and what the pilot holds (ahead, turn, down, strafe; -1..1 each).
+		Json->SetStringField(TEXT("pilot_mode"), !State || State->IsHelmDirect() ? TEXT("direct") : TEXT("levers"));
+		{
+			const FDeepDriveInput Hold = State ? State->HelmHold : FDeepDriveInput();
+			Json->SetStringField(TEXT("drive_hold"), FString::Printf(TEXT("%.2f %.2f %.2f %.2f"), Hold.Surge, Hold.Turn, Hold.Heave, Hold.Strafe));
+		}
+		Json->SetNumberField(TEXT("helm_surge_mps"), State ? State->HelmSurgeMps : 0.f);
+		Json->SetNumberField(TEXT("helm_heave_mps"), State ? State->HelmHeaveMps : 0.f);
 		Json->SetNumberField(TEXT("hull_integrity"), State ? State->GetHullIntegrity01() : 1.f);
 		Json->SetBoolField(TEXT("has_flashlight"), State && State->HasFlashlight());
 		Json->SetBoolField(TEXT("hull_upgraded"), State && State->IsHullUpgraded());

@@ -32,6 +32,7 @@
 #include "World/DeepCaveString.h"
 #include "World/DeepSalvage.h"
 #include "Components/CapsuleComponent.h"
+#include "Camera/CameraComponent.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 #include "World/DeepSubRoom.h"
@@ -48,6 +49,8 @@ namespace DeepCaveDiveTest
 	/** A game world with the arena and one diver in the room, as a run starts (as Deep.World.Still's). */
 	struct FDiveWorld
 	{
+		/** The helm's mode for the test: M1 and M2b's tests fly the levers (D-048), D-070's the direct drive. */
+		FCVarScope Levers;
 		UWorld* World = nullptr;
 		ADeepGameMode* GameMode = nullptr;
 		ADeepGameState* State = nullptr;
@@ -55,8 +58,9 @@ namespace DeepCaveDiveTest
 		ADeepDiver* Diver = nullptr;
 		UDeepRunComponent* Run = nullptr;
 
-		/** bAI: the world has an AI system (perception), for the serpent. */
-		explicit FDiveWorld(bool bAI = false)
+		/** bAI: the world has an AI system (perception), for the serpent. bLevers: the lever mode, else direct drive. */
+		explicit FDiveWorld(bool bAI = false, bool bLevers = true)
+			: Levers(TEXT("Deep.Pilot.Levers"), bLevers ? 1 : 0)
 		{
 			World = UWorld::CreateWorld(EWorldType::Game, false);
 			FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
@@ -1507,6 +1511,408 @@ bool FDeepCaveDiveSerpentLivesTest::RunTest(const FString& Parameters)
 
 		Mind->ForceState(EDeepMonsterState::Lurk);
 	}
+	return true;
+}
+
+
+// ---------------------------------------------------------------- D-070: the direct drive and the pilot's view in the caves
+
+namespace DeepCaveDiveTest
+{
+	/** Holds the direct drive's keys (ahead, turn, down, strafe) as the pilot would. */
+	static void Hold(const FDiveWorld& W, float Surge, float Turn = 0.f, float Heave = 0.f, float Strafe = 0.f)
+	{
+		FDeepDriveInput In;
+		In.Surge = Surge;
+		In.Turn = Turn;
+		In.Heave = Heave;
+		In.Strafe = Strafe;
+		W.Run->SetDriveHold(In);
+	}
+
+	/** The hull's speed along its heading, from the server's motion (m/s). */
+	static float SurgeMps(const FDiveWorld& W)
+	{
+		const FDeepPilotMotion& M = W.Run->GetPilotMotion();
+		return FVector2D::DotProduct(M.VelocityMps, UDeepPilotRules::Ahead(M.YawDeg));
+	}
+
+	/** Places the hull on a path sample, heading along the path, unparked, drive keys let go. */
+	static void PlaceDirect(const FDiveWorld& W, const FDeepCavePose& Pose)
+	{
+		W.PlaceAt(Pose);
+		Hold(W, 0.f);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDirectDriveTest, "Deep.World.CaveDive.Direct.DrivesOutOfS", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDirectDriveTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	W.Run->TakeHelm();
+	TestTrue(TEXT("the helm drives direct by default"), W.Run->IsDirectDrive());
+	const FDeepCavePose Start = W.Pose();
+	// W held: the berth lets go and the hull drives out along S toward A, never into rock.
+	Hold(W, 1.f);
+	W.Fly(5.f);
+	const FDeepCavePose Out = W.Pose();
+	AddInfo(FString::Printf(TEXT("W held 5 s: from %s to %s at %.2f m/s, damage %d"), *Describe(Start), *Describe(Out), W.State->HelmSpeedMps, W.State->HullDamage));
+	TestFalse(TEXT("unparked by W"), W.State->bParked);
+	TestTrue(TEXT("driven ahead (+X) at least 12 m"), Out.LocationCm.X - Start.LocationCm.X > 1200.0);
+	TestTrue(TEXT("at full ahead"), FMath::IsNearlyEqual(W.State->HelmSpeedMps, UDeepTuningSettings::Get().Drive.AheadSpeedMps, 0.1f));
+	TestFalse(TEXT("never inside rock"), String->OverlapsHull(W.Sub->GetSolidBoundsLocal(false), Out.LocationCm, Out.YawDeg));
+	// Let go: nothing latches, the hull is at rest within 1.5 s and a few metres.
+	Hold(W, 0.f);
+	W.Fly(1.5f);
+	const FDeepCavePose Rest = W.Pose();
+	AddInfo(FString::Printf(TEXT("let go: coasted %.2f m, speed %.3f m/s"), FVector::Dist(Rest.LocationCm, Out.LocationCm) / 100.0, W.State->HelmSpeedMps));
+	TestTrue(TEXT("at rest 1.5 s after letting go"), W.State->HelmSpeedMps < 0.05f);
+	TestTrue(TEXT("coasted under 3.5 m"), FVector::Dist(Rest.LocationCm, Out.LocationCm) < 350.0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDirectSlideTest, "Deep.World.CaveDive.Direct.SlidesAlongRock", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDirectSlideTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// In A (where the knock test finds its floor), half ahead and C held: the hull reaches the floor and slides along
+	// it for a second, keeping most of its way.
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
+	if (!TestTrue(TEXT("a sample in A"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	const float Want = UDeepTuningSettings::Get().Drive.AheadSpeedMps * 0.5f;
+	Hold(W, 0.5f, 0.f, 1.f);
+	float FirstTouchS = -1.f;
+	float SlowestOnRock = 1000.f;
+	int32 Touching = 0;
+	for (float T = 0.f; T < 30.f && Touching < 20; T += 0.05f)
+	{
+		const float ZBefore = float(W.Pose().LocationCm.Z);
+		W.Fly(0.05f);
+		const bool bOnRock = String->OverlapsHull(W.Sub->GetSolidBoundsLocal(false), W.Pose().LocationCm, W.Pose().YawDeg, 5.f) && FMath::Abs(float(W.Pose().LocationCm.Z) - ZBefore) < 2.f;
+		if (bOnRock)
+		{
+			FirstTouchS = FirstTouchS < 0.f ? T : FirstTouchS;
+			// Give the drive a moment after the first touch, then watch the slide.
+			if (T > FirstTouchS + 0.5f)
+			{
+				SlowestOnRock = FMath::Min(SlowestOnRock, SurgeMps(W));
+				++Touching;
+			}
+		}
+	}
+	AddInfo(FString::Printf(TEXT("on the floor from %.2f s: %d steps sliding, slowest %.2f m/s of %.2f, damage %d"), FirstTouchS, Touching, SlowestOnRock, Want, W.State->HullDamage));
+	TestTrue(TEXT("the hull reached the floor"), FirstTouchS >= 0.f && Touching > 10);
+	TestTrue(TEXT("sliding keeps most of the speed along the rock"), SlowestOnRock >= Want * 0.7f);
+	TestFalse(TEXT("on the rock, not in it"), String->OverlapsHull(W.Sub->GetSolidBoundsLocal(false), W.Pose().LocationCm, W.Pose().YawDeg));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDirectDamageTest, "Deep.World.CaveDive.Direct.DamageBySpeed", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDirectDamageTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
+	if (!TestTrue(TEXT("a sample in A"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	// The same drop onto A's floor at a slow and at a full sink: the dent on touching grows with the speed into the rock.
+	const auto DentOnTouch = [&](float Heave, float& OutImpactMps)
+	{
+		PlaceDirect(W, String->GetPathPoses()[Sample]);
+		W.State->HullDamage = 0;
+		Hold(W, 0.f, 0.f, Heave);
+		OutImpactMps = 0.f;
+		for (float T = 0.f; T < 30.f; T += 0.05f)
+		{
+			const float Before = W.Run->GetPilotMotion().HeaveMps;
+			W.Fly(0.05f);
+			if (W.Run->GetPilotMotion().HeaveMps < Before - 0.3f || W.State->HullDamage > 0)
+			{
+				OutImpactMps = Before;
+				break;
+			}
+		}
+		W.Fly(0.3f);
+		const int32 Dent = W.State->HullDamage;
+		Hold(W, 0.f);
+		return Dent;
+	};
+	float SlowMps = 0.f;
+	float FastMps = 0.f;
+	const int32 Slow = DentOnTouch(0.5f, SlowMps);
+	const int32 Fast = DentOnTouch(1.f, FastMps);
+	AddInfo(FString::Printf(TEXT("onto the floor at %.2f m/s: %d dents; at %.2f m/s: %d dents"), SlowMps, Slow, FastMps, Fast));
+	TestTrue(TEXT("a slow touch is a scrape: no dent at once"), Slow == 0);
+	TestTrue(TEXT("a full sink into the rock dents"), Fast > 0);
+	TestTrue(TEXT("the dent grows with the speed into the rock"), Fast > Slow);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDirectKnockTest, "Deep.World.CaveDive.Direct.KnockKeepsDriving", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDirectKnockTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
+	if (!TestTrue(TEXT("a sample in A"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	// A full sink onto the floor with W held: the knock dents, the drive goes on along the floor.
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	Hold(W, 1.f, 0.f, 1.f);
+	for (float T = 0.f; T < 30.f && W.State->HullDamage == 0; T += 0.05f)
+	{
+		W.Fly(0.05f);
+	}
+	TestTrue(TEXT("the knock dents"), W.State->HullDamage > 0);
+	W.Fly(1.f);
+	AddInfo(FString::Printf(TEXT("after the knock: hold %.1f, ahead %.2f m/s, damage %d"), W.Run->GetDriveHold().Surge, SurgeMps(W), W.State->HullDamage));
+	TestEqual(TEXT("the throttle is not tripped: W is still held"), W.Run->GetDriveHold().Surge, 1.f);
+	TestTrue(TEXT("still driving ahead after the knock"), SurgeMps(W) > 1.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDirectTurnTest, "Deep.World.CaveDive.Direct.TurnIntoRock", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDirectTurnTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	const FBox Box = W.Sub->GetSolidBoundsLocal(false);
+	// In S's cavern, strafed hard against the port wall, then turned to port: the bow swings into the rock.
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("S"), 6.f);
+	if (!TestTrue(TEXT("a sample in S"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	Hold(W, 0.f, 0.f, 0.f, -1.f);
+	bool bTouched = false;
+	for (float T = 0.f; T < 30.f && !bTouched; T += 0.05f)
+	{
+		W.Fly(0.05f);
+		bTouched = String->OverlapsHull(Box, W.Pose().LocationCm, W.Pose().YawDeg, 5.f);
+	}
+	if (!TestTrue(TEXT("strafed to the wall"), bTouched))
+	{
+		return false;
+	}
+	Hold(W, 0.f, -1.f, 0.f, -0.5f);
+	const FDeepCavePose Before = W.Pose();
+	bool bEverInRock = false;
+	for (float T = 0.f; T < 1.5f; T += 0.05f)
+	{
+		W.Fly(0.05f);
+		bEverInRock = bEverInRock || String->OverlapsHull(Box, W.Pose().LocationCm, W.Pose().YawDeg);
+	}
+	const FDeepCavePose After = W.Pose();
+	const float Turned = FMath::Abs(FRotator::NormalizeAxis(After.YawDeg - Before.YawDeg));
+	AddInfo(FString::Printf(TEXT("against the wall at %s, turned %.1f deg to %s, pushed %.0f cm"), *Describe(Before), Turned, *Describe(After), FVector::Dist2D(Before.LocationCm, After.LocationCm)));
+	TestTrue(TEXT("the turn into rock is not refused (15 deg or more in 1.5 s)"), Turned >= 15.f);
+	TestFalse(TEXT("pushed clear, never in the rock"), bEverInRock);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveDirectSinkTest, "Deep.World.CaveDive.Direct.SinksToC1", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveDirectSinkTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// As S13-caves: one gate, at the top of C1's sink, C held in 1 s runs until the gauge reads 285, let go, 20 s.
+	W.State->HullRating = 2;
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("C1"), 31.5f);
+	if (!TestTrue(TEXT("a sample at the top of C1's sink"), String->GetPathPoses().IsValidIndex(Sample)))
+	{
+		return false;
+	}
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	Hold(W, 0.f, 0.f, 1.f);
+	for (int32 Run = 0; Run < 120 && W.State->SubDepthM < 285.f; ++Run)
+	{
+		for (int32 Step = 0; Step < 10; ++Step)
+		{
+			W.Run->StepRun(0.1f);
+		}
+	}
+	Hold(W, 0.f);
+	for (int32 Step = 0; Step < 200; ++Step)
+	{
+		W.Run->StepRun(0.1f);
+	}
+	AddInfo(FString::Printf(TEXT("C1: reads %.2f m, parked %d, stop %d, damage %d"), W.State->SubDepthM, W.State->bParked, W.State->Stop, W.State->HullDamage));
+	TestTrue(TEXT("parked"), W.State->bParked);
+	TestEqual(TEXT("at C1, stop 2"), W.State->Stop, 2);
+	TestEqual(TEXT("reads 300 m"), W.State->SubDepthM, 300.f, 0.01f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveChaseViewTest, "Deep.World.CaveDive.View.ChaseClear", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveChaseViewTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	W.Run->TakeHelm();
+	W.Sub->SetHelmCockpit(false);
+	const FBox Hull = W.Sub->GetSolidBoundsLocal(false);
+	const TArray<FDeepCavePose>& Poses = String->GetPathPoses();
+	UCameraComponent* Camera = W.Sub->GetHelmCamera();
+	// Every 10 m from S to E: the hull driven the last 12 m along the path to the sample (its trail), then held there
+	// for 1.5 s while the view settles. The chase view is out of the rock and out of the hull, and sees the hull.
+	int32 Checks = 0;
+	int32 InRock = 0;
+	int32 InHull = 0;
+	int32 Blind = 0;
+	int32 Astern = 0;
+	double NearestM = 1000.0;
+	for (int32 Index = 48; Index < Poses.Num(); Index += 40)
+	{
+		W.Sub->ResetHelmView();
+		for (int32 Back = Index - 48; Back <= Index; Back += 4)
+		{
+			W.PlaceAt(Poses[Back]);
+			W.TickSub();
+		}
+		for (int32 Settle = 0; Settle < 45; ++Settle)
+		{
+			W.TickSub();
+		}
+		++Checks;
+		const FVector Cam = Camera->GetComponentLocation();
+		const FVector HullCentre = W.Sub->GetHullCentreWorld();
+		const bool bInRock = String->OverlapsBoxWorld(Cam, FVector(20.0), FQuat::Identity);
+		const bool bInHull = Hull.ExpandBy(10.0).IsInside(W.Sub->GetActorTransform().InverseTransformPosition(Cam));
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepTestChaseSight), false, W.Sub);
+		const FVector HullTop = W.Sub->GetActorTransform().TransformPosition(FVector(Hull.GetCenter().X, Hull.GetCenter().Y, Hull.Max.Z));
+		const bool bBlind = W.World->LineTraceTestByObjectType(Cam, HullTop, FCollisionObjectQueryParams(ECC_WorldStatic), Params);
+		const bool bAstern = FVector::DotProduct((Cam - HullCentre).GetSafeNormal2D(), W.Sub->GetActorForwardVector().GetSafeNormal2D()) < 0.0;
+		InRock += bInRock ? 1 : 0;
+		InHull += bInHull ? 1 : 0;
+		Blind += bBlind ? 1 : 0;
+		Astern += bAstern ? 1 : 0;
+		NearestM = FMath::Min(NearestM, FVector::Dist(Cam, HullCentre) / 100.0);
+		if ((bInRock || bInHull || bBlind) && InRock + InHull + Blind <= 6)
+		{
+			AddWarning(FString::Printf(TEXT("sample %d (%s %s): camera %s, rock %d hull %d blind %d"), Index, *String->GetPath()[Index].Chunk.ToString(),
+				*String->GetPath()[Index].Region.ToString(), *Cam.ToString(), bInRock, bInHull, bBlind));
+		}
+	}
+	AddInfo(FString::Printf(TEXT("DEEPVIEW chase: %d samples, in rock %d, in hull %d, hull hidden %d, astern %d, nearest %.1f m"), Checks, InRock, InHull, Blind, Astern, NearestM));
+	TestTrue(TEXT("sampled the whole path"), Checks > 20);
+	TestEqual(TEXT("the chase view is never in rock"), InRock, 0);
+	TestEqual(TEXT("the chase view is never in the hull"), InHull, 0);
+	TestTrue(TEXT("the chase view sees the hull (at least 95% of samples)"), Blind * 20 <= Checks);
+	TestTrue(TEXT("the chase view sits astern (at least 80% of samples)"), Astern * 5 >= Checks * 4);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveCockpitViewTest, "Deep.World.CaveDive.View.CockpitLevel", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveCockpitViewTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	W.Run->TakeHelm();
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	UCameraComponent* Camera = W.Sub->GetHelmCamera();
+	// The chase view first (the default), looking ahead along the heading at rest.
+	TestFalse(TEXT("the helm starts in the chase view"), W.Sub->IsHelmCockpit());
+	for (int32 Tick = 0; Tick < 30; ++Tick)
+	{
+		W.TickSub();
+	}
+	const FVector Ahead = W.Sub->GetActorForwardVector();
+	TestTrue(TEXT("the chase view looks ahead"), FVector::DotProduct(Camera->GetForwardVector(), Ahead) > 0.7);
+	// V: the cockpit, level (0 to -5 deg) and looking ahead.
+	W.Sub->ToggleHelmView();
+	W.TickSub();
+	const FRotator Level = Camera->GetComponentRotation();
+	AddInfo(FString::Printf(TEXT("cockpit: pitch %.2f, yaw %.2f (hull yaw %.2f)"), Level.Pitch, Level.Yaw, W.Sub->GetActorRotation().Yaw));
+	TestTrue(TEXT("the cockpit view is level (0 to -5 deg)"), Level.Pitch <= 0.5f && Level.Pitch >= -5.5f);
+	TestTrue(TEXT("the cockpit view looks ahead"), FVector::DotProduct(Camera->GetForwardVector(), Ahead) > 0.99);
+	// The mouse looks round within limits and the view eases back after a moment.
+	W.Sub->AddHelmLook(500.f, 0.f);
+	W.TickSub();
+	const float Looked = FRotator::NormalizeAxis(Camera->GetComponentRotation().Yaw - W.Sub->GetActorRotation().Yaw);
+	TestEqual(TEXT("the look stops at the cockpit's limit"), Looked, UDeepTuningSettings::Get().HelmView.CockpitLookYawDeg, 1.f);
+	for (int32 Tick = 0; Tick < 150; ++Tick)
+	{
+		W.TickSub();
+	}
+	const float Back = FRotator::NormalizeAxis(Camera->GetComponentRotation().Yaw - W.Sub->GetActorRotation().Yaw);
+	AddInfo(FString::Printf(TEXT("looked %.1f deg, 5 s later %.1f deg"), Looked, Back));
+	TestTrue(TEXT("the view eases back ahead"), FMath::Abs(Back) < 2.f);
 	return true;
 }
 

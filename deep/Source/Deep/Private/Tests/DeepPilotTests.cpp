@@ -59,6 +59,8 @@ namespace DeepPilotTest
 	/** A game world with the arena and one diver in the room, as a run starts (as Deep.World.Cave's). */
 	struct FPilotWorld
 	{
+		/** These are the lever mode's tests (D-048), behind its switch since D-070's direct drive. */
+		DeepTest::FCVarScope Levers{ TEXT("Deep.Pilot.Levers"), 1 };
 		UWorld* World = nullptr;
 		ADeepGameMode* GameMode = nullptr;
 		ADeepGameState* State = nullptr;

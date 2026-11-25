@@ -25,6 +25,9 @@
 #include "Engine/StaticMesh.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "Sim/DeepCaveRules.h"
+#include "Sim/DeepHelmViewRules.h"
+#include "World/DeepArenaRoot.h"
+#include "CollisionQueryParams.h"
 #include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -660,11 +663,200 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 			Shiver += 0.25f * FMath::Sin(UE_TWO_PI * 23.f * T) + 0.15f * FMath::Sin(UE_TWO_PI * 37.f * T + 1.3);
 		}
 	}
-	HelmCamera->SetRelativeRotation(FRotator(
-		Sub.HelmCameraPitchDeg + A * 0.5f * FMath::Sin(W * 0.73 * T + 1.1) + Shiver - Look.HelmSettleDeg * Env + Jolt,
-		A * 0.3f * FMath::Sin(W * 0.41 * T) + Jolt * 0.4f,
-		A * FMath::Sin(W * T) + Shiver * 0.5f - Jolt * 0.8f));
-	HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, Look.HelmSettleCm * Env));
+	// D-070: the pilot's view (chase or cockpit) carries the sway, the settle and the knock's jolt.
+	const float PitchShake = A * 0.5f * FMath::Sin(W * 0.73 * T + 1.1) + Shiver - Look.HelmSettleDeg * Env + Jolt;
+	const float YawShake = A * 0.3f * FMath::Sin(W * 0.41 * T) + Jolt * 0.4f;
+	const float RollShake = A * FMath::Sin(W * T) + Shiver * 0.5f - Jolt * 0.8f;
+	if (bManned && GetNetMode() != NM_DedicatedServer)
+	{
+		StepHelmView(DeltaSeconds, PitchShake, YawShake, RollShake, Look.HelmSettleCm * Env);
+	}
+	else
+	{
+		// Nobody at the helm: the camera rests at the bow, and the next pilot's view starts fresh.
+		HelmCamera->SetRelativeRotation(FRotator(Sub.HelmCameraPitchDeg + PitchShake, YawShake, RollShake));
+		HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, Look.HelmSettleCm * Env));
+		ResetHelmView();
+	}
+}
+
+// ---------------------------------------------------------------- D-070: what the pilot sees
+
+void ADeepSubmarine::ToggleHelmView()
+{
+	SetHelmCockpit(!bHelmCockpit);
+}
+
+void ADeepSubmarine::SetHelmCockpit(bool bCockpit)
+{
+	bHelmCockpit = bCockpit;
+	HelmLookDeg = FVector2D::ZeroVector;
+	HelmLookIdleS = 100.f;
+	// The chase view snaps behind the hull rather than gliding in from the bow.
+	bHelmViewInit = false;
+}
+
+void ADeepSubmarine::AddHelmLook(float YawDeg, float PitchDeg)
+{
+	if (FMath::IsNearlyZero(YawDeg) && FMath::IsNearlyZero(PitchDeg))
+	{
+		return;
+	}
+	HelmLookDeg = DeepHelmView::AddLook(HelmLookDeg, YawDeg, PitchDeg, bHelmCockpit, UDeepTuningSettings::Get().HelmView);
+	HelmLookIdleS = 0.f;
+}
+
+void ADeepSubmarine::ResetHelmView()
+{
+	bHelmViewInit = false;
+	HelmTrail.Reset();
+	TravelLocalMps = FVector::ZeroVector;
+}
+
+FVector ADeepSubmarine::GetHullCentreWorld() const
+{
+	return GetActorTransform().TransformPosition(GetSolidBoundsLocal(false).GetCenter());
+}
+
+FTransform ADeepSubmarine::HelmTrailFrame() const
+{
+	// The arena root: the shaft moves and turns it about a still hull, the caves leave it still and move the hull. The
+	// hull's path in its frame is the water the hull has swept in both.
+	const ADeepArenaRoot* ArenaRoot = DeepArena::FindArenaRoot(GetWorld());
+	return ArenaRoot ? ArenaRoot->GetActorTransform() : FTransform::Identity;
+}
+
+bool ADeepSubmarine::ProbeBlocked(const FVector& Cm) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbe), false, this);
+	const float Radius = FMath::Max(1.f, UDeepTuningSettings::Get().HelmView.ProbeRadiusM * UDeepRules::CmPerM);
+	return World->OverlapAnyTestByObjectType(Cm, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params);
+}
+
+FVector ADeepSubmarine::ProbeChase(const FVector& AnchorCm, const FVector& WantCm) const
+{
+	UWorld* World = GetWorld();
+	const float Radius = FMath::Max(1.f, UDeepTuningSettings::Get().HelmView.ProbeRadiusM * UDeepRules::CmPerM);
+	FVector Camera = WantCm;
+	if (World)
+	{
+		// The rock only (the chunks, the shaft, the beds are world static); never this hull, never a diver.
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbe), false, this);
+		FHitResult Hit;
+		if (World->SweepSingleByObjectType(Hit, AnchorCm, WantCm, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params))
+		{
+			Camera = Hit.bStartPenetrating ? AnchorCm : Hit.Location;
+		}
+	}
+	// Never inside the hull: pulled in that close, it stays over the hull instead.
+	const FBox Hull = GetSolidBoundsLocal(false).ExpandBy(Radius);
+	if (Hull.IsInside(GetActorTransform().InverseTransformPosition(Camera)))
+	{
+		Camera = AnchorCm;
+	}
+	return Camera;
+}
+
+void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float YawShakeDeg, float RollShakeDeg, float DropCm)
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepHelmViewTuning& T = Tuning.HelmView;
+	const FDeepSubTuning& Sub = Tuning.Sub;
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
+	const float HullYaw = State ? State->SubYawDeg : 0.f;
+	static IConsoleVariable* MouseSteerVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Pilot.MouseSteer"));
+	const bool bMouseSteer = MouseSteerVar && MouseSteerVar->GetInt() != 0;
+
+	// The mouse's look: with mouse steer it holds its direction while the hull turns under it (the sub turns toward it);
+	// otherwise it eases back ahead after a moment.
+	HelmLookIdleS += Dt;
+	if (bMouseSteer && bHelmViewInit)
+	{
+		HelmLookDeg = DeepHelmView::AddLook(HelmLookDeg, -FRotator::NormalizeAxis(HullYaw - LastHelmYawDeg), 0.f, bHelmCockpit, T);
+	}
+	else if (!bMouseSteer)
+	{
+		HelmLookDeg = DeepHelmView::EaseLook(HelmLookDeg, HelmLookIdleS, Dt, T);
+	}
+	LastHelmYawDeg = HullYaw;
+
+	// The hull's trail and travel, in the arena root's frame (a jump of 20 m or more is a placement: start again).
+	const FTransform Frame = HelmTrailFrame();
+	const FVector HullW = GetHullCentreWorld();
+	const FVector HullL = Frame.InverseTransformPosition(HullW);
+	const bool bJump = !bHelmViewInit || FVector::Dist(HullL, LastHullLocalCm) > 20.0 * UDeepRules::CmPerM;
+	if (bJump)
+	{
+		HelmTrail.Reset();
+		TravelLocalMps = FVector::ZeroVector;
+	}
+	else if (Dt > UE_KINDA_SMALL_NUMBER)
+	{
+		const FVector Raw = (HullL - LastHullLocalCm) / (UDeepRules::CmPerM * Dt);
+		TravelLocalMps += (Raw - TravelLocalMps) * (1.f - FMath::Exp(-6.f * Dt));
+	}
+	LastHullLocalCm = HullL;
+	DeepHelmView::Record(HelmTrail, HullL, T);
+
+	if (bHelmCockpit)
+	{
+		// The cockpit: level at the bow, looking ahead; the mouse looks round within limits.
+		HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, DropCm));
+		HelmCamera->SetRelativeRotation(FRotator(T.CockpitPitchDeg + HelmLookDeg.Y + PitchShakeDeg, HelmLookDeg.X + YawShakeDeg, RollShakeDeg));
+		HelmCamera->SetFieldOfView(T.CockpitFovDeg);
+		bHelmViewInit = true;
+		return;
+	}
+
+	// The chase view: its spot on the trail (else straight astern), followed smoothly, then the probe from over the hull.
+	const FVector AheadL = Frame.InverseTransformVectorNoScale(GetActorForwardVector());
+	const FVector AimW = Frame.TransformPosition(DeepHelmView::ChaseAim(HelmTrail, HullL, AheadL, T));
+	// With mouse steer the view looks along the heading (the travel would chase its own climb).
+	const FVector TravelL = DeepHelmView::Travel(bMouseSteer ? FVector::ZeroVector : TravelLocalMps, AheadL, T);
+	if (bJump)
+	{
+		ChaseSpotCm = AimW;
+		LookDirLocal = TravelL;
+	}
+	else
+	{
+		ChaseSpotCm += (AimW - ChaseSpotCm) * (1.f - FMath::Exp(-FMath::Max(0.f, T.ChaseFollowPerS) * Dt));
+		const FVector Blend = LookDirLocal + (TravelL - LookDirLocal) * (1.f - FMath::Exp(-FMath::Max(0.f, T.LookFollowPerS) * Dt));
+		LookDirLocal = Blend.IsNearlyZero() ? TravelL : Blend.GetSafeNormal();
+	}
+	// The probe starts just over the hull (out of rock if it can be: a lower spot, then off the stern).
+	const FBox Box = GetSolidBoundsLocal(false);
+	const FVector Centre = Box.GetCenter();
+	const double Radius = FMath::Max(1.f, T.ProbeRadiusM * UDeepRules::CmPerM);
+	const FVector Anchors[] = {
+		FVector(Centre.X, Centre.Y, Box.Max.Z + Radius + 15.0),
+		FVector(Centre.X, Centre.Y, Box.Max.Z + Radius + 2.0),
+		FVector(Box.Min.X - Radius - 15.0, Centre.Y, Centre.Z),
+	};
+	ChaseAnchorCm = GetActorTransform().TransformPosition(Anchors[0]);
+	for (const FVector& Anchor : Anchors)
+	{
+		const FVector World = GetActorTransform().TransformPosition(Anchor);
+		if (!ProbeBlocked(World))
+		{
+			ChaseAnchorCm = World;
+			break;
+		}
+	}
+	const FVector Camera = ProbeChase(ChaseAnchorCm, ChaseSpotCm);
+	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), T);
+	Rotation.Yaw += HelmLookDeg.X + YawShakeDeg;
+	Rotation.Pitch = FMath::Clamp(Rotation.Pitch + HelmLookDeg.Y + PitchShakeDeg, -85.f, 85.f);
+	Rotation.Roll = RollShakeDeg;
+	HelmCamera->SetWorldLocationAndRotation(Camera, Rotation);
+	HelmCamera->SetFieldOfView(T.ChaseFovDeg);
+	bHelmViewInit = true;
 }
 
 void ADeepSubmarine::Tick(float DeltaSeconds)
@@ -846,6 +1038,8 @@ void ADeepSubmarine::BeginPlay()
 {
 	Super::BeginPlay();
 	LayOut();
+	// D-070: the pilot starts in the chase view (V switches to the cockpit).
+	bHelmCockpit = !UDeepTuningSettings::Get().HelmView.bChaseFirst;
 
 	// The cave shaft's rock: one per machine (not replicated), placed from the replicated depth and offset.
 	if (UWorld* World = GetWorld())

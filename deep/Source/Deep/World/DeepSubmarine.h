@@ -130,6 +130,28 @@ public:
 	/** The trench shows to a local viewer: through the helm camera, or from inside the room while the sub is not parked (the window). */
 	static bool TrenchShows(bool bHelmView, bool bInRoomView, bool bParked);
 
+	// ---- D-070: what the pilot sees (Sim/DeepHelmViewRules). Local to each machine: only the seated pilot views it. ----
+	/** V: the chase view (behind and above, on the hull's trail) or the cockpit (level at the bow). */
+	void ToggleHelmView();
+	bool IsHelmCockpit() const { return bHelmCockpit; }
+	void SetHelmCockpit(bool bCockpit);
+	/** The mouse: looks round the view (degrees, + right, + up), within the view's limits; eases back after a moment. */
+	void AddHelmLook(float YawDeg, float PitchDeg);
+	/** The look's offset from straight ahead (degrees, X + starboard, Y + up): Deep.Pilot.MouseSteer steers by it. */
+	FVector2D GetHelmLookOffsetDeg() const { return HelmLookDeg; }
+	/**
+	 * One step of the pilot's view: the trail, the chase spot (the trail, else straight astern), the probe from over the
+	 * hull to it (never in rock, never in the hull), the look ahead along the travel, the mouse's look. Tick calls it
+	 * while the helm is manned; tests call it directly. Jolt/sway/shiver are the helm's camera motions in degrees.
+	 */
+	void StepHelmView(float DeltaSeconds, float PitchShakeDeg = 0.f, float YawShakeDeg = 0.f, float RollShakeDeg = 0.f, float DropCm = 0.f);
+	/** Forgets the trail and snaps the chase view on the next step (a jump: a placement, a stop's arena loading). */
+	void ResetHelmView();
+	/** The hull's centre (its solid box's centre) in the world, cm. */
+	FVector GetHullCentreWorld() const;
+	/** The world spot the chase view's probe starts from (over the hull, out of rock when it can be). */
+	FVector GetChaseAnchorWorld() const { return ChaseAnchorCm; }
+
 protected:
 	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
 	void TickHelmLook(float DeltaSeconds);
@@ -147,6 +169,26 @@ protected:
 	int32 LastHullDamageSeen = -1;
 	float JoltDeg = 0.f;
 	float JoltAge = 0.f;
+
+	/** D-070's pilot view (local): cockpit or chase, the mouse's look and how long since it moved, the hull's trail. */
+	bool bHelmCockpit = false;
+	bool bHelmViewInit = false;
+	FVector2D HelmLookDeg = FVector2D::ZeroVector;
+	float HelmLookIdleS = 100.f;
+	float LastHelmYawDeg = 0.f;
+	/** The hull's centre, newest last, in the arena root's frame (the shaft moves the root, the caves the hull). */
+	TArray<FVector> HelmTrail;
+	FVector LastHullLocalCm = FVector::ZeroVector;
+	FVector TravelLocalMps = FVector::ZeroVector;
+	FVector LookDirLocal = FVector::ForwardVector;
+	FVector ChaseSpotCm = FVector::ZeroVector;
+	FVector ChaseAnchorCm = FVector::ZeroVector;
+	/** The world frame the trail is kept in (the arena root's, or identity). */
+	FTransform HelmTrailFrame() const;
+	/** The chase view's probe: a sphere swept from Anchor toward Want against world rock (never the hull); where it stops. */
+	FVector ProbeChase(const FVector& AnchorCm, const FVector& WantCm) const;
+	/** True when a probe-sized sphere at Cm overlaps world rock. */
+	bool ProbeBlocked(const FVector& Cm) const;
 
 	/** A cliff of rock ahead of the helm, slid up as the sub descends; visible only while the helm is manned. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")

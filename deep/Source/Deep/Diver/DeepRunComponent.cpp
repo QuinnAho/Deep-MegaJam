@@ -490,10 +490,11 @@ void UDeepRunComponent::StepAboard(float DeltaSeconds)
 
 void UDeepRunComponent::StepHelm(float DeltaSeconds)
 {
+	SyncDriveMode();
 	if (DeepArena::IsWorldCaves(GetWorld()))
 	{
-		// The chunk string: the levers only. The old direct drive (autopilot, held depth, sideways stick) moves the
-		// hull without the sweep, so it would carry it through rock.
+		// The chunk string: the pilot's drive (direct or levers) only. The old helm controls (autopilot, held depth,
+		// sideways stick) move the hull without the sweep, so they would carry it through rock.
 		HelmInput = 0.f;
 		AutopilotDepthM = -1.f;
 		HelmSteer = FVector2D::ZeroVector;
@@ -501,7 +502,7 @@ void UDeepRunComponent::StepHelm(float DeltaSeconds)
 		StepPilotCave(DeltaSeconds);
 		return;
 	}
-	// The pilot's levers (throttle, rudder, ballast) unless the old direct controls are in use (autopilot, tests, cheats).
+	// The pilot's drive (D-070's held keys, or the levers) unless the old helm controls are in use (autopilot, tests, cheats).
 	if (!UsesDirectHelm())
 	{
 		StepPilot(DeltaSeconds);
@@ -786,6 +787,54 @@ bool UDeepRunComponent::UsesDirectHelm() const
 	return AutopilotDepthM >= 0.f || !FMath::IsNearlyZero(HelmInput) || !HelmSteer.IsZero() || !SteerVelMps.IsZero();
 }
 
+bool UDeepRunComponent::IsDirectDrive() const
+{
+	const ADeepGameState* GameState = GetGameState();
+	return GameState ? GameState->IsHelmDirect() : ADeepGameState::WantsDirectDrive();
+}
+
+void UDeepRunComponent::SyncDriveMode()
+{
+	ADeepGameState* GameState = GetGameState();
+	const bool bDirect = IsDirectDrive();
+	if (GameState)
+	{
+		GameState->bHelmDirect = bDirect;
+	}
+	const int8 Mode = bDirect ? 1 : 0;
+	if (Mode == LastDriveMode)
+	{
+		return;
+	}
+	// A switch lets go of everything: no key carries over, the levers go home.
+	const bool bFirst = LastDriveMode < 0;
+	LastDriveMode = Mode;
+	if (bFirst)
+	{
+		return;
+	}
+	DriveHold = FDeepDriveInput();
+	PilotRudder = 0.f;
+	PilotBallastInput = 0.f;
+	BallastDetentLeftS = 0.f;
+	if (GameState)
+	{
+		GameState->HelmThrottleNotch = 0;
+		GameState->HelmBallast = 0.f;
+		GameState->HelmHold = FDeepDriveInput();
+	}
+}
+
+bool UDeepRunComponent::ControlsIdle() const
+{
+	if (IsDirectDrive())
+	{
+		return DriveHold.IsIdle();
+	}
+	const ADeepGameState* GameState = GetGameState();
+	return (!GameState || (GameState->HelmThrottleNotch == 0 && GameState->HelmBallast == 0.f)) && FMath::IsNearlyZero(PilotRudder);
+}
+
 void UDeepRunComponent::StepPilot(float DeltaSeconds)
 {
 	ADeepGameState* GameState = GetGameState();
@@ -795,16 +844,24 @@ void UDeepRunComponent::StepPilot(float DeltaSeconds)
 	}
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const FDeepPilotTuning& P = Tuning.Pilot;
+	const FDeepDriveTuning& Drive = Tuning.Drive;
 	const FDeepCaveTuning& Cave = Tuning.Cave;
 	const TArray<float> Stops = Tuning.StopDepthsM();
 	const float Top = Stops.IsEmpty() ? 0.f : Stops[0];
 	const float Limit = FMath::Max(Top, GameState->DepthLimitM());
 	const float Dt0 = FMath::Max(0.f, DeltaSeconds);
+	const bool bDirect = IsDirectDrive();
 
-	GameState->HelmBallast = UDeepPilotRules::StepBallast(GameState->HelmBallast, PilotBallastInput, Dt0, BallastDetentLeftS, P);
+	if (!bDirect)
+	{
+		GameState->HelmBallast = UDeepPilotRules::StepBallast(GameState->HelmBallast, PilotBallastInput, Dt0, BallastDetentLeftS, P);
+	}
+	GameState->HelmHold = bDirect ? DriveHold : FDeepDriveInput();
 	const int32 Notch = GameState->HelmThrottleNotch;
 	const float Ballast = GameState->HelmBallast;
-	const bool bControls = Notch != 0 || Ballast != 0.f || !FMath::IsNearlyZero(PilotRudder);
+	const bool bControls = !ControlsIdle();
+	// Sinking (C held, or the ballast flooded): the Captain's first word on the way down.
+	const bool bSinking = bDirect ? DriveHold.Heave > 0.f : Ballast > 0.f;
 	if (GameState->bParked)
 	{
 		if (!bControls)
@@ -820,13 +877,15 @@ void UDeepRunComponent::StepPilot(float DeltaSeconds)
 		// Casting off: the hatch shuts (ApplySubDepth) and the sub answers the levers from where it is.
 		GameState->bParked = false;
 	}
-	if (Ballast > 0.f && !bWasDriving)
+	if (bSinking && !bWasDriving)
 	{
 		FireChatter(DeepEvent::HelmDescend);
 	}
 	bWasDriving = bWasDriving || bControls;
 
 	const bool bShaft = DeepShaft::IsOn(GetWorld());
+	// D-070: the direct drive glances off rock with a small bounce and keeps its drive; the levers bounce harder.
+	const float WallBounce = FMath::Clamp(bDirect ? Drive.KnockBounce : Cave.Bounce, 0.f, 1.f);
 	FVector RealMin, RealMax, BoxMin, BoxMax;
 	DeepShaft::SubBoxM(DeepArena::FindSubmarine(GetWorld()), RealMin, RealMax);
 	// The rock is built round the real hull; the contact box is the same at every heading.
@@ -845,7 +904,7 @@ void UDeepRunComponent::StepPilot(float DeltaSeconds)
 	const float Dt = Steps > 0 ? Dt0 / Steps : 0.f;
 	for (int32 Index = 0; Index < Steps; ++Index)
 	{
-		Motion = UDeepPilotRules::StepMotion(Motion, Notch, Ballast, PilotRudder, Dt, P);
+		Motion = bDirect ? UDeepPilotRules::StepDrive(Motion, DriveHold, Dt, Drive) : UDeepPilotRules::StepMotion(Motion, Notch, Ballast, PilotRudder, Dt, P);
 		if (!bShaft)
 		{
 			// The open arena (no shaft): depth and heading only.
@@ -858,7 +917,7 @@ void UDeepRunComponent::StepPilot(float DeltaSeconds)
 		{
 			DepthM = Limit;
 			Motion.HeaveMps = FMath::Min(0.f, Motion.HeaveMps);
-			bAtLimit = Ballast > 0.f;
+			bAtLimit = bSinking;
 		}
 		if (DepthM <= Top)
 		{
@@ -881,13 +940,14 @@ void UDeepRunComponent::StepPilot(float DeltaSeconds)
 		ImpactMps = FMath::Max(ImpactMps, FMath::Max(Into, Hit.PenetrationM / Dt));
 		if (Into > 0.f)
 		{
-			Motion.VelocityMps -= Hit.Normal * Into * (1.f + FMath::Clamp(Cave.Bounce, 0.f, 1.f));
+			Motion.VelocityMps -= Hit.Normal * Into * (1.f + WallBounce);
 		}
 	}
 
 	PilotMotion = Motion;
 	GameState->HelmSpeedMps = UDeepPilotRules::SpeedMps(Motion);
 	GameState->HelmSurgeMps = FVector2D::DotProduct(Motion.VelocityMps, UDeepPilotRules::Ahead(Motion.YawDeg));
+	GameState->HelmHeaveMps = Motion.HeaveMps;
 	if (bAtLimit && !bHelmAtLimit)
 	{
 		FireChatter(DeepEvent::HelmDepthLimit);
@@ -909,7 +969,7 @@ void UDeepRunComponent::StepPilot(float DeltaSeconds)
 
 	// Near a stop, slow, throttle at stop and ballast in neutral: park, then glide to the stop's frame.
 	const int32 Stop = UDeepRules::HelmParkStop(GameState->SubDepthM, Stops, P.ParkNearM);
-	if (Stop > 0 && FMath::IsNearlyZero(PilotRudder) && UDeepPilotRules::ShouldPark(GameState->SubDepthM, Tuning.GetStop(Stop).SubDepthM, GameState->HelmSpeedMps, Notch, Ballast, P))
+	if (Stop > 0 && ControlsIdle() && UDeepPilotRules::ShouldPark(GameState->SubDepthM, Tuning.GetStop(Stop).SubDepthM, GameState->HelmSpeedMps, Notch, Ballast, P))
 	{
 		Park(Stop, true);
 	}
@@ -932,15 +992,18 @@ bool UDeepRunComponent::StepRockToll(float DeltaSeconds, float ImpactMps, bool b
 		LastHitClock = ShaftClock;
 		LastScrapeClock = ShaftClock;
 		ScrapeSeconds = 0.f;
+		// D-070: the direct drive keeps most of its slide and its drive; the levers lose half and trip the throttle.
+		const bool bDirect = IsDirectDrive();
 		if (KnockNormal)
 		{
 			const FVector2D Normal = KnockNormal->GetSafeNormal();
 			const FVector2D Across = Normal * FVector2D::DotProduct(PilotMotion.VelocityMps, Normal);
-			PilotMotion.VelocityMps = Across + (PilotMotion.VelocityMps - Across) * FMath::Clamp(P.KnockKeepAlong, 0.f, 1.f);
+			const float Keep = bDirect ? Tuning.Drive.KnockKeepAlong : P.KnockKeepAlong;
+			PilotMotion.VelocityMps = Across + (PilotMotion.VelocityMps - Across) * FMath::Clamp(Keep, 0.f, 1.f);
 		}
 		GameState->HelmSpeedMps = UDeepPilotRules::SpeedMps(PilotMotion);
 		GameState->HelmSurgeMps = FVector2D::DotProduct(PilotMotion.VelocityMps, UDeepPilotRules::Ahead(PilotMotion.YawDeg));
-		if (P.bKnockTripsThrottle)
+		if (P.bKnockTripsThrottle && !bDirect)
 		{
 			GameState->HelmThrottleNotch = 0;
 		}
@@ -994,10 +1057,17 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	const float Limit = FMath::Max(Top, GameState->DepthLimitM());
 	const double LimitZ = (double(Top) - UDeepCaveStringRules::PhysicalDepthM(Map, Limit)) * UDeepRules::CmPerM;
 
-	GameState->HelmBallast = UDeepPilotRules::StepBallast(GameState->HelmBallast, PilotBallastInput, Dt0, BallastDetentLeftS, P);
+	const FDeepDriveTuning& Drive = Tuning.Drive;
+	const bool bDirect = IsDirectDrive();
+	if (!bDirect)
+	{
+		GameState->HelmBallast = UDeepPilotRules::StepBallast(GameState->HelmBallast, PilotBallastInput, Dt0, BallastDetentLeftS, P);
+	}
+	GameState->HelmHold = bDirect ? DriveHold : FDeepDriveInput();
 	const int32 Notch = GameState->HelmThrottleNotch;
 	const float Ballast = GameState->HelmBallast;
-	const bool bControls = Notch != 0 || Ballast != 0.f || !FMath::IsNearlyZero(PilotRudder);
+	const bool bControls = !ControlsIdle();
+	const bool bSinking = bDirect ? DriveHold.Heave > 0.f : Ballast > 0.f;
 	if (GameState->bParked)
 	{
 		if (!bControls)
@@ -1006,13 +1076,14 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 			PilotMotion = FDeepPilotMotion();
 			GameState->HelmSpeedMps = 0.f;
 			GameState->HelmSurgeMps = 0.f;
+			GameState->HelmHeaveMps = 0.f;
 			bHelmAtLimit = false;
 			bWasDriving = false;
 			return;
 		}
 		GameState->bParked = false;
 	}
-	if (Ballast > 0.f && !bWasDriving)
+	if (bSinking && !bWasDriving)
 	{
 		FireChatter(DeepEvent::HelmDescend);
 	}
@@ -1032,13 +1103,24 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	for (int32 Index = 0; Index < Steps; ++Index)
 	{
 		const float YawBefore = Motion.YawDeg;
-		Motion = UDeepPilotRules::StepMotion(Motion, Notch, Ballast, PilotRudder, Dt, P);
+		Motion = bDirect ? UDeepPilotRules::StepDrive(Motion, DriveHold, Dt, Drive) : UDeepPilotRules::StepMotion(Motion, Notch, Ballast, PilotRudder, Dt, P);
 		if (Motion.YawDeg != YawBefore && String->OverlapsHull(Box, At, Motion.YawDeg))
 		{
-			// No room to turn here: the heading holds and the hull grinds.
-			Motion.YawDeg = YawBefore;
-			Motion.YawRateDegS = 0.f;
 			bTouching = true;
+			if (bDirect)
+			{
+				// D-070: a turn into rock is never refused outright: the hull is pushed clear and turns on, slower if it must.
+				const float Want = FRotator::NormalizeAxis(Motion.YawDeg - YawBefore);
+				const float Got = FRotator::NormalizeAxis(TurnClearOfRock(*String, Box, At, YawBefore, Motion.YawDeg) - YawBefore);
+				Motion.YawRateDegS *= FMath::IsNearlyZero(Want) ? 0.f : FMath::Clamp(Got / Want, 0.f, 1.f);
+				Motion.YawDeg = FRotator::NormalizeAxis(YawBefore + Got);
+			}
+			else
+			{
+				// The levers: no room to turn here, the heading holds and the hull grinds.
+				Motion.YawDeg = YawBefore;
+				Motion.YawRateDegS = 0.f;
+			}
 		}
 		FVector Velocity = UDeepCaveStringRules::VelocityMps(Motion.VelocityMps, Motion.HeaveMps);
 		FVector Move = Velocity * (UDeepRules::CmPerM * Dt);
@@ -1048,7 +1130,7 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 		{
 			Move.Z = FMath::Min(0.0, LimitZ - At.Z);
 			Velocity.Z = FMath::Max(0.0, Velocity.Z);
-			bAtLimit = Ballast > 0.f;
+			bAtLimit = bSinking;
 		}
 		// Swept, not placed: up to the rock (a skin short), the hit resolved (UDeepMovingSubRules::ResolveWallHit),
 		// then the rest of the move slides along it.
@@ -1076,7 +1158,10 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 				const double Length = Move.Size();
 				At += Move / Length * FMath::Max(0.0, Length * Hit.Time - Skin);
 			}
-			const FDeepWallHit Wall = UDeepMovingSubRules::ResolveWallHit(Velocity, Hit.Normal, Cave, P);
+			// D-070: the direct drive keeps most of its slide along the rock and bounces off it only a little.
+			const FDeepWallHit Wall = bDirect
+				? UDeepMovingSubRules::ResolveWallHitKeeping(Velocity, Hit.Normal, Cave, Drive.KnockKeepAlong, Drive.KnockBounce)
+				: UDeepMovingSubRules::ResolveWallHit(Velocity, Hit.Normal, Cave, P);
 			ImpactMps = FMath::Max(ImpactMps, Wall.ImpactMps);
 			Velocity = Wall.VelocityMps;
 			const FVector Rest = Hit.bStartPenetrating ? Move : Move * (1.0 - Hit.Time);
@@ -1096,7 +1181,7 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	}
 
 	// Near a berth, slow, levers home: glide onto its Park socket and park there (never by depth).
-	const bool bIdle = Notch == 0 && GameState->HelmBallast == 0.f && FMath::IsNearlyZero(PilotRudder);
+	const bool bIdle = ControlsIdle();
 	const float SpeedMps = UDeepPilotRules::SpeedMps(Motion);
 	bool bArrived = false;
 	int32 ArrivedStop = 0;
@@ -1123,6 +1208,7 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	PilotMotion = Motion;
 	GameState->HelmSpeedMps = UDeepPilotRules::SpeedMps(Motion);
 	GameState->HelmSurgeMps = FVector2D::DotProduct(Motion.VelocityMps, UDeepPilotRules::Ahead(Motion.YawDeg));
+	GameState->HelmHeaveMps = Motion.HeaveMps;
 	if (bAtLimit && !bHelmAtLimit)
 	{
 		FireChatter(DeepEvent::HelmDepthLimit);
@@ -1151,6 +1237,43 @@ void UDeepRunComponent::StepPilotCave(float DeltaSeconds)
 	{
 		ParkInCave(ArrivedStop);
 	}
+}
+
+float UDeepRunComponent::TurnClearOfRock(const ADeepCaveString& String, const FBox& Box, FVector& AtCm, float YawBefore, float YawWant) const
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const double Skin = FMath::Max(0.f, Tuning.CaveString.SkinCm);
+	const double MaxPushCm = FMath::Max(0.f, Tuning.Drive.TurnPushMaxM) * UDeepRules::CmPerM;
+	float Turn = FRotator::NormalizeAxis(YawWant - YawBefore);
+	// The whole turn, then half, then a quarter: each pushed out of the rock along its normal, a few pushes at most.
+	for (int32 Try = 0; Try < 3; ++Try, Turn *= 0.5f)
+	{
+		const float Yaw = FRotator::NormalizeAxis(YawBefore + Turn);
+		FVector At = AtCm;
+		double Pushed = 0.0;
+		for (int32 Push = 0; Push < 4; ++Push)
+		{
+			if (!String.OverlapsHull(Box, At, Yaw))
+			{
+				AtCm = At;
+				return Yaw;
+			}
+			const FDeepCaveSweep Hit = String.SweepHull(Box, At, At, Yaw);
+			if (!Hit.bStartPenetrating || Hit.Normal.IsNearlyZero())
+			{
+				break;
+			}
+			const double Step = Hit.PenetrationCm + Skin;
+			if (Pushed + Step > MaxPushCm)
+			{
+				break;
+			}
+			Pushed += Step;
+			At += Hit.Normal * Step;
+		}
+	}
+	// No turn fits here (a squeeze narrower than the hull's sweep): the heading holds.
+	return YawBefore;
 }
 
 void UDeepRunComponent::ParkInCave(int32 Stop)
@@ -1211,6 +1334,9 @@ void UDeepRunComponent::PlaceInCave(const FVector& LocationCm, float YawDeg, boo
 	PilotMotion.YawDeg = YawDeg;
 	PilotRudder = 0.f;
 	PilotBallastInput = 0.f;
+	DriveHold = FDeepDriveInput();
+	GameState->HelmHold = FDeepDriveInput();
+	GameState->HelmHeaveMps = 0.f;
 	GameState->HelmThrottleNotch = 0;
 	GameState->HelmBallast = 0.f;
 	GameState->HelmSpeedMps = 0.f;
@@ -1277,13 +1403,42 @@ void UDeepRunComponent::AllStop()
 	{
 		GameState->HelmThrottleNotch = 0;
 		GameState->HelmBallast = 0.f;
+		GameState->HelmHold = FDeepDriveInput();
 	}
 	BallastDetentLeftS = 0.f;
+	DriveHold = FDeepDriveInput();
 }
 
 void UDeepRunComponent::ServerAllStop_Implementation()
 {
 	AllStop();
+}
+
+void UDeepRunComponent::SetDriveHold(const FDeepDriveInput& Hold)
+{
+	if (!GetOwner()->HasAuthority())
+	{
+		ServerSetDriveHold(Hold);
+		return;
+	}
+	DriveHold = Hold.Clamped();
+	if (!DriveHold.IsIdle())
+	{
+		// A key at the helm takes over from the old helm controls (autopilot, held depth, sideways stick).
+		AutopilotDepthM = -1.f;
+		HelmInput = 0.f;
+		HelmSteer = FVector2D::ZeroVector;
+		SteerVelMps = FVector2D::ZeroVector;
+	}
+	if (ADeepGameState* GameState = GetGameState())
+	{
+		GameState->HelmHold = DriveHold;
+	}
+}
+
+void UDeepRunComponent::ServerSetDriveHold_Implementation(FDeepDriveInput Hold)
+{
+	SetDriveHold(Hold);
 }
 
 int32 UDeepRunComponent::GetThrottleNotch() const
@@ -1649,6 +1804,7 @@ void UDeepRunComponent::TakeHelm()
 	HelmInput = 0.f;
 	PilotBallastInput = 0.f;
 	PilotRudder = 0.f;
+	DriveHold = FDeepDriveInput();
 	BallastDetentLeftS = 0.f;
 	HelmSteer = FVector2D::ZeroVector;
 	AutopilotDepthM = -1.f;

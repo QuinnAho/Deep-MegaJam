@@ -7,6 +7,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Sim/DeepTuningTypes.h"
+#include "Sim/DeepPilotRules.h"
 #include "DeepDiver.generated.h"
 
 class UCameraComponent;
@@ -44,8 +45,16 @@ public:
 	 * client: if it was sent to the server, which decides). */
 	bool Ping();
 
-	/** X at the helm: all stop (throttle to stop, ballast to neutral). Does nothing out of the seat. */
+	/** X at the helm: the levers' all stop (throttle to stop, ballast to neutral); D-070's direct drive: stand up (E strafes there). */
 	void AllStopKey();
+	/** D-070, Q/E at the helm: strafe (-1 port .. 1 starboard). */
+	void SetStrafeInput(float Strafe) { StrafeInput = Strafe; }
+	/** Seated at the helm (this machine's view of the run). */
+	bool IsSeatedAtHelm() const;
+	/** D-070, V at the helm: the chase view or the cockpit (this player's view only). */
+	void ToggleHelmView();
+	/** D-070, the mouse at the helm: looks round the pilot's view (degrees, + right, + up). False out of the seat. */
+	bool AddHelmLook(float YawDeg, float PitchDeg);
 	/** In the water (tethered or cut loose), where the ping works. */
 	bool IsInWater() const;
 	/** Seconds until the next ping is allowed (server's count; 0 = ready). */
@@ -139,6 +148,11 @@ protected:
 	/** The pilot's levers as last sent: the throttle key held (-1 S, 0, 1 W; a press is an edge), the ballast and rudder holds, X held. */
 	int32 LastThrottleAxis = 0;
 	FVector2D LastPilotHoldSent = FVector2D::ZeroVector;
+	/** D-070: the held keys as last sent to the run (direct drive), and Q/E. */
+	FDeepDriveInput LastDriveHoldSent;
+	float StrafeInput = 0.f;
+	/** Seated, this frame: the helm's keys go to the run, not to walking. */
+	void TickHelmInput();
 
 	UFUNCTION(Server, Reliable)
 	void ServerSetWinching(bool bInWinching);

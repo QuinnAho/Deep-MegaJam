@@ -222,6 +222,8 @@ namespace DeepStillTest
 	static TArray<FCheck> FlyRoute(const FStillWorld& W)
 	{
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		// The lever mode (D-048), behind its switch since D-070's direct drive.
+		const FCVarScope Levers(TEXT("Deep.Pilot.Levers"), 1);
 		TArray<FCheck> Out;
 		Out.Add(Capture(W));
 		W.HoldAt(Tuning.GetStop(1).SubDepthM + 50.f);

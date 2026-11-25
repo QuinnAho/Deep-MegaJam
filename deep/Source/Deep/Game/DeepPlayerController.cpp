@@ -14,6 +14,7 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
+#include "GameFramework/InputSettings.h"
 #include "Sim/DeepTuningSettings.h"
 #include "UI/DeepUserSettings.h"
 
@@ -63,6 +64,10 @@ FString ADeepPlayerController::KeyHint(FName Action)
 		{ TEXT("Cut"), TEXT("Q") },
 		{ TEXT("Continue"), TEXT("Space") },
 		{ TEXT("Menu"), TEXT("Esc") },
+		// D-070, the direct drive at the helm: X stands up (E strafes there), V switches the view.
+		{ TEXT("StandUp"), TEXT("X") },
+		{ TEXT("Strafe"), TEXT("Q / E") },
+		{ TEXT("View"), TEXT("V") },
 	};
 	const FString* Hint = Hints.Find(Action);
 	return Hint ? *Hint : FString(TEXT("?"));
@@ -77,6 +82,7 @@ void ADeepPlayerController::BuildInputObjects()
 	MoveAction = MakeAction(this, TEXT("IA_Move"), EInputActionValueType::Axis2D);
 	LookAction = MakeAction(this, TEXT("IA_Look"), EInputActionValueType::Axis2D);
 	VerticalAction = MakeAction(this, TEXT("IA_Vertical"), EInputActionValueType::Axis1D);
+	StrafeAction = MakeAction(this, TEXT("IA_Strafe"), EInputActionValueType::Axis1D);
 	SprintAction = MakeAction(this, TEXT("IA_Sprint"), EInputActionValueType::Boolean);
 	GrabAction = MakeAction(this, TEXT("IA_Grab"), EInputActionValueType::Boolean);
 	DropAction = MakeAction(this, TEXT("IA_Drop"), EInputActionValueType::Boolean);
@@ -104,6 +110,10 @@ void ADeepPlayerController::BuildInputObjects()
 	Mapping->MapKey(VerticalAction, EKeys::SpaceBar);
 	MapNegated(Mapping, this, VerticalAction, EKeys::C, true, false);
 	MapNegated(Mapping, this, VerticalAction, EKeys::LeftControl, true, false);
+
+	// D-070, at the helm: Q/E strafe (Q is also cut in the water, E grab and use; the diver sorts out which applies).
+	Mapping->MapKey(StrafeAction, EKeys::E);
+	MapNegated(Mapping, this, StrafeAction, EKeys::Q, true, false);
 
 	Mapping->MapKey(SprintAction, EKeys::LeftShift);
 	Mapping->MapKey(GrabAction, EKeys::E);
@@ -152,6 +162,8 @@ void ADeepPlayerController::SetupInputComponent()
 	Input->BindAction(LookAction, ETriggerEvent::Triggered, this, &ADeepPlayerController::OnLook);
 	Input->BindAction(VerticalAction, ETriggerEvent::Triggered, this, &ADeepPlayerController::OnVertical);
 	Input->BindAction(VerticalAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnVertical);
+	Input->BindAction(StrafeAction, ETriggerEvent::Triggered, this, &ADeepPlayerController::OnStrafe);
+	Input->BindAction(StrafeAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnStrafe);
 	Input->BindAction(SprintAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnSprint);
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &ADeepPlayerController::OnSprint);
 	Input->BindAction(GrabAction, ETriggerEvent::Started, this, &ADeepPlayerController::OnGrab);
@@ -203,6 +215,17 @@ void ADeepPlayerController::OnLook(const FInputActionValue& Value)
 	const UDeepUserSettings& Settings = UDeepUserSettings::Get();
 	const FVector2D Look = DeepSettingsRules::ScaleLook(Value.Get<FVector2D>(), UDeepTuningSettings::Get().Swim.LookSensitivity,
 		Settings.LookSensitivity, Settings.bInvertLook);
+	// D-070: seated, the mouse looks round the pilot's view (the sub's camera) instead of turning the diver in the seat.
+	// The same degrees AddYawInput/AddPitchInput would give (the legacy input scales, when on).
+	const bool bLegacy = GetDefault<UInputSettings>()->bEnableLegacyInputScales;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	const float YawDeg = Look.X * (bLegacy ? GetDeprecatedInputYawScale() : 1.f);
+	const float PitchDeg = Look.Y * (bLegacy ? GetDeprecatedInputPitchScale() : 1.f);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	if (ADeepDiver* Diver = GetDiver(); Diver && Diver->AddHelmLook(YawDeg, PitchDeg))
+	{
+		return;
+	}
 	AddYawInput(Look.X);
 	AddPitchInput(Look.Y);
 }
@@ -212,6 +235,14 @@ void ADeepPlayerController::OnVertical(const FInputActionValue& Value)
 	if (ADeepDiver* Diver = GetDiver())
 	{
 		Diver->SetVerticalInput(Value.Get<float>());
+	}
+}
+
+void ADeepPlayerController::OnStrafe(const FInputActionValue& Value)
+{
+	if (ADeepDiver* Diver = GetDiver())
+	{
+		Diver->SetStrafeInput(Value.Get<float>());
 	}
 }
 
@@ -276,6 +307,12 @@ void ADeepPlayerController::OnPing()
 {
 	if (ADeepDiver* Diver = GetDiver())
 	{
+		// D-070: V at the helm switches the pilot's view (chase or cockpit); in the water it pings.
+		if (Diver->IsSeatedAtHelm())
+		{
+			Diver->ToggleHelmView();
+			return;
+		}
 		Diver->Ping();
 	}
 }
@@ -335,6 +372,7 @@ void ADeepPlayerController::ClearDiverInput()
 	{
 		Diver->SetMoveInput(FVector2D::ZeroVector);
 		Diver->SetVerticalInput(0.f);
+		Diver->SetStrafeInput(0.f);
 		Diver->SetSprinting(false);
 		Diver->SetWinching(false);
 		Diver->SetCutHeld(false);

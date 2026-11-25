@@ -34,6 +34,97 @@ namespace
 	constexpr float HarnessHeightCm = -30.f;
 	constexpr float HarnessBackCm = 45.f;
 	constexpr float HarnessSideCm = 35.f;
+
+	TAutoConsoleVariable<int32> CVarMouseSteer(
+		TEXT("Deep.Pilot.MouseSteer"),
+		0,
+		TEXT("D-070: 1 = while W or S is held at the helm the sub turns and climbs toward where the view looks (drive where you look); 0 = the mouse only looks round (the default)."),
+		ECVF_Default);
+
+	/** Held keys go over the wire in twentieths: analog mouse steer would otherwise send every frame. */
+	float Quantize(float Value)
+	{
+		return FMath::RoundToFloat(FMath::Clamp(Value, -1.f, 1.f) * 20.f) / 20.f;
+	}
+}
+
+void ADeepDiver::TickHelmInput()
+{
+	if (Run->IsDirectDrive())
+	{
+		// D-070, a game sub: every key is held and nothing latches. W/S ahead and astern, A/D turn, Space/C up and down,
+		// Q/E strafe. With Deep.Pilot.MouseSteer the view steers while W or S is held (A/D and Space/C still add on).
+		FDeepDriveInput Hold;
+		Hold.Surge = MoveInput.Y;
+		Hold.Turn = MoveInput.X;
+		Hold.Heave = -VerticalInput;
+		Hold.Strafe = StrafeInput;
+		const ADeepSubmarine* Sub = Tether ? Tether->GetSubmarine() : nullptr;
+		if (CVarMouseSteer.GetValueOnGameThread() != 0 && Sub)
+		{
+			const FVector2D Look = Sub->GetHelmLookOffsetDeg();
+			const FVector2D Steer = UDeepPilotRules::MouseSteer(Look.X, Look.Y, Hold.Surge, UDeepTuningSettings::Get().Drive);
+			Hold.Turn += Steer.X;
+			if (FMath::IsNearlyZero(Hold.Heave))
+			{
+				Hold.Heave = Steer.Y;
+			}
+		}
+		Hold.Surge = Quantize(Hold.Surge);
+		Hold.Turn = Quantize(Hold.Turn);
+		Hold.Heave = Quantize(Hold.Heave);
+		Hold.Strafe = Quantize(Hold.Strafe);
+		if (!Hold.Equals(LastDriveHoldSent))
+		{
+			LastDriveHoldSent = Hold;
+			Run->SetDriveHold(Hold);
+		}
+		LastThrottleAxis = 0;
+		LastPilotHoldSent = FVector2D::ZeroVector;
+		return;
+	}
+	LastDriveHoldSent = FDeepDriveInput();
+	// The levers (D-048): W/S step the throttle a notch a press (it stays where it is left), A/D hold the rudder, C floods
+	// and Space blows the ballast lever (it stays where it is left), X is all stop.
+	const int32 ThrottleAxis = MoveInput.Y > 0.5f ? 1 : (MoveInput.Y < -0.5f ? -1 : 0);
+	if (ThrottleAxis != LastThrottleAxis)
+	{
+		LastThrottleAxis = ThrottleAxis;
+		if (ThrottleAxis != 0)
+		{
+			Run->StepThrottle(ThrottleAxis);
+		}
+	}
+	const FVector2D Hold(FMath::Clamp(-VerticalInput, -1.f, 1.f), FMath::Clamp(MoveInput.X, -1.f, 1.f));
+	if (!Hold.Equals(LastPilotHoldSent, 0.01f))
+	{
+		LastPilotHoldSent = Hold;
+		Run->SetPilotHold(Hold.X, Hold.Y);
+	}
+}
+
+bool ADeepDiver::IsSeatedAtHelm() const
+{
+	return Run && Run->IsSeated();
+}
+
+void ADeepDiver::ToggleHelmView()
+{
+	if (ADeepSubmarine* Sub = IsSeatedAtHelm() && Tether ? Tether->GetSubmarine() : nullptr)
+	{
+		Sub->ToggleHelmView();
+	}
+}
+
+bool ADeepDiver::AddHelmLook(float YawDeg, float PitchDeg)
+{
+	ADeepSubmarine* Sub = IsSeatedAtHelm() && Tether ? Tether->GetSubmarine() : nullptr;
+	if (!Sub)
+	{
+		return false;
+	}
+	Sub->AddHelmLook(YawDeg, PitchDeg);
+	return true;
 }
 
 ADeepDiver::ADeepDiver()
@@ -164,24 +255,8 @@ void ADeepDiver::Tick(float DeltaSeconds)
 
 	if (Run->IsSeated())
 	{
-		// At the helm, real sub controls: W/S step the throttle a notch a press (it stays where it is left), A/D hold the
-		// rudder, C floods and Space blows the ballast lever (it stays where it is left), X is all stop.
 		Movement->Velocity = FVector::ZeroVector;
-		const int32 ThrottleAxis = MoveInput.Y > 0.5f ? 1 : (MoveInput.Y < -0.5f ? -1 : 0);
-		if (ThrottleAxis != LastThrottleAxis)
-		{
-			LastThrottleAxis = ThrottleAxis;
-			if (ThrottleAxis != 0)
-			{
-				Run->StepThrottle(ThrottleAxis);
-			}
-		}
-		const FVector2D Hold(FMath::Clamp(-VerticalInput, -1.f, 1.f), FMath::Clamp(MoveInput.X, -1.f, 1.f));
-		if (!Hold.Equals(LastPilotHoldSent, 0.01f))
-		{
-			LastPilotHoldSent = Hold;
-			Run->SetPilotHold(Hold.X, Hold.Y);
-		}
+		TickHelmInput();
 		return;
 	}
 	LastThrottleAxis = 0;
@@ -189,6 +264,11 @@ void ADeepDiver::Tick(float DeltaSeconds)
 	{
 		LastPilotHoldSent = FVector2D::ZeroVector;
 		Run->SetPilotHold(0.f, 0.f);
+	}
+	if (!LastDriveHoldSent.IsIdle())
+	{
+		LastDriveHoldSent = FDeepDriveInput();
+		Run->SetDriveHold(FDeepDriveInput());
 	}
 	if (!FMath::IsNearlyZero(LastHelmInputSent))
 	{
@@ -412,6 +492,11 @@ void ADeepDiver::Grab()
 {
 	if (Run->IsInside())
 	{
+		// D-070: at the helm with the direct drive E strafes to starboard; X stands up (AllStopKey).
+		if (Run->IsSeated() && Run->IsDirectDrive())
+		{
+			return;
+		}
 		Use();
 		return;
 	}
@@ -580,6 +665,12 @@ void ADeepDiver::AllStopKey()
 {
 	if (Run && Run->IsSeated())
 	{
+		if (Run->IsDirectDrive())
+		{
+			// D-070: nothing latches, so there is nothing to stop; X stands up (E strafes at the helm).
+			Use();
+			return;
+		}
 		Run->AllStop();
 	}
 }
