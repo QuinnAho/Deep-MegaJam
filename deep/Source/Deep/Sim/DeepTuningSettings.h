@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "Sim/DeepTuningTypes.h"
+#include "Sim/DeepImmersionTuning.h"
 #include "DeepTuningSettings.generated.h"
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "DEEP Tuning"))
@@ -132,4 +133,7 @@ public:
 	/** The room's dressing: materials, clear zones, caged lights (World/DeepRoomDress). */
 	UPROPERTY(Config, EditAnywhere, Category = "RoomDress")
 	FDeepRoomDressTuning RoomDress;
+	/** D-072: the hull's creaks, groans and flow, the silt it lifts, the sonar's echo (Sim/DeepImmersionRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Immersion")
+	FDeepImmersionTuning Immersion;
 };

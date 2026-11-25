@@ -53,7 +53,15 @@ public:
 	/** Plays the event's one-shot row. bForce skips the repeat guard. True if a row was found and not a loop. */
 	bool PlayEvent(FName Event, bool bForce = false);
 	/** PlayEvent with the row's volume and pitch scaled (the sonar's proximity tone rises and quickens). */
-	bool PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce = false);
+	bool PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce = false, float LowPassHz = 0.f);
+
+	/**
+	 * Immersion I1: plays the row DelayS from now (the sonar's echo off a far wall), scaled, through a low-pass at LowPassHz
+	 * (0 = none). Pending plays are dropped by Reload and when the world ends. Returns false without a one-shot row.
+	 */
+	bool PlayEventAfter(FName Event, float DelayS, float VolumeScale, float PitchScale, float LowPassHz);
+	/** Plays still waiting (tests). */
+	int32 GetPendingCount() const { return Pending.Num(); }
 
 	/** The bus gain a row of this group gets now (group * master * duck; 0 muted). For sounds played outside the table. */
 	float BusGain(FName Group) const;
@@ -128,7 +136,7 @@ private:
 	/** Final volume of a row: row x group x master, 0 when muted, clamped to 0..1. */
 	float RowVolume(const FDeepSoundRow& Row) const;
 	bool CanPlayAudio() const;
-	UAudioComponent* StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride = nullptr);
+	UAudioComponent* StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride = nullptr, FName BuiltinOverride = NAME_None);
 	TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> GetPcm(FName Builtin);
 	void LogSound(FName Event, const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, const TCHAR* Action) const;
 
@@ -165,6 +173,17 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UAudioComponent>> OneShotComponents;
 	TArray<double> OneShotStopAt;
+
+	/** PlayEventAfter's queue. */
+	struct FPendingPlay
+	{
+		FName Event;
+		double At = 0.0;
+		float Volume = 1.f;
+		float Pitch = 1.f;
+		float LowPassHz = 0.f;
+	};
+	TArray<FPendingPlay> Pending;
 
 	TMap<FName, double> LastPlayed;
 	TArray<FDeepAudioPlay> History;

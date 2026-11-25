@@ -2,6 +2,7 @@
 
 #include "Audio/DeepAudioSubsystem.h"
 #include "Camera/DeepCameraSubsystem.h"
+#include "Immersion/DeepImmersion.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepTetherComponent.h"
 #include "Dom/JsonObject.h"
@@ -219,6 +220,10 @@ namespace DeepStateReport
 		if (const UDeepAudioSubsystem* Audio = UDeepAudioSubsystem::Get(World))
 		{
 			Json->SetObjectField(TEXT("audio"), Audio->BuildStateJson());
+		}
+		if (const UDeepImmersion* Immersion = UDeepImmersion::Get(World))
+		{
+			Json->SetObjectField(TEXT("immersion"), Immersion->BuildStateJson());
 		}
 		if (const UDeepCameraSubsystem* Camera = UDeepCameraSubsystem::Get(World))
 		{

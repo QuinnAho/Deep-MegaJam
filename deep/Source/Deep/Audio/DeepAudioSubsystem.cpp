@@ -5,6 +5,9 @@
 #include "Audio/DeepSynth.h"
 #include "Components/AudioComponent.h"
 #include "Debug/DeepStateReport.h"
+#include "Immersion/DeepImmersion.h"
+#include "Sim/DeepImmersionRules.h"
+#include "Sim/DeepTuningSettings.h"
 #include "Diver/DeepDiver.h"
 #include "Diver/DeepRunComponent.h"
 #include "Dom/JsonObject.h"
@@ -134,6 +137,7 @@ void UDeepAudioSubsystem::Tick(float DeltaTime)
 void UDeepAudioSubsystem::Reload()
 {
 	Table.LoadDefault();
+	Pending.Reset();
 	Assets.Reset();
 	VariantSounds.Reset();
 	VariantIndex.Reset();
@@ -305,7 +309,7 @@ TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> UDeepAudioSubsystem::GetPcm
 	return Pcm;
 }
 
-UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride)
+UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeepSoundSource Source, float Volume, float Pitch, USoundBase* AssetOverride, FName BuiltinOverride)
 {
 	if (Source == EDeepSoundSource::None || !CanPlayAudio())
 	{
@@ -318,13 +322,14 @@ UAudioComponent* UDeepAudioSubsystem::StartSound(const FDeepSoundRow& Row, EDeep
 	}
 	else
 	{
-		TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> Pcm = GetPcm(Row.Builtin);
+		const FName Builtin = BuiltinOverride.IsNone() ? Row.Builtin : BuiltinOverride;
+		TSharedPtr<const TArray<int16>, ESPMode::ThreadSafe> Pcm = GetPcm(Builtin);
 		if (!Pcm.IsValid() || Pcm->IsEmpty())
 		{
 			return nullptr;
 		}
 		UDeepProcWave* Wave = NewObject<UDeepProcWave>(this);
-		Wave->Init(Pcm, DeepSynth::SampleRate, Row.bLoop || DeepSynth::IsLoopBuiltin(Row.Builtin));
+		Wave->Init(Pcm, DeepSynth::SampleRate, Row.bLoop || DeepSynth::IsLoopBuiltin(Builtin));
 		// Loops fade in from near silence: keep them running instead of letting the engine cull them.
 		Wave->VirtualizationMode = EVirtualizationMode::PlayWhenSilent;
 		Sound = Wave;
@@ -374,7 +379,7 @@ bool UDeepAudioSubsystem::PlayEvent(FName Event, bool bForce)
 	return PlayEventScaled(Event, 1.f, 1.f, bForce);
 }
 
-bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce)
+bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float PitchScale, bool bForce, float LowPassHz)
 {
 	const FDeepSoundRow* Row = Table.Find(Event);
 	if (!Row || Row->bLoop)
@@ -396,10 +401,23 @@ bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float 
 	float Pitch = Row->Pitch * FMath::Clamp(PitchScale, 0.25f, 4.f);
 	// A file plays one of its variations at a slightly different pitch each time, so repeats do not sound canned.
 	USoundBase* AssetSound = nullptr;
+	FName Builtin = Row->Builtin;
 	if (Source == EDeepSoundSource::Asset)
 	{
 		AssetSound = PickAsset(Event);
 		Pitch = DeepAudioRules::JitterPitch(Pitch, Row->Group, VariantRandom.FRand(), Settings);
+	}
+	else if (Source == EDeepSoundSource::Generated)
+	{
+		// Immersion I1: a built-in family (hull_creak -> hull_creak_01..03) plays one of its variations the same way.
+		const TArray<FName> Family = DeepSynth::Variants(Row->Builtin);
+		if (!Family.IsEmpty())
+		{
+			const int32 Pick = DeepAudioRules::PickVariant(Family.Num(), LastVariant.Contains(Event) ? LastVariant[Event] : INDEX_NONE, VariantRandom.FRand());
+			LastVariant.Add(Event, Pick);
+			Builtin = Family[FMath::Clamp(Pick, 0, Family.Num() - 1)];
+			Pitch = DeepAudioRules::JitterPitch(Pitch, Row->Group, VariantRandom.FRand(), Settings);
+		}
 	}
 	if (History.Num() >= MaxAudioHistory)
 	{
@@ -421,16 +439,38 @@ bool UDeepAudioSubsystem::PlayEventScaled(FName Event, float VolumeScale, float 
 	{
 		return true;
 	}
-	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Pitch, AssetSound))
+	if (UAudioComponent* Comp = StartSound(*Row, Source, Volume, Pitch, AssetSound, Builtin))
 	{
+		if (LowPassHz > 0.f)
+		{
+			Comp->SetLowPassFilterEnabled(true);
+			Comp->SetLowPassFilterFrequency(LowPassHz);
+		}
 		double StopAt = TNumericLimits<double>::Max();
 		if (Source == EDeepSoundSource::Generated)
 		{
-			StopAt = Clock + DeepSynth::ExpectedSamples(Row->Builtin) / double(DeepSynth::SampleRate) / FMath::Max(Pitch, 0.1f) + 0.1;
+			StopAt = Clock + DeepSynth::ExpectedSamples(Builtin) / double(DeepSynth::SampleRate) / FMath::Max(Pitch, 0.1f) + 0.1;
 		}
 		OneShotComponents.Add(Comp);
 		OneShotStopAt.Add(StopAt);
 	}
+	return true;
+}
+
+bool UDeepAudioSubsystem::PlayEventAfter(FName Event, float DelayS, float VolumeScale, float PitchScale, float LowPassHz)
+{
+	const FDeepSoundRow* Row = Table.Find(Event);
+	if (!Row || Row->bLoop)
+	{
+		return false;
+	}
+	FPendingPlay Play;
+	Play.Event = Event;
+	Play.At = Clock + FMath::Max(0.f, DelayS);
+	Play.Volume = VolumeScale;
+	Play.Pitch = PitchScale;
+	Play.LowPassHz = LowPassHz;
+	Pending.Add(Play);
 	return true;
 }
 
@@ -509,6 +549,17 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 	In.bHelmMoving = HelmHoldS > 0.f;
 	const ADeepSubmarine* HelmSub = DeepArena::FindSubmarine(GetWorld());
 	In.bHelmManned = HelmSub && HelmSub->IsHelmManned();
+	// Immersion I1 (D-072): water along the hull, by its speed, heard aboard (Deep.Immersion 0 = silent).
+	if (State && In.bInside && !State->bOnTitle && UDeepImmersion::IsOn())
+	{
+		const FDeepHullVoiceTuning& Voice = UDeepTuningSettings::Get().Immersion.Voice;
+		const FDeepFlowLevel Flow = DeepImmersionRules::FlowLevel(State->HelmSpeedMps, Voice);
+		In.Flow.Volume01 = Flow.Volume01;
+		In.Flow.Pitch = Flow.Pitch;
+		In.Flow.LowPassHz = Flow.LowPassHz;
+		In.Flow.FadeInS = Voice.FlowFadeInS;
+		In.Flow.FadeOutS = Voice.FlowFadeOutS;
+	}
 	return In;
 }
 
@@ -570,6 +621,18 @@ void UDeepAudioSubsystem::StepAudio(float DeltaSeconds)
 {
 	Clock += DeltaSeconds;
 	StepRadio(DeltaSeconds);
+	// Immersion I1: delayed plays (the sonar's echo) whose time has come, in order.
+	for (int32 I = 0; I < Pending.Num();)
+	{
+		if (Pending[I].At > Clock)
+		{
+			++I;
+			continue;
+		}
+		const FPendingPlay Play = Pending[I];
+		Pending.RemoveAt(I);
+		PlayEventScaled(Play.Event, Play.Volume, Play.Pitch, true, Play.LowPassHz);
+	}
 	const FDeepAudioMixInputs Inputs = GatherInputs(DeltaSeconds);
 	const TMap<FName, FDeepLoopTarget> Targets = DeepAudioRules::LoopTargets(Inputs, UDeepAudioSettings::Get());
 	for (const FName& Loop : DeepAudioLoop::All())
