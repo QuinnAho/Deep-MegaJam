@@ -53,6 +53,7 @@ GS_L = U.GeometryScript_List
 GS_UV = U.GeometryScript_UVs
 GS_A = U.GeometryScript_AssetUtils
 GS_NA = U.GeometryScript_NewAssetUtils
+GS_BK = U.GeometryScript_Bake
 
 JOINT_R = 450.0       # joint radius, cm (9 m round neck)
 SNAP = 150.0          # snap zone at each joint, cm
@@ -62,6 +63,10 @@ RING_N = 200          # points per ring, spaced by arc length
 NA = 900              # polar samples per section before resampling
 MESH_DIR = '/Game/Deep/CaveGen/Meshes'
 MAT_GREY = '/Game/Deep/CaveGen/Materials/M_CaveGrey'
+# D-070: the rock on the walls (built by build_cavewall_material.py). Chunks get it when it exists, else the grey.
+MAT_WALL = '/Game/Deep/CaveGen/Materials/M_CaveWall'
+AO_RAYS = 16          # vertex AO bake (vertex colour R): rays per vertex
+AO_DIST = 300.0       # and how far they look for rock, cm
 
 # the hull and its clear core
 HULL_HALF = (615.0, 165.0, 250.0)   # 12.3 x 3.3 x 5.0 m
@@ -2411,6 +2416,40 @@ def finish(mesh):
     if GS_Q.get_num_uv_sets(mesh) < 1:
         # a static mesh without UVs asserts in its build and takes the editor down
         raise RuntimeError('mesh has no UV set')
+    bake_vertex_data(mesh)
+
+
+def bake_vertex_data(mesh):
+    """D-070: per-vertex data for M_CaveWall. R = ambient occlusion from the mesh itself (Geometry Script
+    BakeVertex, AO_RAYS rays within AO_DIST), 1 open and toward 0 in cracks; the material darkens the albedo and
+    cuts the specular there. G = 0 and B = 0 are not read (B is kept free for a later guideline), A = 1.
+    One colour per vertex (no splits), so the static mesh keeps its vertex count."""
+    t = U.GeometryScriptBakeOutputType()
+    t.output_mode = U.GeometryScriptBakeOutputMode.PER_CHANNEL
+    t.r = GS_BK.make_bake_type_ambient_occlusion(AO_RAYS, AO_DIST, 180.0, 15.0)
+    t.g = GS_BK.make_bake_type_constant(0.0)
+    t.b = GS_BK.make_bake_type_constant(0.0)
+    t.a = GS_BK.make_bake_type_constant(1.0)
+    o = U.GeometryScriptBakeVertexOptions()
+    o.topology_mode = U.GeometryScriptBakeVertexTopology.CREATE_NEW
+    GS_BK.bake_vertex(mesh, U.Transform(), U.GeometryScriptBakeTargetMeshOptions(), mesh, U.Transform(),
+                      U.GeometryScriptBakeSourceMeshOptions(), t, o)
+    return mesh
+
+
+def repaint(name, nanite=False):
+    """Re-bake a chunk's vertex data and material without rebuilding its shape: read the saved static mesh, bake
+    the vertex data, write it back. The positions and triangles are the saved ones, so the string checks hold."""
+    t0 = time.time()
+    sm = U.load_asset('%s/SM_CaveChunk_%s' % (MESH_DIR, name))
+    m = U.DynamicMesh()
+    ro = U.GeometryScriptCopyMeshFromAssetOptions()
+    ro.apply_build_settings = False
+    GS_A.copy_mesh_from_static_mesh(sm, m, ro, U.GeometryScriptMeshReadLOD())
+    bake_vertex_data(m)
+    write_mesh(name, m, nanite)
+    return {'name': name, 'tris': GS_Q.get_num_triangle_i_ds(m), 'verts': GS_Q.get_vertex_count(m),
+            'total_s': round(time.time() - t0, 2)}
 
 
 def build_mesh(spec, cell):
@@ -3516,13 +3555,20 @@ def grey_material():
     return m
 
 
+def wall_material():
+    """M_CaveWall when it has been built, else the grey placeholder."""
+    if U.EditorAssetLibrary.does_asset_exist(MAT_WALL):
+        return U.load_asset(MAT_WALL)
+    return grey_material()
+
+
 def apply_mesh_settings(sm, nanite=False):
     """Material slot, complex-as-simple collision and ray tracing geometry that matches the raster mesh.
 
     Nanite is off by default: it measured cheaper in T1 and C1 (Nov 16), and without Nanite
     ray tracing uses the same triangles as raster. With nanite=True the fallback and the ray
     tracing proxy keep 100% of the triangles instead."""
-    mat = grey_material()
+    mat = wall_material()
     sm.set_editor_property('static_materials', [U.StaticMaterial(material_interface=mat, material_slot_name='Rock')])
     ns = sm.get_editor_property('nanite_settings')
     ns.enabled = nanite
