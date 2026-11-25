@@ -78,7 +78,7 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-067 | The caves lay 10 salvage pieces a stop, in piles of 2 or 3 | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b about 1:45 AM Nov 25 (`a64d217`) |
 | D-068 | The relic waits in C1 until a stop-3 cavern exists; the caves stay off by default until then | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b (`a64d217`) |
 | D-069 | Stop 3's cavern: C2, a pit below B into the run's biggest chamber, ends the string | Decided (Quinn, 2:37 AM Nov 18); its shape waits for his OK |
-| D-070 | The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material | Decided, the direction (Quinn, about 1:45 AM Nov 25); the approach waits for his pick |
+| D-070 | The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material | Decided (Quinn, about 1:45 AM Nov 25; "go" to the plan at about 2:05 AM); lanes `build/drive` and the rock on `build/cavestop3` |
 
 ## Open
 
@@ -383,7 +383,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 ## Decided
 
 ### D-070 The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material
-- **Status:** Decided: the direction. The approach waits for Quinn's pick from two research notes.
+- **Status:** Decided. Quinn said "go" at about 2:05 AM Nov 25 to the orchestrator's plan:
+  - Step 1, drive and see (lane [[drive]]). Its floods stay at full strength at every depth as the pilot's lamp, now in the [[Style Guide]].
+  - The rock material, from Dragon Cave's rock (lane [[cave-rock]], on C2's branch).
+  - C2's shape still waits for his OK on its frames.
 - **Date:** 2026-11-25, about 1:45 AM EST
 - **Who:** Quinn.
 - **Quinn's words:** "I do think we need to change the sub driing mechanics to be someting more like a traditional video game sub its super hard to see and control which i think takes away from the fun, you barely can see anything think of the best approaches here". Then: "alsovwe need materu\ial on the wall explore research on cave gen like this too".
