@@ -1370,3 +1370,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Found: Dragon Cave's rock textures are atlases, not tiling textures, so the rock streaks on steep walls. Wet rock below Lumen's 0.6 trace limit costs 2.4 ms, so the rock sits at 0.6 to 0.7 with wet patches at 0.30.
 - Failed: every Unreal launch, since the launcher updated the Fab plugin on Nov 19 for a newer 5.9 build. Agents disable Fab per launch; Quinn's editor needs the engine update.
 - Next: the drive lane's report, then frames page v44 and one build with both lanes.
+
+### 4:05 AM, Nov 25  The engine is updated; immersion is a standing rule
+- Changed: Quinn updated UE 5.9 to build 60738873, which matches the Fab plugin the launcher had installed on Nov 19 (D-071). The drive lane paused at a pushed commit first, so nothing broke. It now rebuilds without the per-launch workaround.
+- Decided: "always be thinking about immersion dont be afraid to add polish" (D-072). Any lane may add polish inside the Style Guide, and CLAUDE.md's style section says so.
+- Next: the drive lane finishes D1 with the idle state. Then come frames, the gates, one build with the driving and the rock, and an immersion lane (silt, hull creaks).
