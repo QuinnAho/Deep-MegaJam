@@ -1375,3 +1375,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: Quinn updated UE 5.9 to build 60738873, which matches the Fab plugin the launcher had installed on Nov 19 (D-071). The drive lane paused at a pushed commit first, so nothing broke. It now rebuilds without the per-launch workaround.
 - Decided: "always be thinking about immersion dont be afraid to add polish" (D-072). Any lane may add polish inside the Style Guide, and CLAUDE.md's style section says so.
 - Next: the drive lane finishes D1 with the idle state. Then come frames, the gates, one build with the driving and the rock, and an immersion lane (silt, hull creaks).
+
+### 5:00 AM, Nov 25  D1: the sub drives like a game sub
+- Changed: on `build/drive` (`1de1619`), held keys drive the sub directly: W/S, A/D, Space/C and Q/E strafe. It reaches 4 m/s in 1.6 s and comes to rest within 2.5 m. It slides along rock, with damage by impact. A chase view 12 m behind is the default, with a level cockpit view on V. The floods point forward. The sub holds station and bobs when idle. verify 223/223, three playthroughs, package and smoke all pass. Unreal launches no longer need the Fab workaround.
+- Found: in the chase view the hull is an unlit black shape in the middle of the frame, and the first view at the helm in S is near black.
+- Next: D1b, on a branch that merges the drive and the rock, lights the hull, frames the way ahead and opens S's view. Then the immersion lane.
