@@ -1364,3 +1364,19 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided: the sub should drive like a traditional video game sub, because it's hard to see and to control. The cave walls need a real material (D-070).
 - Found: the helm camera looks 32° down and its floods 30° and 60° down, all made for the jam's vertical well, so the tunnels show lit floor with black above. Every chunk wears a flat grey. Two research notes compare the fixes.
 - Next: Quinn picks the approach and OKs C2's shape, then the lanes start.
+
+### 2:54 AM, Nov 25  Rock on the cave walls (R1); the Fab plugin stops Unreal
+- Changed: on `build/cavestop3` every chunk in the string now wears rock (`395642c`): Dragon Cave's textures sampled triplanar, silt on faces that point up, and cavity darkening baked per vertex. The geometry is unchanged. It reads as rock in even light, but from today's helm view it hardly shows, because the camera frames the silt floor.
+- Found: Dragon Cave's rock textures are atlases, not tiling textures, so the rock streaks on steep walls. Wet rock below Lumen's 0.6 trace limit costs 2.4 ms, so the rock sits at 0.6 to 0.7 with wet patches at 0.30.
+- Failed: every Unreal launch, since the launcher updated the Fab plugin on Nov 19 for a newer 5.9 build. Agents disable Fab per launch; Quinn's editor needs the engine update.
+- Next: the drive lane's report, then frames page v44 and one build with both lanes.
+
+### 4:05 AM, Nov 25  The engine is updated; immersion is a standing rule
+- Changed: Quinn updated UE 5.9 to build 60738873, which matches the Fab plugin the launcher had installed on Nov 19 (D-071). The drive lane paused at a pushed commit first, so nothing broke. It now rebuilds without the per-launch workaround.
+- Decided: "always be thinking about immersion dont be afraid to add polish" (D-072). Any lane may add polish inside the Style Guide, and CLAUDE.md's style section says so.
+- Next: the drive lane finishes D1 with the idle state. Then come frames, the gates, one build with the driving and the rock, and an immersion lane (silt, hull creaks).
+
+### 5:00 AM, Nov 25  D1: the sub drives like a game sub
+- Changed: on `build/drive` (`1de1619`), held keys drive the sub directly: W/S, A/D, Space/C and Q/E strafe. It reaches 4 m/s in 1.6 s and comes to rest within 2.5 m. It slides along rock, with damage by impact. A chase view 12 m behind is the default, with a level cockpit view on V. The floods point forward. The sub holds station and bobs when idle. verify 223/223, three playthroughs, package and smoke all pass. Unreal launches no longer need the Fab workaround.
+- Found: in the chase view the hull is an unlit black shape in the middle of the frame, and the first view at the helm in S is near black.
+- Next: D1b, on a branch that merges the drive and the rock, lights the hull, frames the way ahead and opens S's view. Then the immersion lane.

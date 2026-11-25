@@ -35,7 +35,7 @@ Keep it light (Quinn, Nov 15 at about 9:30 PM): a few lines in `05 - Log/Devlog.
 ## Style and polish
 
 - **One style** (D-030). Everything the player sees and hears follows `02 - Design/Style Guide.md`. A good asset that clashes is left out, and Quinn approves frames.
-- **Function before finish** (D-028). Fix what does not work at any time. Do look and HUD work in one planned pass, to a professional standard, and not as patches in between.
+- **Function first, immersion always** (D-028, loosened by D-072). Fix what does not work at any time. Quinn (Nov 25): "always be thinking about immersion dont be afraid to add polish". Any lane may add polish and immersion: feel, sound, light, camera, and signs of life. It has to meet a professional standard and follow the style guide. No quick patches that a later pass must undo.
 
 ## Code, builds and tests
 

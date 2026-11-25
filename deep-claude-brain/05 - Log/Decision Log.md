@@ -78,6 +78,8 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-067 | The caves lay 10 salvage pieces a stop, in piles of 2 or 3 | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b about 1:45 AM Nov 25 (`a64d217`) |
 | D-068 | The relic waits in C1 until a stop-3 cavern exists; the caves stay off by default until then | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b (`a64d217`) |
 | D-069 | Stop 3's cavern: C2, a pit below B into the run's biggest chamber, ends the string | Decided (Quinn, 2:37 AM Nov 18); its shape waits for his OK |
+| D-072 | Always think about immersion; any lane may add polish (loosens D-028's one planned pass) | Decided (Quinn, about 3:30 AM Nov 25) |
+| D-071 | UE 5.9 updated to build 60738873 to match the Fab plugin | Decided (Quinn, about 3:15 AM Nov 25); installed by about 3:35 AM |
 | D-070 | The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material | Decided (Quinn, about 1:45 AM Nov 25; "go" to the plan at about 2:05 AM); lanes `build/drive` and the rock on `build/cavestop3` |
 
 ## Open
@@ -381,6 +383,31 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-072 Always think about immersion; any lane may add polish
+- **Status:** Decided. It loosens D-028: look work no longer waits for one planned pass.
+- **Date:** 2026-11-25, about 3:30 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "always be thinking about immersion dont  be afraid to add polish goodnught"
+- **Decided:**
+  - Every plan, brief and review looks for immersion gains: feel, sound, light, camera, and signs of life such as idle motion, silt and creaks.
+  - Any lane may add them, to a professional standard and inside the [[Style Guide]], with no quick patches a later pass must undo.
+  - Quinn still sees frames before anything visual merges.
+- **Why:** that night he found the caves hard to see, hard to control and lifeless. He asked for game-sub controls, rock on the walls and an idle state for the sub.
+- **What follows:** CLAUDE.md's style section says it. The drive lane applies it to what it builds. An immersion lane (silt, hull creaks and more) follows D1.
+
+### D-071 UE 5.9 updated to build 60738873
+- **Status:** Decided and done. The launcher finished at about 3:35 AM: its record for UE_5.9 reads 5.9.0-60738873 and is complete, and `Build.version` matches.
+- **Date:** 2026-11-25, about 3:15 AM EST
+- **Who:** Quinn ("ok update the engine now"). He clicked Update in the launcher.
+- **Why:** on Nov 19 the launcher updated the Fab plugin and Quixel Bridge for 5.9 build 60738873, while the engine was still 60351404. Every Unreal launch then failed with `Plugin 'Fab' failed to load`, including Quinn's editor.
+- **How:**
+  - The drive lane paused at a pushed commit (`170c868`).
+  - Nothing Unreal was running when the update started. The rock lane had already finished.
+- **What follows:**
+  - Every checkout rebuilds its modules, and its first launch may recompile shaders.
+  - The per-launch Fab workaround in `.claude/loop.md` goes once a launch works without it.
+  - Quinn's editor on the main checkout asks to rebuild the module the first time he opens it.
 
 ### D-070 The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material
 - **Status:** Decided. Quinn said "go" at about 2:05 AM Nov 25 to the orchestrator's plan:
