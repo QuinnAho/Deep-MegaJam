@@ -40,5 +40,20 @@ These are candidates for I2, once Quinn has heard and seen I1.
 - the same view before and after in T1's squeeze;
 - WAV exports of the creak, the groan, the flow noise and the echo in a tunnel and in a cavern, using `Deep.Audio.Export <builtin> <wav>`.
 
+## Silt: the recipe (read before building, Nov 25)
+Sources read:
+- Epic's Niagara skills `fundamentals.py` and `renderers.py` (`Engine\Plugins\Experimental\Toolsets\NiagaraToolsets\Content\Python\skills`): Niagara is authored from templates through the editor's toolsets, and "Opening the editor is necessary for the errors to surface". Not reliably authored and verified from a headless script, so the lane note's fallback applies: code-driven instanced puffs, cooked with `/Game/Deep`. The same skill's material rules still hold: prefer the minimal usage flags, translucent only where soft blending is needed.
+- Epic, [Lit Translucency](https://dev.epicgames.com/documentation/en-us/unreal-engine/lit-translucency-in-unreal-engine) and [ETranslucencyLightingMode](https://dev.epicgames.com/documentation/unreal-engine/API/Runtime/Engine/ETranslucencyLightingMode): Volumetric NonDirectional is the mode for smoke and dust, lit from the translucency lighting volume, which takes shadowed direct light from every movable light. So the lamp and floods light the silt and nothing else does (style guide 2).
+- Epic, [Depth material expressions](https://dev.epicgames.com/documentation/unreal-engine/depth-material-expressions-in-unreal-engine): Depth Fade hides the seam where a translucent mesh meets opaque geometry.
+- Breakdown: [pseudo-volumetric smoke from sphere meshes (80.lv)](https://80.lv/articles/unity-made-pseudo-volumetric-smoke-optimized-for-low-end-mobile-devices): spheres, inverted Fresnel for a soft edge, depth fade, scrolling noise. Epic's old [Fog Volumes](https://docs.unrealengine.com/udk/Three/FogVolumes.html) note gives the same soft-edged sphere.
+- Engine source: `LocalFogVolumeComponent.h` and `LocalFogVolumeRendering.cpp` (local fog volumes start 10 m from the camera by default and cap at 32 a view): ruled out for clouds next to the chase camera.
+
+Recipe as built: each puff is one instance of the engine sphere (ISM, no collision, no shadow) in `M_SiltPuff` (`Content/Deep/Immersion`, built by `build_immersion_materials.py`): translucent, Volumetric NonDirectional, opacity = facing^EdgePower x slow world-space lumps x the instance's own opacity (PerInstanceCustomData 0, from its age) x Density x a fade within 1.5 m of the eye, then Depth Fade 90 cm into rock. The albedo is grey-brown at 0.44 (value under 70%, saturation about 20%). An A/B with Surface ForwardShading (`M_SiltPuffFwd`, kept for comparison, `Deep.Silt.Material fwd`) drew hard round balls and caught ambient light in the dark, so the volume mode ships.
+
 ## Log
 - Nov 25, about 4:10 AM: lane planned by the orchestrator. It waits for D1's report.
+- Nov 25, about 5:00 AM: `build/immersion` cut from `build/drive` with main merged.
+- Step 1, `282d102`: rules, sounds, silt and echo, tests `Deep.Sim.Immersion.*` (6) and `Deep.World.Immersion.*` (3). The ping is dry now (`sonar_ping_dry`); its returns are `sonar_echo`, timed by the walls the sweep traced.
+- Step 2, `e8ecbbc`: the first frames showed no silt. The cave chunks have complex collision only, so the probes trace complex now. Lifted puffs are thrown aft by the wash. The A/B picked the translucency-volume puff, made brighter.
+- Step 3, `bf41290`: in T1 the hull knocked the walls but shed nothing, because the probes looked out from the middles of the box's faces. Now they go round the section at bow, middle and stern. A hull pinned on rock with its thrusters pushing still blows silt off.
+- Measured: 20 minutes still gives 46 creaks at 100 m and 172 at 600 m, never closer than 2.5 s. The echo off T1's walls is 1.9 m at 0.09 s and 8.2 m at 0.17 s. C1's cavern at its berth gives 18 m at 0.32 s and 21 m at 0.36 s, and S's berth 18 m and 30 m (0.31 and 0.48 s).
