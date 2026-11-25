@@ -1390,3 +1390,7 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: on `build/immersion` (`6176958`), the hull creaks more often and lower the deeper it goes, and groans once per 100 m. A flow noise rises with speed. Silt lifts near the floor and on scrapes, then hangs and drifts. The ping is dry now, and its echo comes back from the real walls: short in a tunnel, about 0.32 s in C1. verify 232/232, the playthroughs and the package pass.
 - Found: silt costs 0.36 ms, but the whole frame rose 1.4 ms for a reason not yet found. From the chase view the silt shows mostly in squeezes, and up close the puffs can look like soft balls. Nobody has heard the new sounds yet.
 - Next: D1c, then one build with everything for Quinn.
+
+### 8:15 AM, Nov 25  D1c: sinking shows the way down
+- Changed: on `build/drive2` (`3ec29ba`), sinking puts the chase view over the hull looking down past it, and rising puts it behind looking up. The floods tip toward the heave. Snow shows only where the sub's light reaches, so the black rain is gone. The cockpit's fill is capped, so B has depth again. verify 234/234, the playthroughs and the package pass.
+- Next: `play/nov25` merges the drive with the immersion lane into one build for Quinn (`Builds\Nov25-All`).
