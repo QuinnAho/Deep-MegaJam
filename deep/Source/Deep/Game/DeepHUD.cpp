@@ -895,7 +895,7 @@ namespace
 		}
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 		int32 Best = 0;
-		for (int32 Stop = 1; Stop <= Tuning.NumStops(); ++Stop)
+		for (int32 Stop = 1; Stop <= DeepArena::ShownStops(State->GetWorld()); ++Stop)
 		{
 			if (Tuning.GetStop(Stop).SubDepthM <= State->DepthLimitM() + 0.01f && Stop > State->DeepestStopReached)
 			{
@@ -1072,7 +1072,7 @@ void ADeepHUD::DrawHelm(const ADeepDiver* Diver)
 	DrawRect(DeepHudStyle::Secondary(0.5f), GX, GTop, 6.f * S, GH);
 	DrawRect(DeepHudStyle::Alert(0.45f), GX, YAt(Limit), 6.f * S, GTop + GH - YAt(Limit));
 	TextAt(TEXT("DEPTH"), DimColor, GX - 60.f * S, GTop - 26.f * S, nullptr, 0.7f);
-	for (int32 Stop = 1; Stop <= Tuning.NumStops(); ++Stop)
+	for (int32 Stop = 1; Stop <= DeepArena::ShownStops(GetWorld()); ++Stop)
 	{
 		const float SD = Tuning.GetStop(Stop).SubDepthM;
 		const bool bHere = State->ParkedStop() == Stop;
@@ -1515,10 +1515,8 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 			Deepest = FMath::Max(Deepest, Limit);
 		}
 		Frame.GaugeMaxM = Deepest;
-		for (int32 Stop = 1; Stop <= Tuning.NumStops(); ++Stop)
-		{
-			Frame.Stops.Add(Tuning.GetStop(Stop).SubDepthM);
-		}
+		// In the caves only the cave string's berths: parked at the last, no next stop (D-068).
+		Frame.Stops = DeepArena::ShownStopDepthsM(GetWorld());
 		Frame.ParkedStop = GameState->ParkedStop();
 		Frame.bAtLimit = Run->IsHelmAtLimit();
 		Frame.HelmNotch = GameState->HelmThrottleNotch;

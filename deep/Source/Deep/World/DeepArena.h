@@ -79,12 +79,30 @@ namespace DeepArena
 	/** Deep.World.Caves: a piece's shapes (each its own rotated box), raised LiftCm, overlap the string's rock. */
 	DEEP_API bool SalvageInRock(const ADeepCaveString& String, const ADeepSalvage& Salvage, double LiftCm);
 
+	/**
+	 * Deep.World.Caves: moves a piece to AtCm and rests it on the highest rock under its footprint, lifted off a wall or
+	 * lowered onto the rock, then sunk SalvageSinkCm. False (left wherever it got to) with no rock below or still in rock.
+	 */
+	DEEP_API bool RestCaveSalvage(const ADeepCaveString& String, ADeepSalvage& Salvage, const FVector& AtCm, const TCHAR* What);
+
+	/** The stop the relic waits at (D-068): the last of CaveString.Berths in the caves, Arena.RelicStop in the shaft. */
+	DEEP_API int32 RelicStop(const UWorld* World);
+
+	/** How many stops the HUD names (D-068): the cave string's berths in the caves (none past the last), else all the shaft's. */
+	DEEP_API int32 ShownStops(const UWorld* World);
+
+	/** The depths (m) the HUD names, stop 1 first: the first ShownStops of the tuned stops. */
+	DEEP_API TArray<float> ShownStopDepthsM(const UWorld* World);
+
 	/** Applies the stop's light and fog to the world's environment actor, and adds or removes the relic for the stop. */
 	DEEP_API void ApplyStop(UWorld* World, int32 Stop);
 
 	/** The relic in the world, or null. */
 	DEEP_API ADeepSalvage* FindRelic(const UWorld* World);
 
-	/** Spawns the relic if the stop has one and none exists; removes it above Arena.RelicStop. Server only. */
+	/**
+	 * Spawns the relic if the stop has one and none exists; removes it above RelicStop. Server only. In the caves it rests
+	 * at the last berth chunk's CaveString.RelicSocket.
+	 */
 	DEEP_API ADeepSalvage* EnsureRelic(UWorld* World, int32 Stop);
 }

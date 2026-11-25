@@ -17,6 +17,8 @@ Scenarios (the game since the submarine room, Nov 15):
               bites or hunts within 30 m, aim the lamp at its head (Deep.Look at the state report's serpent.head_cm);
               on a cut, harpoon the sub if within 25 m, else drop the relic and swim home. -NoLamp: lamp off (danger check)
   S10-cutdrop the relic aboard, cut at the bottom of the hole: drop it and swim home on bailout air (lamp defence)
+  S13-caves   Deep.World.Caves 1: parked in S, dive and bank pile salvage, the first gate, placed at the top of C1's sink
+              and sunk on the levers to C1's berth, the relic winched home and banked, the win; the m2b-* frames
   S8-keys     stop 1 on simulated keys only (walk to hatch, grab with E, console, helm, hold C), then lamp/winch/cut/harpoon/pause
 Starts the editor if the port does not answer, runs PIE per scenario, asserts on DeepToolset.GetState JSON
 (and the DEEPMONSTER log line for the serpent), saves a viewport PNG per scenario to
@@ -37,7 +39,7 @@ $Tools = $PSScriptRoot
 $Repo = Split-Path -Parent $PSScriptRoot
 $ShotDir = Join-Path $Repo 'deep\Saved\Harness\playtest'
 New-Item -ItemType Directory -Force -Path $ShotDir | Out-Null
-$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys', 'S9-floor', 'S10-relic', 'S10-cutdrop', 'S11-pass', 'S12-sidehome')
+$All = @('S0-title', 'S1-hatch', 'S2-gate', 'S3-serpent', 'S4-cut', 'S5-harpoon', 'S6-bank', 'S7-run', 'S8-keys', 'S9-floor', 'S10-relic', 'S10-cutdrop', 'S11-pass', 'S12-sidehome', 'S13-caves')
 $script:Notes = @()
 
 # ---- MCP in-process: one HTTP session for the whole run (the same protocol as tools\mcp.ps1) ----------
@@ -1087,6 +1089,170 @@ function S12-sidehome {
     }
 }
 # ---- driver ----------------------------------------------------------------------------------
+# ---- S13-caves: the chunk string (Deep.World.Caves 1) -----------------------------------------------
+# Setting the flag in a game restarts the level so the arena latches it (DeepArena::RestartForCaves).
+function Set-Caves([int]$on) {
+    $null = Run-Exec ('Deep.World.Caves {0}' -f $on)
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt 30) {
+        Start-Sleep -Milliseconds 250
+        $r = Mcp 'call' 'DeepToolset.DeepToolset.GetState' '{}'
+        if (-not $r.Ok) { continue }
+        try { $s = ($r.Text | ConvertFrom-Json).returnValue | ConvertFrom-Json } catch { continue }
+        if ($s.diver_present -and ([bool]$s.world_caves -eq ($on -ne 0))) { Start-Sleep -Milliseconds 400; return $s }
+    }
+    throw ('Deep.World.Caves {0}: the level did not restart with it within 30 s' -f $on)
+}
+# The salvage pieces lying in piles (another piece within 3 m): the relic lies apart, so it is not one of them.
+function Pile-Pieces {
+    $a = Get-Arena
+    $p = @($a.salvage | ForEach-Object { , $_.pos_cm })
+    $out = @()
+    for ($i = 0; $i -lt $p.Count; $i++) {
+        for ($j = 0; $j -lt $p.Count; $j++) { if ($i -ne $j -and (Dist3 $p[$i] $p[$j]) -lt 300) { $out += , $p[$i]; break } }
+    }
+    return , $out
+}
+# The pieces within 3 m of the first pile piece, and the diver 3 m off toward the anchor and 1.5 m up, looking at them.
+function Look-At-Pile($tag) {
+    $pile = Pile-Pieces
+    Need ($pile.Count -ge 2) ('{0}: no pile of salvage in the world' -f $tag)
+    $c = $pile[0]; $grp = @($pile | Where-Object { (Dist3 $_ $c) -lt 300 })
+    $m = @(0.0, 0.0, 0.0); foreach ($q in $grp) { for ($k = 0; $k -lt 3; $k++) { $m[$k] += $q[$k] / $grp.Count } }
+    $anc = (Get-Arena).anchor_cm
+    $dx = $anc[0] - $m[0]; $dy = $anc[1] - $m[1]; $h = [Math]::Max(1, [Math]::Sqrt($dx * $dx + $dy * $dy))
+    $eye = @(($m[0] + $dx / $h * 300), ($m[1] + $dy / $h * 300), ($m[2] + 150))
+    Teleport $eye
+    $s = Get-State
+    Look-At @($s.pos_cm[0], $s.pos_cm[1], ($s.pos_cm[2] + 55)) $m
+    Wait-Sec 0.6
+    $script:Notes += ('S13 {0}: a pile of {1} at {2}; diver at {3} ({4:N1} m from it)' -f $tag, $grp.Count, (($m | ForEach-Object { [int]$_ }) -join ','), ($s.pos_cm -join ','), ((Dist3 $s.pos_cm $m) / 100))
+    return , $grp
+}
+# Grab pile pieces from straight above (Deep.Grab: what the diver looks at) until $n are aboard.
+function Grab-Pile([int]$n) {
+    for ($try = 0; $try -lt ($n * 3) -and (Get-State).cargo_items -lt $n; $try++) {
+        $pile = Pile-Pieces
+        if ($pile.Count -eq 0) { break }
+        $q = $pile[0]
+        Teleport @($q[0], $q[1], ($q[2] + 120))
+        $s = Get-State
+        Look-At @($s.pos_cm[0], $s.pos_cm[1], ($s.pos_cm[2] + 55)) $q
+        Wait-Sec 0.2
+        $null = Run-Exec 'Deep.Grab'
+        Wait-Sec 0.3
+    }
+    return (Get-State)
+}
+# Wait for the serpent to come within $m metres of the diver, then look at its head.
+function Look-At-Serpent([double]$m, [double]$timeoutSec, [string]$tag) {
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $last = $null
+    while ($sw.Elapsed.TotalSeconds -lt $timeoutSec) {
+        $s = Get-State
+        if ($s.serpent) { $last = $s.serpent }
+        if ($s.serpent -and $s.serpent.diver_distance_m -gt 0 -and $s.serpent.diver_distance_m -le $m) {
+            Look-At @($s.pos_cm[0], $s.pos_cm[1], ($s.pos_cm[2] + 55)) $s.serpent.head_cm
+            Wait-Sec 0.3
+            $script:Notes += ('S13 serpent {0}: {1} at {2:N1} m from the diver after {3:N0} s' -f $tag, $s.serpent.state, $s.serpent.diver_distance_m, $sw.Elapsed.TotalSeconds)
+            return $true
+        }
+        # Present but lurking far off: swim (teleport) toward its head along the line from the hatch, within the tether.
+        if ($s.serpent -and $s.serpent.diver_distance_m -gt $m -and $sw.Elapsed.TotalSeconds -gt 5) {
+            $anc = (Get-Arena).anchor_cm; $hd = $s.serpent.head_cm
+            $d = Dist3 $anc $hd
+            $k = [Math]::Max(0, [Math]::Min(($d - 1000) / [Math]::Max($d, 1), ($s.tether_length_m * 100 - 300) / [Math]::Max($d, 1)))
+            Teleport @(($anc[0] + ($hd[0] - $anc[0]) * $k), ($anc[1] + ($hd[1] - $anc[1]) * $k), ($anc[2] + ($hd[2] - $anc[2]) * $k))
+            $script:Notes += ('S13 serpent {0}: {1} {2:N1} m off; moved the diver {3:N1} m out toward it' -f $tag, $s.serpent.state, $s.serpent.diver_distance_m, ($d * $k / 100))
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    $script:Notes += ('S13 serpent {0}: not within {1} m in {2} s (last: {3} at {4} m)' -f $tag, $m, $timeoutSec, $last.state, $last.diver_distance_m)
+    return $false
+}
+function S13-caves {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        $s = Set-Caves 1
+        Begin-Run
+        $s = Get-State
+        $script:Notes += ('S13 start: world_caves {0} parked {1} parked_stop {2} sub_depth {3:N1} limit {4} credits {5}' -f $s.world_caves, $s.parked, $s.parked_stop, $s.sub_depth_m, $s.depth_limit_m, $s.credits)
+        Need ($s.world_caves) 'the run did not start in the caves'
+        Need ($s.parked -and $s.parked_stop -eq 1) ('not parked at S: parked {0} parked_stop {1}' -f $s.parked, $s.parked_stop)
+        Need (Near $s.sub_depth_m 100 1) ('S reads {0:N1} m, expected 100' -f $s.sub_depth_m)
+        # S: dive, a pile, the serpent, grab pile pieces, bank (the bank buys the first gate when it can)
+        Dive
+        $null = Look-At-Pile 'S'
+        Shot 'm2b-1-pile-S'
+        $s = Grab-Pile 3
+        $script:Notes += ('S13 S grab: items {0} cargo {1} kg value {2}' -f $s.cargo_items, $s.cargo_kg, $s.cargo_value)
+        Need ($s.cargo_items -ge 1) 'no pile piece grabbed in S'
+        # The serpent comes from stop 2 (FirstStop) in play, so in S it is called for the frame: its first sight
+        $null = Run-Exec 'Deep.Monster.FirstSight'
+        if (Look-At-Serpent 15 25 'S') { Shot 'm2b-3-serpent-S' }
+        $null = Run-Exec 'Deep.EnterSub'
+        $s = Wait-State { param($s) $s.inside } 10 'coming back aboard in S'
+        $null = Run-Exec 'Deep.Console'
+        $s = Wait-State { param($s) $s.run_state -eq 'settling' } 10 'settling in S'
+        $script:Notes += ('S13 bank S: gross {0} net {1} credits {2} flashlight {3} limit {4}' -f $s.last_bank.gross, $s.last_bank.net, $s.credits, $s.has_flashlight, $s.depth_limit_m)
+        Press-Continue
+        if (-not (Get-State).has_flashlight) {
+            $c = (Get-State).credits
+            $null = Run-Exec ('Deep.Credits {0}' -f ([Math]::Max($c, 50)))
+            $null = Run-Exec 'Deep.Console'
+            $script:Notes += ('S13 FINDING: the S bank did not afford the first gate ({0} cr); topped up to 50 and bought it at the console' -f $c)
+            Wait-Sec 0.5
+            if ((Get-State).run_state -eq 'settling') { Press-Continue }
+        }
+        $s = Get-State
+        Need ($s.has_flashlight) 'the first gate was not bought'
+        Need ($s.depth_limit_m -ge 300) ('limit {0} after the first gate' -f $s.depth_limit_m)
+        # S to C1: no autopilot in the caves, so the hull is placed where C1's path turns down its sink (31.5 m in; a
+        # straight sink at the joint lands on a ledge), then sinks on the levers
+        $null = Run-Exec 'Deep.Cave.Goto C1 31.5'
+        Wait-Sec 0.5
+        $s = Get-State
+        $script:Notes += ('S13 top of the sink: sub_depth {0:N1} seated {1} parked {2}' -f $s.sub_depth_m, $s.seated, $s.parked)
+        $null = Run-Exec 'Deep.Pilot.Ballast 1'
+        for ($k = 0; $k -lt 120 -and (Get-State).sub_depth_m -lt 285; $k++) { $null = Run-Exec 'Deep.Pilot.Run 1' }
+        $null = Run-Exec 'Deep.Pilot.AllStop'
+        $null = Run-Exec 'Deep.Pilot.Run 20'
+        Wait-Sec 1
+        $s = Get-State
+        $script:Notes += ('S13 C1: sub_depth {0:N1} stop {1} parked {2} parked_stop {3} hull_damage {4} after {5:N0} s' -f $s.sub_depth_m, $s.stop, $s.parked, $s.parked_stop, $s.hull_damage, $sw.Elapsed.TotalSeconds)
+        Need ($s.parked -and $s.parked_stop -eq 2) ('did not park at C1: sub_depth {0:N1} parked {1} parked_stop {2}' -f $s.sub_depth_m, $s.parked, $s.parked_stop)
+        Need (Near $s.sub_depth_m 300 1) ('C1 reads {0:N1} m, expected 300' -f $s.sub_depth_m)
+        Shot 'm2b-6-hud-C1-helm'
+        # C1: dive, a pile, the serpent, the relic
+        Dive
+        $null = Run-Exec 'Deep.Lamp 1'
+        $null = Look-At-Pile 'C1'
+        Shot 'm2b-2-pile-C1'
+        if (Look-At-Serpent 20 45 'C1') { Shot 'm2b-4-serpent-C1' }
+        $null = Run-Exec 'Deep.Relic'
+        Wait-Sec 0.8
+        Shot 'm2b-5-relic-C1'
+        $null = Run-Exec 'Deep.Grab'
+        Wait-Sec 0.5
+        $s = Get-State
+        $script:Notes += ('S13 relic: carrying {0} tether_distance {1:N1} m' -f $s.carrying_relic, $s.tether_distance_m)
+        Need ($s.carrying_relic) ('the relic was not picked up (relic_in_world {0}, distance {1:N1} m)' -f $s.relic_in_world, $s.relic_distance_m)
+        $anc = (Get-Arena).anchor_cm
+        $r = Ascend-With-Relic $anc 'S13'
+        $s = Get-State
+        $script:Notes += ('S13 home: inside {0} carrying {1} run_state {2}; {3}' -f $s.inside, $s.carrying_relic, $s.run_state, $r)
+        if (-not $s.inside -and $s.run_state -eq 'tethered' -and $s.carrying_relic) { $null = Run-Exec 'Deep.EnterSub'; $s = Wait-State { param($s) $s.inside } 10 'aboard with the relic' }
+        Need ($s.inside -and $s.carrying_relic) ('the relic did not come home: inside {0} carrying {1} run_state {2}' -f $s.inside, $s.carrying_relic, $s.run_state)
+        $null = Run-Exec 'Deep.Console'
+        $s = Wait-State { param($s) $s.won } 15 'the win'
+        Wait-Sec 1.5
+        Shot 'm2b-7-win'
+        $script:Notes += ('S13 won: rating {0} kept {1} divers {2} at {3:N0} s' -f $s.run_totals.rating, $s.run_totals.kept, $s.run_totals.divers_expended, $sw.Elapsed.TotalSeconds)
+    } finally {
+        # the editor keeps the flag across PIE sessions: put it back so the other scenarios run the shaft
+        try { $null = Set-Caves 0 } catch { $script:Notes += ('S13: could not set Deep.World.Caves back to 0: ' + $_.Exception.Message) }
+    }
+}
+
 $list = @($Scenario)
 if ($Scenario -eq 'all') { $list = $All }
 foreach ($n in $list) { if ($All -notcontains $n) { Write-Host ('unknown scenario ' + $n + '; known: ' + ($All -join ' ')); exit 2 } }

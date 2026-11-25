@@ -2664,7 +2664,10 @@ struct DEEP_API FDeepPilotTuning
 	float LeverFollowPerS = 14.f;
 };
 
-/** Deep.World.Caves: one salvage piece at a chunk's socket. A berth's cavern holds its stop's salvage (stop n: Berths[n-1]). */
+/**
+ * Deep.World.Caves (D-067): one pile of salvage at a chunk's socket, 2 or 3 pieces lying within about 2 m of it. A berth's
+ * cavern holds its stop's piles (stop n: Berths[n-1]).
+ */
 USTRUCT(BlueprintType)
 struct DEEP_API FDeepCaveSalvageSlot
 {
@@ -2676,9 +2679,9 @@ struct DEEP_API FDeepCaveSalvageSlot
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
 	FName Socket;
 
-	/** The kind (its weight and value are the shaft's, from SalvageKinds). */
+	/** The pile's pieces by kind (weights and values are the shaft's, from SalvageKinds), laid round the socket in this order. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
-	EDeepSalvageSize Size = EDeepSalvageSize::Small;
+	TArray<EDeepSalvageSize> Pile;
 };
 
 /**
@@ -2694,26 +2697,27 @@ struct DEEP_API FDeepCaveStringTuning
 	{
 		String = { FName(TEXT("S")), FName(TEXT("A")), FName(TEXT("T1")), FName(TEXT("C1")), FName(TEXT("B")), FName(TEXT("E")) };
 		Berths = { FName(TEXT("S")), FName(TEXT("C1")) };
-		// The shaft lays 10 pieces a stop (Arena.SalvageSpots: 3 small, 3 medium, 2 large, 2 pearls); S has 4 sockets
-		// and C1 has 5, so each cavern gets one of each kind (C1 one more small) at the shaft's weights and values.
-		const auto Slot = [](const TCHAR* Chunk, const TCHAR* Socket, EDeepSalvageSize Size)
+		// D-067: each stop lays the shaft's 10 pieces (Arena.SalvageSpots: 3 small, 3 medium, 2 large, 2 pearls) in piles
+		// of 2 or 3 at its cavern's sockets: S 3, 3, 2, 2 over its four, C1 2 at each of its five.
+		using ESize = EDeepSalvageSize;
+		const auto Slot = [](const TCHAR* Chunk, const TCHAR* Socket, TArray<ESize> Pile)
 		{
 			FDeepCaveSalvageSlot Out;
 			Out.Chunk = FName(Chunk);
 			Out.Socket = FName(Socket);
-			Out.Size = Size;
+			Out.Pile = MoveTemp(Pile);
 			return Out;
 		};
 		Salvage = {
-			Slot(TEXT("S"), TEXT("Salvage1"), EDeepSalvageSize::Medium),
-			Slot(TEXT("S"), TEXT("Salvage2"), EDeepSalvageSize::Small),
-			Slot(TEXT("S"), TEXT("Salvage3"), EDeepSalvageSize::Large),
-			Slot(TEXT("S"), TEXT("Salvage4"), EDeepSalvageSize::Pearl),
-			Slot(TEXT("C1"), TEXT("Salvage1"), EDeepSalvageSize::Medium),
-			Slot(TEXT("C1"), TEXT("Salvage2"), EDeepSalvageSize::Small),
-			Slot(TEXT("C1"), TEXT("Salvage3"), EDeepSalvageSize::Pearl),
-			Slot(TEXT("C1"), TEXT("Salvage4"), EDeepSalvageSize::Large),
-			Slot(TEXT("C1"), TEXT("Salvage5"), EDeepSalvageSize::Small),
+			Slot(TEXT("S"), TEXT("Salvage1"), { ESize::Medium, ESize::Small, ESize::Pearl }),
+			Slot(TEXT("S"), TEXT("Salvage2"), { ESize::Small, ESize::Medium, ESize::Large }),
+			Slot(TEXT("S"), TEXT("Salvage3"), { ESize::Large, ESize::Small }),
+			Slot(TEXT("S"), TEXT("Salvage4"), { ESize::Medium, ESize::Pearl }),
+			Slot(TEXT("C1"), TEXT("Salvage1"), { ESize::Medium, ESize::Small }),
+			Slot(TEXT("C1"), TEXT("Salvage2"), { ESize::Small, ESize::Large }),
+			Slot(TEXT("C1"), TEXT("Salvage3"), { ESize::Pearl, ESize::Medium }),
+			Slot(TEXT("C1"), TEXT("Salvage4"), { ESize::Large, ESize::Small }),
+			Slot(TEXT("C1"), TEXT("Salvage5"), { ESize::Medium, ESize::Pearl }),
 		};
 	}
 
@@ -2742,9 +2746,32 @@ struct DEEP_API FDeepCaveStringTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
 	FString DepthMapCsv = TEXT("CaveDepthMap.csv");
 
-	/** Each stop's salvage at its berth's cavern sockets. */
+	/** Each stop's salvage piles at its berth's cavern sockets. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
 	TArray<FDeepCaveSalvageSlot> Salvage;
+
+	/** A pile's pieces first try this far from its socket (cm), spread evenly round it (DeepCaveDiveRules::PileSpotsCm)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvagePileSpreadCm = 70.f;
+
+	/** ...then nearer or farther in these steps, and turned a little either way, until the piece rests clear (cm)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvagePileStepCm = 25.f;
+
+	/** ...never farther than this from the socket, across or up and down (cm): a pile reads as one place. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvagePileReachCm = 200.f;
+
+	/** A pile's pieces keep this far apart, bounds to bounds (cm): each can be grabbed on its own. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SalvagePileGapCm = 10.f;
+
+	/**
+	 * D-068: in the caves the relic waits at the last berth (the last of Berths is the last stop; the shaft keeps
+	 * Arena.RelicStop), at this socket of that chunk (CaveChunkSockets.csv), resting on the rock under it like the salvage.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FName RelicSocket = FName(TEXT("Relic"));
 
 	/** A piece rests on the rock found within this far below its socket (cm); with none it stays at the socket. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
@@ -2773,4 +2800,54 @@ struct DEEP_API FDeepCaveStringTuning
 	/** The helm camera shivers while the hull is this close to rock (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
 	float ShiverNearCm = 5.f;
+
+	/**
+	 * M2b, the serpent in the caves: it lurks round this socket of the cavern the sub berths in (stop n: Berths[n-1]),
+	 * and its path keeps to that cavern's room (DeepCaveDiveRules::BuildRoom, flooded from the socket).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	FName SerpentSocket = FName(TEXT("Serpent"));
+
+	/** The room's grid cell (cm). Smaller follows the rock closer but costs more to build (once per cavern, on first use). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentRoomCellCm = 50.f;
+
+	/**
+	 * Every path point keeps a ball this big clear of the rock (m): the drawn body's reach off its path (the head's lunge
+	 * and stroke, its 0.55 m neck; Monster CaveBodyReachM is 2 m) plus a little water. The cavern's shaft-era 5 m does not
+	 * fit the caves' bays and passages.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentPathClearM = 2.5f;
+
+	/** The lurk circle is fitted to the cavern: the widest from this (m) up to the stop's LurkRadiusM... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkMinM = 6.f;
+
+	/** ...whose circle is at least this share in the room (else the one with the most, round the socket)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkFreeShare = 0.9f;
+
+	/** ...round a centre in the room within this of the Serpent socket (m; 0: the socket itself; the sockets sit by the wall, the open water is 15-25 m out)... */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkCentreReachM = 30.f;
+
+	/** ...tried every this (m) each way. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentLurkCentreStepM = 2.f;
+
+	/**
+	 * The bite point: where the line can be reached, from the stop's BiteFromDiverM up it toward the anchor, tried in
+	 * these steps (m). A diver in a crack is bitten at the first reachable point of the line.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentBiteStepM = 1.f;
+
+	/** The first-sight pass in a cavern ends this share of the way out to its kept last point (the shaft's PassEndM, 24 m, does not fit every bay). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentPassEndShare = 0.8f;
+
+	/** Where the straight way through a cavern is blocked, the serpent steers up to this far (m) along its route through the room. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave String")
+	float SerpentRouteLookM = 8.f;
 };
