@@ -1364,3 +1364,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided: the sub should drive like a traditional video game sub, because it's hard to see and to control. The cave walls need a real material (D-070).
 - Found: the helm camera looks 32° down and its floods 30° and 60° down, all made for the jam's vertical well, so the tunnels show lit floor with black above. Every chunk wears a flat grey. Two research notes compare the fixes.
 - Next: Quinn picks the approach and OKs C2's shape, then the lanes start.
+
+### 2:54 AM, Nov 25  Rock on the cave walls (R1); the Fab plugin stops Unreal
+- Changed: on `build/cavestop3` every chunk in the string now wears rock (`395642c`): Dragon Cave's textures sampled triplanar, silt on faces that point up, and cavity darkening baked per vertex. The geometry is unchanged. It reads as rock in even light, but from today's helm view it hardly shows, because the camera frames the silt floor.
+- Found: Dragon Cave's rock textures are atlases, not tiling textures, so the rock streaks on steep walls. Wet rock below Lumen's 0.6 trace limit costs 2.4 ms, so the rock sits at 0.6 to 0.7 with wet patches at 0.30.
+- Failed: every Unreal launch, since the launcher updated the Fab plugin on Nov 19 for a newer 5.9 build. Agents disable Fab per launch; Quinn's editor needs the engine update.
+- Next: the drive lane's report, then frames page v44 and one build with both lanes.

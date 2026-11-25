@@ -42,6 +42,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$m = New-Object Syst
 # merge and push only if the exit code is 0 AND verify.txt has a line starting "PASS verify"
 ```
 
+**Until the engine is updated, Fab must be disabled per launch (found Nov 25).** Every Unreal launch fails with `Plugin 'Fab' failed to load`. On Nov 19 the launcher updated the Fab plugin for 5.9 build 60738873, and the engine is still 60351404. Inside the slot, in the same PowerShell process, set `${env:UE-CmdLineArgs} = '-DisablePlugins=Fab'` before calling `ue.ps1` or `UnrealEditor-Cmd`. Never set it with setx, never user-wide, and never in the project files. Remove this note when Quinn has updated the engine.
+
 **An editor session holds the slot until the editor closes.** `tools/ue.ps1 editor` starts the editor and returns at once, so the wrapper above lets go of the slot while the editor is still open (found Nov 16). Run this in the background instead, and close the editor as soon as the editor step is done, because other lanes wait on the same slot:
 
 ```
