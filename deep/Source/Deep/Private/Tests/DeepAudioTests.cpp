@@ -182,10 +182,11 @@ bool FDeepAudioCoverageTest::RunTest(const FString& Parameters)
 	const TArray<FName> Loops = DeepAudioLoop::All();
 	const TArray<FName> Radio = DeepAudioRadio::Rows();
 	const TArray<FName> Music = DeepAudioMusic::All();
+	const TArray<FName> Immersion = DeepAudioImmersion::Rows();
 	for (const FDeepSoundRow& Row : Shipped.GetRows())
 	{
 		TestTrue(FString::Printf(TEXT("%s: is a game event, a loop state, the radio or music"), *Row.Event.ToString()),
-			Events.Contains(Row.Event) || Loops.Contains(Row.Event) || Radio.Contains(Row.Event) || Music.Contains(Row.Event));
+			Events.Contains(Row.Event) || Loops.Contains(Row.Event) || Radio.Contains(Row.Event) || Music.Contains(Row.Event) || Immersion.Contains(Row.Event));
 	}
 	for (const FName& Name : Music)
 	{

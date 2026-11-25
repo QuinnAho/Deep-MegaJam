@@ -26,6 +26,12 @@ namespace DeepSynth
 
 	/** Names of every built-in sound (one-shots first, then loops). */
 	DEEP_API TArray<FName> BuiltinNames();
+	/**
+	 * A family of variations: "hull_creak" -> hull_creak_01, _02, .. (the built-ins that exist, in order). Empty when
+	 * the name is a built-in itself or has none. A row naming the family plays one at random (UDeepAudioSubsystem).
+	 */
+	DEEP_API TArray<FName> Variants(FName Name);
+	/** A built-in, or a family of them. */
 	DEEP_API bool IsBuiltin(FName Name);
 	/** True for the built-ins made to loop (crossfaded seam, no end fades). */
 	DEEP_API bool IsLoopBuiltin(FName Name);
@@ -41,6 +47,17 @@ namespace DeepSynth
 
 	/** Count copies of a finished one-shot, SpacingS apart and scaled by Gain, mixed and clamped (for the wav export). */
 	DEEP_API TArray<int16> Repeat(const TArray<int16>& One, int32 Count, float SpacingS, float Gain = 1.f);
+
+	/** One return of an echo, as UDeepImmersionAudio plays it. */
+	struct FEchoTap
+	{
+		float DelayS = 0.f;
+		float Gain = 0.f;
+		float LowPassHz = 0.f;
+	};
+
+	/** The ping and its echo's returns mixed as the game plays them (Deep.Echo.Export): Echo at each tap x EchoGain. */
+	DEEP_API TArray<int16> RenderEcho(FName Ping, FName Echo, const TArray<FEchoTap>& Taps, float EchoGain);
 
 	/** Writes 16-bit mono PCM at SampleRate as a RIFF wav (Deep.Audio.Export). */
 	DEEP_API bool WriteWav(const TArray<int16>& Pcm, const FString& Path);

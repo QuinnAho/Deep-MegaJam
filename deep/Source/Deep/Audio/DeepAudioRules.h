@@ -21,6 +21,8 @@ namespace DeepAudioLoop
 	/** Scared (danger mix, Deep.Music): ragged breathing over a heartbeat. */
 	inline const TCHAR* BreathPanic = TEXT("loop_breath_panic");
 	inline const TCHAR* Heartbeat = TEXT("loop_heartbeat");
+	/** Immersion I1 (D-072): water along the hull, by its speed (Sim/DeepImmersionRules::FlowLevel). */
+	inline const TCHAR* Flow = TEXT("loop_flow");
 
 	DEEP_API TArray<FName> All();
 }
@@ -57,6 +59,16 @@ namespace DeepAudioRadio
 	DEEP_API TArray<FName> Rows();
 }
 
+/** Immersion I1 (D-072): one-shot rows played by UDeepImmersion itself, not from a bus event. */
+namespace DeepAudioImmersion
+{
+	inline const TCHAR* HullCreak = TEXT("hull_creak");
+	inline const TCHAR* HullGroan = TEXT("hull_groan");
+	inline const TCHAR* SonarEcho = TEXT("sonar_echo");
+
+	DEEP_API TArray<FName> Rows();
+}
+
 /** One row of Content/Data/Sounds.csv. */
 struct DEEP_API FDeepSoundRow
 {
@@ -86,6 +98,18 @@ private:
 	TArray<FDeepSoundRow> Rows;
 };
 
+
+/** One loop's target this frame. The subsystem fades toward Volume01; pitch and low-pass apply at once. */
+struct FDeepLoopTarget
+{
+	float Volume01 = 0.f;
+	float Pitch = 1.f;
+	/** 0 = no low-pass filter. */
+	float LowPassHz = 0.f;
+	/** Fade times for this loop; 0 = the settings' FadeInSeconds / FadeOutSeconds. */
+	float FadeInS = 0.f;
+	float FadeOutS = 0.f;
+};
 /** What the loop mix reads (gathered by UDeepAudioSubsystem from the local diver, the game state and the brain). */
 struct FDeepAudioMixInputs
 {
@@ -100,6 +124,8 @@ struct FDeepAudioMixInputs
 	bool bHelmMoving = false;
 	/** D-070: someone is at the helm: at rest the hum idles at HelmIdleVolume01 instead of stopping. */
 	bool bHelmManned = false;
+	/** Immersion I1: the flow loop's target (silent unless aboard with the hull moving), from DeepImmersionRules::FlowLevel. */
+	FDeepLoopTarget Flow;
 
 	// Deep.Music (step 3 of D-040). Off: music silent, breathing as before.
 	bool bMusic = false;
@@ -109,19 +135,6 @@ struct FDeepAudioMixInputs
 	bool bSettling = false;
 	bool bWon = false;
 };
-
-/** One loop's target this frame. The subsystem fades toward Volume01; pitch and low-pass apply at once. */
-struct FDeepLoopTarget
-{
-	float Volume01 = 0.f;
-	float Pitch = 1.f;
-	/** 0 = no low-pass filter. */
-	float LowPassHz = 0.f;
-	/** Fade times for this loop; 0 = the settings' FadeInSeconds / FadeOutSeconds. */
-	float FadeInS = 0.f;
-	float FadeOutS = 0.f;
-};
-
 namespace DeepAudioRules
 {
 	/** Every loop in DeepAudioLoop::All() gets an entry. */

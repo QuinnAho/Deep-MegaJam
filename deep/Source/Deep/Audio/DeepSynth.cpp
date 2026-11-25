@@ -179,9 +179,8 @@ namespace
 	 * cents apart that beat slowly, a faint octave that dies first, then dim returns off rock, each darker and later.
 	 * Well under the Captain; nothing like the serpent's first ping (a bright 550 Hz chirp).
 	 */
-	TArray<float> SonarPing()
+	TArray<float> SonarPing(bool bReturns = true, float Seconds = 3.4f)
 	{
-		constexpr float Seconds = 3.4f;
 		constexpr float BaseHz = 392.f;
 		TArray<float> Dry = Make(Seconds);
 		float PhaseA = 0.f;
@@ -201,8 +200,13 @@ namespace
 		struct FTap { float DelayS; float Gain; float CutoffHz; };
 		const FTap Taps[] = { { 0.38f, 0.30f, 1400.f }, { 0.81f, 0.18f, 800.f }, { 1.37f, 0.10f, 450.f } };
 		TArray<float> X = Dry;
+		// Immersion I1 (D-072): the dry ping leaves the returns to the walls the sonar really traced (sonar_echo).
 		for (const FTap& Tap : Taps)
 		{
+			if (!bReturns)
+			{
+				break;
+			}
 			const int32 Delay = Samples(Tap.DelayS);
 			FLowPass Lp(Tap.CutoffHz);
 			for (int32 I = Delay; I < X.Num(); ++I)
@@ -216,7 +220,7 @@ namespace
 		for (int32 I = 0; I < X.Num(); ++I)
 		{
 			const float T = TimeOf(I);
-			X[I] += 0.05f * Ramp(T, 0.25f, 0.4f) * FMath::Exp(-FMath::Max(0.f, T - 0.25f) / 0.9f) * Wash.Step(Rng.FRandRange(-1.f, 1.f));
+			X[I] += (bReturns ? 0.05f : 0.03f) * Ramp(T, 0.25f, 0.4f) * FMath::Exp(-FMath::Max(0.f, T - 0.25f) / 0.9f) * Wash.Step(Rng.FRandRange(-1.f, 1.f));
 		}
 		return X;
 	}
@@ -358,6 +362,187 @@ namespace
 			const float Burst = Ramp(T, 0.f, 0.01f) * (1.f - Ramp(T, 0.07f, 0.05f));
 			const float Click = Decay(T - 0.12f, 0.005f, 0.0005f) * FMath::Sin(TwoPi * 1100.f * (T - 0.12f));
 			X[I] = 2.5f * Burst * Noise + 0.5f * Click;
+		}
+		return X;
+	}
+
+	// ---- Immersion I1 (D-072): the hull's voice and the sonar's echo ----
+
+	/** A two-pole resonator (a ringing mode of a steel plate): rings at Hz for about 1 / (pi * BandwidthHz) seconds. */
+	struct FSynthResonator
+	{
+		float B1 = 0.f;
+		float B2 = 0.f;
+		float Gain = 0.f;
+		float Y1 = 0.f;
+		float Y2 = 0.f;
+		FSynthResonator(float Hz, float BandwidthHz)
+		{
+			const float R = FMath::Exp(-PI * FMath::Max(1.f, BandwidthHz) / SampleRate);
+			B1 = 2.f * R * FMath::Cos(TwoPi * Hz / SampleRate);
+			B2 = -R * R;
+			Gain = 1.f - R;
+		}
+		float Step(float X)
+		{
+			const float Y = Gain * X + B1 * Y1 + B2 * Y2;
+			Y2 = Y1;
+			Y1 = Y;
+			return Y;
+		}
+	};
+
+	/**
+	 * A creak of the pressure hull: stick-slip. The steel grips and lets go in a train of small slips whose rate glides
+	 * (RateA to RateB Hz, a little uneven), each slip ringing a few inharmonic plate modes over Tone; a breath of friction
+	 * noise under it; swells in and dies away. bTick ends it with the plate settling: one small bright tick.
+	 */
+	TArray<float> SynthHullCreak(int32 Seed, float Seconds, float RateA, float RateB, float Tone, bool bTick)
+	{
+		TArray<float> X = Make(Seconds);
+		FRandomStream Rng(Seed);
+		const float Ratios[] = { 1.f, 2.31f, 3.87f, 5.62f, 0.53f };
+		const float Widths[] = { 14.f, 22.f, 35.f, 55.f, 9.f };
+		const float Amps[] = { 1.f, 0.7f, 0.45f, 0.25f, 0.8f };
+		TArray<FSynthResonator> Modes;
+		for (int32 K = 0; K < 5; ++K)
+		{
+			Modes.Emplace(Tone * Ratios[K], Widths[K]);
+		}
+		FLowPass Top(3500.f);
+		FLowPass Rub(1800.f);
+		float Phase = 0.f;
+		const float Wobble = Rng.FRandRange(0.f, TwoPi);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float U = T / Seconds;
+			const float Env = Ramp(T, 0.f, 0.1f * Seconds) * (1.f - Ramp(T, 0.55f * Seconds, 0.4f * Seconds));
+			const float Rate = FMath::Lerp(RateA, RateB, U) * (1.f + 0.15f * FMath::Sin(TwoPi * 1.7f * T + Wobble));
+			Phase += Rate / SampleRate;
+			float Slip = 0.f;
+			if (Phase >= 1.f)
+			{
+				Phase -= 1.f + Rng.FRandRange(-0.3f, 0.3f);
+				Slip = Rng.FRandRange(0.4f, 1.f);
+			}
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			const float Excite = Env * (Slip * 40.f + 0.6f * Rub.Step(Noise));
+			float V = 0.f;
+			for (int32 K = 0; K < Modes.Num(); ++K)
+			{
+				V += Amps[K] * Modes[K].Step(Excite);
+			}
+			X[I] = Top.Step(V);
+		}
+		if (bTick)
+		{
+			const float At = 0.84f * Seconds;
+			for (int32 I = Samples(At); I < X.Num(); ++I)
+			{
+				const float T = TimeOf(I) - At;
+				X[I] += 0.12f * Decay(T, 0.04f, 0.001f) * (FMath::Sin(TwoPi * 910.f * T) + 0.6f * FMath::Sin(TwoPi * 1433.f * T));
+			}
+		}
+		return X;
+	}
+
+	/**
+	 * The hull groans as it passes a 100 m band: the whole shell taking load. A slow stick-slip (9 to 4.5 slips a second)
+	 * rings low plate modes, a bent fundamental glides from 52 to 41 Hz with inharmonic partials, a rumble swells under
+	 * it, and two small ticks settle it at the end.
+	 */
+	TArray<float> SynthHullGroan()
+	{
+		constexpr float Seconds = 5.5f;
+		TArray<float> X = Make(Seconds);
+		FRandomStream Rng(229);
+		const float Hz[] = { 62.f, 118.f, 197.f, 305.f, 470.f };
+		const float Widths[] = { 6.f, 8.f, 11.f, 15.f, 20.f };
+		const float Amps[] = { 1.f, 0.8f, 0.55f, 0.35f, 0.2f };
+		TArray<FSynthResonator> Modes;
+		for (int32 K = 0; K < 5; ++K)
+		{
+			Modes.Emplace(Hz[K], Widths[K]);
+		}
+		FLowPass Rumble(120.f);
+		FLowPass Top(2000.f);
+		float Phase = 0.f;
+		float Slips = 0.f;
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float U = T / Seconds;
+			const float Env = Ramp(T, 0.f, 1.2f) * (1.f - Ramp(T, 3.2f, 2.0f));
+			const float F = FMath::Lerp(52.f, 41.f, U);
+			Phase += TwoPi * F / SampleRate;
+			float Tone = 0.f;
+			for (int32 K = 1; K <= 4; ++K)
+			{
+				Tone += FMath::Sin(Phase * FMath::Pow(float(K), 1.02f)) / float(K * K);
+			}
+			Slips += FMath::Lerp(9.f, 4.5f, U) / SampleRate;
+			float Slip = 0.f;
+			if (Slips >= 1.f)
+			{
+				Slips -= 1.f + Rng.FRandRange(-0.35f, 0.35f);
+				Slip = Rng.FRandRange(0.5f, 1.f);
+			}
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			float Ring = 0.f;
+			for (int32 K = 0; K < Modes.Num(); ++K)
+			{
+				Ring += Amps[K] * Modes[K].Step(Env * Slip * 60.f);
+			}
+			X[I] = Top.Step(0.6f * Env * Tone + 0.8f * Ring + 2.5f * Env * Rumble.Step(Noise));
+		}
+		for (const float At : { 4.3f, 4.75f })
+		{
+			const float Gain = At < 4.5f ? 0.1f : 0.06f;
+			for (int32 I = Samples(At); I < X.Num(); ++I)
+			{
+				const float T = TimeOf(I) - At;
+				X[I] += Gain * Decay(T, 0.05f, 0.001f) * (FMath::Sin(TwoPi * 1100.f * T) + 0.5f * FMath::Sin(TwoPi * 1730.f * T));
+			}
+		}
+		return X;
+	}
+
+	/**
+	 * The ping come back off rock (sonar_echo; the game delays, dims and darkens it by the distance): the ping's
+	 * 392 Hz pair a hair lower, swelling slower and ringing shorter, smeared by three close returns a few ms apart (rough
+	 * rock never answers in one piece), over a little dark water wash.
+	 */
+	TArray<float> SynthSonarEcho()
+	{
+		constexpr float Seconds = 2.f;
+		TArray<float> Dry = Make(Seconds);
+		float PhaseA = 0.f;
+		float PhaseB = 0.f;
+		for (int32 I = 0; I < Dry.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float F = 392.f * (0.995f - 0.008f * FMath::Min(T, 1.f));
+			PhaseA += TwoPi * F / SampleRate;
+			PhaseB += TwoPi * F * 1.0042f / SampleRate;
+			Dry[I] = Ramp(T, 0.f, 0.07f) * FMath::Exp(-T / 0.45f) * (FMath::Sin(PhaseA) + 0.5f * FMath::Sin(PhaseB));
+		}
+		TArray<float> X = Dry;
+		struct FSynthSmear { float DelayS; float Gain; };
+		for (const FSynthSmear& S : { FSynthSmear{ 0.011f, 0.6f }, FSynthSmear{ 0.023f, 0.45f }, FSynthSmear{ 0.037f, 0.3f } })
+		{
+			const int32 Delay = Samples(S.DelayS);
+			for (int32 I = Delay; I < X.Num(); ++I)
+			{
+				X[I] += S.Gain * Dry[I - Delay];
+			}
+		}
+		FRandomStream Rng(239);
+		FLowPass Wash(300.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			X[I] += 0.12f * Ramp(T, 0.05f, 0.2f) * FMath::Exp(-T / 0.5f) * Wash.Step(Rng.FRandRange(-1.f, 1.f));
 		}
 		return X;
 	}
@@ -589,6 +774,36 @@ namespace
 		return X;
 	}
 
+	/**
+	 * Immersion I1: water rushing along the hull (loop_flow; the game raises it, its pitch and its low-pass with speed).
+	 * A dark band of noise (80 to 900 Hz) whose level breathes with slow turbulence, and a faint gurgle in the low end.
+	 */
+	TArray<float> SynthFlow()
+	{
+		constexpr float LoopS = 6.f;
+		TArray<float> X = MakeLoop(LoopS);
+		FRandomStream Rng(233);
+		FLowPass Top(900.f);
+		FLowPass Bottom(80.f);
+		FLowPass Gurgle(350.f);
+		FLowPass GurgleLow(120.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Noise = Rng.FRandRange(-1.f, 1.f);
+			float Band = Top.Step(Noise);
+			Band -= Bottom.Step(Band);
+			// Whole cycles in the loop's 6 s, so the seam's crossfade lines up.
+			const float Turb = 0.75f + 0.12f * FMath::Sin(TwoPi * T / LoopS) + 0.08f * FMath::Sin(TwoPi * 3.f * T / LoopS + 1.f)
+				+ 0.05f * FMath::Sin(TwoPi * 7.f * T / LoopS + 2.f);
+			float Low = Gurgle.Step(Noise);
+			Low -= GurgleLow.Step(Low);
+			const float Bubble = 0.5f + 0.5f * FMath::Sin(TwoPi * 13.f * T / LoopS + 0.5f * FMath::Sin(TwoPi * 2.f * T / LoopS));
+			X[I] = 3.f * Turb * Band + 2.f * Bubble * Low;
+		}
+		return X;
+	}
+
 	struct FBuiltin
 	{
 		const TCHAR* Name;
@@ -611,13 +826,19 @@ namespace
 			{ TEXT("chime"), false, 1.4f, &Chime },
 			{ TEXT("squelch_on"), false, 0.45f, &SquelchOn },
 			{ TEXT("squelch_off"), false, 0.22f, &SquelchOff },
-			{ TEXT("sonar_ping"), false, 3.4f, &SonarPing },
+			{ TEXT("sonar_ping"), false, 3.4f, [] { return SonarPing(true, 3.4f); } },
+			{ TEXT("sonar_ping_dry"), false, 2.6f, [] { return SonarPing(false, 2.6f); } },
+			{ TEXT("sonar_echo"), false, 2.f, &SynthSonarEcho },
 			{ TEXT("sonar_ping_jam"), false, 2.4f, &SonarPingJam },
 			{ TEXT("sonar_tick"), false, 0.11f, &SonarTick },
 			{ TEXT("serpent_call_a"), false, 2.2f, [] { return SerpentCall(70.f, 44.f, 2.2f, 97); } },
 			{ TEXT("serpent_call_b"), false, 2.6f, [] { return SerpentCall(55.f, 82.f, 2.6f, 101); } },
 			{ TEXT("serpent_call_c"), false, 1.8f, [] { return SerpentCall(95.f, 38.f, 1.8f, 103); } },
 			{ TEXT("serpent_click"), false, 0.35f, &SerpentClick },
+			{ TEXT("hull_creak_01"), false, 1.3f, [] { return SynthHullCreak(211, 1.3f, 38.f, 22.f, 170.f, false); } },
+			{ TEXT("hull_creak_02"), false, 0.9f, [] { return SynthHullCreak(223, 0.9f, 70.f, 110.f, 240.f, false); } },
+			{ TEXT("hull_creak_03"), false, 1.6f, [] { return SynthHullCreak(227, 1.6f, 30.f, 18.f, 130.f, true); } },
+			{ TEXT("hull_groan"), false, 5.5f, &SynthHullGroan },
 			{ TEXT("drone_out"), true, 8.f, &DroneOut },
 			{ TEXT("drone_in"), true, 6.f, &DroneIn },
 			{ TEXT("breath"), true, 8.f, [] { return Breath(4.f, 8.f, 61); } },
@@ -628,6 +849,7 @@ namespace
 			{ TEXT("breath_panic"), true, 4.8f, [] { return Breath(1.2f, 4.8f, 71); } },
 			{ TEXT("heartbeat"), true, 3.f, &Heartbeat },
 			{ TEXT("serpent_drone"), true, 6.f, &SerpentDrone },
+			{ TEXT("flow"), true, 6.f, &SynthFlow },
 		};
 		return Builtins;
 	}
@@ -657,7 +879,27 @@ namespace DeepSynth
 		return Out;
 	}
 
-	bool IsBuiltin(FName Name) { return Find(Name) != nullptr; }
+	TArray<FName> Variants(FName Name)
+	{
+		TArray<FName> Out;
+		if (Name.IsNone() || Find(Name))
+		{
+			return Out;
+		}
+		const FString Base = Name.ToString();
+		for (int32 Index = 1; Index <= 9; ++Index)
+		{
+			const FName Variant(*FString::Printf(TEXT("%s_%02d"), *Base, Index));
+			if (!Find(Variant))
+			{
+				break;
+			}
+			Out.Add(Variant);
+		}
+		return Out;
+	}
+
+	bool IsBuiltin(FName Name) { return Find(Name) != nullptr || !Variants(Name).IsEmpty(); }
 
 	bool IsLoopBuiltin(FName Name)
 	{
@@ -668,6 +910,11 @@ namespace DeepSynth
 	int32 ExpectedSamples(FName Name)
 	{
 		const FBuiltin* B = Find(Name);
+		if (!B)
+		{
+			const TArray<FName> Family = Variants(Name);
+			B = Family.IsEmpty() ? nullptr : Find(Family[0]);
+		}
 		return B ? Samples(B->Seconds) : 0;
 	}
 
@@ -675,6 +922,12 @@ namespace DeepSynth
 	{
 		FBuffer Out;
 		const FBuiltin* B = Find(Name);
+		if (!B)
+		{
+			// A family name ("hull_creak") stands for its first variation.
+			const TArray<FName> Family = Variants(Name);
+			B = Family.IsEmpty() ? nullptr : Find(Family[0]);
+		}
 		if (!B)
 		{
 			return Out;
@@ -760,6 +1013,40 @@ namespace DeepSynth
 				Mix[C * Step + I] += One[I] * Gain;
 			}
 		}
+		Out.SetNumUninitialized(Mix.Num());
+		for (int32 I = 0; I < Mix.Num(); ++I)
+		{
+			Out[I] = int16(FMath::Clamp(FMath::RoundToInt(Mix[I]), -32767, 32767));
+		}
+		return Out;
+	}
+
+	TArray<int16> RenderEcho(FName Ping, FName Echo, const TArray<FEchoTap>& Taps, float EchoGain)
+	{
+		const FBuffer Dry = Generate(Ping);
+		const FBuffer Wet = Generate(Echo);
+		int32 Length = Dry.Samples.Num();
+		for (const FEchoTap& Tap : Taps)
+		{
+			Length = FMath::Max(Length, Samples(FMath::Max(0.f, Tap.DelayS)) + Wet.Samples.Num());
+		}
+		TArray<float> Mix;
+		Mix.SetNumZeroed(Length);
+		for (int32 I = 0; I < Dry.Samples.Num(); ++I)
+		{
+			Mix[I] += Dry.Samples[I];
+		}
+		for (const FEchoTap& Tap : Taps)
+		{
+			// As the game plays it: the echo row at the tap's gain, through a low-pass at the tap's cutoff.
+			const int32 Delay = Samples(FMath::Max(0.f, Tap.DelayS));
+			FLowPass Lp(FMath::Max(50.f, Tap.LowPassHz));
+			for (int32 I = 0; I < Wet.Samples.Num(); ++I)
+			{
+				Mix[Delay + I] += EchoGain * Tap.Gain * Lp.Step(float(Wet.Samples[I]));
+			}
+		}
+		TArray<int16> Out;
 		Out.SetNumUninitialized(Mix.Num());
 		for (int32 I = 0; I < Mix.Num(); ++I)
 		{
