@@ -90,6 +90,14 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Pilot")
 	FDeepPilotTuning Pilot;
 
+	/** D-070: the helm drives like a game sub, held keys, nothing latches (Sim/DeepPilotRules::StepDrive). */
+	UPROPERTY(Config, EditAnywhere, Category = "Drive")
+	FDeepDriveTuning Drive;
+
+	/** D-070: the pilot's chase and cockpit views (World/DeepSubmarine, Sim/DeepHelmViewRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Helm view")
+	FDeepHelmViewTuning HelmView;
+
 	/** The airlock between the room and the water: the valve hold, the hiss and the fades (Sim/DeepMovingSubRules). */
 	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
 	FDeepAirlockTuning Airlock;

@@ -87,6 +87,85 @@ FDeepPilotMotion UDeepPilotRules::StepMotion(const FDeepPilotMotion& In, int32 N
 	return Out;
 }
 
+FDeepDriveInput FDeepDriveInput::Clamped() const
+{
+	FDeepDriveInput Out;
+	Out.Surge = FMath::Clamp(Surge, -1.f, 1.f);
+	Out.Turn = FMath::Clamp(Turn, -1.f, 1.f);
+	Out.Heave = FMath::Clamp(Heave, -1.f, 1.f);
+	Out.Strafe = FMath::Clamp(Strafe, -1.f, 1.f);
+	return Out;
+}
+
+bool FDeepDriveInput::IsIdle() const
+{
+	return FMath::IsNearlyZero(Surge) && FMath::IsNearlyZero(Turn) && FMath::IsNearlyZero(Heave) && FMath::IsNearlyZero(Strafe);
+}
+
+bool FDeepDriveInput::Equals(const FDeepDriveInput& Other, float Tolerance) const
+{
+	return FMath::IsNearlyEqual(Surge, Other.Surge, Tolerance) && FMath::IsNearlyEqual(Turn, Other.Turn, Tolerance)
+		&& FMath::IsNearlyEqual(Heave, Other.Heave, Tolerance) && FMath::IsNearlyEqual(Strafe, Other.Strafe, Tolerance);
+}
+
+float UDeepPilotRules::MoveToward(float Value, float Target, float Rate, float DeltaSeconds)
+{
+	const float Step = FMath::Max(0.f, Rate) * FMath::Max(0.f, DeltaSeconds);
+	const float Gap = Target - Value;
+	return FMath::Abs(Gap) <= Step ? Target : Value + FMath::Sign(Gap) * Step;
+}
+
+namespace
+{
+	/** Speeding up toward a held speed at Accel; slowing (let go, a smaller speed, or against the way) at Brake. */
+	float DriveAxis(float Value, float Target, float Accel, float Brake, float DeltaSeconds)
+	{
+		const bool bSlowing = FMath::Abs(Target) < FMath::Abs(Value) || (Value * Target < 0.f);
+		return UDeepPilotRules::MoveToward(Value, Target, bSlowing ? Brake : Accel, DeltaSeconds);
+	}
+}
+
+FDeepPilotMotion UDeepPilotRules::StepDrive(const FDeepPilotMotion& In, const FDeepDriveInput& Input, float DeltaSeconds, const FDeepDriveTuning& T)
+{
+	const FDeepDriveInput Held = Input.Clamped();
+	const float Dt = FMath::Max(0.f, DeltaSeconds);
+	FDeepPilotMotion Out = In;
+	// The turn rate builds and dies over TurnBuildS either way; the heading turns under the way the sub carries.
+	const float TurnRate = FMath::Max(0.f, T.TurnRateDegS);
+	const float TurnAccel = T.TurnBuildS > UE_KINDA_SMALL_NUMBER ? TurnRate / T.TurnBuildS : TurnRate * 1000.f;
+	Out.YawRateDegS = MoveToward(In.YawRateDegS, Held.Turn * TurnRate, TurnAccel, Dt);
+	Out.YawDeg = FRotator::NormalizeAxis(In.YawDeg + 0.5f * (In.YawRateDegS + Out.YawRateDegS) * Dt);
+	const FVector2D Fwd = Ahead(Out.YawDeg);
+	const FVector2D Side = Starboard(Out.YawDeg);
+	const float WantSurge = Held.Surge >= 0.f ? Held.Surge * FMath::Max(0.f, T.AheadSpeedMps) : Held.Surge * FMath::Max(0.f, T.AsternSpeedMps);
+	const float Surge = DriveAxis(FVector2D::DotProduct(In.VelocityMps, Fwd), WantSurge, T.AccelMps2, T.BrakeMps2, Dt);
+	// Sideways: Q/E push at the drive's rates; way nobody asked for (a turn's skid) dies at the hull's grip.
+	const float SwayIn = FVector2D::DotProduct(In.VelocityMps, Side);
+	const float Sway = FMath::IsNearlyZero(Held.Strafe)
+		? MoveToward(SwayIn * FMath::Exp(-FMath::Max(0.f, T.SideGripPerS) * Dt), 0.f, T.SideGripMps2, Dt)
+		: DriveAxis(SwayIn, Held.Strafe * FMath::Max(0.f, T.StrafeSpeedMps), T.AccelMps2, T.BrakeMps2, Dt);
+	Out.VelocityMps = Fwd * Surge + Side * Sway;
+	Out.HeaveMps = DriveAxis(In.HeaveMps, Held.Heave * FMath::Max(0.f, T.HeaveSpeedMps), T.HeaveAccelMps2, T.HeaveBrakeMps2, Dt);
+	return Out;
+}
+
+FVector2D UDeepPilotRules::MouseSteer(float LookYawDeg, float LookPitchDeg, float Surge, const FDeepDriveTuning& T)
+{
+	if (FMath::IsNearlyZero(Surge))
+	{
+		return FVector2D::ZeroVector;
+	}
+	const float Dead = FMath::Max(0.f, T.MouseSteerDeadDeg);
+	const auto Axis = [Dead](float OffDeg, float FullDeg)
+	{
+		const float Past = FMath::Max(0.f, FMath::Abs(OffDeg) - Dead);
+		const float Full = FMath::Max(0.1f, FullDeg - Dead);
+		return FMath::Sign(OffDeg) * FMath::Min(1.f, Past / Full);
+	};
+	// The bow turns toward the view whichever way the sub is driven. Looking up climbs: heave is + down.
+	return FVector2D(Axis(FRotator::NormalizeAxis(LookYawDeg), T.MouseSteerFullTurnDeg), -Axis(LookPitchDeg, T.MouseSteerFullHeaveDeg));
+}
+
 float UDeepPilotRules::SpeedMps(const FDeepPilotMotion& Motion)
 {
 	return FMath::Sqrt(Motion.VelocityMps.SizeSquared() + FMath::Square(Motion.HeaveMps));

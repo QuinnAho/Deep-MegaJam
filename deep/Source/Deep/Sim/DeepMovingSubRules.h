@@ -138,6 +138,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
 	static FDeepWallHit ResolveWallHit(const FVector& VelocityMps, const FVector& WallNormal, const FDeepCaveTuning& Cave, const FDeepPilotTuning& Pilot);
 
+	/** The same with the knock's keep-along share and bounce given (D-070's direct drive: Drive.KnockKeepAlong, Drive.KnockBounce). */
+	static FDeepWallHit ResolveWallHitKeeping(const FVector& VelocityMps, const FVector& WallNormal, const FDeepCaveTuning& Cave, float KnockKeepAlong, float Bounce);
+
 	/**
 	 * Parking onto a stop point: within Pilot.ParkNearM, slower than ParkSpeedMps and with the controls idle, the hull
 	 * glides straight onto the point and turns the short way to its heading (UDeepPilotRules::GlideStep's pace). Out of

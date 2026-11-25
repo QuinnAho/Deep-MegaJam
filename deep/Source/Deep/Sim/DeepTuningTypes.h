@@ -1817,9 +1817,12 @@ struct FDeepCaveTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
 	float HitMinSpeedMps = 1.5f;
 
-	/** Hull damage per m/s of impact speed (rounded, at least 1 for a hit). */
+	/**
+	 * Hull damage per m/s of impact speed (rounded, at least 1 for a hit). 0.75 (was 0.5, D-070): a knock at 1.5 m/s is 1,
+	 * at 2 m/s 2, head on at the drive's full 4 m/s the cap of 3; a slide along the rock is a scrape.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
-	float DamagePerMps = 0.5f;
+	float DamagePerMps = 0.75f;
 
 	/** One hit does no more than this: a squeeze closing on an off-centre sub at full descent would otherwise breach at once. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cave|Hits")
@@ -2662,6 +2665,181 @@ struct DEEP_API FDeepPilotTuning
 	/** How fast a lever swings to where it is set (per second, a share of the gap): it moves, it does not jump. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Pilot|Levers")
 	float LeverFollowPerS = 14.f;
+};
+
+/**
+ * D-070: the helm drives like a game sub (Sim/DeepPilotRules::StepDrive). Keys are held and nothing latches: W/S ahead
+ * and astern, A/D turn, Space/C up and down, Q/E strafe. Each axis moves toward the held speed at a steady rate and back
+ * to rest when let go; the hull stays level. The levers (FDeepPilotTuning) stay behind Deep.Pilot.Mode levers.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepDriveTuning
+{
+	GENERATED_BODY()
+
+	/** The helm's default: true = direct drive, false = the levers (D-048). Deep.Pilot.Levers 0|1 overrides it live. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive")
+	bool bDirect = true;
+
+	/** Held speeds (m/s): W ahead, S astern, Q/E sideways, Space/C up and down. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float AheadSpeedMps = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float AsternSpeedMps = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float StrafeSpeedMps = 2.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float HeaveSpeedMps = 2.5f;
+
+	/** Speeding up (m/s per second): 4 m/s ahead in 1.6 s. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float AccelMps2 = 2.5f;
+
+	/** Slowing down, when let go or against the way (m/s per second): from 4 m/s to rest in 1.25 s, 2.5 m on. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float BrakeMps2 = 3.2f;
+
+	/** Up and down (m/s per second): full heave in a second, at rest in under one. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float HeaveAccelMps2 = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float HeaveBrakeMps2 = 3.f;
+
+	/**
+	 * Sideways grip: way across the heading that Q/E do not ask for dies at this share per second, and at least
+	 * SideGripMps2. A full turn at full ahead then drifts about 0.6 m/s wide (8 deg): the hull feels heavy, never skids.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float SideGripPerS = 6.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Speed")
+	float SideGripMps2 = 0.5f;
+
+	/** Turn rate at full A/D (deg/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Turn")
+	float TurnRateDegS = 50.f;
+
+	/** The turn rate builds to full in this long, and dies in the same when let go (a short overrun). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Turn")
+	float TurnBuildS = 0.3f;
+
+	/** A knock keeps this much of the speed along the rock (the levers keep Pilot.KnockKeepAlong), and the drive goes on. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Rock")
+	float KnockKeepAlong = 0.85f;
+
+	/** Fraction of the impact speed a knock throws the hull back with (small: the drive is not fought). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Rock")
+	float KnockBounce = 0.2f;
+
+	/** A turn into rock pushes the hull clear by at most this much a step (m); past it the turn halves, then holds. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Rock")
+	float TurnPushMaxM = 0.4f;
+
+	/** Deep.Pilot.MouseSteer 1: while thrusting the sub turns toward the view; this far off the heading is a full turn. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Mouse steer")
+	float MouseSteerFullTurnDeg = 30.f;
+
+	/** ...and climbs or dives toward it: this far above or below level is full heave. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Mouse steer")
+	float MouseSteerFullHeaveDeg = 25.f;
+
+	/** Inside this many degrees mouse steer asks for nothing (no hunting about the aim). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drive|Mouse steer")
+	float MouseSteerDeadDeg = 2.f;
+};
+
+/**
+ * D-070: what the pilot sees (World/DeepSubmarine, Sim/DeepHelmViewRules). The chase view sits behind and above the stern
+ * on the hull's own trail, in water the hull has just swept clear, and looks ahead along the travel; a probe pulls it in
+ * short of rock. V switches to the cockpit view: level at the bow. The mouse looks round in both and the view eases back.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepHelmViewTuning
+{
+	GENERATED_BODY()
+
+	/** The helm starts in the chase view (V switches). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view")
+	bool bChaseFirst = true;
+
+	/** Chase: this far back along the trail from the hull's centre (m): the stern is 6.2 m back, so about 5 m of water shows between. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ChaseBackM = 11.f;
+
+	/** Chase: this high over the trail (m), past the hull's top (2.5 m over its centre) but inside the 0.9 m the caves keep round its path. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ChaseUpM = 3.1f;
+
+	/** The trail is used while it lies within this many degrees of straight astern; a turn in place or going astern uses the heading. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float TrailMaxOffHeadingDeg = 35.f;
+
+	/** A new trail point every this far the hull moves (m), and at most this many points. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float TrailStepM = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	int32 TrailMaxPoints = 80;
+
+	/** Chase: the camera's spot follows its aim this fast (per second, a share of the gap). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ChaseFollowPerS = 5.f;
+
+	/** The probe: a sphere this big (m) swept from over the hull to the camera's spot; it stops at the first rock. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ProbeRadiusM = 0.35f;
+
+	/** The view looks at a point this far ahead of the hull along its travel (m), never past these pitches. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float LookAheadM = 14.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float LookMinPitchDeg = -40.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float LookMaxPitchDeg = 25.f;
+
+	/** Under this speed (m/s) the travel is the heading (a still hull looks where it points). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float TravelMinMps = 0.6f;
+
+	/** How fast the look turns to a new travel (per second, a share of the gap). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float LookFollowPerS = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ChaseFovDeg = 85.f;
+
+	/** Cockpit: level, a little down (deg), and its field of view. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cockpit")
+	float CockpitPitchDeg = -4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cockpit")
+	float CockpitFovDeg = 90.f;
+
+	/** The mouse looks round within these limits (deg either side; up and down), chase and cockpit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ChaseLookYawDeg = 120.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ChaseLookPitchDeg = 50.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float CockpitLookYawDeg = 75.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float CockpitLookPitchDeg = 40.f;
+
+	/** After this long without the mouse the view eases back ahead, at this share of the gap per second. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float LookReturnDelayS = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float LookReturnPerS = 2.5f;
 };
 
 /**

@@ -28,6 +28,34 @@ struct DEEP_API FDeepPilotMotion
 	float YawRateDegS = 0.f;
 };
 
+/**
+ * D-070 direct drive: the pilot's held keys, each -1..1. Nothing latches: let go, and the axis is 0. Surge + ahead (W),
+ * Turn + starboard (D), Heave + down (C; Space is up), Strafe + starboard (E; Q is port).
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepDriveInput
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "Deep")
+	float Surge = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Deep")
+	float Turn = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Deep")
+	float Heave = 0.f;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Deep")
+	float Strafe = 0.f;
+
+	/** Every axis clamped to -1..1. */
+	FDeepDriveInput Clamped() const;
+	/** No key held. */
+	bool IsIdle() const;
+	bool Equals(const FDeepDriveInput& Other, float Tolerance = 0.01f) const;
+};
+
 UCLASS()
 class DEEP_API UDeepPilotRules : public UBlueprintFunctionLibrary
 {
@@ -56,6 +84,24 @@ public:
 	/** One step of the sub's motion from the controls (Rudder -1 port .. 1 starboard). No walls, no limits. */
 	UFUNCTION(BlueprintPure, Category = "Deep|Pilot")
 	static FDeepPilotMotion StepMotion(const FDeepPilotMotion& In, int32 Notch, float Ballast, float Rudder, float DeltaSeconds, const FDeepPilotTuning& T);
+
+	/**
+	 * D-070 direct drive, one step (no walls, no limits): each axis moves toward its held speed at AccelMps2 (or
+	 * HeaveAccelMps2) and back toward rest at BrakeMps2 when let go or held against the way; way across the heading that
+	 * Strafe does not ask for dies at SideGripMps2 (a little drift in a turn); the turn rate builds and dies over TurnBuildS.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Pilot")
+	static FDeepPilotMotion StepDrive(const FDeepPilotMotion& In, const FDeepDriveInput& Input, float DeltaSeconds, const FDeepDriveTuning& T);
+
+	/**
+	 * Deep.Pilot.MouseSteer: while thrusting (Surge not 0), the turn and heave that bring the heading toward where the
+	 * view looks, LookYawDeg off the heading (+ starboard) and LookPitchDeg off level (+ up). X = Turn, Y = Heave (+ down).
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|Pilot")
+	static FVector2D MouseSteer(float LookYawDeg, float LookPitchDeg, float Surge, const FDeepDriveTuning& T);
+
+	/** Value moved toward Target by at most Rate * DeltaSeconds (never past it). */
+	static float MoveToward(float Value, float Target, float Rate, float DeltaSeconds);
 
 	/** Unit vectors of the heading and of starboard in the stop frame. */
 	static FVector2D Ahead(float YawDeg);

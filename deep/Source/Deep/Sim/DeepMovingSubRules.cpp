@@ -47,6 +47,11 @@ bool UDeepMovingSubRules::StillBedShows(float SubDepthM, float StopDepthM, const
 
 FDeepWallHit UDeepMovingSubRules::ResolveWallHit(const FVector& VelocityMps, const FVector& WallNormal, const FDeepCaveTuning& Cave, const FDeepPilotTuning& Pilot)
 {
+	return ResolveWallHitKeeping(VelocityMps, WallNormal, Cave, Pilot.KnockKeepAlong, Cave.Bounce);
+}
+
+FDeepWallHit UDeepMovingSubRules::ResolveWallHitKeeping(const FVector& VelocityMps, const FVector& WallNormal, const FDeepCaveTuning& Cave, float KnockKeepAlong, float Bounce)
+{
 	FDeepWallHit Hit;
 	Hit.VelocityMps = VelocityMps;
 	const FVector N = WallNormal.GetSafeNormal();
@@ -66,7 +71,7 @@ FDeepWallHit UDeepMovingSubRules::ResolveWallHit(const FVector& VelocityMps, con
 	Hit.bScrape = !Hit.bKnock;
 	if (Hit.bKnock)
 	{
-		Hit.VelocityMps = Along * FMath::Clamp(Pilot.KnockKeepAlong, 0.f, 1.f) + N * Into * FMath::Max(0.f, Cave.Bounce);
+		Hit.VelocityMps = Along * FMath::Clamp(KnockKeepAlong, 0.f, 1.f) + N * Into * FMath::Max(0.f, Bounce);
 	}
 	else
 	{
