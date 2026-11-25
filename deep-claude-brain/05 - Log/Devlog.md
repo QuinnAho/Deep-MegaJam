@@ -1385,3 +1385,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: `build/drive2` merges the drive and the rock (`c8dec7d`, no conflicts). BT-01 now carries its own cool work lamps and keeps low in the chase frame, so the way ahead shows above it. Taking the helm in S, the cavern reads at once (`88eba22`). verify 230/230, three playthroughs and the package pass. Builds: `Drive-Rock-A` (fallback) and `Drive-Rock-B`.
 - Found: sinking in C1, the hull hides the way down and the snow's streaks read as black rain. B's cockpit view is washed out by the wide fill.
 - Next: D1c fixes those; the immersion lane is still building.
+
+### 7:35 AM, Nov 25  I1: the hull creaks, silt lifts, and the sonar echoes
+- Changed: on `build/immersion` (`6176958`), the hull creaks more often and lower the deeper it goes, and groans once per 100 m. A flow noise rises with speed. Silt lifts near the floor and on scrapes, then hangs and drifts. The ping is dry now, and its echo comes back from the real walls: short in a tunnel, about 0.32 s in C1. verify 232/232, the playthroughs and the package pass.
+- Found: silt costs 0.36 ms, but the whole frame rose 1.4 ms for a reason not yet found. From the chase view the silt shows mostly in squeezes, and up close the puffs can look like soft balls. Nobody has heard the new sounds yet.
+- Next: D1c, then one build with everything for Quinn.
