@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Sim/DeepCaveDiveRules.h"
 #include "Sim/DeepCaveStringRules.h"
 #include "DeepCaveString.generated.h"
 
@@ -50,6 +51,32 @@ namespace DeepCaveString
 	/** What the gauge reads at a true depth (the inverse; PhysicalM with no string). */
 	DEEP_API float ReadDepthM(const UWorld* World, float PhysicalM);
 }
+
+/** M2b: the serpent's room in the cavern a stop berths in (CaveString.Berths), built once on first use. */
+struct FDeepSerpentCave
+{
+	int32 Stop = 0;
+	FName Chunk;
+	/** In the chunk's own frame (its component's), cm. */
+	FDeepCaveRoom Room;
+	/** The room's frame to the world: the chunk's component transform. */
+	FTransform ToWorld = FTransform::Identity;
+	/** The chunk's Serpent socket (world, cm): the room's seed and the lurk circle's centre. */
+	FVector SocketCm = FVector::ZeroVector;
+	/** The last lurk fit (DeepCaveDiveRules::FitLurkCircle): for this largest radius, this circle (world centre, cm). */
+	float LurkForMaxCm = -1.f;
+	float LurkRadiusCm = 0.f;
+	FVector LurkCentreCm = FVector::ZeroVector;
+	/** The fit found a circle with SerpentLurkFreeShare in the room (else the socket's best). */
+	bool bLurkFits = false;
+	/** The last route through the room (DeepCaveDiveRules::RouteAim), kept while its target cell stays. */
+	FDeepCaveRoute Route;
+	/** Build cost and counts, for the log and the tests. */
+	double BuildSeconds = 0.0;
+	int32 RockCells = 0;
+	int32 Queries = 0;
+	int32 ReachedCells = 0;
+};
 
 UCLASS(Transient, NotPlaceable)
 class DEEP_API ADeepCaveString : public AActor
@@ -100,6 +127,24 @@ public:
 	/** The box (grown by InflateCm on every side) overlaps a chunk with the hull origin at AtCm and that heading. */
 	bool OverlapsHull(const FBox& Box, const FVector& AtCm, float YawDeg, float InflateCm = 0.f) const;
 
+	/** M2b: the serpent's room at a stop (its berth's cavern, flooded from its Serpent socket); null without a berth or socket. */
+	const FDeepSerpentCave* SerpentCave(int32 Stop) const;
+
+	/** A world point (cm) kept in that room (DeepCaveDiveRules::KeepInRoom); unchanged without one. */
+	FVector KeepSerpentCm(int32 Stop, const FVector& WorldCm) const;
+
+	/** The lurk circle near the socket fitted to the cavern (radius cm, centre world cm), at most MaxRadiusCm (the stop's LurkRadiusM). */
+	float SerpentLurkRadiusCm(int32 Stop, float MaxRadiusCm, FVector* OutCentreCm = nullptr) const;
+
+	/** A point of the fitted lurk circle at an angle (radians), kept in the room, and the way round it there (world). */
+	bool SerpentLurkPoint(int32 Stop, float MaxRadiusCm, float AngleRad, FVector& OutCm, FVector& OutFacing) const;
+
+	/** Where to steer from From toward To (world, cm) through that room (DeepCaveDiveRules::RouteAim); To without one. */
+	FVector SerpentRouteCm(int32 Stop, const FVector& FromCm, const FVector& ToCm) const;
+
+	/** Where the line (anchor to diver's end, world) can be bitten in the room (DeepCaveDiveRules::ReachableOnLine). */
+	FVector SerpentBitePoint(int32 Stop, const FVector& AnchorCm, const FVector& DiverEndCm, float FromDiverCm, float ToleranceCm) const;
+
 private:
 	UPROPERTY()
 	TObjectPtr<USceneComponent> Frame;
@@ -113,6 +158,9 @@ private:
 	TArray<FDeepCavePose> PathPoses;
 	TArray<float> PathMetres;
 	TArray<FDeepCaveDepthKnot> DepthMap;
+
+	/** The serpent's rooms by stop (a null entry: none could be built). */
+	mutable TMap<int32, TSharedPtr<FDeepSerpentCave>> SerpentCaves;
 
 	/** World shape transform for the box at a hull pose (string frame). */
 	FTransform BoxWorld(const FBox& Box, const FVector& AtCm, float YawDeg) const;

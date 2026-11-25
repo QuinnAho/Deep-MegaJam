@@ -159,6 +159,14 @@ private:
 	TWeakObjectPtr<class ADeepCavern> Cavern;
 	/** The stop whose rock the whole trail was last kept clear of; 0 forces it again (a placed body, the well left). */
 	int32 CaveStopKept = 0;
+
+	// ---- The caves (M2b): the path keeps to the berth cavern's room (ADeepCaveString::SerpentCave), lurking round its socket ----
+	/** The cave string and the stop whose cavern room the serpent keeps to now; 0 when there is none (caves off, no room, the well). */
+	int32 CaveRoom(const class ADeepCaveString*& OutString) const;
+	/** The stop whose room it was last in: when the sub berths in another cavern, the serpent is there, on its lurk circle. */
+	int32 CaveRoomStop = 0;
+	/** The first-sight pass ends this far from the diver (m): the stop's PassEndM, or fitted to the cavern. */
+	float PassEndM = 0.f;
 	float WellLogAccumS = 0.f;
 	float WellClockS = 0.f;
 	double LastDiverZ = 0.0;

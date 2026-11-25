@@ -11,7 +11,9 @@
 #include "Monster/DeepMonsterRules.h"
 #include "Monster/DeepMonsterSettings.h"
 #include "Monster/DeepSerpent.h"
+#include "Sim/DeepTuningSettings.h"
 #include "World/DeepCavern.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepArena.h"
 #include "World/DeepArenaRoot.h"
 #include "Perception/AIPerceptionComponent.h"
@@ -230,9 +232,35 @@ FVector ADeepSerpentController::BitePoint(const ADeepDiver* Diver, const FDeepMo
 	{
 		return TetherMiddle(Diver);
 	}
+	// The caves (M2b): the first point up the line it can reach in the cavern's room, so a diver in a crack is still bitten.
+	const ADeepCaveString* CaveString = nullptr;
+	const int32 RoomStop = CaveRoom(CaveString);
+	if (RoomStop > 0)
+	{
+		return CaveString->SerpentBitePoint(RoomStop, A, B, Tuning.BiteFromDiverM * CmPerM, 0.5f * Tuning.BiteReachM * CmPerM);
+	}
 	const float LengthCm = static_cast<float>(FVector::Dist(A, B));
 	const float Alpha = LengthCm > 1.f ? FMath::Clamp(1.f - Tuning.BiteFromDiverM * CmPerM / LengthCm, 0.1f, 1.f) : 0.5f;
 	return FMath::Lerp(A, B, Alpha);
+}
+
+int32 ADeepSerpentController::CaveRoom(const ADeepCaveString*& OutString) const
+{
+	OutString = nullptr;
+	const UWorld* World = GetWorld();
+	if (bInWell || !World || !DeepArena::IsWorldCaves(World))
+	{
+		return 0;
+	}
+	const ADeepGameState* GameState = World->GetGameState<ADeepGameState>();
+	const ADeepCaveString* String = DeepCaveString::Find(World);
+	const int32 Stop = GameState ? GameState->Stop : 1;
+	if (!String || !String->SerpentCave(Stop))
+	{
+		return 0;
+	}
+	OutString = String;
+	return Stop;
 }
 
 FVector ADeepSerpentController::GetBitePoint(const ADeepDiver* Diver) const
@@ -274,13 +302,58 @@ bool ADeepSerpentController::BeginPass(const ADeepDiver* Diver, const FDeepMonst
 	const FVector F = M.GetUnitAxis(EAxis::X);
 	const FVector R = M.GetUnitAxis(EAxis::Y);
 	const FVector U = M.GetUnitAxis(EAxis::Z);
-	const float Side = FMath::RandBool() ? 1.f : -1.f;
+	float Side = FMath::RandBool() ? 1.f : -1.f;
 	const FVector Base = Eye + U * (Tuning.PassUpM * CmPerM);
 
-	const FVector Start = Base + F * (Tuning.PassDistanceM * CmPerM) - R * (Side * Tuning.PassSideStartM * CmPerM);
-	PassPoints.Reset();
-	PassPoints.Add(Base + F * (Tuning.PassDistanceM * CmPerM) + R * (Side * Tuning.PassTurnAtM * CmPerM));
-	PassPoints.Add(Base + F * ((Tuning.PassDistanceM + Tuning.PassLeaveM) * CmPerM) + R * (Side * (Tuning.PassTurnAtM + Tuning.PassLeaveSideM) * CmPerM));
+	auto Lay = [&](float S, FVector& OutStart, TArray<FVector>& OutPoints)
+	{
+		OutStart = Base + F * (Tuning.PassDistanceM * CmPerM) - R * (S * Tuning.PassSideStartM * CmPerM);
+		OutPoints.Reset();
+		OutPoints.Add(Base + F * (Tuning.PassDistanceM * CmPerM) + R * (S * Tuning.PassTurnAtM * CmPerM));
+		OutPoints.Add(Base + F * ((Tuning.PassDistanceM + Tuning.PassLeaveM) * CmPerM) + R * (S * (Tuning.PassTurnAtM + Tuning.PassLeaveSideM) * CmPerM));
+	};
+	FVector Start;
+	Lay(Side, Start, PassPoints);
+	PassEndM = Tuning.PassEndM;
+
+	// The caves (M2b): the line is laid in the cavern's room. It comes from the side with more water (its points moved
+	// least to fit), every point is kept in the room, and it ends short of the farthest one it can reach.
+	const ADeepCaveString* CaveString = nullptr;
+	const int32 RoomStop = CaveRoom(CaveString);
+	if (RoomStop > 0)
+	{
+		double BestMoved = TNumericLimits<double>::Max();
+		float BestSide = Side;
+		for (const float S : { Side, -Side })
+		{
+			FVector TryStart;
+			TArray<FVector> TryPoints;
+			Lay(S, TryStart, TryPoints);
+			double Moved = FVector::Dist(TryStart, CaveString->KeepSerpentCm(RoomStop, TryStart));
+			for (const FVector& P : TryPoints)
+			{
+				Moved += FVector::Dist(P, CaveString->KeepSerpentCm(RoomStop, P));
+			}
+			if (Moved < BestMoved - 1.0)
+			{
+				BestMoved = Moved;
+				BestSide = S;
+			}
+		}
+		Side = BestSide;
+		Lay(Side, Start, PassPoints);
+		Start = CaveString->KeepSerpentCm(RoomStop, Start);
+		for (FVector& P : PassPoints)
+		{
+			P = CaveString->KeepSerpentCm(RoomStop, P);
+		}
+		const float LastM = static_cast<float>(FVector::Dist(Eye, PassPoints.Last())) / CmPerM;
+		PassEndM = FMath::Min(Tuning.PassEndM, UDeepTuningSettings::Get().CaveString.SerpentPassEndShare * LastM);
+		UE_LOG(LogDeepSerpent, Log, TEXT("Serpent first sight in the caves (stop %d): starts %.1f m to the side and %.1f m out, leaves %.1f m to the side and %.1f m out, ends %.1f m from the diver (shaft: %.0f, %.0f, %.0f, %.0f, %.0f m)"),
+			RoomStop, FMath::Abs(FVector::DotProduct(Start - Base, R)) / CmPerM, FVector::DotProduct(Start - Base, F) / CmPerM,
+			FMath::Abs(FVector::DotProduct(PassPoints.Last() - Base, R)) / CmPerM, FVector::DotProduct(PassPoints.Last() - Base, F) / CmPerM, PassEndM,
+			Tuning.PassSideStartM, Tuning.PassDistanceM, Tuning.PassTurnAtM + Tuning.PassLeaveSideM, Tuning.PassDistanceM + Tuning.PassLeaveM, Tuning.PassEndM);
+	}
 	PassLeg = 0;
 	PassClosestM = 1000.f;
 	// Out of view and far outside the beam, so the move is never seen; the body lies straight behind it.
@@ -452,7 +525,7 @@ void ADeepSerpentController::StepMonster(float DeltaSeconds)
 	if (State == EDeepMonsterState::Pass)
 	{
 		PassClosestM = FMath::Min(PassClosestM, DiverDistanceM);
-		In.bPassComplete = PassLeg >= PassPoints.Num() && DiverDistanceM >= Tuning.PassEndM;
+		In.bPassComplete = PassLeg >= PassPoints.Num() && DiverDistanceM >= (PassEndM > 0.f ? PassEndM : Tuning.PassEndM);
 	}
 	// Taunts are staged for a player's eyes, like the first sight: test divers and cheat spawns keep the old rules.
 	const bool bCanTaunt = Target && Target->IsPlayerControlled() && !Brain->IsForcedSpawn();
@@ -564,6 +637,11 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	}
 	const FVector Head = Body->GetHeadLocation();
 	const FVector Middle = TetherMiddle(Target);
+	// The caves (M2b): each state's places are kept in the berth cavern's room, so a beat that is reached on arrival is
+	// still reached when its place lies in the rock.
+	const ADeepCaveString* CaveString = nullptr;
+	const int32 RoomStop = CaveRoom(CaveString);
+	auto KeepCave = [CaveString, RoomStop](const FVector& Point) { return RoomStop > 0 ? CaveString->KeepSerpentCm(RoomStop, Point) : Point; };
 
 	// Each state picks where it steers for, how fast and how sharply it turns; in the well the place is moved into the
 	// shaft (UDeepMonsterRules::WellAimPoint) and the speed and turn rate stay the state's own.
@@ -573,7 +651,17 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	switch (State)
 	{
 	case EDeepMonsterState::Lurk:
-		Aim = UDeepMonsterRules::OrbitAimPoint(Middle, Head, LurkRadiusCm(Target, Tuning) / CmPerM, Tuning.LurkLeadDeg);
+		if (RoomStop > 0)
+		{
+			// In a cavern it circles by its Serpent socket, on the widest circle that fits the water there.
+			FVector LurkCentre;
+			const float LurkCm = CaveString->SerpentLurkRadiusCm(RoomStop, Tuning.LurkRadiusM * CmPerM, &LurkCentre);
+			Aim = UDeepMonsterRules::OrbitAimPoint(LurkCentre, Head, LurkCm / CmPerM, Tuning.LurkLeadDeg);
+		}
+		else
+		{
+			Aim = UDeepMonsterRules::OrbitAimPoint(Middle, Head, LurkRadiusCm(Target, Tuning) / CmPerM, Tuning.LurkLeadDeg);
+		}
 		Speed = Tuning.LurkSpeedMps;
 		if (HeardTurnLeftS > 0.f && !TurnToward.IsZero())
 		{
@@ -588,7 +676,7 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 		// Edge of the light, brush past the line, back into the dark. Each beat logs once; the brush calls.
 		if (TauntLeg < TauntOffsets.Num())
 		{
-			Aim = TauntPoint(TauntLeg);
+			Aim = KeepCave(TauntPoint(TauntLeg));
 			if (FVector::Dist(Head, Aim) < 250.f)
 			{
 				static const TCHAR* Beats[] = { TEXT("edge"), TEXT("brush"), TEXT("withdraw") };
@@ -621,7 +709,7 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 				Out -= Line * FVector::DotProduct(Out, Line);
 				BiteSide = Out.GetSafeNormal(UE_SMALL_NUMBER, FVector::CrossProduct(Line, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector));
 			}
-			const FVector Lead = Point + BiteSide * (Tuning.BiteSideLeadM * CmPerM);
+			const FVector Lead = KeepCave(Point + BiteSide * (Tuning.BiteSideLeadM * CmPerM));
 			if (!bBiteCommit && FVector::Dist(Head, Lead) > 150.f)
 			{
 				Aim = Lead;
@@ -640,7 +728,7 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 		// The first sight: slow, along the laid-out line, then out into the dark.
 		if (PassLeg < PassPoints.Num())
 		{
-			Aim = PassPoints[PassLeg];
+			Aim = KeepCave(PassPoints[PassLeg]);
 			if (FVector::Dist(Head, Aim) < 150.f)
 			{
 				++PassLeg;
@@ -710,15 +798,42 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	{
 		Cavern = ADeepCavern::FindIn(GetWorld());
 	}
-	const ADeepCavern* Cave = bInWell ? nullptr : Cavern.Get();
+	const ADeepCavern* Cave = (bInWell || RoomStop > 0) ? nullptr : Cavern.Get();
 	const int32 CaveStop = Cave ? Cave->ShownStop() : 0;
 	const float CaveClearM = Tuning.CaveWallClearM + Tuning.CaveBodyReachM;
 	if (CaveStop > 0)
 	{
 		Aim = Cave->KeepClearCm(Aim, CaveClearM);
 	}
+	if (RoomStop > 0)
+	{
+		if (CaveRoomStop > 0 && CaveRoomStop != RoomStop)
+		{
+			// The sub has berthed in another cavern: the serpent is there now, on its lurk circle (never seen moving).
+			FVector At, Facing;
+			if (CaveString->SerpentLurkPoint(RoomStop, Tuning.LurkRadiusM * CmPerM, FMath::FRandRange(0.f, 2.f * PI), At, Facing))
+			{
+				Body->PlaceHead(At, Facing);
+				CaveStopKept = 0;
+			}
+		}
+		CaveRoomStop = RoomStop;
+		// Kept in the room, then routed through it: a straight swim at a place behind a rib of rock would stall on it.
+		Aim = CaveString->SerpentRouteCm(RoomStop, Head, KeepCave(Aim));
+	}
 	Body->SwimToward(Aim, Speed, Turn, DeltaSeconds);
-	if (CaveStop > 0)
+	if (RoomStop > 0)
+	{
+		// The body keeps the room too (its chain particles, every substep): the string is held weakly, as the cavern is.
+		const TWeakObjectPtr<const ADeepCaveString> WeakString(CaveString);
+		Body->KeepPath([WeakString, RoomStop](const FVector& Point)
+		{
+			const ADeepCaveString* Kept = WeakString.Get();
+			return Kept ? Kept->KeepSerpentCm(RoomStop, Point) : Point;
+		}, RoomStop != CaveStopKept);
+		CaveStopKept = RoomStop;
+	}
+	else if (CaveStop > 0)
 	{
 		// The body keeps this rule too (its chain particles, every substep), so it is held weakly: the body stores it.
 		const TWeakObjectPtr<const ADeepCavern> WeakCave(Cave);
@@ -732,7 +847,10 @@ void ADeepSerpentController::Steer(const FDeepMonsterTuning& Tuning, float Delta
 	{
 		Body->ClearBodyKeep();
 	}
-	CaveStopKept = CaveStop;
+	if (RoomStop == 0)
+	{
+		CaveStopKept = CaveStop;
+	}
 	if (bInWell)
 	{
 		// The path itself stays in the shaft: a fast turn (10 m/s recoil, a hunt) swings wider than any aim, and the

@@ -6,6 +6,7 @@
 #include "Game/DeepGameState.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
+#include "Sim/DeepCaveDiveRules.h"
 #include "Sim/DeepMovingSubRules.h"
 #include "Sim/DeepRules.h"
 #include "Sim/DeepTuningSettings.h"
@@ -296,6 +297,44 @@ namespace DeepArena
 		return bIn;
 	}
 
+	bool RestCaveSalvage(const ADeepCaveString& String, ADeepSalvage& Salvage, const FVector& AtCm, const TCHAR* What)
+	{
+		// Rests on the highest rock under its footprint (so a slope does not swallow its uphill side), a little sunk.
+		const FDeepCaveStringTuning& CS = UDeepTuningSettings::Get().CaveString;
+		Salvage.SetActorLocation(AtCm);
+		const double Search = FMath::Max(0.f, CS.SalvageRestSearchCm);
+		const FBox Box = SalvageBounds(Salvage);
+		double Highest = 0.0;
+		double Lowest = 0.0;
+		if (!Box.IsValid || String.FootprintRock(Box, CS.SalvageRestUpCm, float(Search), Highest, Lowest) <= 0)
+		{
+			UE_LOG(LogDeepArena, Verbose, TEXT("Deep.World.Caves: no rock within %.0f cm under %s"), Search, What);
+			return false;
+		}
+		// Its bounds' bottom on the footprint's highest rock; then by its own shapes (smaller than its bounds): raised
+		// a step at a time off a wall or a steeper slope, or lowered until the next step down would touch. Then sunk.
+		const double Bottom = AtCm.Z - Box.Min.Z;
+		Salvage.SetActorLocation(FVector(AtCm.X, AtCm.Y, Highest + Bottom));
+		const double Step = FMath::Max(0.5f, CS.SalvageLiftStepCm);
+		double Lifted = 0.0;
+		while (SalvageInRock(String, Salvage, 0.0) && Lifted + Step <= CS.SalvageLiftMaxCm)
+		{
+			Lifted += Step;
+			Salvage.AddActorWorldOffset(FVector(0.0, 0.0, Step));
+		}
+		if (SalvageInRock(String, Salvage, 0.0))
+		{
+			UE_LOG(LogDeepArena, Verbose, TEXT("Deep.World.Caves: %s still touches rock %.0f cm up"), What, Lifted);
+			return false;
+		}
+		for (double Lowered = 0.0; Lifted <= 0.0 && Lowered + Step <= Search && !SalvageInRock(String, Salvage, -Step); Lowered += Step)
+		{
+			Salvage.AddActorWorldOffset(FVector(0.0, 0.0, -Step));
+		}
+		Salvage.AddActorWorldOffset(FVector(0.0, 0.0, -CS.SalvageSinkCm));
+		return true;
+	}
+
 	int32 SpawnCaveSalvage(UWorld* World, int32 Stop)
 	{
 		const ADeepCaveString* String = DeepCaveString::Find(World);
@@ -303,8 +342,9 @@ namespace DeepArena
 		{
 			return 0;
 		}
-		// Deep.World.Caves (D-065): a stop's salvage sits at its berth cavern's sockets (CaveString.Salvage), each resting
-		// on the rock below it by its own bottom, sunk a little so it reads as lying there.
+		// Deep.World.Caves (D-067): a stop's salvage lies in piles at its berth cavern's sockets (CaveString.Salvage). Each
+		// piece tries the spots round its socket in turn (DeepCaveDiveRules::PileSpotsCm) and takes the first where it
+		// rests on rock, clear of it and of the pile's other pieces, within SalvagePileReachCm of the socket.
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 		const FDeepCaveStringTuning& CS = Tuning.CaveString;
 		if (!CS.Berths.IsValidIndex(Stop - 1))
@@ -312,58 +352,64 @@ namespace DeepArena
 			return 0;
 		}
 		const FName Cavern = CS.Berths[Stop - 1];
+		const double Reach = FMath::Max(0.f, CS.SalvagePileReachCm);
 		int32 Spawned = 0;
 		for (const FDeepCaveSalvageSlot& Slot : CS.Salvage)
 		{
-			FDeepSalvageKind Kind;
-			FVector At;
 			if (Slot.Chunk != Cavern)
 			{
 				continue;
 			}
-			if (!Tuning.FindSalvageKind(Slot.Size, Kind) || !String->SocketWorld(Slot.Chunk, Slot.Socket, At))
+			FDeepCavePose Pose;
+			FVector Socket;
+			if (!String->SocketWorld(Slot.Chunk, Slot.Socket, Socket) || !String->SocketPose(Slot.Chunk, Slot.Socket, Pose))
 			{
-				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no salvage at %s.%s (kind or socket missing)"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
+				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no salvage at %s.%s (no socket)"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
 				continue;
 			}
-			ADeepSalvage* Salvage = SpawnSalvageAt(World, Kind, FTransform(FQuat::Identity, At));
-			if (!Salvage)
+			const FString PileName = FString::Printf(TEXT("%s.%s"), *Slot.Chunk.ToString(), *Slot.Socket.ToString());
+			const float YawDeg = Pose.YawDeg + String->GetActorRotation().Yaw;
+			TArray<FBox> Laid;
+			for (int32 Index = 0; Index < Slot.Pile.Num(); ++Index)
 			{
-				continue;
-			}
-			// Rests on the highest rock under its footprint (so a slope does not swallow its uphill side), a little sunk.
-			const double Search = FMath::Max(0.f, CS.SalvageRestSearchCm);
-			const FBox Box = SalvageBounds(*Salvage);
-			double Highest = 0.0;
-			double Lowest = 0.0;
-			if (Box.IsValid && String->FootprintRock(Box, CS.SalvageRestUpCm, float(Search), Highest, Lowest) > 0)
-			{
-				// Its bounds' bottom on the footprint's highest rock; then by its own shapes (smaller than its bounds): raised
-				// a step at a time off a wall or a steeper slope, or lowered until the next step down would touch. Then sunk.
-				const double Bottom = At.Z - Box.Min.Z;
-				Salvage->SetActorLocation(FVector(At.X, At.Y, Highest + Bottom));
-				const double Step = FMath::Max(0.5f, CS.SalvageLiftStepCm);
-				double Lifted = 0.0;
-				while (SalvageInRock(*String, *Salvage, 0.0) && Lifted + Step <= CS.SalvageLiftMaxCm)
+				FDeepSalvageKind Kind;
+				if (!Tuning.FindSalvageKind(Slot.Pile[Index], Kind))
 				{
-					Lifted += Step;
-					Salvage->AddActorWorldOffset(FVector(0.0, 0.0, Step));
+					UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no salvage kind %d for %s"), static_cast<int32>(Slot.Pile[Index]), *PileName);
+					continue;
 				}
-				if (SalvageInRock(*String, *Salvage, 0.0))
+				ADeepSalvage* Salvage = SpawnSalvageAt(World, Kind, FTransform(FQuat::Identity, Socket));
+				if (!Salvage)
 				{
-					UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: %s.%s still touches rock %.0f cm up"), *Slot.Chunk.ToString(), *Slot.Socket.ToString(), Lifted);
+					continue;
 				}
-				for (double Lowered = 0.0; Lifted <= 0.0 && Lowered + Step <= Search && !SalvageInRock(*String, *Salvage, -Step); Lowered += Step)
+				const FString What = FString::Printf(TEXT("%s piece %d"), *PileName, Index + 1);
+				const TArray<FVector2D> Spots = DeepCaveDiveRules::PileSpotsCm(Index, Slot.Pile.Num(), CS.SalvagePileSpreadCm, CS.SalvagePileStepCm, float(Reach), YawDeg);
+				bool bPlaced = false;
+				for (const FVector2D& Spot : Spots)
 				{
-					Salvage->AddActorWorldOffset(FVector(0.0, 0.0, -Step));
+					if (!RestCaveSalvage(*String, *Salvage, Socket + FVector(Spot, 0.0), *What))
+					{
+						continue;
+					}
+					const FVector At = Salvage->GetActorLocation();
+					const FBox Box = SalvageBounds(*Salvage).ExpandBy(0.5 * CS.SalvagePileGapCm);
+					const bool bNear = FVector::Dist2D(At, Socket) <= Reach && FMath::Abs(At.Z - Socket.Z) <= Reach;
+					const bool bApart = !Laid.ContainsByPredicate([&Box](const FBox& Other) { return Other.Intersect(Box); });
+					if (bNear && bApart)
+					{
+						Laid.Add(Box);
+						bPlaced = true;
+						break;
+					}
 				}
-				Salvage->AddActorWorldOffset(FVector(0.0, 0.0, -CS.SalvageSinkCm));
+				if (!bPlaced)
+				{
+					UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no clear spot for %s within %.0f cm; it lies at the socket"), *What, Reach);
+					Salvage->SetActorLocation(Socket);
+				}
+				++Spawned;
 			}
-			else
-			{
-				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no rock within %.0f cm of %s.%s; the piece floats at the socket"), Search, *Slot.Chunk.ToString(), *Slot.Socket.ToString());
-			}
-			++Spawned;
 		}
 		UE_LOG(LogDeepArena, Log, TEXT("Spawned %d salvage pieces in %s"), Spawned, *Cavern.ToString());
 		return Spawned;
@@ -418,6 +464,29 @@ namespace DeepArena
 		return nullptr;
 	}
 
+	int32 RelicStop(const UWorld* World)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		return DeepCaveDiveRules::RelicStop(IsWorldCaves(World), Tuning.Arena.RelicStop, Tuning.CaveString.Berths.Num());
+	}
+
+	int32 ShownStops(const UWorld* World)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		return DeepCaveDiveRules::ShownStops(IsWorldCaves(World), Tuning.NumStops(), Tuning.CaveString.Berths.Num());
+	}
+
+	TArray<float> ShownStopDepthsM(const UWorld* World)
+	{
+		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+		TArray<float> Out;
+		for (int32 Stop = 1; Stop <= ShownStops(World); ++Stop)
+		{
+			Out.Add(Tuning.GetStop(Stop).SubDepthM);
+		}
+		return Out;
+	}
+
 	ADeepSalvage* EnsureRelic(UWorld* World, int32 Stop)
 	{
 		if (!World || World->GetNetMode() == NM_Client)
@@ -426,7 +495,7 @@ namespace DeepArena
 		}
 		const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 		ADeepSalvage* Relic = FindRelic(World);
-		if (Stop < Tuning.Arena.RelicStop)
+		if (Stop < RelicStop(World))
 		{
 			if (Relic)
 			{
@@ -438,6 +507,41 @@ namespace DeepArena
 		FDeepSalvageKind Kind;
 		if (Relic || !Sub || !Tuning.FindSalvageKind(EDeepSalvageSize::Relic, Kind))
 		{
+			return Relic;
+		}
+		if (IsWorldCaves(World))
+		{
+			// D-068: in the caves it waits on the floor of its cavern at its own socket, resting on the rock like salvage.
+			const ADeepCaveString* String = DeepCaveString::Find(World);
+			const FDeepCaveStringTuning& CS = Tuning.CaveString;
+			const FName Chunk = CS.Berths.Num() > 0 ? CS.Berths.Last() : NAME_None;
+			FVector At;
+			if (!String || !String->SocketWorld(Chunk, CS.RelicSocket, At))
+			{
+				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: no relic (no socket %s.%s)"), *Chunk.ToString(), *CS.RelicSocket.ToString());
+				return nullptr;
+			}
+			Relic = SpawnSalvageAt(World, Kind, FTransform(FQuat::Identity, At));
+			if (!Relic)
+			{
+				return nullptr;
+			}
+			// At the socket if it rests clear there, else the nearest spot round it that does (as a pile of one).
+			bool bPlaced = false;
+			for (const FVector2D& Spot : DeepCaveDiveRules::PileSpotsCm(0, 1, 0.f, CS.SalvagePileStepCm, CS.SalvagePileReachCm, 0.f))
+			{
+				if (RestCaveSalvage(*String, *Relic, At + FVector(Spot, 0.0), TEXT("the relic")))
+				{
+					bPlaced = true;
+					break;
+				}
+			}
+			if (!bPlaced)
+			{
+				UE_LOG(LogDeepArena, Warning, TEXT("Deep.World.Caves: the relic found no clear rock within %.0f cm of %s.%s; it lies at the socket"), CS.SalvagePileReachCm, *Chunk.ToString(), *CS.RelicSocket.ToString());
+				Relic->SetActorLocation(At);
+			}
+			UE_LOG(LogDeepArena, Log, TEXT("Relic placed at %s.%s at stop %d, %.0f cm across from the socket"), *Chunk.ToString(), *CS.RelicSocket.ToString(), Stop, FVector::Dist2D(Relic->GetActorLocation(), At));
 			return Relic;
 		}
 		const FVector Offset = UDeepRules::RelicOffsetCm(Tuning.Arena, Tuning.GetStop(Stop).SubDepthM, UDeepRules::TetherLengthM(Stop, Tuning.Tether));

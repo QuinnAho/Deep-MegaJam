@@ -13,9 +13,11 @@
 #include "Game/DeepGameState.h"
 #include "Game/DeepPlayerController.h"
 #include "World/DeepArena.h"
+#include "World/DeepCaveString.h"
 #include "World/DeepRopeComponent.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/LocalLightComponent.h"
 #include "Containers/Ticker.h"
 #include "DynamicRHI.h"
@@ -330,14 +332,14 @@ namespace
 
 	FAutoConsoleCommandWithWorldAndArgs RelicCommand(
 		TEXT("Deep.Relic"),
-		TEXT("Deep.Relic: puts the diver 2 m from the relic, looking at it (stop 3; use Deep.GotoStop 3 first)."),
+		TEXT("Deep.Relic: puts the diver 2 m from the relic, looking at it (its stop: 3 in the shaft, the last berth in the caves; Deep.GotoStop or Deep.Cave.Goto first)."),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			ADeepDiver* Diver = RequireDiver(World, TEXT("Deep.Relic"));
 			const ADeepSalvage* Relic = DeepArena::FindRelic(World);
 			if (!Diver || !Relic)
 			{
-				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Relic: no relic in the world (it lies at stop %d)"), UDeepTuningSettings::Get().Arena.RelicStop);
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Relic: no relic in the world (it lies at stop %d)"), DeepArena::RelicStop(World));
 				return;
 			}
 			// Approach from the anchor's side so the line stays inside the tether; the eye level with the relic.
@@ -345,13 +347,26 @@ namespace
 			FVector Flat = Anchor - Relic->GetActorLocation();
 			Flat.Z = 0.f;
 			const FVector Back = Flat.IsNearlyZero() ? FVector(-1.f, 0.f, 0.f) : Flat.GetSafeNormal();
-			const FVector At = Relic->GetActorLocation() + Back * 200.f - FVector(0.f, 0.f, 55.f);
+			constexpr float EyeCm = 55.f; // the diver's eye over its centre (DeepDiver.cpp)
+			FVector At = Relic->GetActorLocation() + Back * 200.f - FVector(0.f, 0.f, EyeCm);
+			FRotator View = (-Back).Rotation();
+			View.Pitch = 0.f;
+			if (const ADeepCaveString* String = DeepCaveString::Find(World))
+			{
+				// In the caves the relic lies on the floor: rise until the diver is clear of the rock, and look down at it.
+				const UCapsuleComponent* Capsule = Diver->GetCapsuleComponent();
+				const FVector Half(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight());
+				for (int32 Step = 0; Step < 40 && String->OverlapsBoxWorld(At, Half, FQuat::Identity); ++Step)
+				{
+					At.Z += 10.f;
+				}
+				View = (Relic->GetActorLocation() - (At + FVector(0.f, 0.f, EyeCm))).Rotation();
+			}
 			Diver->TeleportDiver(At);
-			const FRotator View = (-Back).Rotation();
 			Diver->SetActorRotation(FRotator(0.f, View.Yaw, 0.f));
 			if (AController* Controller = Diver->GetController())
 			{
-				Controller->SetControlRotation(FRotator(0.f, View.Yaw, 0.f));
+				Controller->SetControlRotation(FRotator(View.Pitch, View.Yaw, 0.f));
 			}
 			DeepStateReport::LogState(World);
 		}));

@@ -1949,7 +1949,7 @@ void UDeepRunComponent::StepRelicSeen()
 {
 	const ADeepGameState* GameState = GetGameState();
 	ADeepDiver* Diver = GetDiver();
-	if (bRelicSeenThisRun || !Diver || !GameState || GameState->Stop < UDeepTuningSettings::Get().Arena.RelicStop || CarriesRelic())
+	if (bRelicSeenThisRun || !Diver || !GameState || GameState->Stop < DeepArena::RelicStop(GetWorld()) || CarriesRelic())
 	{
 		return;
 	}
