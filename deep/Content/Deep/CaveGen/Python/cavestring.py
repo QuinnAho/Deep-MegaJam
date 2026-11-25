@@ -23,8 +23,10 @@ GS_E = U.GeometryScript_MeshEdits
 GS_N = U.GeometryScript_Normals
 GS_S = U.GeometryScript_MeshSpatial
 
-STRING = ['S', 'A', 'T1', 'C1', 'B', 'E']   # S (type 'start') has no entry; E (type 'end') closes in rock: no exit
-CHUNKS = ['S', 'A', 'B', 'T1', 'C1', 'E']
+# S (type 'start') has no entry; C2 (stop 3's cavern, D-069) closes in rock: no exit. E, the
+# old end chunk, has left the string; its mesh and its row stay.
+STRING = ['S', 'A', 'T1', 'C1', 'B', 'C2']
+CHUNKS = ['S', 'A', 'B', 'T1', 'C1', 'E', 'C2']
 HULL_HALF = (615.0, 165.0, 250.0)     # 12.3 x 3.3 x 5.0 m
 # round 8: BT-01's hull box is centred this far aft of the sub's origin (the hatch, which
 # follows the path), so the sweep's box moves back by it. Set to 0 for round 7b's sweep.
@@ -479,6 +481,7 @@ def chunk_sockets(rows, name):
     spec = cg.meta(name)
     cx, cy = spec['col']
     park = spec['sockets']['Park']
+    d_min, d_max = spec.get('salvage_range', (0.0, 2500.0))
     rep = []
     # keel-to-floor gap under Park
     pw = compose(pl, park[:3])
@@ -508,16 +511,27 @@ def chunk_sockets(rows, name):
             continue
         hl = to_local(pl, h[0])
         d = math.dist(hl, park[:3])
-        if d > 2500.0:
+        if d > d_max:
             rep.append('%s: %.0f cm from Park, too far' % (lab, d))
+            continue
+        if d < d_min:
+            rep.append('%s: %.0f cm from Park, too near' % (lab, d))
             continue
         sal.append((lab, (hl[0], hl[1], hl[2] + 20.0), d, h[1][2]))
     sal = sal[:5]
     out = [{'Chunk': name, 'Socket': 'Park', 'X': park[0], 'Y': park[1], 'Z': park[2], 'Yaw': park[3]}]
+    st = spec['sockets'].get('SinkTop')
+    if st:
+        out.append({'Chunk': name, 'Socket': 'SinkTop', 'X': st[0], 'Y': st[1], 'Z': st[2], 'Yaw': st[3]})
+        rep.append('%s SinkTop in void %s, %.0f cm above Park' % (name, in_void(name, st[:3]), st[2] - park[2]))
+    hatch = compose(pl, (park[0], park[1], park[2] - HULL_HALF[2] - 30.0))
     for i, (lab, p, d, nz) in enumerate(sal):
         out.append({'Chunk': name, 'Socket': 'Salvage%d' % (i + 1), 'X': round(p[0], 1), 'Y': round(p[1], 1),
                     'Z': round(p[2], 1), 'Yaw': float(round((i * 73) % 360))})
         rep.append('%s Salvage%d (%s): %.0f cm from Park, surface nz %.2f' % (name, i + 1, lab, d, nz))
+        if 'salvage_range' in spec:
+            pw = compose(pl, p)
+            rep.append('    clear round it %.0f cm, seen from the hatch %s' % (_clear_round(pw), not line(hatch, pw)))
     sp = spec['sockets']['Serpent']
     ok = in_void(name, sp[:3])
     # how enclosed is the pocket: distance to rock in six directions
@@ -528,23 +542,101 @@ def chunk_sockets(rows, name):
         dists.append(round(math.dist(h[0], sw)) if h else -1)
     rep.append('%s Serpent in void %s, %.0f cm from Park, rock at +-X +-Y +-Z (world) %s cm' % (
         name, ok, math.dist(sp[:3], park[:3]), dists))
+    if 'relic' in spec:
+        rep.append('    Serpent nearest rock %.0f cm' % _nearest_rock(sw, 1000.0))
     out.append({'Chunk': name, 'Socket': 'Serpent', 'X': sp[0], 'Y': sp[1], 'Z': sp[2], 'Yaw': sp[3]})
+    if 'relic' in spec:
+        # the relic: on the floor of its alcove, traced down as the salvage is
+        (x, y), z0, yaw = spec['relic']
+        rw = compose(pl, (x, y, z0))
+        h = line(rw, (rw[0], rw[1], rw[2] - 2500))
+        if not h or h[1][2] < 0.5 or not in_void(name, (x, y, z0)):
+            raise RuntimeError('%s: the relic finds no floor under %s' % (name, (x, y, z0)))
+        hl = to_local(pl, h[0])
+        rp = (hl[0], hl[1], hl[2] + 20.0)
+        out.append({'Chunk': name, 'Socket': 'Relic', 'X': round(rp[0], 1), 'Y': round(rp[1], 1), 'Z': round(rp[2], 1),
+                    'Yaw': float(yaw)})
+        rpw = compose(pl, rp)
+        rep.append('%s Relic: %.0f cm from Park, surface nz %.2f, nearest salvage %.0f cm, seen from the hatch %s, '
+                   'open straight swim from Park %s' % (
+                       name, math.dist(rp, park[:3]), h[1][2], min(math.dist(rp, q[1]) for q in sal) if sal else -1,
+                       not line(hatch, rpw), not line(compose(pl, park[:3]), rpw)))
     return out, rep
+
+
+def _nearest_rock(p, reach):
+    """Distance from p to the nearest rock (rays in 162 directions), or reach."""
+    near = reach
+    for d in _sphere_dirs():
+        h = line(p, (p[0] + d[0] * reach, p[1] + d[1] * reach, p[2] + d[2] * reach))
+        if h:
+            near = min(near, math.dist(p, h[0]))
+    return near
+
+
+def _clear_round(p, n=16, reach=400.0):
+    """Nearest rock round a socket on a floor: rays out level 50 cm above it, and up."""
+    q = (p[0], p[1], p[2] + 50.0)
+    near = reach
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        for el in (0.0, 0.5):
+            e = (q[0] + reach * math.cos(a) * math.cos(el), q[1] + reach * math.sin(a) * math.cos(el), q[2] + reach * math.sin(el))
+            h = line(q, e)
+            if h:
+                near = min(near, math.dist(q, h[0]))
+    h = line(q, (q[0], q[1], q[2] + reach))
+    if h:
+        near = min(near, math.dist(q, h[0]))
+    return near
 
 
 def c1_sockets(rows):
     return chunk_sockets(rows, 'C1')
 
 
-def write_sockets_csv(rows):
-    srows, rep = [], []
-    for n in ('S', 'C1'):
-        o, r = chunk_sockets(rows, n)
-        srows += o
-        rep += r
+SOCKET_CHUNKS = ('S', 'C1', 'C2')
+
+
+def write_sockets_csv(rows, names=SOCKET_CHUNKS):
+    """Derive the sockets of the chunks in names; every other chunk's rows are kept as the
+    file has them (a fresh trace moves a socket by a few mm, and a chunk that is not
+    re-baked keeps its sockets byte for byte)."""
     p = os.path.join(data_dir(), 'CaveChunkSockets.csv')
-    write_csv(p, SOCKET_COLS, srows)
+    keep = {}
+    if os.path.exists(p):
+        with open(p, encoding='utf-8') as f:
+            lines = [l.rstrip('\r\n') for l in f if l.strip()]
+        for l in lines[1:]:
+            keep.setdefault(l.split(',')[0], []).append(l)
+    srows, rep, raw = [], [], []
+    for n in SOCKET_CHUNKS:
+        if n in names or n not in keep:
+            o, r = chunk_sockets(rows, n)
+            srows += o
+            rep += r
+            raw += [','.join(_fmt(q[c]) for c in SOCKET_COLS) for q in o]
+        else:
+            raw += keep[n]
+            srows += read_csv_lines(SOCKET_COLS, keep[n])
+    with open(p, 'w', newline='\n', encoding='utf-8') as f:
+        f.write(','.join(SOCKET_COLS) + '\n')
+        for l in raw:
+            f.write(l + '\n')
     return p, srows, rep
+
+
+def read_csv_lines(cols, lines):
+    out = []
+    for l in lines:
+        r = dict(zip(cols, l.split(',')))
+        for k, v in r.items():
+            try:
+                r[k] = float(v)
+            except ValueError:
+                pass
+        out.append(r)
+    return out
 
 
 # ---------------------------------------------------------------- the dive path and the hull sweep
@@ -602,6 +694,17 @@ def dive_path(rows, step=25.0, turn_step=2.0):
         region=lambda q: 'tunnel' if math.hypot(q[0] - cx, q[1] - cy) > 2000.0 else 'cavern')
     # B: straight, a hall between two necks
     run(places['B'], (0, 0, 0), (byname['B']['ExitX'], 0, 0), region='cavern')
+    # C2: down its sloping tunnel to the pit's lip (SinkTop), then a sink to the berth
+    if 'C2' in places:
+        pl = places['C2']
+        p = cg.c2_path()
+        n = int(math.ceil(p.length / step))
+        for i in range(n + 1):
+            s = p.length * i / n
+            x, y, z, yaw = p.at(s)
+            add(compose(pl, (x, y, z, yaw)), 'tunnel' if s < p.length - 1600.0 else 'cavern')
+        cx, cy = cg.C2_COL
+        run(pl, (cx, cy, cg.C2_SINKTOP_Z), (cx, cy, cg.C2_PARK_Z), region='cavern')
     return pts
 
 
@@ -745,11 +848,22 @@ def _path_at(pts, acc, d):
     return pts[i]
 
 
+_C2X = cg.C2_COL[0]
+C2_VIEWS = {   # local x, y, z, yaw; the pitch stays in the CSV
+    'C2_lip_helm': (_C2X - 1550.0, 0.0, -700.0, 0.0),
+    'C2_limit_view': (_C2X - 500.0, 0.0, -2000.0, 0.0),
+    'C2_hatch_hall': (_C2X + 150.0, -350.0, -3650.0, 0.0),
+    'C2_relic_back': (_C2X + 4300.0, 200.0, -3300.0, 180.0),
+    'C2_serpent_bay': (_C2X + 3500.0, -500.0, -2950.0, -144.0),
+    'C2_relic_alcove': (_C2X + 2600.0, 0.0, -3150.0, 9.0),
+}
+
+
 def derive_cameras(rows, write=True):
     """Recompute the cameras that follow the string and keep the rest. Helm views
     (Helm_X_Y): the hull centre 20 m along the dive path before joint X-Y, 1 m up, facing
     along the path. T1_squeeze_helm: the hull's nose at the squeeze's start. C1_from_entry:
-    3.5 m into C1 on its axis. E_from_joint: 1.5 m into E. String_overview: straight down, turned and raised so every
+    3.5 m into C1 on its axis. C2_from_joint: 1.5 m into C2, and C2's views from C2_VIEWS. String_overview: straight down, turned and raised so every
     chunk's bounds fit the frame."""
     cams = read_csv(CAMERA_CSV)
     plist, end = string_places(rows)
@@ -770,8 +884,11 @@ def derive_cameras(rows, write=True):
     new['T1_squeeze_helm'] = w
     w = compose(places['C1'], (350.0, 0.0, 60.0, 0.0))
     new['C1_from_entry'] = w
-    # just past the B-E joint (on the plane itself it is in neither chunk's water)
-    new['E_from_joint'] = compose(places['E'], (150.0, 0.0, HELM_UP, 0.0))
+    # just past the B-C2 joint (on the plane itself it is in neither chunk's water)
+    new['C2_from_joint'] = compose(places['C2'], (150.0, 0.0, HELM_UP, 0.0))
+    # C2's views, in its frame (yaw relative to its entry)
+    for nm, (x, y, z, yw) in C2_VIEWS.items():
+        new[nm] = compose(places['C2'], (x, y, z, yw))
     # overview: fit the chunks' bounds (8 corners each, in world) for the best yaw
     corners = []
     for r in rows:
