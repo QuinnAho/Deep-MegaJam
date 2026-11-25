@@ -48,7 +48,10 @@ namespace DeepHelmView
 
 	/**
 	 * D1b: the chase view's pitch. LookPitchDeg (the look ahead), raised until HullTopCm shows HullTopFrameFrac of the half
-	 * frame under the centre, so the passage shows over and past the hull; inside the look's pitch limits.
+	 * frame under the centre, so the passage shows over and past the hull; inside the look's pitch limits. Sinking (the travel
+	 * TravelPitchDeg under level) the way lies below the hull, so the share eases to 0 at HullTopSinkDeg down: the view may
+	 * look down past the hull, never so far that the hull's top rises over the centre.
 	 */
-	DEEP_API float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T);
+	DEEP_API float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T,
+		float TravelPitchDeg = 0.f);
 }

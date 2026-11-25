@@ -2943,6 +2943,10 @@ struct DEEP_API FDeepHelmViewTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float HullTopFrameFrac = 0.3f;
 
+	/** Sinking this steeply (deg under level) or more, the hull may sit up to the frame's centre: the way lies below it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float HullTopSinkDeg = 40.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float FrameAspect = 1.7778f;
 };

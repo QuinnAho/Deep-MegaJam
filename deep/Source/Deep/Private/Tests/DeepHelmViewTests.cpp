@@ -51,6 +51,13 @@ bool FDeepHelmViewFramePitchTest::RunTest(const FString& Parameters)
 	const float Look = -10.f;
 	TestEqual(TEXT("high over it, the look ahead stands"), DeepHelmView::FramePitch(High, Top, Look, Fov, T), Look, 0.001f);
 	TestTrue(TEXT("and the hull is in the lower part"), DeepHelmView::FrameY(High, FRotator(Look, 0.f, 0.f), Top, Fov, T.FrameAspect) >= T.HullTopFrameFrac);
+	// Sinking: the way lies below the hull, so the view may look down past it, but the hull's top never rises over the centre.
+	const float Sinking = DeepHelmView::FramePitch(Cam, Top, -35.f, Fov, T, -T.HullTopSinkDeg);
+	TestTrue(TEXT("sinking, the view looks lower than when level"), Sinking < Pitch);
+	TestTrue(TEXT("sinking, the hull's top stays at or under the centre"),
+		DeepHelmView::FrameY(Cam, FRotator(Sinking, 0.f, 0.f), Top, Fov, T.FrameAspect) >= -0.001f);
+	const float HalfSink = DeepHelmView::FramePitch(Cam, Top, -35.f, Fov, T, -0.5f * T.HullTopSinkDeg);
+	TestTrue(TEXT("half as steep, half way"), HalfSink < Pitch && HalfSink > Sinking);
 	// Never past the look's limits.
 	T.LookMaxPitchDeg = 10.f;
 	TestTrue(TEXT("inside the pitch limits"), DeepHelmView::FramePitch(FVector(-100.0, 0.0, -500.0), Top, -15.f, Fov, T) <= 10.f);

@@ -801,13 +801,19 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 			Light->SetVolumetricScatteringIntensity(Fog / FMath::Max(FloodNear[Index], FMath::Clamp(Look.HelmFloodFogNearFloor, 0.01f, 1.f)));
 		}
 		// The fill dims the same way for the nearest rock round the bow: ahead, either side and above (D1b: wide and strong
-		// enough for S's walls, so a tunnel's walls close by must not burn). The floor under the bow sits in its soft edge.
+		// enough for S's walls, so a tunnel's walls close by must not burn). The floor under the bow sits in its soft edge
+		// and stays out of the chase view's frame; this machine's cockpit view looks straight at it, so there it counts too.
 		{
 			const FVector From = HelmFill->GetComponentLocation();
 			const float ReachCm = Look.HelmFillRangeM * UDeepRules::CmPerM;
 			float NearestCm = ReachCm;
 			const float Side = 0.6f * Look.HelmFillConeDeg;
-			for (const FRotator Off : { FRotator::ZeroRotator, FRotator(0.f, -Side, 0.f), FRotator(0.f, Side, 0.f), FRotator(Side, 0.f, 0.f) })
+			TArray<FRotator, TInlineAllocator<5>> Rays = { FRotator::ZeroRotator, FRotator(0.f, -Side, 0.f), FRotator(0.f, Side, 0.f), FRotator(Side, 0.f, 0.f) };
+			if (bHelmCockpit)
+			{
+				Rays.Add(FRotator(-Side, 0.f, 0.f));
+			}
+			for (const FRotator& Off : Rays)
 			{
 				FHitResult Hit;
 				const FVector Dir = HelmFill->GetComponentQuat().RotateVector(Off.Vector());
@@ -1074,7 +1080,8 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), T);
 	// D1b: the hull never hides the way ahead: pitch up until the top of the hull sits in the lower part of the frame.
 	const FVector HullTopW = GetActorTransform().TransformPosition(FVector(Centre.X, Centre.Y, Box.Max.Z));
-	Rotation.Pitch = DeepHelmView::FramePitch(Camera, HullTopW, Rotation.Pitch, T.ChaseFovDeg, T);
+	const float TravelPitchDeg = float(FMath::RadiansToDegrees(FMath::Asin(FMath::Clamp(Frame.TransformVectorNoScale(LookDirLocal).Z, -1.0, 1.0))));
+	Rotation.Pitch = DeepHelmView::FramePitch(Camera, HullTopW, Rotation.Pitch, T.ChaseFovDeg, T, TravelPitchDeg);
 	Rotation.Yaw += HelmLookDeg.X + YawShakeDeg;
 	Rotation.Pitch = FMath::Clamp(Rotation.Pitch + HelmLookDeg.Y + PitchShakeDeg, -85.f, 85.f);
 	// The idle hull's breathing, a hint of it (D-070): the view stays calm.

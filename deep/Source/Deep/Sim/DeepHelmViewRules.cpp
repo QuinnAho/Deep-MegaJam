@@ -112,13 +112,16 @@ namespace DeepHelmView
 		return float(-(Local.Z / Local.X) / FMath::Max(1e-4, TanHalfV));
 	}
 
-	float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T)
+	float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T,
+		float TravelPitchDeg)
 	{
 		const FVector To = HullTopCm - CameraCm;
 		const double Flat = FVector(To.X, To.Y, 0.0).Size();
 		const double TopDeg = FMath::RadiansToDegrees(FMath::Atan2(To.Z, FMath::Max(1.0, Flat)));
 		const double TanHalfV = FMath::Tan(FMath::DegreesToRadians(VerticalFovDeg(HorizontalFovDeg, T.FrameAspect) * 0.5));
-		const double BelowDeg = FMath::RadiansToDegrees(FMath::Atan(FMath::Clamp(T.HullTopFrameFrac, 0.f, 0.95f) * TanHalfV));
+		const float Sink = FMath::Clamp(-TravelPitchDeg / FMath::Max(1.f, T.HullTopSinkDeg), 0.f, 1.f);
+		const double Frac = FMath::Clamp(T.HullTopFrameFrac, 0.f, 0.95f) * (1.f - Sink);
+		const double BelowDeg = FMath::RadiansToDegrees(FMath::Atan(Frac * TanHalfV));
 		const float Want = FMath::Max(LookPitchDeg, float(TopDeg + BelowDeg));
 		return FMath::Clamp(Want, FMath::Min(T.LookMinPitchDeg, T.LookMaxPitchDeg), FMath::Max(T.LookMinPitchDeg, T.LookMaxPitchDeg));
 	}
