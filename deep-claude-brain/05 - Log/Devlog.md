@@ -1394,3 +1394,7 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 ### 8:15 AM, Nov 25  D1c: sinking shows the way down
 - Changed: on `build/drive2` (`3ec29ba`), sinking puts the chase view over the hull looking down past it, and rising puts it behind looking up. The floods tip toward the heave. Snow shows only where the sub's light reaches, so the black rain is gone. The cockpit's fill is capped, so B has depth again. verify 234/234, the playthroughs and the package pass.
 - Next: `play/nov25` merges the drive with the immersion lane into one build for Quinn (`Builds\Nov25-All`).
+
+### 8:45 AM, Nov 25  One build with the night's work
+- Changed: `play/nov25` (`3946155`) merges the drive (D1 to D1c, with the rock and C2's shape) with the immersion lane. It merged with no conflicts and passed verify 243/243, S1-hatch, S7-run and S13-caves. It's packaged in `Builds\Nov25-All` (zip 919.3 MB). Silt on and off measure the same: 7.5 ms a frame, 6.8 ms on the GPU.
+- Next: Quinn drives `Builds\Nov25-All\Play-Caves.bat`, listens to the new sounds and makes his calls on frames page v45. Then come the merge into main, C2's runtime part and the caves on by default.

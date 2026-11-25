@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-14 21:00 EST
+updated: 2026-11-25 08:45 EST
 ---
 # DEEP: Start Here
 
@@ -7,26 +7,21 @@ This vault is Claude's memory for the DEEP jam project. Every Claude session (Qu
 
 **Keep it light.** Read this note and [[Board]]. Open another note only when the task touches it. Do not read the whole vault into context.
 
-## Status right now
+## Status right now (Nov 25, 8:45 AM)
 
 | | |
 |---|---|
-| Jam | 2026 Epic AI MegaJam. Theme: **DIRECTOR'S CUT**. See [[Jam Brief]]. |
-| Deadline | **Sunday Nov 15 2026, 8:59 PM EST** (5:59 PM PST). Late entries are disqualified. |
-| Team | Quinn and Colby (brothers), plus Claude agents. |
-| Game | DEEP: first-person tethered salvage dive. The submarine's AI is the Captain, a sarcastic asshole who takes the Director's cut of every haul. See [[GDD]]. |
-| Phase | **Building.** Quinn said go at about 9:12 PM Nov 14. Agents are working through [[Board]] in order. Design is [[GDD]] v3. |
-| Project | `deep/Deep.uproject` inside this repo. UE 5.9 MegaJam Preview. Quinn added a C++ module, `Deep`, at 8:55 PM Nov 14. No content yet. All Toolsets is not enabled yet. |
-| Git repo | `C:\Repositories\Deep-MegaJam`, origin `github.com/QuinnAho/Deep-MegaJam`. No commits yet. |
-| Design and to-dos | The Google Doc linked from [[GDD]]. Humans edit it. It does not mirror this vault. |
+| Phase | **Polishing for real, with no deadline.** The goal is the slice: the first ten minutes ([[Slice Brief]]). The jam entry went in solo on Nov 16 (D-054), tagged `jam-final`. |
+| Team | Quinn and Colby, plus Claude agents. Quinn checks lanes and approves frames ([[Board]], `CLAUDE.md`). |
+| Game | DEEP: drive the sub, BT-01, through a string of generated cave chunks (S, A, T1, C1, B, and C2 coming). Park at a berth, then dive on the tether for salvage and the relic while the serpent hunts the line. The caves are behind `Deep.World.Caves 1` until C2's runtime part lands (D-068). See [[GDD]]. |
+| Engine | UE 5.9 build 60738873 (D-071). Project `deep/Deep.uproject`, C++ module `Deep`. |
+| Repo | `C:\Repositories\Deep-MegaJam`, origin `github.com/QuinnAho/Deep-MegaJam`. Main is pushed. Lanes build in `.wt\<name>` worktrees. |
+| Rules | `CLAUDE.md`: humans own the maps, frames go to Quinn before a visual merge, and immersion always (D-072). |
+| Design and to-dos | The Google Doc linked from [[GDD]]. Humans edit it, and it doesn't mirror this vault. |
 
-## Blocking decisions
+## Open calls
 
-Open in [[Decision Log]]. Nothing gets built until the first two are answered.
-
-1. **Engine: stay on 5.9 Preview or restart on 5.8?** Assets cannot move from 5.9 back to 5.8. See [[Engine Choice - 5.9 vs 5.8]].
-2. **Solo-playable jam build with co-op after the jam?** Claude recommends yes.
-3. Student track eligibility, team name, and whether the Director's voice uses OpenAI text-to-speech.
+Quinn's open calls are on the frames page (its URL is in Claude's memory) and in [[Board]]. The jam's blocking decisions are settled: the project stayed on 5.9, and the entry was solo.
 
 ## Map of the vault
 
