@@ -1398,3 +1398,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 ### 8:45 AM, Nov 25  One build with the night's work
 - Changed: `play/nov25` (`3946155`) merges the drive (D1 to D1c, with the rock and C2's shape) with the immersion lane. It merged with no conflicts and passed verify 243/243, S1-hatch, S7-run and S13-caves. It's packaged in `Builds\Nov25-All` (zip 919.3 MB). Silt on and off measure the same: 7.5 ms a frame, 6.8 ms on the GPU.
 - Next: Quinn drives `Builds\Nov25-All\Play-Caves.bat`, listens to the new sounds and makes his calls on frames page v45. Then come the merge into main, C2's runtime part and the caves on by default.
+
+### 2:36 PM, Nov 25  Quinn drove it: realism over the chase view
+- Quinn drove `Nov25-All`. The chase view reads as arcade, the controls are "still a little jank", and the sonar's ping never lets up in tunnels. He pointed at BT-01's own furnished cabin, which the game never shows: the "cockpit" camera hung outside, under the hull.
+- Decided (D-073): the pilot sits at BT-01's own controls, and the mouse turns the view like a servo. The ping comes on a key, and the jank gets measured before it gets fixed.
+- Started: lane D2 (opus) on `build/drive3`, from `play/nov25`. Open for Quinn: should players also walk inside the real cabin, in place of the code-built room? It's cramped, with a 60 to 80 cm aisle.

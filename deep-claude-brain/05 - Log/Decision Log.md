@@ -78,9 +78,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-067 | The caves lay 10 salvage pieces a stop, in piles of 2 or 3 | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b about 1:45 AM Nov 25 (`a64d217`) |
 | D-068 | The relic waits in C1 until a stop-3 cavern exists; the caves stay off by default until then | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b (`a64d217`) |
 | D-069 | Stop 3's cavern: C2, a pit below B into the run's biggest chamber, ends the string | Decided (Quinn, 2:37 AM Nov 18); its shape waits for his OK |
+| D-073 | The pilot sits in BT-01's own cabin (realism over the chase view), the mouse turns the view like a servo, and the sonar pings only on demand | Decided (Quinn, about 2:30 PM Nov 25, after driving `Nov25-All`); lane D2 on `build/drive3` |
 | D-072 | Always think about immersion; any lane may add polish (loosens D-028's one planned pass) | Decided (Quinn, about 3:30 AM Nov 25) |
 | D-071 | UE 5.9 updated to build 60738873 to match the Fab plugin | Decided (Quinn, about 3:15 AM Nov 25); installed by about 3:35 AM |
-| D-070 | The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material | Decided (Quinn, about 1:45 AM Nov 25; "go" to the plan at about 2:05 AM); lanes `build/drive` and the rock on `build/cavestop3` |
+| D-070 | The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material | Decided (Quinn, about 1:45 AM Nov 25; "go" to the plan at about 2:05 AM); lanes `build/drive` and the rock on `build/cavestop3`; its default chase view changed by D-073 |
 
 ## Open
 
@@ -383,6 +384,25 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-073 The pilot sits in BT-01's own cabin; servo look; the ping on demand
+- **Status:** Decided by Quinn's words. Lane D2 started at about 2:35 PM on `build/drive3`, branched from `play/nov25`. It changes D-070's default view. The chase view stays on V until Quinn decides whether to keep it.
+- **Date:** 2026-11-25, about 2:30 PM EST
+- **Who:** Quinn, after driving `Builds\Nov25-All`.
+- **Quinn's words:** "im not sure i like the chase view i want so sort of realism, also the controls as still a little jank, maybe for the mmouse controls the camera but slolwly like a servo moving the radar inm the tunnel is a little annoyting since you are awlays continue". Then: "BT-01's own cabin, not used, i feel like we shoukd use this".
+- **Decided:**
+  - The helm view sits at the pilot's eye at BT-01's own controls, inside the furnished cabin the model already holds. Until now the "cockpit" camera hung outside, under the hull, at (5.2, 0, -2.6) m.
+  - The cabin reads dry and lived-in. Its own fittings and instruments light it. Water, fog, snow and silt stay outside the glass.
+  - The mouse moves an aim, and the view follows it at a capped rate, easing in and out like a servo, with a faint servo whine.
+  - The sonar stops pinging on its own. The pilot pings with a key.
+  - The jank is measured (hull and camera judder per frame), not guessed.
+- **Why:** Quinn wants realism, and the chase view reads as an arcade game. The ping every 6 s, with I1's echo, never lets up in tunnels.
+- **The risk, said to Quinn:** a view through BT-01's bow glass could bring back "you barely can see anything". Against it:
+  - the seat is close to the glass;
+  - the floods stay full and forward (D-070);
+  - the servo look reaches the side windows;
+  - the chase view stays on V for now.
+- **Open:** walking inside BT-01's real cabin instead of the code-built room set (D-051). The aisle is 60 to 80 cm, so two players could pass only by walking through each other.
 
 ### D-072 Always think about immersion; any lane may add polish
 - **Status:** Decided. It loosens D-028: look work no longer waits for one planned pass.
