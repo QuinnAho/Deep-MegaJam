@@ -209,6 +209,7 @@ namespace DeepImmersionRules
 		const FVector Any = FVector(Rand.VRand());
 		const FVector Along = (Any - Puff.Normal * FVector::DotProduct(Any, Puff.Normal)).GetSafeNormal();
 		Puff.Out = Along;
+		Puff.OutMps = T.OutwardMps;
 		Puff.Wander = FVector(Rand.VRand());
 		// Born on the open side of the surface, the start radius share off it: never in the rock.
 		Puff.SurfaceCm = HitCm;
@@ -221,7 +222,7 @@ namespace DeepImmersionRules
 		FDeepSiltPuffNow Now;
 		const float Age = FMath::Clamp(Puff.AgeS, 0.f, Puff.LifeS);
 		const float Rise = ImmDraggedM(Puff.RiseMps, Age, T.Drag);
-		const float Outward = ImmDraggedM(T.OutwardMps, Age, T.Drag);
+		const float Outward = ImmDraggedM(Puff.OutMps, Age, T.Drag);
 		const float Settle = T.SettleMps * FMath::Max(0.f, Age - 0.5f * Puff.LifeS);
 		const FVector DriftM = (T.CurrentMps + Puff.Wander * T.WanderMps) * Age;
 		Now.LocationCm = Puff.BirthCm + Puff.PushCm
@@ -244,6 +245,22 @@ namespace DeepImmersionRules
 		const float Out = ImmSmooth01((Puff.LifeS - Age) / FMath::Max(0.05f, Puff.LifeS * T.FadeOutShare));
 		Now.Opacity01 = FMath::Clamp(T.PeakOpacity * In * Out * (1.f - T.SpreadThinning * Spread01), 0.f, 1.f);
 		return Now;
+	}
+
+	void Wash(FDeepSiltPuff& Puff, const FVector& HullVelocityMps, const FDeepSiltTuning& T)
+	{
+		// Aft of the travel, flattened onto the surface it rose from.
+		const FVector Back = -HullVelocityMps;
+		const FVector Along = Back - Puff.Normal * FVector::DotProduct(Back, Puff.Normal);
+		const double Speed = Along.Size();
+		if (Speed < 1e-3)
+		{
+			return;
+		}
+		const float Share = FMath::Clamp(T.WashShare, 0.f, 1.f);
+		const FVector Out = (Along / Speed) * Share + Puff.Out * (1.f - Share);
+		Puff.Out = Out.GetSafeNormal(1e-4, Along / Speed);
+		Puff.OutMps = T.OutwardMps + T.WashMps * FMath::Clamp(static_cast<float>(Speed) / FMath::Max(0.1f, T.LiftFullMps), 0.f, 1.f);
 	}
 
 	bool TouchesBox(const FVector& PointCm, float RadiusCm, const FBox& Box)

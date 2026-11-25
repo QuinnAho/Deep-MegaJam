@@ -86,11 +86,11 @@ def finish(mat):
         mat.get_name(), ok, mel.get_num_material_expressions(mat), len(errors or [])))
 
 
-def build_puff():
-    mat = fresh("M_SiltPuff")
+def build_puff(name, mode):
+    mat = fresh(name)
     mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
-    mat.set_editor_property("translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_VOLUMETRIC_NON_DIRECTIONAL)
+    mat.set_editor_property("translucency_lighting_mode", mode)
     mat.set_editor_property("two_sided", False)
     # Drawn on instanced spheres only: the one usage flag it needs (a cooked game has no fallback for a missing flag).
     mat.set_editor_property("used_with_instanced_static_meshes", True)
@@ -128,9 +128,12 @@ def build_puff():
     mel.connect_material_property(vector(mat, "Albedo", (0.30, 0.28, 0.24), -600, -300), "", unreal.MaterialProperty.MP_BASE_COLOR)
     mel.connect_material_property(fade, "", unreal.MaterialProperty.MP_OPACITY)
     finish(mat)
-    saved = unreal.load_asset(PATH + "/M_SiltPuff")
+    saved = unreal.load_asset(PATH + "/" + name)
     flags = ["blend_mode", "translucency_lighting_mode", "used_with_instanced_static_meshes", "two_sided"]
-    unreal.log("DEEPIMMMAT M_SiltPuff readback " + " ".join("%s=%s" % (f, saved.get_editor_property(f)) for f in flags))
+    unreal.log("DEEPIMMMAT " + name + " readback " + " ".join("%s=%s" % (f, saved.get_editor_property(f)) for f in flags))
 
 
-build_puff()
+build_puff("M_SiltPuff", unreal.TranslucencyLightingMode.TLM_VOLUMETRIC_NON_DIRECTIONAL)
+# The same puff lit per pixel by every light (Surface ForwardShading): dearer, sharper in a beam. Kept for the A/B
+# (Deep.Silt.Material); the tuning picks which one ships.
+build_puff("M_SiltPuffFwd", unreal.TranslucencyLightingMode.TLM_SURFACE_PER_PIXEL_LIGHTING)

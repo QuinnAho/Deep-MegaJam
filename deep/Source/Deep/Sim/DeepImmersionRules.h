@@ -65,6 +65,8 @@ struct FDeepSiltPuff
 	/** Where the hull has shoved it (cm, added to its path). */
 	FVector PushCm = FVector::ZeroVector;
 	float RiseMps = 0.4f;
+	/** Speed of its first push along Out (m/s), slowed by Drag like the rise. */
+	float OutMps = 0.35f;
 	float StartRadiusM = 0.5f;
 	float SpreadRadiusM = 2.f;
 	float LifeS = 15.f;
@@ -155,6 +157,9 @@ namespace DeepImmersionRules
 
 	/** The puff at its age: drifted, spread, faded. */
 	DEEP_API FDeepSiltPuffNow PuffAt(const FDeepSiltPuff& Puff, const FDeepSiltTuning& T);
+
+	/** The thrusters' wash on a lifted puff: thrown aft of the hull's travel (m/s), along the surface, harder the faster it goes. */
+	DEEP_API void Wash(FDeepSiltPuff& Puff, const FVector& HullVelocityMps, const FDeepSiltTuning& T);
 
 	/** True when a sphere (local cm) of RadiusCm reaches into Box. */
 	DEEP_API bool TouchesBox(const FVector& PointCm, float RadiusCm, const FBox& Box);

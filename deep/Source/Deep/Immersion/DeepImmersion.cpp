@@ -280,7 +280,7 @@ TArray<float> UDeepImmersion::RingRanges(const FVector& OriginCm, const AActor* 
 	const FDeepEchoTuning& Echo = UDeepTuningSettings::Get().Immersion.Echo;
 	const int32 Beams = FMath::Clamp(Echo.DiverBeams, 4, 32);
 	const double ReachCm = FMath::Max(5.f, Echo.DiverRangeM) * UDeepRules::CmPerM;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepEchoRing), false, Ignore);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepEchoRing), true, Ignore);
 	if (const ADeepSubmarine* Sub = DeepArena::FindSubmarine(World))
 	{
 		Params.AddIgnoredActor(Sub);

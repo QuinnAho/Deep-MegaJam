@@ -5,6 +5,7 @@
 //   Deep.Silt.Clear            no puffs
 //   Deep.Silt.Hide 0|1         draw none (they still live): a GPU A/B with Deep.Silt.Bench
 //   Deep.Silt.Bench [s=5]      after s seconds logs DEEPSILT bench {frame_ms, gpu_ms, puffs}
+//   Deep.Silt.Look <grey> [density] [edge]   the puffs' look live; Deep.Silt.Material fwd|vol|<path>  an A/B of lighting
 //   Deep.Echo.Test <m> [m ..]  a ping and its echo from these ranges (m; -1 = no return)
 //   Deep.Echo.Export <wav> [m ..]  the ping and its echo as the game plays them, from these ranges or the last echo's
 // Deep.Immersion 0|1 (the CVar, Immersion/DeepImmersion.cpp) turns all of I1 off and on.
@@ -92,6 +93,43 @@ namespace
 			if (ADeepSilt* Silt = ADeepSilt::Ensure(World))
 			{
 				Silt->SetDrawHidden(Args.Num() > 0 && FCString::Atoi(*Args[0]) != 0);
+			}
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SiltLookCommand(
+		TEXT("Deep.Silt.Look"),
+		TEXT("Deep.Silt.Look <grey albedo 0..1> [density] [edge power]: the puffs' look live (frames); the tuning sets it at start."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			const FDeepSiltTuning& S = UDeepTuningSettings::Get().Immersion.Silt;
+			if (ADeepSilt* Silt = ADeepSilt::Ensure(World); Silt && Args.Num() > 0)
+			{
+				// A grey of that value with the tuned albedo's tint.
+				const float Grey = FMath::Clamp(FCString::Atof(*Args[0]), 0.f, 1.f);
+				const float Base = FMath::Max(0.01f, S.Albedo.GetLuminance());
+				Silt->SetLook(S.Albedo * (Grey / Base), Args.Num() > 1 ? FCString::Atof(*Args[1]) : S.Density, Args.Num() > 2 ? FCString::Atof(*Args[2]) : S.EdgePower);
+			}
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SiltMaterialCommand(
+		TEXT("Deep.Silt.Material"),
+		TEXT("Deep.Silt.Material <path|fwd|vol>: the puffs' material (fwd = M_SiltPuffFwd, lit per pixel; vol = M_SiltPuff, the translucency volume)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (ADeepSilt* Silt = ADeepSilt::Ensure(World); Silt && Args.Num() > 0)
+			{
+				FString Path = Args[0];
+				if (Path.Equals(TEXT("fwd"), ESearchCase::IgnoreCase))
+				{
+					Path = TEXT("/Game/Deep/Immersion/M_SiltPuffFwd.M_SiltPuffFwd");
+				}
+				else if (Path.Equals(TEXT("vol"), ESearchCase::IgnoreCase))
+				{
+					Path = TEXT("/Game/Deep/Immersion/M_SiltPuff.M_SiltPuff");
+				}
+				Silt->SetMaterialPath(Path);
 			}
 			DeepStateReport::LogState(World);
 		}));

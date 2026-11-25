@@ -103,22 +103,44 @@ void ADeepSilt::BeginPlay()
 {
 	Super::BeginPlay();
 	const FDeepSiltTuning& S = SiltTune();
-	if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, *S.Material, nullptr, LOAD_NoWarn | LOAD_Quiet))
-	{
-		PuffMaterial = UMaterialInstanceDynamic::Create(Base, this);
-		PuffMaterial->SetVectorParameterValue(TEXT("Albedo"), S.Albedo);
-		Puffs->SetMaterial(0, PuffMaterial);
-	}
-	else
-	{
-		// Without the soft translucent material a sphere would draw as a grey ball: draw nothing instead.
-		UE_LOG(LogDeepSilt, Warning, TEXT("Silt: no material at %s; puffs are simulated but not drawn"), *S.Material);
-	}
+	SetMaterialPath(S.Material);
+	SetLook(S.Albedo, S.Density, S.EdgePower);
 	if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
 	{
 		EventHandle = Bus->OnEvent.AddUObject(this, &ADeepSilt::HandleEvent);
 	}
 	Draw();
+}
+
+bool ADeepSilt::SetMaterialPath(const FString& Path)
+{
+	UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (!Base)
+	{
+		// Without the soft translucent material a sphere would draw as a grey ball: draw nothing instead.
+		UE_LOG(LogDeepSilt, Warning, TEXT("Silt: no material at %s; puffs are simulated but not drawn"), *Path);
+		PuffMaterial = nullptr;
+		return false;
+	}
+	PuffMaterial = UMaterialInstanceDynamic::Create(Base, this);
+	PuffMaterial->SetVectorParameterValue(TEXT("Albedo"), LookAlbedo);
+	PuffMaterial->SetScalarParameterValue(TEXT("Density"), LookDensity);
+	PuffMaterial->SetScalarParameterValue(TEXT("EdgePower"), LookEdgePower);
+	Puffs->SetMaterial(0, PuffMaterial);
+	return true;
+}
+
+void ADeepSilt::SetLook(const FLinearColor& Albedo, float Density, float EdgePower)
+{
+	LookAlbedo = Albedo;
+	LookDensity = FMath::Max(0.f, Density);
+	LookEdgePower = FMath::Max(0.1f, EdgePower);
+	if (PuffMaterial)
+	{
+		PuffMaterial->SetVectorParameterValue(TEXT("Albedo"), LookAlbedo);
+		PuffMaterial->SetScalarParameterValue(TEXT("Density"), LookDensity);
+		PuffMaterial->SetScalarParameterValue(TEXT("EdgePower"), LookEdgePower);
+	}
 }
 
 void ADeepSilt::EndPlay(const EEndPlayReason::Type Reason)
@@ -167,7 +189,8 @@ bool ADeepSilt::Trace(const FVector& FromCm, const FVector& ToCm, FHitResult& Hi
 		return false;
 	}
 	// The rock only (chunks, shaft pieces, beds and caverns are world static): never the hull, a diver or the serpent.
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepSilt), false, this);
+	// Complex: the cave chunks have complex collision only (the drive lane found the same for its probes).
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepSilt), true, this);
 	if (const ADeepSubmarine* Sub = DeepArena::FindSubmarine(World))
 	{
 		Params.AddIgnoredActor(Sub);
@@ -202,7 +225,7 @@ void ADeepSilt::StepSilt(float DeltaSeconds)
 	Draw();
 }
 
-int32 ADeepSilt::AddPuffs(const FVector& SiltCm, const FVector& SiltNormal, int32 Count, float Scale, float JitterCm)
+int32 ADeepSilt::AddPuffs(const FVector& SiltCm, const FVector& SiltNormal, int32 Count, float Scale, float JitterCm, const FVector& WashMps)
 {
 	const FDeepSiltTuning& S = SiltTune();
 	const FVector Normal = SiltNormal.GetSafeNormal(1e-4, FVector::UpVector);
@@ -213,7 +236,12 @@ int32 ADeepSilt::AddPuffs(const FVector& SiltCm, const FVector& SiltNormal, int3
 		const FVector Any = FVector(Rand.VRand());
 		const FVector Along = (Any - Normal * FVector::DotProduct(Any, Normal)).GetSafeNormal();
 		const FVector At = SiltCm + Along * (Rand.FRand() * FMath::Max(0.f, JitterCm));
-		Pool.Add(DeepImmersionRules::MakePuff(At, Normal, Scale, Rand, S), S.MaxPuffs);
+		FDeepSiltPuff Puff = DeepImmersionRules::MakePuff(At, Normal, Scale, Rand, S);
+		if (!WashMps.IsNearlyZero())
+		{
+			DeepImmersionRules::Wash(Puff, WashMps, S);
+		}
+		Pool.Add(Puff, S.MaxPuffs);
 		++Added;
 	}
 	return Added;
@@ -264,6 +292,7 @@ void ADeepSilt::SetDrawHidden(bool bHide)
 
 void ADeepSilt::ProbeHull(float ProbeDt)
 {
+	++Probes;
 	const ADeepSubmarine* Sub = DeepArena::FindSubmarine(GetWorld());
 	Contacts.Reset();
 	HullClearanceM = -1.f;
@@ -288,11 +317,13 @@ void ADeepSilt::ProbeHull(float ProbeDt)
 	// The hull's speed through the water, from where it was in the silt's frame a probe ago.
 	const FVector HullSilt = Frame.InverseTransformPosition(CentreW);
 	HullSpeedMps = 0.f;
+	HullVelocityMps = FVector::ZeroVector;
 	if (bHasLastHull && ProbeDt > 0.f)
 	{
 		const float Mps = static_cast<float>(FVector::Dist(HullSilt, LastHullSiltCm) / ProbeDt / UDeepRules::CmPerM);
 		// Faster than any drive is a jump (a cheat, a stop loading): no wash from it.
 		HullSpeedMps = Mps < 25.f ? Mps : 0.f;
+		HullVelocityMps = HullSpeedMps > 0.f ? (HullSilt - LastHullSiltCm) / ProbeDt / UDeepRules::CmPerM : FVector::ZeroVector;
 	}
 	LastHullSiltCm = HullSilt;
 	bHasLastHull = true;
@@ -354,7 +385,7 @@ void ADeepSilt::ProbeHull(float ProbeDt)
 			const int32 K = (SiltDownProbes - 1 - (Turn + Try) % SiltDownProbes);
 			if (LiftContact[K] != INDEX_NONE)
 			{
-				Lifted += AddPuffs(Contacts[LiftContact[K]].HitCm, Contacts[LiftContact[K]].Normal, 1, 1.f, static_cast<float>(Ext.Y * 0.9));
+				Lifted += AddPuffs(Contacts[LiftContact[K]].HitCm, Contacts[LiftContact[K]].Normal, 1, 1.f, static_cast<float>(Ext.Y * 0.9), HullVelocityMps);
 				break;
 			}
 		}
@@ -584,6 +615,7 @@ TSharedRef<FJsonObject> ADeepSilt::BuildStateJson() const
 	Json->SetNumberField(TEXT("scraped"), Scraped);
 	Json->SetNumberField(TEXT("knocked"), Knocked);
 	Json->SetNumberField(TEXT("kicked"), Kicked);
+	Json->SetNumberField(TEXT("probes"), Probes);
 	Json->SetNumberField(TEXT("clearance_m"), SiltRound2(HullClearanceM));
 	Json->SetNumberField(TEXT("gap_m"), SiltRound2(HullGapM));
 	Json->SetNumberField(TEXT("speed_mps"), SiltRound2(HullSpeedMps));

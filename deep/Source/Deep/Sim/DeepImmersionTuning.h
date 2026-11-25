@@ -198,6 +198,13 @@ struct DEEP_API FDeepSiltTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Puff")
 	float OutwardMps = 0.35f;
 
+	/** The thrusters' wash: lifted puffs are thrown aft of the hull's travel (this share of their push) at up to WashMps. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Lift", meta = (ClampMin = "0", ClampMax = "1"))
+	float WashShare = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Lift", meta = (ClampMin = "0"))
+	float WashMps = 0.9f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Puff", meta = (ClampMin = "0"))
 	float Drag = 0.55f;
 
@@ -238,7 +245,14 @@ struct DEEP_API FDeepSiltTuning
 
 	/** The puffs' look (style guide 4: suspended silt, grey-brown, saturation under 35%; light from the sources). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Look")
-	FLinearColor Albedo = FLinearColor(0.30f, 0.28f, 0.24f);
+	FLinearColor Albedo = FLinearColor(0.44f, 0.41f, 0.35f);
+
+	/** The material's Density (x every puff's opacity) and EdgePower (how fast a puff thins toward its rim). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Look", meta = (ClampMin = "0"))
+	float Density = 1.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Look", meta = (ClampMin = "0.1"))
+	float EdgePower = 1.2f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Silt|Look")
 	FString Material = TEXT("/Game/Deep/Immersion/M_SiltPuff.M_SiltPuff");

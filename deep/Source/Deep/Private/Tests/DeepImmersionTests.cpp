@@ -332,6 +332,13 @@ bool FDeepImmersionSiltTest::RunTest(const FString& Parameters)
 		bOffWall = bOffWall && FVector::DotProduct(DeepImmersionRules::PuffAt(OffWall, T).LocationCm - Wall, Normal) > 0.0;
 	}
 	TestTrue(TEXT("Never back through its wall"), bOffWall);
+
+	// The wash: a puff lifted under a hull running ahead (+X) is thrown aft, along the floor, harder at speed.
+	FDeepSiltPuff Washed = DeepImmersionRules::MakePuff(FVector::ZeroVector, FVector::UpVector, 1.f, Rand, T);
+	DeepImmersionRules::Wash(Washed, FVector(T.LiftFullMps, 0.0, 0.0), T);
+	TestTrue(TEXT("Washed aft"), Washed.Out.X < -0.5);
+	TestTrue(TEXT("Along the floor"), FMath::Abs(Washed.Out.Z) < 1e-3);
+	TestTrue(TEXT("Harder than a still lift"), Washed.OutMps > T.OutwardMps);
 	return true;
 }
 

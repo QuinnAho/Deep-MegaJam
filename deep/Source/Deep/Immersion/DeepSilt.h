@@ -49,6 +49,9 @@ public:
 
 	/** Deep.Silt.Hide: draw nothing (the puffs still live), for a GPU A/B. */
 	void SetDrawHidden(bool bHide);
+	/** The puffs' material (Deep.Silt.Material, an A/B of lighting modes) and look (Deep.Silt.Look). False if it did not load. */
+	bool SetMaterialPath(const FString& Path);
+	void SetLook(const FLinearColor& Albedo, float Density, float EdgePower);
 
 	const FDeepSiltPool& GetPool() const { return Pool; }
 	int32 GetPuffCount() const { return Pool.Num(); }
@@ -92,7 +95,7 @@ private:
 	void ProbeDivers(float ProbeDt);
 	void KeepOffHull();
 	void Draw();
-	int32 AddPuffs(const FVector& SiltCm, const FVector& SiltNormal, int32 Count, float Scale, float JitterCm);
+	int32 AddPuffs(const FVector& SiltCm, const FVector& SiltNormal, int32 Count, float Scale, float JitterCm, const FVector& WashMps = FVector::ZeroVector);
 	bool Trace(const FVector& FromCm, const FVector& ToCm, FHitResult& Hit) const;
 	FTransform SiltFrame() const { return GetActorTransform(); }
 
@@ -116,12 +119,18 @@ private:
 	float HullClearanceM = -1.f;
 	float HullGapM = -1.f;
 	float HullSpeedMps = 0.f;
+	/** The hull's velocity through the water (silt frame, m/s) at the last probe. */
+	FVector HullVelocityMps = FVector::ZeroVector;
 	bool bDrawHidden = false;
 	bool bWarnedMaterial = false;
 	int32 Lifted = 0;
 	int32 Scraped = 0;
 	int32 Knocked = 0;
 	int32 Kicked = 0;
+	int32 Probes = 0;
+	FLinearColor LookAlbedo = FLinearColor(0.3f, 0.28f, 0.24f);
+	float LookDensity = 1.f;
+	float LookEdgePower = 1.6f;
 	TArray<FTransform> Xforms;
 	TArray<float> Opacity;
 	float BenchLeft = 0.f;
