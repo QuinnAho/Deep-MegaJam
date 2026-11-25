@@ -301,6 +301,21 @@ namespace
 			}
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs PilotViewCommand(
+		TEXT("Deep.Pilot.View"),
+		TEXT("Deep.Pilot.View <chase|cockpit>: the pilot's view on this machine (V at the helm), for frames and tests."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+			const FString View = Args.Num() > 0 ? Args[0].ToLower() : FString();
+			if (!Sub || (View != TEXT("chase") && View != TEXT("cockpit")))
+			{
+				UE_LOG(LogDeepPilot, Warning, TEXT("Usage: Deep.Pilot.View chase|cockpit"));
+				return;
+			}
+			Sub->SetHelmCockpit(View == TEXT("cockpit"));
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs PilotAllStopCommand(
 		TEXT("Deep.Pilot.AllStop"),
 		TEXT("Deep.Pilot.AllStop: throttle to stop, ballast to neutral, rudder amidships; direct drive: lets go of every key."),

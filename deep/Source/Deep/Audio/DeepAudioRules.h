@@ -98,6 +98,8 @@ struct FDeepAudioMixInputs
 	bool bWinching = false;
 	float Threat01 = 0.f;
 	bool bHelmMoving = false;
+	/** D-070: someone is at the helm: at rest the hum idles at HelmIdleVolume01 instead of stopping. */
+	bool bHelmManned = false;
 
 	// Deep.Music (step 3 of D-040). Off: music silent, breathing as before.
 	bool bMusic = false;

@@ -94,6 +94,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Drive")
 	FDeepDriveTuning Drive;
 
+	/** D-070: the sub at rest holds station and its visual hull breathes (UDeepMovingSubRules::IdleBob). */
+	UPROPERTY(Config, EditAnywhere, Category = "Idle")
+	FDeepIdleTuning Idle;
+
 	/** D-070: the pilot's chase and cockpit views (World/DeepSubmarine, Sim/DeepHelmViewRules). */
 	UPROPERTY(Config, EditAnywhere, Category = "Helm view")
 	FDeepHelmViewTuning HelmView;

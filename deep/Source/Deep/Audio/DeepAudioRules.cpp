@@ -121,7 +121,7 @@ namespace DeepAudioRules
 		Serpent.Volume01 = In.bInside ? 0.f : FMath::SmoothStep(0.f, 1.f, Above);
 		Serpent.Pitch = FMath::Lerp(0.8f, 1.1f, Above);
 
-		Out[FName(DeepAudioLoop::Helm)].Volume01 = In.bHelmMoving ? 1.f : 0.f;
+		Out[FName(DeepAudioLoop::Helm)].Volume01 = In.bHelmMoving ? 1.f : (In.bHelmManned ? FMath::Clamp(Settings.HelmIdleVolume01, 0.f, 1.f) : 0.f);
 		return Out;
 	}
 

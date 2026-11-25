@@ -1158,28 +1158,70 @@ struct FDeepLookTuning
 	 * camera's view at this intensity, full at every depth (the diver is aboard, so the 300 m lamp rule holds).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodIntensity = 40000.f;
+	float HelmFloodIntensity = 60000.f;
+
+	/** D-070: a long narrow throw (was 44 deg and 30 m, lighting the floor under the bow and nothing ahead). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodConeDeg = 22.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodConeDeg = 44.f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodRangeM = 30.f;
+	float HelmFloodRangeM = 55.f;
 
 	/**
-	 * How much the floods light the water: a visible beam that the specks stream through. 0.15 (was 0.35): at 0.35 two
-	 * 40,000 floods in front of the camera milked the whole helm view grey and hid the wall 9 m ahead (rescope/light).
+	 * How much the floods light the water: a visible beam that the specks stream through. 0.15 then (rescope/light: at
+	 * 0.35 two floods in front of the bow camera milked the view grey). D-070: the chase view sits 3 m over and 11 m
+	 * behind the beams, so they are seen from the side and can show: 0.3.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodFog = 0.15f;
+	float HelmFloodFog = 0.3f;
 
-	/** The floods' pitch (down is negative); the helm camera looks down at Sub.HelmCameraPitchDeg. */
+	/** D-070: the floods aim level and forward (down is negative), so the passage ahead is lit, not the floor under the bow. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodPitchDeg = -30.f;
+	float HelmFloodPitchDeg = -3.f;
 
-	/** The second flood aims lower, at the bed under the view, so an arriving sea floor rises into light. */
+	/** The second throw: also level (was -60, at the bed). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodLowPitchDeg = -60.f;
+	float HelmFloodLowPitchDeg = -3.f;
+
+	/** Each throw turns this far out to its own side, away from the view's centre line (less glare, the walls in relief). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodToeOutDeg = 6.f;
+
+	/** While manned the throws stand clear of the hull: this far ahead of its solid box, this far in from its sides, this far under its middle (m). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodAheadM = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodInsetM = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodDownM = 0.6f;
+
+	/** A knock at least this hard (m/s) makes the floods stutter: dips this deep (share of full), dying away over this long (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodFlickerMinMps = 2.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodFlickerDip = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodFlickerS = 0.45f;
+
+	/** D-070: a wide, dim fill from the bow for the walls round the hull (the throws only reach ahead). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillIntensity = 8000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillConeDeg = 75.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillRangeM = 22.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillPitchDeg = -8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillFog = 0.05f;
 
 	/** Seen from the helm, specks are this much larger (the hull camera sits farther from them than a diver's eye). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
@@ -2770,9 +2812,24 @@ struct DEEP_API FDeepHelmViewTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float ChaseBackM = 11.f;
 
-	/** Chase: this high over the trail (m), past the hull's top (2.5 m over its centre) but inside the 0.9 m the caves keep round its path. */
+	/**
+	 * Chase: this high over the trail (m) where the roof allows, so the hull (2.5 m over its centre, the tower more)
+	 * sits low in the frame and the passage shows over it; where the roof comes down, as high as it allows (a probe up
+	 * from the trail), never under ChaseUpMinM, inside the 0.9 m the caves keep round the hull's path.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
-	float ChaseUpM = 3.1f;
+	float ChaseUpM = 4.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ChaseUpMinM = 2.9f;
+
+	/** How fast the height follows the roof (per second, a share of the gap). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ChaseUpFollowPerS = 3.f;
+
+	/** The look aims this far over the point ahead (m), so the hull sits in the lower part of the frame. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float LookUpM = 1.5f;
 
 	/** The trail is used while it lies within this many degrees of straight astern; a turn in place or going astern uses the heading. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
@@ -2840,6 +2897,62 @@ struct DEEP_API FDeepHelmViewTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
 	float LookReturnPerS = 2.5f;
+};
+
+/**
+ * D-070 (Quinn, Nov 25: "some idle submarine anim or state"): at rest the sub holds station and its visual hull breathes,
+ * a slow bob, roll, pitch and yaw wander (UDeepMovingSubRules::IdleBob), from the server's clock on every machine, faded
+ * in as the sub slows and out as it drives. Visual only: never the box the cave sweep uses.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepIdleTuning
+{
+	GENERATED_BODY()
+
+	/** Heave (cm) and its rate (Hz): a few cm, slow. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float HeaveCm = 4.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float HeaveHz = 0.17f;
+
+	/** Roll, pitch and a slow yaw wander (deg, all under 1) and their rates (Hz). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float RollDeg = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float RollHz = 0.13f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float PitchDeg = 0.45f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float PitchHz = 0.11f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float YawDeg = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float YawHz = 0.04f;
+
+	/** Full idle at rest, none at this speed (m/s) and over: driving gives its own life. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float FadeOutMps = 1.2f;
+
+	/** Parked with a diver out of the hatch the idle shrinks to this share, so the hatch and the line stay put. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float DiverOutShare = 0.15f;
+
+	/** The idle's amount follows its target this fast (per second, a share of the gap): no step between frames. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float BlendPerS = 1.5f;
+
+	/** The pilot's views carry this share of it (the cockpit rides the hull; the chase view only a hint). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float CockpitShare = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
+	float ChaseShare = 0.25f;
 };
 
 /**

@@ -47,6 +47,36 @@ namespace DeepHudCalm
 		};
 	}
 
+	TArray<FDeepHudPrompt> DirectHelmHint()
+	{
+		return {
+			Row(TEXT("hh1"), TEXT("W / S"), TEXT("AHEAD / ASTERN"), TEXT("hold")),
+			Row(TEXT("hh2"), TEXT("A / D"), TEXT("TURN")),
+			Row(TEXT("hh3"), TEXT("SPACE / C"), TEXT("UP / DOWN"), TEXT("hold")),
+			Row(TEXT("hh4"), TEXT("Q / E"), TEXT("STRAFE")),
+			Row(TEXT("hh6"), TEXT("V"), TEXT("VIEW"), TEXT("behind or cockpit; the mouse looks")),
+			Row(TEXT("hh5"), TEXT("X"), TEXT("STAND UP")),
+		};
+	}
+
+	FString SpeedLabel(float SurgeMps)
+	{
+		if (FMath::Abs(SurgeMps) < 0.05f)
+		{
+			return TEXT("STOPPED");
+		}
+		return FString::Printf(TEXT("%.1f m/s %s"), FMath::Abs(SurgeMps), SurgeMps > 0.f ? TEXT("AHEAD") : TEXT("ASTERN"));
+	}
+
+	FString HeaveLabel(float HeaveMps)
+	{
+		if (FMath::Abs(HeaveMps) < 0.05f)
+		{
+			return TEXT("LEVEL");
+		}
+		return FString::Printf(TEXT("%.1f m/s %s"), FMath::Abs(HeaveMps), HeaveMps > 0.f ? TEXT("DOWN") : TEXT("UP"));
+	}
+
 	FString ThrottleLabel(int32 Notch)
 	{
 		switch (FMath::Clamp(Notch, -2, 3))
@@ -232,7 +262,7 @@ void FDeepHudCalm::Apply(FDeepHudFrame& Frame, double Now)
 	// ---- the controls hint: until used, then gone for the run; the pause card keeps the full list
 	if (Frame.Mode == EDeepHudMode::Helm)
 	{
-		Frame.Hint = DeepHudCalm::HelmHint();
+		Frame.Hint = Frame.bHelmDirect ? DeepHudCalm::DirectHelmHint() : DeepHudCalm::HelmHint();
 		if (!Tuning.bHelmSonar)
 		{
 			Frame.Panels &= ~static_cast<uint32>(EDeepHudPanel::Sonar);

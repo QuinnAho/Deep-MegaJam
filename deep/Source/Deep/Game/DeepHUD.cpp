@@ -1524,6 +1524,12 @@ void ADeepHUD::GatherFrame(FDeepHudFrame& Frame)
 		Frame.HelmNotchMax = FMath::Max(0, Tuning.Pilot.AheadNotches);
 		Frame.HelmBallast = GameState->HelmBallast;
 		Frame.HeadingDeg = GameState->SubYawDeg;
+		// D-070: the direct drive's readout (speed, the vertical way, heading; the depth sits above it).
+		Frame.bHelmDirect = GameState->IsHelmDirect();
+		Frame.HelmSurgeMps = GameState->HelmSurgeMps;
+		Frame.HelmHeaveMps = GameState->HelmHeaveMps;
+		Frame.HelmAheadMaxMps = FMath::Max(Tuning.Drive.AheadSpeedMps, Tuning.Drive.AsternSpeedMps);
+		Frame.HelmHeaveMaxMps = Tuning.Drive.HeaveSpeedMps;
 		// The hull bar: only in the cave shaft, the one place the hull takes knocks.
 		Frame.Hull01 = DeepShaft::HasRock(GetWorld()) ? GameState->GetHullIntegrity01() : -1.f;
 		Frame.HullTone = Frame.Hull01 < 0.f ? EDeepHudTone::Normal : Frame.Hull01 < Tuning.Captain.ScaredHull01 ? EDeepHudTone::Danger : Frame.Hull01 < Tuning.Captain.TenseHull01 ? EDeepHudTone::Warning : EDeepHudTone::Normal;

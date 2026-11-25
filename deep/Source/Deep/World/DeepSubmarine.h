@@ -7,6 +7,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Sim/DeepMovingSubRules.h"
 #include "DeepSubmarine.generated.h"
 
 class UStaticMeshComponent;
@@ -151,6 +152,10 @@ public:
 	FVector GetHullCentreWorld() const;
 	/** The world spot the chase view's probe starts from (over the hull, out of rock when it can be). */
 	FVector GetChaseAnchorWorld() const { return ChaseAnchorCm; }
+	/** D-070 idle: the visual hull's parent (it bobs; the colliding box does not), the amount (0..1) and the bob now. */
+	USceneComponent* GetHullVisual() const { return HullVisual; }
+	float GetIdleAmount() const { return IdleAmount; }
+	const FDeepIdleBob& GetIdleBob() const { return IdleNow; }
 
 protected:
 	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
@@ -169,6 +174,8 @@ protected:
 	int32 LastHullDamageSeen = -1;
 	float JoltDeg = 0.f;
 	float JoltAge = 0.f;
+	/** The last knock's impact (m/s, from the dents): a hard one makes the floods stutter (D-070). */
+	float KnockMps = 0.f;
 
 	/** D-070's pilot view (local): cockpit or chase, the mouse's look and how long since it moved, the hull's trail. */
 	bool bHelmCockpit = false;
@@ -182,6 +189,9 @@ protected:
 	FVector TravelLocalMps = FVector::ZeroVector;
 	FVector LookDirLocal = FVector::ForwardVector;
 	FVector ChaseSpotCm = FVector::ZeroVector;
+	double ChaseUpCm = 0.0;
+	/** The bow lights' own spots, kept while the helm floods stand clear ahead of the bow (D-070). */
+	FVector BowLampHomeCm[2] = { FVector::ZeroVector, FVector::ZeroVector };
 	FVector ChaseAnchorCm = FVector::ZeroVector;
 	/** The world frame the trail is kept in (the arena root's, or identity). */
 	FTransform HelmTrailFrame() const;
@@ -263,6 +273,19 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
 	TObjectPtr<UCameraComponent> HelmCamera;
+
+	/** D-070: the helm's wide, dim fill from the bow (Look.HelmFill*), on only while the helm is manned. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USpotLightComponent> HelmFill;
+
+	/** D-070: the visual hull (BT-01, its dress and outside lights) under one parent that the idle bob moves; the colliding box stays on Root. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TObjectPtr<USceneComponent> HullVisual;
+	/** The idle's amount now (0..1, eased) and the bob last applied. */
+	float IdleAmount = 0.f;
+	FDeepIdleBob IdleNow;
+	/** Moves HullVisual by the idle bob (every machine, from the server's clock). */
+	void TickIdle(float DeltaSeconds);
 
 	/** Ahead and down from under the nose: what the helm camera sees the sea move in. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")

@@ -42,6 +42,15 @@ namespace DeepHudCalm
 	/** The helm's controls (the helm lane's levers): W/S throttle, A/D rudder, SPACE/C ballast, X all stop, E stand up. */
 	DEEP_API TArray<FDeepHudPrompt> HelmHint();
 
+	/** D-070, the direct drive's keys, all held: W/S ahead and astern, A/D turn, SPACE/C up and down, Q/E strafe, V view, X stand up. */
+	DEEP_API TArray<FDeepHudPrompt> DirectHelmHint();
+
+	/** D-070's readout: the way along the heading, "2.4 m/s AHEAD", "ASTERN", or STOPPED. */
+	DEEP_API FString SpeedLabel(float SurgeMps);
+
+	/** D-070's readout: the vertical way (+ down), "1.2 m/s DOWN", "UP", or LEVEL. */
+	DEEP_API FString HeaveLabel(float HeaveMps);
+
 	/** The air line's row for the water hint: T unclips (bailout air, re-clip free at the hatch). */
 	DEEP_API FDeepHudPrompt UnclipHint();
 

@@ -119,6 +119,13 @@ ADeepSubmarine::ADeepSubmarine()
 	HelmCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("HelmCamera"));
 	HelmCamera->SetupAttachment(Root);
 
+	// D-070: the helm's fill, a wide dim light from the bow for the walls the narrow throws do not reach.
+	HelmFill = CreateDefaultSubobject<USpotLightComponent>(TEXT("HelmFill"));
+	HelmFill->SetupAttachment(Root);
+	HelmFill->SetMobility(EComponentMobility::Movable);
+	HelmFill->SetCastShadows(true);
+	HelmFill->SetVisibility(false);
+
 	Window->SetCastShadow(false);
 	for (const TCHAR* Name : { TEXT("BowLightPort"), TEXT("BowLightStarboard") })
 	{
@@ -201,6 +208,32 @@ ADeepSubmarine::ADeepSubmarine()
 	Trench->SetGenerateOverlapEvents(false);
 	Trench->bAffectDistanceFieldLighting = false;
 	Trench->SetVisibility(false);
+
+	// D-070: the visual hull under one parent the idle bob moves (BT-01, the dress, the outside lights and their bulbs and
+	// housings); the colliding cubes, the hatch and the helm camera stay on Root, and the model's collision fit is read
+	// relative to this parent (GetSolidBoundsLocal), so the cave sweep never sees the bob.
+	HullVisual = CreateDefaultSubobject<USceneComponent>(TEXT("HullVisual"));
+	HullVisual->SetupAttachment(Root);
+	HullModel->SetupAttachment(HullVisual);
+	for (UStaticMeshComponent* Shape : HullDress)
+	{
+		Shape->SetupAttachment(HullVisual);
+	}
+	for (USpotLightComponent* Light : BowLights)
+	{
+		Light->SetupAttachment(HullVisual);
+	}
+	for (USpotLightComponent* Light : HullLights)
+	{
+		Light->SetupAttachment(HullVisual);
+	}
+	for (UPointLightComponent* Light : Markers)
+	{
+		Light->SetupAttachment(HullVisual);
+	}
+	BellyFlood->SetupAttachment(HullVisual);
+	AirlockLight->SetupAttachment(HullVisual);
+	HelmFill->SetupAttachment(HullVisual);
 
 	LayOut();
 }
@@ -546,12 +579,28 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 				Light->SetOuterConeAngle(Look.HelmFloodConeDeg);
 				Light->SetAttenuationRadius(Look.HelmFloodRangeM * UDeepRules::CmPerM);
 				Light->SetVolumetricScatteringIntensity(Look.HelmFloodFog);
-				// Port lights the wall ahead, starboard the bed below: two lights, two jobs.
-				Light->SetRelativeRotation(FRotator(Index == 0 ? Look.HelmFloodPitchDeg : Look.HelmFloodLowPitchDeg, Yaw * 0.6f, 0.f));
+				// D-070: two long throws, level and ahead, each turned a little out to its own side, so the view's centre
+				// line is not a white cone of lit water and the passage's walls catch the light at a slant.
+				const float ToeOut = (Index == 0 ? -1.f : 1.f) * Look.HelmFloodToeOutDeg;
+				Light->SetRelativeRotation(FRotator(Index == 0 ? Look.HelmFloodPitchDeg : Look.HelmFloodLowPitchDeg, ToeOut, 0.f));
+				// Level throws from under the chin light the hull's own skids and frame (their shadows ate the beams): they
+				// stand clear ahead of the bow while someone drives, at the hull's sides, below its middle.
+				if (Index < 2)
+				{
+					BowLampHomeCm[Index] = Light->GetRelativeLocation();
+					const FBox Solid = GetSolidBoundsLocal(false);
+					const double Side = FMath::Max(0.0, Solid.GetExtent().Y - Look.HelmFloodInsetM * UDeepRules::CmPerM);
+					Light->SetRelativeLocation(FVector(Solid.Max.X + Look.HelmFloodAheadM * UDeepRules::CmPerM, (Index == 0 ? -1.0 : 1.0) * Side,
+						Solid.GetCenter().Z - Look.HelmFloodDownM * UDeepRules::CmPerM));
+				}
 				Light->SetVisibility(true);
 			}
 			else
 			{
+				if (Index < 2 && !BowLampHomeCm[Index].IsZero())
+				{
+					Light->SetRelativeLocation(BowLampHomeCm[Index]);
+				}
 				Light->SetIntensity(Look.BowLightIntensity * OutsideScale);
 				Light->SetInnerConeAngle(Look.BowLightConeDeg * 0.4f);
 				Light->SetOuterConeAngle(Look.BowLightConeDeg);
@@ -561,6 +610,19 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 				Light->SetVisibility(OutsideScale > 0.f);
 			}
 		}
+		// The fill: from the bow between the throws and a little over them, wide and dim, full at every depth (D-070).
+		if (BowLights.Num() == 2)
+		{
+			HelmFill->SetRelativeLocation((BowLights[0]->GetRelativeLocation() + BowLights[1]->GetRelativeLocation()) * 0.5 + FVector(0.0, 0.0, Look.HelmFloodDownM * UDeepRules::CmPerM));
+			HelmFill->SetLightColor(BowLights[0]->GetLightColor());
+		}
+		HelmFill->SetRelativeRotation(FRotator(Look.HelmFillPitchDeg, 0.f, 0.f));
+		HelmFill->SetIntensity(Look.HelmFillIntensity);
+		HelmFill->SetInnerConeAngle(Look.HelmFillConeDeg * 0.5f);
+		HelmFill->SetOuterConeAngle(Look.HelmFillConeDeg);
+		HelmFill->SetAttenuationRadius(Look.HelmFillRangeM * UDeepRules::CmPerM);
+		HelmFill->SetVolumetricScatteringIntensity(Look.HelmFillFog);
+		HelmFill->SetVisibility(bManned);
 	}
 
 	// The trench wall: only for a local player looking through this sub's helm camera (a diver outside never sees it).
@@ -637,11 +699,29 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		const float Mps = float(Dents - LastHullDamageSeen) / FMath::Max(0.05f, Cave.DamagePerMps);
 		JoltDeg = FMath::Max(JoltDeg, Cave.JoltDegPerMps * Mps);
 		JoltAge = 0.f;
+		KnockMps = Mps;
 	}
 	LastHullDamageSeen = Dents;
 	JoltAge += DeltaSeconds;
 	JoltDeg *= FMath::Exp(-FMath::Max(0.f, Cave.JoltDecayPerSecond) * DeltaSeconds);
 	const float Jolt = JoltDeg * FMath::Cos(UE_TWO_PI * 6.f * JoltAge);
+	// D-070 polish: a hard knock makes the floods stutter for a moment, a few fast dips that die away (every machine,
+	// from the replicated dents, as the jolt).
+	if (bHelmManned && BowLights.Num() == 2)
+	{
+		const float FlickerS = FMath::Max(0.01f, Look.HelmFloodFlickerS);
+		float Dip = 0.f;
+		if (KnockMps >= Look.HelmFloodFlickerMinMps && JoltAge < FlickerS)
+		{
+			const float Fade = 1.f - JoltAge / FlickerS;
+			Dip = FMath::Clamp(Look.HelmFloodFlickerDip, 0.f, 1.f) * Fade * (0.5f + 0.5f * FMath::Cos(UE_TWO_PI * 11.f * JoltAge));
+		}
+		for (USpotLightComponent* Light : BowLights)
+		{
+			Light->SetIntensity(Look.HelmFloodIntensity * (1.f - Dip));
+		}
+		HelmFill->SetIntensity(Look.HelmFillIntensity * (1.f - Dip));
+	}
 	if (State && !bParked && DeepArena::IsWorldCaves(World))
 	{
 		// The cave string: rubbing (or all but touching) the chunks' rock, from the replicated pose.
@@ -711,6 +791,26 @@ void ADeepSubmarine::ResetHelmView()
 	bHelmViewInit = false;
 	HelmTrail.Reset();
 	TravelLocalMps = FVector::ZeroVector;
+}
+
+void ADeepSubmarine::TickIdle(float DeltaSeconds)
+{
+	const FDeepIdleTuning& T = UDeepTuningSettings::Get().Idle;
+	UWorld* World = GetWorld();
+	const ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+	// The server's clock, so every machine draws the same breath without replicating it.
+	const double TimeS = State ? State->GetServerWorldTimeSeconds() : (World ? World->GetTimeSeconds() : 0.0);
+	// Speed from the helm (any direction) or from the depth changing (the autopilot); a diver out of the hatch keeps it small.
+	const float SpeedMps = FMath::Max(State ? State->HelmSpeedMps : 0.f, FMath::Abs(DriveSpeedMps));
+	bool bDiverOut = false;
+	for (TActorIterator<APawn> It(World); It && !bDiverOut; ++It)
+	{
+		const UDeepRunComponent* Run = It->FindComponentByClass<UDeepRunComponent>();
+		bDiverOut = Run && Run->CanSwim();
+	}
+	IdleAmount = UDeepMovingSubRules::IdleStep(IdleAmount, UDeepMovingSubRules::IdleTarget(SpeedMps, bDiverOut, T), DeltaSeconds, T);
+	IdleNow = UDeepMovingSubRules::IdleBob(TimeS, IdleAmount, T);
+	HullVisual->SetRelativeLocationAndRotation(FVector(0.0, 0.0, IdleNow.HeaveCm), FRotator(IdleNow.PitchDeg, IdleNow.YawDeg, IdleNow.RollDeg));
 }
 
 FVector ADeepSubmarine::GetHullCentreWorld() const
@@ -807,8 +907,11 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 	if (bHelmCockpit)
 	{
 		// The cockpit: level at the bow, looking ahead; the mouse looks round within limits.
-		HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, DropCm));
-		HelmCamera->SetRelativeRotation(FRotator(T.CockpitPitchDeg + HelmLookDeg.Y + PitchShakeDeg, HelmLookDeg.X + YawShakeDeg, RollShakeDeg));
+		// The cockpit rides the hull: it carries part of the idle (the rest is the hull's, which the camera sits outside of).
+		const float CockpitIdle = Tuning.Idle.CockpitShare;
+		HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, DropCm - IdleNow.HeaveCm * CockpitIdle));
+		HelmCamera->SetRelativeRotation(FRotator(T.CockpitPitchDeg + HelmLookDeg.Y + PitchShakeDeg + IdleNow.PitchDeg * CockpitIdle,
+			HelmLookDeg.X + YawShakeDeg + IdleNow.YawDeg * CockpitIdle, RollShakeDeg + IdleNow.RollDeg * CockpitIdle));
 		HelmCamera->SetFieldOfView(T.CockpitFovDeg);
 		bHelmViewInit = true;
 		return;
@@ -816,7 +919,25 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 
 	// The chase view: its spot on the trail (else straight astern), followed smoothly, then the probe from over the hull.
 	const FVector AheadL = Frame.InverseTransformVectorNoScale(GetActorForwardVector());
-	const FVector AimW = Frame.TransformPosition(DeepHelmView::ChaseAim(HelmTrail, HullL, AheadL, T));
+	const FVector ChaseBaseW = Frame.TransformPosition(DeepHelmView::ChaseAim(HelmTrail, HullL, AheadL, 0.f, T));
+	// As high over it as the roof allows (up to ChaseUpM): a probe straight up from inside the hull's own sweep.
+	{
+		const double Low = FMath::Max(0.f, T.ChaseUpMinM) * UDeepRules::CmPerM;
+		const double High = FMath::Max(T.ChaseUpM, T.ChaseUpMinM) * UDeepRules::CmPerM;
+		const double From = FMath::Min(150.0, Low);
+		const double Radius = FMath::Max(1.f, T.ProbeRadiusM * UDeepRules::CmPerM);
+		double Room = High;
+		FHitResult Up;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbeUp), false, this);
+		if (GetWorld() && GetWorld()->SweepSingleByObjectType(Up, ChaseBaseW + FVector(0.0, 0.0, From), ChaseBaseW + FVector(0.0, 0.0, High), FQuat::Identity,
+			FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params))
+		{
+			Room = Up.bStartPenetrating ? Low : From + (High - From) * Up.Time;
+		}
+		const double Want = FMath::Clamp(Room, Low, High);
+		ChaseUpCm = bJump || ChaseUpCm <= 0.0 ? Want : ChaseUpCm + (Want - ChaseUpCm) * (1.0 - FMath::Exp(-FMath::Max(0.f, T.ChaseUpFollowPerS) * Dt));
+	}
+	const FVector AimW = ChaseBaseW + FVector(0.0, 0.0, ChaseUpCm);
 	// With mouse steer the view looks along the heading (the travel would chase its own climb).
 	const FVector TravelL = DeepHelmView::Travel(bMouseSteer ? FVector::ZeroVector : TravelLocalMps, AheadL, T);
 	if (bJump)
@@ -853,8 +974,11 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), T);
 	Rotation.Yaw += HelmLookDeg.X + YawShakeDeg;
 	Rotation.Pitch = FMath::Clamp(Rotation.Pitch + HelmLookDeg.Y + PitchShakeDeg, -85.f, 85.f);
-	Rotation.Roll = RollShakeDeg;
-	HelmCamera->SetWorldLocationAndRotation(Camera, Rotation);
+	// The idle hull's breathing, a hint of it (D-070): the view stays calm.
+	const float ChaseIdle = Tuning.Idle.ChaseShare;
+	Rotation.Pitch += IdleNow.PitchDeg * ChaseIdle;
+	Rotation.Roll = RollShakeDeg + IdleNow.RollDeg * ChaseIdle;
+	HelmCamera->SetWorldLocationAndRotation(Camera + FVector(0.0, 0.0, IdleNow.HeaveCm * ChaseIdle), Rotation);
 	HelmCamera->SetFieldOfView(T.ChaseFovDeg);
 	bHelmViewInit = true;
 }
@@ -874,11 +998,14 @@ void ADeepSubmarine::Tick(float DeltaSeconds)
 	for (UStaticMeshComponent* Bulb : Bulbs)
 	{
 		const ULightComponent* Light = Cast<ULightComponent>(Bulb->GetAttachParent());
-		Bulb->SetVisibility(Light && Light->GetVisibleFlag() && Light->Intensity > 0.f);
+		// The bow bulbs stay with the hull while the helm floods stand clear of it (D-070).
+		const bool bFloodBulb = bHelmManned && Light && BowLights.Contains(Cast<USpotLightComponent>(const_cast<ULightComponent*>(Light)));
+		Bulb->SetVisibility(Light && !bFloodBulb && Light->GetVisibleFlag() && Light->Intensity > 0.f);
 	}
 	// Deep.World.Still: every machine places the hull from the replicated depth, offset and yaw.
 	PlaceStill();
 	DeepArena::UpdateStillWorld(GetWorld());
+	TickIdle(DeltaSeconds);
 	TickHelmLook(DeltaSeconds);
 }
 

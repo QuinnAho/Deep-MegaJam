@@ -87,6 +87,26 @@ struct DEEP_API FDeepParkStep
 	bool bArrived = false;
 };
 
+/** D-070: the idle hull's breathing at one moment (the visual hull's offset from the hull's pose). */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepIdleBob
+{
+	GENERATED_BODY()
+
+	/** Up and down (cm, + up). */
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float HeaveCm = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float PitchDeg = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float RollDeg = 0.f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Deep")
+	float YawDeg = 0.f;
+};
+
 /** The fixed room's faked motion at one moment. */
 USTRUCT(BlueprintType)
 struct DEEP_API FDeepRoomSway
@@ -155,6 +175,21 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
 	static FDeepRoomSway RoomSway(float SpeedMps, float AheadAccelMps2, float TimeS, float KnockAgeS, float KnockMps, const FDeepMovingSubTuning& T);
+
+	/**
+	 * D-070, the idle hull at time TimeS (the server's clock, so every machine agrees) scaled by Amount01: two slow sines
+	 * per axis at unrelated rates, never past the tuned amplitudes, smooth in time. Visual only.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static FDeepIdleBob IdleBob(double TimeS, float Amount01, const FDeepIdleTuning& T);
+
+	/** How much idle the hull should show: full at rest, none at FadeOutMps, DiverOutShare while a diver is out of the hatch. */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static float IdleTarget(float SpeedMps, bool bDiverOut, const FDeepIdleTuning& T);
+
+	/** One step of the idle's amount toward its target (BlendPerS): no step between frames. */
+	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")
+	static float IdleStep(float Amount01, float Target01, float DeltaSeconds, const FDeepIdleTuning& T);
 
 	/** Seconds the whole cycle takes: out (hiss, fade out, black, fade in) or back (fade out, black, fade in). */
 	UFUNCTION(BlueprintPure, Category = "Deep|MovingSub")

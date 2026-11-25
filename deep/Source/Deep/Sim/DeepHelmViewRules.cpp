@@ -39,10 +39,10 @@ namespace DeepHelmView
 		}
 	}
 
-	FVector ChaseAim(const TArray<FVector>& Trail, const FVector& HullCm, const FVector& Ahead, const FDeepHelmViewTuning& T)
+	FVector ChaseAim(const TArray<FVector>& Trail, const FVector& HullCm, const FVector& Ahead, float UpM, const FDeepHelmViewTuning& T)
 	{
 		const double Back = FMath::Max(0.f, T.ChaseBackM) * UDeepRules::CmPerM;
-		const FVector Up(0.0, 0.0, FMath::Max(0.f, T.ChaseUpM) * UDeepRules::CmPerM);
+		const FVector Up(0.0, 0.0, FMath::Max(0.f, UpM) * UDeepRules::CmPerM);
 		const FVector Flat = FVector(Ahead.X, Ahead.Y, 0.0).GetSafeNormal();
 		FVector OnTrail;
 		if (PointBack(Trail, HullCm, Back, OnTrail))
@@ -71,7 +71,7 @@ namespace DeepHelmView
 
 	FRotator ChaseLook(const FVector& CameraCm, const FVector& HullCm, const FVector& TravelDir, const FDeepHelmViewTuning& T)
 	{
-		const FVector Target = HullCm + TravelDir.GetSafeNormal() * (FMath::Max(0.f, T.LookAheadM) * UDeepRules::CmPerM);
+		const FVector Target = HullCm + TravelDir.GetSafeNormal() * (FMath::Max(0.f, T.LookAheadM) * UDeepRules::CmPerM) + FVector(0.0, 0.0, T.LookUpM * UDeepRules::CmPerM);
 		FRotator Look = (Target - CameraCm).Rotation();
 		Look.Pitch = FMath::Clamp(Look.Pitch, FMath::Min(T.LookMinPitchDeg, T.LookMaxPitchDeg), FMath::Max(T.LookMinPitchDeg, T.LookMaxPitchDeg));
 		Look.Roll = 0.f;

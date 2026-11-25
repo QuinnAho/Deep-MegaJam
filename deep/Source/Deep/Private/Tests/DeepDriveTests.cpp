@@ -231,4 +231,45 @@ bool FDeepDriveWallTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepDriveIdleTest, "Deep.Sim.Drive.Idle", DEEP_DRIVE_TEST_FLAGS)
+bool FDeepDriveIdleTest::RunTest(const FString& Parameters)
+{
+	// D-070, Quinn's idle: the hull breathes at rest, bounded, smooth, faded out by speed and small with a diver out.
+	const FDeepIdleTuning T;
+	TestTrue(TEXT("roll, pitch and yaw wander are under a degree"), T.RollDeg < 1.f && T.PitchDeg < 1.f && T.YawDeg < 1.f);
+	TestTrue(TEXT("the heave is a few cm"), T.HeaveCm > 0.f && T.HeaveCm <= 6.f);
+	const double Dt = 1.0 / 60.0;
+	// The steepest a frame can step: each axis is 0.7 + 0.3 of its amplitude, the second sine at 1.7x the rate.
+	const auto MaxStep = [Dt](float Amp, float Hz) { return Amp * UE_TWO_PI * Hz * (0.7 + 0.3 * 1.7) * Dt * 1.01 + 1e-5; };
+	FDeepIdleBob Last = UDeepMovingSubRules::IdleBob(0.0, 1.f, T);
+	bool bBounded = true;
+	bool bSmooth = true;
+	float Widest = 0.f;
+	for (double S = Dt; S < 300.0; S += Dt)
+	{
+		const FDeepIdleBob B = UDeepMovingSubRules::IdleBob(S, 1.f, T);
+		bBounded = bBounded && FMath::Abs(B.HeaveCm) <= T.HeaveCm + 1e-3f && FMath::Abs(B.RollDeg) <= T.RollDeg + 1e-3f
+			&& FMath::Abs(B.PitchDeg) <= T.PitchDeg + 1e-3f && FMath::Abs(B.YawDeg) <= T.YawDeg + 1e-3f;
+		bSmooth = bSmooth && FMath::Abs(B.HeaveCm - Last.HeaveCm) <= MaxStep(T.HeaveCm, T.HeaveHz) && FMath::Abs(B.RollDeg - Last.RollDeg) <= MaxStep(T.RollDeg, T.RollHz)
+			&& FMath::Abs(B.PitchDeg - Last.PitchDeg) <= MaxStep(T.PitchDeg, T.PitchHz) && FMath::Abs(B.YawDeg - Last.YawDeg) <= MaxStep(T.YawDeg, T.YawHz);
+		Widest = FMath::Max(Widest, FMath::Abs(B.HeaveCm));
+		Last = B;
+	}
+	AddInfo(FString::Printf(TEXT("idle heave reaches %.2f cm of %.2f"), Widest, T.HeaveCm));
+	TestTrue(TEXT("bounded by its amplitudes over 5 minutes"), bBounded);
+	TestTrue(TEXT("smooth: no step between frames"), bSmooth);
+	TestTrue(TEXT("it does move (at least half its heave)"), Widest >= T.HeaveCm * 0.5f);
+	TestTrue(TEXT("the same time gives the same breath on every machine"), UDeepMovingSubRules::IdleBob(42.0, 1.f, T).HeaveCm == UDeepMovingSubRules::IdleBob(42.0, 1.f, T).HeaveCm);
+	TestEqual(TEXT("amount 0: still"), UDeepMovingSubRules::IdleBob(17.0, 0.f, T).RollDeg, 0.f);
+	// Full at rest, none when driving, small with a diver out of the hatch.
+	TestEqual(TEXT("at rest: full"), UDeepMovingSubRules::IdleTarget(0.f, false, T), 1.f);
+	TestEqual(TEXT("driving: none"), UDeepMovingSubRules::IdleTarget(T.FadeOutMps + 1.f, false, T), 0.f);
+	TestTrue(TEXT("slowing: part"), UDeepMovingSubRules::IdleTarget(T.FadeOutMps * 0.5f, false, T) > 0.4f && UDeepMovingSubRules::IdleTarget(T.FadeOutMps * 0.5f, false, T) < 0.6f);
+	TestEqual(TEXT("a diver out: small"), UDeepMovingSubRules::IdleTarget(0.f, true, T), T.DiverOutShare);
+	// The amount eases: one frame moves it only a little toward a new target.
+	const float Step = UDeepMovingSubRules::IdleStep(0.f, 1.f, float(Dt), T);
+	TestTrue(TEXT("eases in, no jump"), Step > 0.f && Step < 0.05f);
+	return true;
+}
+
 #endif

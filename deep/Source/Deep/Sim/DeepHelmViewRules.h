@@ -20,10 +20,10 @@ namespace DeepHelmView
 	DEEP_API void Record(TArray<FVector>& Trail, const FVector& HullCm, const FDeepHelmViewTuning& T);
 
 	/**
-	 * Where the chase view wants to be: on the trail ChaseBackM behind the hull and ChaseUpM over it, while that point
+	 * Where the chase view wants to be: on the trail ChaseBackM behind the hull and UpM over it (World: ChaseUpM, lower where the roof comes down), while that point
 	 * lies within TrailMaxOffHeadingDeg of straight astern (Ahead: the hull's heading, level); else straight astern.
 	 */
-	DEEP_API FVector ChaseAim(const TArray<FVector>& Trail, const FVector& HullCm, const FVector& Ahead, const FDeepHelmViewTuning& T);
+	DEEP_API FVector ChaseAim(const TArray<FVector>& Trail, const FVector& HullCm, const FVector& Ahead, float UpM, const FDeepHelmViewTuning& T);
 
 	/** The travel to look along: the velocity when faster than TravelMinMps, else the heading (level). Unit length. */
 	DEEP_API FVector Travel(const FVector& VelocityMps, const FVector& Ahead, const FDeepHelmViewTuning& T);

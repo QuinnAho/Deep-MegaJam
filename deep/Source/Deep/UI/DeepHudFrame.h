@@ -152,6 +152,13 @@ struct FDeepHudFrame
 	/** The ballast lever, -1 blown .. 0 neutral .. +1 flooded. */
 	float HelmBallast = 0.f;
 	float HeadingDeg = 0.f;
+	/** D-070: the helm drives direct (held keys): the readout shows SPEED and the vertical way instead of the levers. */
+	bool bHelmDirect = true;
+	/** The way along the heading (m/s, astern negative) and down (m/s, + down), with the drive's full speeds for the bars. */
+	float HelmSurgeMps = 0.f;
+	float HelmHeaveMps = 0.f;
+	float HelmAheadMaxMps = 4.f;
+	float HelmHeaveMaxMps = 2.5f;
 	/** The helm sonar, when EDeepHudPanel::Sonar is on. */
 	FDeepHudSonar Sonar;
 

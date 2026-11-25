@@ -4,6 +4,34 @@
 #include "Sim/DeepPilotRules.h"
 #include "Sim/DeepRules.h"
 
+FDeepIdleBob UDeepMovingSubRules::IdleBob(double TimeS, float Amount01, const FDeepIdleTuning& T)
+{
+	// Two sines per axis, 0.7 + 0.3 of the amplitude, the second at 1.7x the rate: never in step, never past the amplitude.
+	const double A = FMath::Clamp(Amount01, 0.f, 1.f);
+	const auto Wave = [TimeS](float Hz, double Phase)
+	{
+		const double W = UE_DOUBLE_TWO_PI * FMath::Max(0.f, Hz);
+		return 0.7 * FMath::Sin(W * TimeS + Phase) + 0.3 * FMath::Sin(1.7 * W * TimeS + Phase * 2.3 + 0.9);
+	};
+	FDeepIdleBob Bob;
+	Bob.HeaveCm = static_cast<float>(A * T.HeaveCm * Wave(T.HeaveHz, 0.0));
+	Bob.PitchDeg = static_cast<float>(A * T.PitchDeg * Wave(T.PitchHz, 1.3));
+	Bob.RollDeg = static_cast<float>(A * T.RollDeg * Wave(T.RollHz, 2.6));
+	Bob.YawDeg = static_cast<float>(A * T.YawDeg * Wave(T.YawHz, 4.1));
+	return Bob;
+}
+
+float UDeepMovingSubRules::IdleTarget(float SpeedMps, bool bDiverOut, const FDeepIdleTuning& T)
+{
+	const float Rest = T.FadeOutMps > 0.f ? 1.f - FMath::Clamp(FMath::Abs(SpeedMps) / T.FadeOutMps, 0.f, 1.f) : 1.f;
+	return Rest * (bDiverOut ? FMath::Clamp(T.DiverOutShare, 0.f, 1.f) : 1.f);
+}
+
+float UDeepMovingSubRules::IdleStep(float Amount01, float Target01, float DeltaSeconds, const FDeepIdleTuning& T)
+{
+	return Amount01 + (Target01 - Amount01) * (1.f - FMath::Exp(-FMath::Max(0.f, T.BlendPerS) * FMath::Max(0.f, DeltaSeconds)));
+}
+
 float UDeepMovingSubRules::DepthFromZ(double ZCm, double DatumZCm)
 {
 	return static_cast<float>((DatumZCm - ZCm) / UDeepRules::CmPerM);

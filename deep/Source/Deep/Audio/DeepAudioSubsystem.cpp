@@ -11,6 +11,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Game/DeepGameState.h"
+#include "World/DeepArena.h"
+#include "World/DeepSubmarine.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -499,7 +501,14 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 		LastSubDepthM = State->SubDepthM;
 	}
 	HelmHoldS = FMath::Max(0.f, HelmHoldS - DeltaSeconds);
+	if (State && State->HelmSpeedMps > UDeepAudioSettings::Get().HelmMovingMps)
+	{
+		// D-070: driving along a passage moves the sub as much as changing depth does.
+		HelmHoldS = HelmHoldSeconds;
+	}
 	In.bHelmMoving = HelmHoldS > 0.f;
+	const ADeepSubmarine* HelmSub = DeepArena::FindSubmarine(GetWorld());
+	In.bHelmManned = HelmSub && HelmSub->IsHelmManned();
 	return In;
 }
 

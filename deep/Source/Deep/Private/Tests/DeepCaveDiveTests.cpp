@@ -1916,4 +1916,55 @@ bool FDeepCaveCockpitViewTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveIdleTest, "Deep.World.CaveDive.Idle.HoldsStation", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveIdleTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// D-070, Quinn's idle: driven out of S and let go, the sub comes to rest and holds station there for 30 s.
+	W.Run->TakeHelm();
+	Hold(W, 1.f);
+	W.Fly(3.f);
+	Hold(W, 0.f);
+	W.Fly(2.f);
+	const FDeepCavePose Stopped = W.Pose();
+	const FBox BoxBefore = W.Sub->GetSolidBoundsLocal(false);
+	float MostIdle = 0.f;
+	FVector MostVisualCm = FVector::ZeroVector;
+	for (float T = 0.f; T < 30.f; T += 0.05f)
+	{
+		W.Fly(0.05f);
+		static_cast<AActor*>(W.Sub)->Tick(0.05f);
+		if (W.Sub->GetIdleAmount() > MostIdle)
+		{
+			MostIdle = W.Sub->GetIdleAmount();
+		}
+		if (W.Sub->GetHullVisual()->GetRelativeLocation().Size() > MostVisualCm.Size())
+		{
+			MostVisualCm = W.Sub->GetHullVisual()->GetRelativeLocation();
+		}
+	}
+	const FDeepCavePose Held = W.Pose();
+	const double DriftCm = FVector::Dist(Held.LocationCm, Stopped.LocationCm);
+	AddInfo(FString::Printf(TEXT("held 30 s: drifted %.2f cm, %.2f deg; idle amount up to %.2f, visual hull moved up to %s cm"), DriftCm,
+		FMath::Abs(FRotator::NormalizeAxis(Held.YawDeg - Stopped.YawDeg)), MostIdle, *MostVisualCm.ToString()));
+	TestTrue(TEXT("holds station: within 3 cm after 30 s"), DriftCm < 3.0);
+	TestTrue(TEXT("holds its heading"), FMath::Abs(FRotator::NormalizeAxis(Held.YawDeg - Stopped.YawDeg)) < 0.1f);
+	TestTrue(TEXT("at rest the idle comes in"), MostIdle > 0.5f);
+	// Visual only: the sweep box and the hull's pose never see the bob.
+	TestTrue(TEXT("the visual hull moves"), !MostVisualCm.IsNearlyZero(0.01) || !W.Sub->GetHullVisual()->GetRelativeRotation().IsNearlyZero(0.001f));
+	TestTrue(TEXT("the sweep box is unchanged by the idle"), W.Sub->GetSolidBoundsLocal(false).Equals(BoxBefore, 0.01));
+	const FVector Expected = String->GetActorTransform().TransformPosition(Held.LocationCm);
+	TestTrue(TEXT("the hull actor (the sweep's pose) stays on its pose"), FVector::Dist(W.Sub->GetActorLocation(), Expected) < 1.0);
+	return true;
+}
+
 #endif

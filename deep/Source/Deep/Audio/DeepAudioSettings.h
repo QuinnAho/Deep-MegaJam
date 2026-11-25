@@ -74,6 +74,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Loops")
 	float HelmMovingMps = 0.2f;
 
+	/** D-070: the helm hum at rest while someone is at the helm (the engine idling), as a share of its full volume. */
+	UPROPERTY(Config, EditAnywhere, Category = "Loops", meta = (ClampMin = "0", ClampMax = "1"))
+	float HelmIdleVolume01 = 0.35f;
+
 	/** The same event cannot start its sound again sooner than this. */
 	UPROPERTY(Config, EditAnywhere, Category = "One-shots")
 	float RepeatGuardSeconds = 0.08f;

@@ -648,37 +648,55 @@ int32 SDeepHud::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometr
 		const float TickH = 8.f;
 		float RY = V.Y + Pad;
 
-		P.Text(TEXT("THROTTLE"), VX, RY, LabelFont, Secondary(GA));
-		P.TextRight(DeepHudCalm::ThrottleLabel(Frame.HelmNotch), V.Right() - Pad, RY, LabelFont, Primary(GA));
+		// A centre-zero bar under a row: the share of full either way.
+		auto CentreBar = [&](float Top, float Share)
 		{
-			const int32 Lo = FMath::Min(Frame.HelmNotchMin, 0);
-			const int32 Hi = FMath::Max(Frame.HelmNotchMax, 0);
-			const int32 N = Hi - Lo + 1;
-			const float Gap = 4.f;
-			const float CellW = (VW - Gap * (N - 1)) / static_cast<float>(N);
-			const float TY = RY + LabelH + BarGap;
-			for (int32 I = 0; I < N; ++I)
-			{
-				const int32 Notch = Lo + I;
-				const float CX = VX + I * (CellW + Gap);
-				const FLinearColor C = Notch == Frame.HelmNotch ? Primary(GA) : Notch == 0 ? Secondary(0.6f * GA) : Primary(0.18f * GA);
-				P.Box(CX, TY, CellW, TickH, C);
-			}
-		}
-		RY += LabelH + BarGap + TickH + RowGap;
-
-		P.Text(TEXT("BALLAST"), VX, RY, LabelFont, Secondary(GA));
-		P.TextRight(DeepHudCalm::BallastLabel(Frame.HelmBallast), V.Right() - Pad, RY, LabelFont, Primary(GA));
-		{
-			const float BY = RY + LabelH + BarGap;
+			const float BY = Top + LabelH + BarGap;
 			const float Mid = VX + VW * 0.5f;
-			const float Lever = FMath::Clamp(Frame.HelmBallast, -1.f, 1.f);
+			const float Lever = FMath::Clamp(Share, -1.f, 1.f);
 			P.Box(VX, BY + 2.f, VW, TickH - 4.f, Primary(0.18f * GA));
 			const float FillW = FMath::Abs(Lever) * VW * 0.5f;
 			P.Box(Lever < 0.f ? Mid - FillW : Mid, BY + 2.f, FillW, TickH - 4.f, Primary(GA));
 			P.Box(Mid - 1.f, BY, 2.f, TickH, Secondary(GA));
+		};
+		if (Frame.bHelmDirect)
+		{
+			// D-070's direct drive: no levers to read, so the way the sub is making (ahead or astern, up or down).
+			P.Text(TEXT("SPEED"), VX, RY, LabelFont, Secondary(GA));
+			P.TextRight(DeepHudCalm::SpeedLabel(Frame.HelmSurgeMps), V.Right() - Pad, RY, LabelFont, Primary(GA));
+			CentreBar(RY, Frame.HelmAheadMaxMps > 0.f ? Frame.HelmSurgeMps / Frame.HelmAheadMaxMps : 0.f);
+			RY += LabelH + BarGap + TickH + RowGap;
+			P.Text(TEXT("UP / DOWN"), VX, RY, LabelFont, Secondary(GA));
+			P.TextRight(DeepHudCalm::HeaveLabel(Frame.HelmHeaveMps), V.Right() - Pad, RY, LabelFont, Primary(GA));
+			CentreBar(RY, Frame.HelmHeaveMaxMps > 0.f ? Frame.HelmHeaveMps / Frame.HelmHeaveMaxMps : 0.f);
+			RY += LabelH + BarGap + TickH + RowGap;
 		}
-		RY += LabelH + BarGap + TickH + RowGap;
+		else
+		{
+			P.Text(TEXT("THROTTLE"), VX, RY, LabelFont, Secondary(GA));
+			P.TextRight(DeepHudCalm::ThrottleLabel(Frame.HelmNotch), V.Right() - Pad, RY, LabelFont, Primary(GA));
+			{
+				const int32 Lo = FMath::Min(Frame.HelmNotchMin, 0);
+				const int32 Hi = FMath::Max(Frame.HelmNotchMax, 0);
+				const int32 N = Hi - Lo + 1;
+				const float Gap = 4.f;
+				const float CellW = (VW - Gap * (N - 1)) / static_cast<float>(N);
+				const float TY = RY + LabelH + BarGap;
+				for (int32 I = 0; I < N; ++I)
+				{
+					const int32 Notch = Lo + I;
+					const float CX = VX + I * (CellW + Gap);
+					const FLinearColor C = Notch == Frame.HelmNotch ? Primary(GA) : Notch == 0 ? Secondary(0.6f * GA) : Primary(0.18f * GA);
+					P.Box(CX, TY, CellW, TickH, C);
+				}
+			}
+			RY += LabelH + BarGap + TickH + RowGap;
+
+			P.Text(TEXT("BALLAST"), VX, RY, LabelFont, Secondary(GA));
+			P.TextRight(DeepHudCalm::BallastLabel(Frame.HelmBallast), V.Right() - Pad, RY, LabelFont, Primary(GA));
+			CentreBar(RY, Frame.HelmBallast);
+			RY += LabelH + BarGap + TickH + RowGap;
+		}
 
 		P.Text(TEXT("HEADING"), VX, RY, LabelFont, Secondary(GA));
 		const float HdgH = P.TextSize(TEXT("0"), MonoFont).Y;

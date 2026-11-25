@@ -127,13 +127,19 @@ bool FDeepHudCalmHintTest::RunTest(const FString& Parameters)
 	Calm.Apply(F, 21.0);
 	TestFalse(TEXT("back from pause: still gone"), DeepHudCalmTest::Has(F, ControlsHint));
 
-	// The helm: its own levers, until the sub moves.
+	// The helm: its own keys, until the sub moves. D-070: the direct drive's held keys by default, the levers behind their switch.
 	F = DeepHudCalmTest::Make(EDeepHudMode::Helm);
 	F.SubDepthM = 100.f;
 	Calm.Apply(F, 30.0);
 	TestTrue(TEXT("the helm hint shows"), DeepHudCalmTest::Has(F, ControlsHint));
-	TestEqual(TEXT("the helm hint is the helm's levers"), F.Hint.Num(), DeepHudCalm::HelmHint().Num());
-	TestEqual(TEXT("throttle first"), F.Hint[0].Verb, FString(TEXT("THROTTLE")));
+	TestEqual(TEXT("the helm hint is the direct drive's keys"), F.Hint.Num(), DeepHudCalm::DirectHelmHint().Num());
+	TestEqual(TEXT("ahead and astern first"), F.Hint[0].Verb, FString(TEXT("AHEAD / ASTERN")));
+	F = DeepHudCalmTest::Make(EDeepHudMode::Helm);
+	F.SubDepthM = 100.f;
+	F.bHelmDirect = false;
+	Calm.Apply(F, 30.05);
+	TestEqual(TEXT("the levers' hint behind their switch"), F.Hint.Num(), DeepHudCalm::HelmHint().Num());
+	TestEqual(TEXT("throttle first"), F.Hint.Num() > 0 ? F.Hint[0].Verb : FString(), FString(TEXT("THROTTLE")));
 	F = DeepHudCalmTest::Make(EDeepHudMode::Helm);
 	F.SubDepthM = 100.f + Calm.Tuning.HelmUseM + 0.5f;
 	Calm.Apply(F, 30.0 + Min + 0.1);
@@ -256,6 +262,24 @@ bool FDeepHudCalmHelmTest::RunTest(const FString& Parameters)
 	const FDeepHudPrompt* Ballast = Hint.FindByPredicate([](const FDeepHudPrompt& P) { return P.Verb == TEXT("BALLAST"); });
 	TestTrue(TEXT("ballast row"), Ballast != nullptr);
 	TestTrue(TEXT("ballast is a lever that stays"), Ballast && Ballast->Detail.Contains(TEXT("stays")) && Ballast->Detail.Contains(TEXT("C floods")));
+
+	// D-070: the direct drive's hint names every held key, and X (not E, which strafes) stands up.
+	const TArray<FDeepHudPrompt> Direct = DeepHudCalm::DirectHelmHint();
+	const auto Row = [&Direct](const TCHAR* Verb) { return Direct.FindByPredicate([Verb](const FDeepHudPrompt& P) { return P.Verb == Verb; }); };
+	TestTrue(TEXT("W / S ahead and astern"), Row(TEXT("AHEAD / ASTERN")) && Row(TEXT("AHEAD / ASTERN"))->Key == TEXT("W / S"));
+	TestTrue(TEXT("A / D turn"), Row(TEXT("TURN")) && Row(TEXT("TURN"))->Key == TEXT("A / D"));
+	TestTrue(TEXT("SPACE / C up and down"), Row(TEXT("UP / DOWN")) && Row(TEXT("UP / DOWN"))->Key == TEXT("SPACE / C"));
+	TestTrue(TEXT("Q / E strafe"), Row(TEXT("STRAFE")) && Row(TEXT("STRAFE"))->Key == TEXT("Q / E"));
+	TestTrue(TEXT("V switches the view"), Row(TEXT("VIEW")) && Row(TEXT("VIEW"))->Key == TEXT("V"));
+	TestTrue(TEXT("X stands up"), Row(TEXT("STAND UP")) && Row(TEXT("STAND UP"))->Key == TEXT("X"));
+	TestFalse(TEXT("nothing latches: no ballast, no all stop"), Row(TEXT("BALLAST")) || Row(TEXT("ALL STOP")));
+	// The readout's words: the way along the heading and the way down.
+	TestEqual(TEXT("stopped"), DeepHudCalm::SpeedLabel(0.02f), FString(TEXT("STOPPED")));
+	TestEqual(TEXT("ahead"), DeepHudCalm::SpeedLabel(2.44f), FString(TEXT("2.4 m/s AHEAD")));
+	TestEqual(TEXT("astern"), DeepHudCalm::SpeedLabel(-1.f), FString(TEXT("1.0 m/s ASTERN")));
+	TestEqual(TEXT("level"), DeepHudCalm::HeaveLabel(0.f), FString(TEXT("LEVEL")));
+	TestEqual(TEXT("down"), DeepHudCalm::HeaveLabel(1.26f), FString(TEXT("1.3 m/s DOWN")));
+	TestEqual(TEXT("up"), DeepHudCalm::HeaveLabel(-2.5f), FString(TEXT("2.5 m/s UP")));
 
 	// Deep.Hud.HelmSonar: off by default; 1 shows the panel; 0 keeps the readout.
 	FDeepHudModeInputs In;
