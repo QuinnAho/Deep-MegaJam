@@ -1,5 +1,5 @@
 ---
-updated: 2026-11-18 01:17 EST
+updated: 2026-11-25 01:56 EST
 ---
 # Decision Log
 
@@ -75,6 +75,10 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 | D-064 | The caves lane brings the hull's real collision; the old shaft stays the default until M2 | Decided (Claude, inside Quinn's OK for the lane, about 12:02 PM Nov 17); M1 merged 1:10 AM Nov 18 (`5659e71`) |
 | D-065 | Depth in the caves follows the stops: C1's sink reads 100 to 300 m | Decided (Quinn, about 1:09 AM Nov 18) |
 | D-066 | Frames go into git as JPEG only; the test harness's frames stay out of git | Decided (Quinn, about 1:09 AM Nov 18) |
+| D-067 | The caves lay 10 salvage pieces a stop, in piles of 2 or 3 | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b about 1:45 AM Nov 25 (`a64d217`) |
+| D-068 | The relic waits in C1 until a stop-3 cavern exists; the caves stay off by default until then | Decided (Quinn, about 2:10 AM Nov 18); merged with M2b (`a64d217`) |
+| D-069 | Stop 3's cavern: C2, a pit below B into the run's biggest chamber, ends the string | Decided (Quinn, 2:37 AM Nov 18); its shape waits for his OK |
+| D-070 | The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material | Decided, the direction (Quinn, about 1:45 AM Nov 25); the approach waits for his pick |
 
 ## Open
 
@@ -377,6 +381,21 @@ One entry per decision: what, who, why, and what follows. A changed decision get
 - **What follows:** The options and their costs are in [[Fun Ideas]] under "A live Captain".
 
 ## Decided
+
+### D-070 The sub drives like a traditional video game sub, the pilot can see where to go, and the cave walls get a rock material
+- **Status:** Decided: the direction. The approach waits for Quinn's pick from two research notes.
+- **Date:** 2026-11-25, about 1:45 AM EST
+- **Who:** Quinn.
+- **Quinn's words:** "I do think we need to change the sub driing mechanics to be someting more like a traditional video game sub its super hard to see and control which i think takes away from the fun, you barely can see anything think of the best approaches here". Then: "alsovwe need materu\ial on the wall explore research on cave gen like this too".
+- **What it changes:** D-048's helm gives way to direct controls. That helm has throttle notches, a ballast lever that stays where it's left, a rudder, and a knock that stops the throttle. Seeing is part of the same job. The cave chunks get a real rock material in place of `M_CaveGrey`.
+- **Found (Nov 25, in code and frames):**
+  - The helm camera looks 32° down (`Sub.HelmCameraPitchDeg`, made for the jam's vertical well), and the two floods aim 30° and 60° down. In level tunnels the view is mostly lit floor with black above it (frames `2026-11-18-m2b-hud-c1-helm.jpg` and `2026-11-18-m2a-s-ping-helm.jpg`).
+  - Every chunk wears a flat grey, and exposure is locked.
+  - The [[Style Guide]] cuts the sub's outside lights to 40% at 300 m and 8% at 500 m. That was written when the diver's lamp was the main light.
+- **What follows:**
+  - [[Sub Driving and Seeing - Approaches]] and [[Cave Rock Material - Approaches]], each with the orchestrator's read. Quinn picks, then lanes start.
+  - The look parts go in one planned pass (D-028), with frames before any merge.
+  - Changing the Style Guide's light table is Quinn's call (D-030).
 
 ### D-069 Stop 3's cavern: C2, a pit below B into the run's biggest chamber, ends the string
 - **Status:** Decided.

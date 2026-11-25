@@ -1358,3 +1358,9 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 ### 2:49 AM, Nov 18  Stop 3's cavern planned and started
 - Decided: stop 3's cavern is a new last chunk, C2, past B. A tunnel and a pit drop into the run's biggest, darkest chamber, where the sub berths at 500 m with the salvage, the serpent's bay and the relic. E leaves the string (D-069).
 - Changed: C2's generator part started beside M2b on its own branch. Its runtime part follows M2b.
+
+### 1:56 AM, Nov 25  M2b merged; the helm and the cave walls come next
+- Changed: Quinn merged M2b ("fine with merging"). It went in as `a64d217`, the same code that passed the gate on `291d1ed`, and was pushed. Its eight frames are in `devlog/media` as `2026-11-18-m2b-*.jpg` (232 KB). The caves stay off by default (D-068).
+- Decided: the sub should drive like a traditional video game sub, because it's hard to see and to control. The cave walls need a real material (D-070).
+- Found: the helm camera looks 32° down and its floods 30° and 60° down, all made for the jam's vertical well, so the tunnels show lit floor with black above. Every chunk wears a flat grey. Two research notes compare the fixes.
+- Next: Quinn picks the approach and OKs C2's shape, then the lanes start.
