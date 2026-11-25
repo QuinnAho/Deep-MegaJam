@@ -1380,3 +1380,8 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Changed: on `build/drive` (`1de1619`), held keys drive the sub directly: W/S, A/D, Space/C and Q/E strafe. It reaches 4 m/s in 1.6 s and comes to rest within 2.5 m. It slides along rock, with damage by impact. A chase view 12 m behind is the default, with a level cockpit view on V. The floods point forward. The sub holds station and bobs when idle. verify 223/223, three playthroughs, package and smoke all pass. Unreal launches no longer need the Fab workaround.
 - Found: in the chase view the hull is an unlit black shape in the middle of the frame, and the first view at the helm in S is near black.
 - Next: D1b, on a branch that merges the drive and the rock, lights the hull, frames the way ahead and opens S's view. Then the immersion lane.
+
+### 6:30 AM, Nov 25  D1b: the sub is lit, and the caves read with rock
+- Changed: `build/drive2` merges the drive and the rock (`c8dec7d`, no conflicts). BT-01 now carries its own cool work lamps and keeps low in the chase frame, so the way ahead shows above it. Taking the helm in S, the cavern reads at once (`88eba22`). verify 230/230, three playthroughs and the package pass. Builds: `Drive-Rock-A` (fallback) and `Drive-Rock-B`.
+- Found: sinking in C1, the hull hides the way down and the snow's streaks read as black rain. B's cockpit view is washed out by the wide fill.
+- Next: D1c fixes those; the immersion lane is still building.
