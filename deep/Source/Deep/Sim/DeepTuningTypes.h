@@ -1318,7 +1318,11 @@ struct FDeepLookTuning
 	float HelmFillInnerFrac = 0.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillCockpitInnerFrac = 0.f;
+	float HelmFillCockpitInnerFrac = 0.25f;
+
+	/** D1c: in the cockpit view the fill aims this much higher (deg): the floor under the bow, flat to the camera, sits in its soft edge; the walls beside keep it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillCockpitRaiseDeg = 0.f;
 
 	/** D1c: the fill's share of specular: chase, cockpit (a wide lamp by the camera glazes wet rock flat; the throws keep the wet highlights). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
@@ -3039,7 +3043,7 @@ struct DEEP_API FDeepHelmViewTuning
 
 	/** D1c: the hull's top never sinks lower in the frame than this share of the half frame (it stays in view when the view looks up). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
-	float HullTopMaxFrameFrac = 0.85f;
+	float HullTopMaxFrameFrac = 0.6f;
 
 	/**
 	 * D1c: heaving, the chase view shows where the hull is going (DeepHelmView::Heaved). The heave share is the travel's

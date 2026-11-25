@@ -784,7 +784,7 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 				const float ToeOut = (Index == 0 ? -1.f : 1.f) * FMath::Lerp(Look.HelmFloodToeOutDeg, Look.HelmFloodSinkToeOutDeg, FMath::Clamp(-LampHeave, 0.f, 1.f));
 				BowLights[Index]->SetRelativeRotation(FRotator(DeepHelmLight::HeavePitchDeg(Level, LampHeave, Look.HelmFloodSinkPitchDeg, Look.HelmFloodRisePitchDeg), ToeOut, 0.f));
 			}
-			HelmFill->SetRelativeRotation(FRotator(DeepHelmLight::HeavePitchDeg(Look.HelmFillPitchDeg, LampHeave, Look.HelmFillSinkPitchDeg, Look.HelmFillRisePitchDeg), 0.f, 0.f));
+			HelmFill->SetRelativeRotation(FRotator(DeepHelmLight::HeavePitchDeg(Look.HelmFillPitchDeg + (bHelmCockpit ? Look.HelmFillCockpitRaiseDeg : 0.f), LampHeave, Look.HelmFillSinkPitchDeg, Look.HelmFillRisePitchDeg), 0.f, 0.f));
 		}
 		// Up close the long throws would burn the rock white (inverse square): each dims for the nearest rock in its cone
 		// (its axis and the cone's two sides), fast going in, slower coming back, so a wall a few metres off reads like
