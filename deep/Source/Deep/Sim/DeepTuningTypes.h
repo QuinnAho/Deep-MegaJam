@@ -1133,6 +1133,10 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float HullLightIntensity = 1500.f;
 
+	/** D-070: while someone drives, the work lights burn at this, at every depth, so the chase view sees the hull against the rock. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
+	float HelmHullLightIntensity = 6000.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Sub")
 	float HullLightConeDeg = 60.f;
 
@@ -1158,7 +1162,7 @@ struct FDeepLookTuning
 	 * camera's view at this intensity, full at every depth (the diver is aboard, so the 300 m lamp rule holds).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodIntensity = 60000.f;
+	float HelmFloodIntensity = 250000.f;
 
 	/** D-070: a long narrow throw (was 44 deg and 30 m, lighting the floor under the bow and nothing ahead). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
@@ -1173,7 +1177,7 @@ struct FDeepLookTuning
 	 * behind the beams, so they are seen from the side and can show: 0.3.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodFog = 0.3f;
+	float HelmFloodFog = 0.2f;
 
 	/** D-070: the floods aim level and forward (down is negative), so the passage ahead is lit, not the floor under the bow. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
@@ -1207,9 +1211,16 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmFloodFlickerS = 0.45f;
 
+	/** The throws are full for rock this far off (m) or more; nearer they dim with the square of the distance, never under NearMin. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodNearFullM = 18.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodNearMin = 0.01f;
+
 	/** D-070: a wide, dim fill from the bow for the walls round the hull (the throws only reach ahead). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillIntensity = 8000.f;
+	float HelmFillIntensity = 60000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmFillConeDeg = 75.f;
@@ -1218,7 +1229,7 @@ struct FDeepLookTuning
 	float HelmFillRangeM = 22.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillPitchDeg = -8.f;
+	float HelmFillPitchDeg = -15.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmFillFog = 0.05f;
@@ -2810,7 +2821,7 @@ struct DEEP_API FDeepHelmViewTuning
 
 	/** Chase: this far back along the trail from the hull's centre (m): the stern is 6.2 m back, so about 5 m of water shows between. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
-	float ChaseBackM = 11.f;
+	float ChaseBackM = 12.f;
 
 	/**
 	 * Chase: this high over the trail (m) where the roof allows, so the hull (2.5 m over its centre, the tower more)
@@ -2818,7 +2829,7 @@ struct DEEP_API FDeepHelmViewTuning
 	 * from the trail), never under ChaseUpMinM, inside the 0.9 m the caves keep round the hull's path.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
-	float ChaseUpM = 4.5f;
+	float ChaseUpM = 6.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float ChaseUpMinM = 2.9f;
@@ -2829,7 +2840,7 @@ struct DEEP_API FDeepHelmViewTuning
 
 	/** The look aims this far over the point ahead (m), so the hull sits in the lower part of the frame. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
-	float LookUpM = 1.5f;
+	float LookUpM = 1.f;
 
 	/** The trail is used while it lies within this many degrees of straight astern; a turn in place or going astern uses the heading. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")

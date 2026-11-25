@@ -360,8 +360,9 @@ void ADeepSubmarine::SetOutsideLights(float Scale, float Fog)
 	BellyFlood->SetVisibility(S > 0.f);
 	for (USpotLightComponent* Light : HullLights)
 	{
-		Light->SetIntensity(Look.HullLightIntensity * S);
-		Light->SetVisibility(S > 0.f);
+		// While someone drives, the work lights show the hull to the chase view at every depth (TickHelmLook, D-070).
+		Light->SetIntensity(bHelmManned ? Look.HelmHullLightIntensity : Look.HullLightIntensity * S);
+		Light->SetVisibility(bHelmManned || S > 0.f);
 		Light->SetVolumetricScatteringIntensity(FMath::Max(0.f, Fog) * 0.5f);
 	}
 	OutsideScale = S;
@@ -623,6 +624,11 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		HelmFill->SetAttenuationRadius(Look.HelmFillRangeM * UDeepRules::CmPerM);
 		HelmFill->SetVolumetricScatteringIntensity(Look.HelmFillFog);
 		HelmFill->SetVisibility(bManned);
+		for (USpotLightComponent* Light : HullLights)
+		{
+			Light->SetIntensity(bManned ? Look.HelmHullLightIntensity : Look.HullLightIntensity * OutsideScale);
+			Light->SetVisibility(bManned || OutsideScale > 0.f);
+		}
 	}
 
 	// The trench wall: only for a local player looking through this sub's helm camera (a diver outside never sees it).
@@ -716,11 +722,44 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 			const float Fade = 1.f - JoltAge / FlickerS;
 			Dip = FMath::Clamp(Look.HelmFloodFlickerDip, 0.f, 1.f) * Fade * (0.5f + 0.5f * FMath::Cos(UE_TWO_PI * 11.f * JoltAge));
 		}
-		for (USpotLightComponent* Light : BowLights)
+		// Up close the long throws would burn the rock white (inverse square): each dims for the nearest rock in its cone
+		// (its axis and the cone's two sides), fast going in, slower coming back, so a wall a few metres off reads like
+		// one far down the passage.
+		const float NearFullCm = FMath::Max(1.f, Look.HelmFloodNearFullM) * UDeepRules::CmPerM;
+		const float RangeCm = Look.HelmFloodRangeM * UDeepRules::CmPerM;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepFloodNear), true, this);
+		for (int32 Index = 0; Index < BowLights.Num() && Index < 2; ++Index)
 		{
-			Light->SetIntensity(Look.HelmFloodIntensity * (1.f - Dip));
+			USpotLightComponent* Light = BowLights[Index];
+			const FVector From = Light->GetComponentLocation();
+			// A flood standing in rock (the bow pressed to a wall) sees no hit from inside it: that is the nearest rock of all.
+			float NearestCm = World->OverlapAnyTestByObjectType(From, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(20.f), Params) ? 0.f : RangeCm;
+			for (const float SideDeg : { 0.f, -0.6f * Look.HelmFloodConeDeg, 0.6f * Look.HelmFloodConeDeg })
+			{
+				const FVector Dir = Light->GetComponentQuat().RotateVector(FRotator(0.f, SideDeg, 0.f).Vector());
+				FHitResult Hit;
+				if (World->LineTraceSingleByObjectType(Hit, From, From + Dir * RangeCm, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+				{
+					NearestCm = FMath::Min(NearestCm, float(Hit.Distance));
+				}
+			}
+			const float Want = FMath::Clamp(FMath::Square(NearestCm / NearFullCm), FMath::Clamp(Look.HelmFloodNearMin, 0.f, 1.f), 1.f);
+			FloodNear[Index] = FMath::FInterpTo(FloodNear[Index], Want, DeltaSeconds, Want < FloodNear[Index] ? 12.f : 3.f);
+			Light->SetIntensity(Look.HelmFloodIntensity * FloodNear[Index] * (1.f - Dip));
 		}
-		HelmFill->SetIntensity(Look.HelmFillIntensity * (1.f - Dip));
+		// The fill dims the same way for the rock ahead of the bow (it is wide and close: half the throws' reach).
+		{
+			const FVector From = HelmFill->GetComponentLocation();
+			FHitResult Hit;
+			float NearestCm = Look.HelmFillRangeM * UDeepRules::CmPerM;
+			if (World->LineTraceSingleByObjectType(Hit, From, From + HelmFill->GetForwardVector() * NearestCm, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+			{
+				NearestCm = float(Hit.Distance);
+			}
+			const float Want = FMath::Clamp(FMath::Square(NearestCm / (0.5f * NearFullCm)), FMath::Clamp(Look.HelmFloodNearMin, 0.f, 1.f), 1.f);
+			FillNear = FMath::FInterpTo(FillNear, Want, DeltaSeconds, Want < FillNear ? 12.f : 3.f);
+		}
+		HelmFill->SetIntensity(Look.HelmFillIntensity * FillNear * (1.f - Dip));
 	}
 	if (State && !bParked && DeepArena::IsWorldCaves(World))
 	{
@@ -833,7 +872,7 @@ bool ADeepSubmarine::ProbeBlocked(const FVector& Cm) const
 	{
 		return false;
 	}
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbe), false, this);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbe), true, this);
 	const float Radius = FMath::Max(1.f, UDeepTuningSettings::Get().HelmView.ProbeRadiusM * UDeepRules::CmPerM);
 	return World->OverlapAnyTestByObjectType(Cm, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params);
 }
@@ -846,7 +885,7 @@ FVector ADeepSubmarine::ProbeChase(const FVector& AnchorCm, const FVector& WantC
 	if (World)
 	{
 		// The rock only (the chunks, the shaft, the beds are world static); never this hull, never a diver.
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbe), false, this);
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbe), true, this);
 		FHitResult Hit;
 		if (World->SweepSingleByObjectType(Hit, AnchorCm, WantCm, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params))
 		{
@@ -928,7 +967,7 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 		const double Radius = FMath::Max(1.f, T.ProbeRadiusM * UDeepRules::CmPerM);
 		double Room = High;
 		FHitResult Up;
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbeUp), false, this);
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbeUp), true, this);
 		if (GetWorld() && GetWorld()->SweepSingleByObjectType(Up, ChaseBaseW + FVector(0.0, 0.0, From), ChaseBaseW + FVector(0.0, 0.0, High), FQuat::Identity,
 			FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params))
 		{

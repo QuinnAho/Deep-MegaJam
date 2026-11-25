@@ -176,6 +176,9 @@ protected:
 	float JoltAge = 0.f;
 	/** The last knock's impact (m/s, from the dents): a hard one makes the floods stutter (D-070). */
 	float KnockMps = 0.f;
+	/** Each helm flood's share of full for the rock in front of it (D-070: no white-out up close). */
+	float FloodNear[2] = { 1.f, 1.f };
+	float FillNear = 1.f;
 
 	/** D-070's pilot view (local): cockpit or chase, the mouse's look and how long since it moved, the hull's trail. */
 	bool bHelmCockpit = false;

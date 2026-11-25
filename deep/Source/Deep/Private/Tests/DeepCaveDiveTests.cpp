@@ -1845,7 +1845,7 @@ bool FDeepCaveChaseViewTest::RunTest(const FString& Parameters)
 		const FVector HullCentre = W.Sub->GetHullCentreWorld();
 		const bool bInRock = String->OverlapsBoxWorld(Cam, FVector(20.0), FQuat::Identity);
 		const bool bInHull = Hull.ExpandBy(10.0).IsInside(W.Sub->GetActorTransform().InverseTransformPosition(Cam));
-		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepTestChaseSight), false, W.Sub);
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepTestChaseSight), true, W.Sub);
 		const FVector HullTop = W.Sub->GetActorTransform().TransformPosition(FVector(Hull.GetCenter().X, Hull.GetCenter().Y, Hull.Max.Z));
 		const bool bBlind = W.World->LineTraceTestByObjectType(Cam, HullTop, FCollisionObjectQueryParams(ECC_WorldStatic), Params);
 		const bool bAstern = FVector::DotProduct((Cam - HullCentre).GetSafeNormal2D(), W.Sub->GetActorForwardVector().GetSafeNormal2D()) < 0.0;
