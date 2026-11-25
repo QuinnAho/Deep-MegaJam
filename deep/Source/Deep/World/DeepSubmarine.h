@@ -157,6 +157,37 @@ public:
 	float GetIdleAmount() const { return IdleAmount; }
 	const FDeepIdleBob& GetIdleBob() const { return IdleNow; }
 
+	/**
+	 * D1b: the hull's own work lamps (HullLights tuning, Sim/DeepHullLightRules): 0 the tower lamp, 1 and 2 the stern
+	 * lamps (port, starboard), under HullVisual. Placed once on the hull's real surface by tracing it (PlaceWorkLamps:
+	 * true once placed); the floods' spill lights ride the flood heads.
+	 */
+	const TArray<TObjectPtr<USpotLightComponent>>& GetWorkLamps() const { return WorkLamps; }
+	const TArray<TObjectPtr<UPointLightComponent>>& GetFloodSpills() const { return FloodSpills; }
+	/** The helm's lights, for tests: the two bow lights (the floods while manned), the fill, the markers. */
+	const TArray<TObjectPtr<USpotLightComponent>>& GetBowLights() const { return BowLights; }
+	USpotLightComponent* GetHelmFill() const { return HelmFill; }
+	const TArray<TObjectPtr<UPointLightComponent>>& GetMarkers() const { return Markers; }
+	bool PlaceWorkLamps();
+	bool AreWorkLampsPlaced() const { return bWorkLampsPlaced; }
+	/** Re-applies every outside light from the tuning (Deep.Tune): now, and the helm's own on the next tick. */
+	void RefreshLights();
+	/** Where the tower lamp aims (the after deck), in the visual hull's frame; valid once placed. */
+	FVector GetDeckAimLocal() const { return DeckAimCm; }
+	/**
+	 * Where a straight probe (the visual hull's frame, cm) first meets the hull's solid shape: BT-01's simple collision, or
+	 * the box hull's solid box. False when it misses.
+	 */
+	bool TraceHullSurface(const FVector& FromCm, const FVector& ToCm, FVector& OutCm, FVector& OutNormal) const;
+	/** How far a point (the visual hull's frame, cm) is from the hull's solid shape: 0 inside it, -1 if it cannot tell. */
+	float HullDistanceCm(const FVector& Cm) const;
+
+	/** For DEEPSTATE: the helm view's last frame (the hull top's place on the frame, the chase height over the trail). */
+	float GetHullTopFrameY() const { return HullTopFrameY; }
+	float GetChaseUpM() const { return float(ChaseUpCm / 100.0); }
+	float GetFloodNear(int32 Index) const { return Index >= 0 && Index < 2 ? FloodNear[Index] : 1.f; }
+	float GetFillNear() const { return FillNear; }
+
 protected:
 	/** Helm look each tick: floods, trench wall, sway scaled by speed, the settle on parking. */
 	void TickHelmLook(float DeltaSeconds);
@@ -308,6 +339,25 @@ protected:
 
 	/** Puts the lamps on the model's surface (DeepHull::ModelLamp); LayOut calls it with the model hull. */
 	void PlaceLampsOnModel();
+
+	/** D1b: the work lamps on the hull (tower, stern port, stern starboard) and a small bulb on each. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<USpotLightComponent>> WorkLamps;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> WorkBulbs;
+
+	/** D1b: one per bow light, riding it: the flood head's spill on the bow while the helm floods burn. */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UPointLightComponent>> FloodSpills;
+
+	bool bWorkLampsPlaced = false;
+	int32 WorkLampTries = 0;
+	FVector DeckAimCm = FVector::ZeroVector;
+	float HullTopFrameY = 0.f;
+
+	/** The work lamps, spills and markers for the helm's state and the outside lights' depth fade. */
+	void ApplyHullLights();
 
 	UPROPERTY(ReplicatedUsing = OnRep_Hatch)
 	bool bHatchOpen = true;

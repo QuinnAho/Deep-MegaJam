@@ -26,6 +26,7 @@
 #include "PhysicsEngine/BodySetup.h"
 #include "Sim/DeepCaveRules.h"
 #include "Sim/DeepHelmViewRules.h"
+#include "Sim/DeepHullLightRules.h"
 #include "World/DeepArenaRoot.h"
 #include "CollisionQueryParams.h"
 #include "Sim/DeepMovingSubRules.h"
@@ -235,6 +236,40 @@ ADeepSubmarine::ADeepSubmarine()
 	AirlockLight->SetupAttachment(HullVisual);
 	HelmFill->SetupAttachment(HullVisual);
 
+	// D1b: the hull's own work lamps (tower, stern port, stern starboard), placed on its surface by PlaceWorkLamps; a small
+	// bulb on each so the lamp reads as a lamp. No shadows (cheap, and they light the hull they sit on); no fog (no haze
+	// round the hull in the chase view).
+	for (const TCHAR* Name : { TEXT("WorkLampTower"), TEXT("WorkLampSternPort"), TEXT("WorkLampSternStbd") })
+	{
+		USpotLightComponent* Light = CreateDefaultSubobject<USpotLightComponent>(Name);
+		Light->SetupAttachment(HullVisual);
+		Light->SetMobility(EComponentMobility::Movable);
+		Light->SetCastShadows(false);
+		Light->SetVolumetricScatteringIntensity(0.f);
+		Light->SetVisibility(false);
+		WorkLamps.Add(Light);
+		UStaticMeshComponent* Bulb = DeepShapes::CreateShape(this, FName(FString(TEXT("Bulb_")) + Name), DeepShapes::Sphere);
+		Bulb->SetupAttachment(Light);
+		Bulb->SetRelativeScale3D(FVector(DeepHull::BulbRadiusCm * 2.0 / DeepShapes::ShapeSizeCm));
+		Bulb->SetCastShadow(false);
+		Bulb->bAffectDistanceFieldLighting = false;
+		Bulb->bVisibleInRayTracing = false;
+		Bulb->bAffectDynamicIndirectLighting = false;
+		Bulb->SetVisibility(false);
+		WorkBulbs.Add(Bulb);
+	}
+	// D1b: the flood heads' spill on the bow, riding each bow light.
+	for (int32 Index = 0; Index < BowLights.Num(); ++Index)
+	{
+		UPointLightComponent* Spill = CreateDefaultSubobject<UPointLightComponent>(Index == 0 ? TEXT("FloodSpillPort") : TEXT("FloodSpillStbd"));
+		Spill->SetupAttachment(BowLights[Index]);
+		Spill->SetMobility(EComponentMobility::Movable);
+		Spill->SetCastShadows(false);
+		Spill->SetVolumetricScatteringIntensity(0.f);
+		Spill->SetVisibility(false);
+		FloodSpills.Add(Spill);
+	}
+
 	LayOut();
 }
 
@@ -367,6 +402,7 @@ void ADeepSubmarine::SetOutsideLights(float Scale, float Fog)
 	}
 	OutsideScale = S;
 	OutsideFog = FMath::Max(0.f, Fog);
+	ApplyHullLights();
 	if (bHelmManned)
 	{
 		// The helm floods own the bow lights while someone drives; the depth fade applies again when they stand up.
@@ -624,11 +660,24 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		HelmFill->SetAttenuationRadius(Look.HelmFillRangeM * UDeepRules::CmPerM);
 		HelmFill->SetVolumetricScatteringIntensity(Look.HelmFillFog);
 		HelmFill->SetVisibility(bManned);
+		// D1b: a lamp with a size, so wet rock catches a broad glint that slides as the sub moves (the bow lights are points off the helm).
+		for (USpotLightComponent* Light : BowLights)
+		{
+			Light->SetSourceRadius(bManned ? FMath::Max(0.f, Look.HelmFloodSourceRadiusCm) : 0.f);
+		}
+		HelmFill->SetSourceRadius(FMath::Max(0.f, Look.HelmFloodSourceRadiusCm));
 		for (USpotLightComponent* Light : HullLights)
 		{
 			Light->SetIntensity(bManned ? Look.HelmHullLightIntensity : Look.HullLightIntensity * OutsideScale);
 			Light->SetVisibility(bManned || OutsideScale > 0.f);
 		}
+		ApplyHullLights();
+	}
+	// D1b: the work lamps find the hull's surface once (its collision must exist first: try a few ticks).
+	if (!bWorkLampsPlaced && WorkLampTries < 30)
+	{
+		++WorkLampTries;
+		PlaceWorkLamps();
 	}
 
 	// The trench wall: only for a local player looking through this sub's helm camera (a diver outside never sees it).
@@ -746,17 +795,29 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 			const float Want = FMath::Clamp(FMath::Square(NearestCm / NearFullCm), FMath::Clamp(Look.HelmFloodNearMin, 0.f, 1.f), 1.f);
 			FloodNear[Index] = FMath::FInterpTo(FloodNear[Index], Want, DeltaSeconds, Want < FloodNear[Index] ? 12.f : 3.f);
 			Light->SetIntensity(Look.HelmFloodIntensity * FloodNear[Index] * (1.f - Dip));
+			// D1b: the beams stand in the water beside the hull in the chase view; in this machine's cockpit view, less (no
+			// milk). Dimmed for near rock, the beam keeps its brightness in the water (down to HelmFloodFogNearFloor).
+			const float Fog = bHelmCockpit ? Look.HelmFloodCockpitFog : Look.HelmFloodFog;
+			Light->SetVolumetricScatteringIntensity(Fog / FMath::Max(FloodNear[Index], FMath::Clamp(Look.HelmFloodFogNearFloor, 0.01f, 1.f)));
 		}
-		// The fill dims the same way for the rock ahead of the bow (it is wide and close: half the throws' reach).
+		// The fill dims the same way for the nearest rock round the bow: ahead, either side and above (D1b: wide and strong
+		// enough for S's walls, so a tunnel's walls close by must not burn). The floor under the bow sits in its soft edge.
 		{
 			const FVector From = HelmFill->GetComponentLocation();
-			FHitResult Hit;
-			float NearestCm = Look.HelmFillRangeM * UDeepRules::CmPerM;
-			if (World->LineTraceSingleByObjectType(Hit, From, From + HelmFill->GetForwardVector() * NearestCm, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+			const float ReachCm = Look.HelmFillRangeM * UDeepRules::CmPerM;
+			float NearestCm = ReachCm;
+			const float Side = 0.6f * Look.HelmFillConeDeg;
+			for (const FRotator Off : { FRotator::ZeroRotator, FRotator(0.f, -Side, 0.f), FRotator(0.f, Side, 0.f), FRotator(Side, 0.f, 0.f) })
 			{
-				NearestCm = float(Hit.Distance);
+				FHitResult Hit;
+				const FVector Dir = HelmFill->GetComponentQuat().RotateVector(Off.Vector());
+				if (World->LineTraceSingleByObjectType(Hit, From, From + Dir * ReachCm, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+				{
+					NearestCm = FMath::Min(NearestCm, float(Hit.Distance));
+				}
 			}
-			const float Want = FMath::Clamp(FMath::Square(NearestCm / (0.5f * NearFullCm)), FMath::Clamp(Look.HelmFloodNearMin, 0.f, 1.f), 1.f);
+			const float FillFullCm = FMath::Max(1.f, Look.HelmFillNearFullM) * UDeepRules::CmPerM;
+			const float Want = FMath::Clamp(FMath::Square(NearestCm / FillFullCm), FMath::Clamp(Look.HelmFillNearMin, 0.f, 1.f), 1.f);
 			FillNear = FMath::FInterpTo(FillNear, Want, DeltaSeconds, Want < FillNear ? 12.f : 3.f);
 		}
 		HelmFill->SetIntensity(Look.HelmFillIntensity * FillNear * (1.f - Dip));
@@ -1011,6 +1072,9 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 	}
 	const FVector Camera = ProbeChase(ChaseAnchorCm, ChaseSpotCm);
 	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), T);
+	// D1b: the hull never hides the way ahead: pitch up until the top of the hull sits in the lower part of the frame.
+	const FVector HullTopW = GetActorTransform().TransformPosition(FVector(Centre.X, Centre.Y, Box.Max.Z));
+	Rotation.Pitch = DeepHelmView::FramePitch(Camera, HullTopW, Rotation.Pitch, T.ChaseFovDeg, T);
 	Rotation.Yaw += HelmLookDeg.X + YawShakeDeg;
 	Rotation.Pitch = FMath::Clamp(Rotation.Pitch + HelmLookDeg.Y + PitchShakeDeg, -85.f, 85.f);
 	// The idle hull's breathing, a hint of it (D-070): the view stays calm.
@@ -1019,6 +1083,7 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 	Rotation.Roll = RollShakeDeg + IdleNow.RollDeg * ChaseIdle;
 	HelmCamera->SetWorldLocationAndRotation(Camera + FVector(0.0, 0.0, IdleNow.HeaveCm * ChaseIdle), Rotation);
 	HelmCamera->SetFieldOfView(T.ChaseFovDeg);
+	HullTopFrameY = DeepHelmView::FrameY(HelmCamera->GetComponentLocation(), Rotation, HullTopW, T.ChaseFovDeg, T.FrameAspect);
 	bHelmViewInit = true;
 }
 
@@ -1179,9 +1244,14 @@ void ADeepSubmarine::ApplyLook()
 		Markers[Index]->SetAttenuationRadius(180.f);
 		Markers[Index]->SetSourceRadius(3.f);
 	}
+	// D1b: the work lamps' colour, spills and markers for the helm's state (before the bulbs take their lights' colours).
+	ApplyHullLights();
 	// Each bulb glows in its own light's colour (M_SubBulb; a flat tint if the asset is missing).
 	UMaterialInterface* BulbBase = LoadObject<UMaterialInterface>(nullptr, DeepHull::BulbMaterial);
-	for (UStaticMeshComponent* Bulb : Bulbs)
+	TArray<UStaticMeshComponent*> AllBulbs;
+	for (UStaticMeshComponent* Bulb : Bulbs) { AllBulbs.Add(Bulb); }
+	for (UStaticMeshComponent* Bulb : WorkBulbs) { AllBulbs.Add(Bulb); }
+	for (UStaticMeshComponent* Bulb : AllBulbs)
 	{
 		const ULightComponent* Light = Cast<ULightComponent>(Bulb->GetAttachParent());
 		const FLinearColor Colour = Light ? Light->GetLightColor() : FLinearColor::White;
@@ -1405,6 +1475,9 @@ void ADeepSubmarine::OnHullModelSwitched()
 	{
 		Bulb->SetHiddenInGame(!bModel);
 	}
+	// D1b: the work lamps sit on the shown hull's surface: find it again.
+	bWorkLampsPlaced = false;
+	WorkLampTries = 0;
 	// The lamps: on the model's surface, or back where the box hull has them.
 	LayOut();
 }
@@ -1423,6 +1496,155 @@ void ADeepSubmarine::PlaceLampsOnModel()
 		{
 			Light->SetRelativeLocation(DeepHull::ModelLampLocation(Lamp, Fit));
 		}
+	}
+}
+
+bool ADeepSubmarine::TraceHullSurface(const FVector& FromCm, const FVector& ToCm, FVector& OutCm, FVector& OutNormal) const
+{
+	if (IsModelHull())
+	{
+		// BT-01's own simple collision (its convex hulls), the shape that blocks: the surface a lamp can sit on.
+		const FTransform Frame = HullVisual->GetComponentTransform();
+		FHitResult Hit;
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHullSurface), false);
+		if (!HullModel->LineTraceComponent(Hit, Frame.TransformPosition(FromCm), Frame.TransformPosition(ToCm), Params))
+		{
+			return false;
+		}
+		OutCm = Frame.InverseTransformPosition(Hit.ImpactPoint);
+		OutNormal = Frame.InverseTransformVectorNoScale(Hit.ImpactNormal).GetSafeNormal();
+		return true;
+	}
+	// The box hull: its solid box.
+	const FBox Box = GetSolidBoundsLocal(false);
+	float Time = 0.f;
+	return Box.IsValid && FMath::LineExtentBoxIntersection(Box, FromCm, ToCm, FVector::ZeroVector, OutCm, OutNormal, Time);
+}
+
+float ADeepSubmarine::HullDistanceCm(const FVector& Cm) const
+{
+	if (IsModelHull())
+	{
+		FVector Closest;
+		return HullModel->GetDistanceToCollision(HullVisual->GetComponentTransform().TransformPosition(Cm), Closest);
+	}
+	const FBox Box = GetSolidBoundsLocal(false);
+	return Box.IsValid ? float(FMath::Sqrt(Box.ComputeSquaredDistanceToPoint(Cm))) : -1.f;
+}
+
+void ADeepSubmarine::RefreshLights()
+{
+	// The bow lights go home first: the helm's floods stand them clear of the bow again from there.
+	for (int32 Index = 0; bHelmManned && Index < BowLights.Num() && Index < 2; ++Index)
+	{
+		if (!BowLampHomeCm[Index].IsZero())
+		{
+			BowLights[Index]->SetRelativeLocation(BowLampHomeCm[Index]);
+		}
+	}
+	// TickHelmLook sees the helm's state change and applies its lights afresh; the work lamps find the hull again.
+	bHelmManned = !bHelmManned;
+	bWorkLampsPlaced = false;
+	WorkLampTries = 0;
+	ApplyLook();
+}
+
+bool ADeepSubmarine::PlaceWorkLamps()
+{
+	if (WorkLamps.Num() < 3 || !HullVisual)
+	{
+		return false;
+	}
+	const FDeepHullLightTuning& T = UDeepTuningSettings::Get().HullLights;
+	const FBox Solid = GetSolidBoundsLocal(false);
+	if (!Solid.IsValid)
+	{
+		return false;
+	}
+	// The tower's top: the highest surface under the centre line.
+	FVector Top = FVector::ZeroVector;
+	bool bTop = false;
+	for (const DeepHullLights::FProbe& Probe : DeepHullLights::TowerTopProbes(Solid, 25))
+	{
+		FVector At, Normal;
+		if (TraceHullSurface(Probe.FromCm, Probe.ToCm, At, Normal) && (!bTop || At.Z > Top.Z))
+		{
+			Top = At;
+			bTop = true;
+		}
+	}
+	FVector Back, BackNormal;
+	const DeepHullLights::FProbe BackProbe = DeepHullLights::TowerBackProbe(Solid, Top, T);
+	if (!bTop || !TraceHullSurface(BackProbe.FromCm, BackProbe.ToCm, Back, BackNormal))
+	{
+		UE_LOG(LogTemp, Display, TEXT("DEEPHULLLAMPS not placed: model %d, box %s, top found %d at %s"), IsModelHull() ? 1 : 0, *Solid.ToString(), bTop ? 1 : 0, *Top.ToString());
+		return false;
+	}
+	// The after deck the tower lamp lights (the stern's end if the deck probe finds nothing).
+	const DeepHullLights::FProbe DeckProbe = DeepHullLights::DeckProbe(Solid, T);
+	FVector DeckCm, DeckNormal;
+	if (!TraceHullSurface(DeckProbe.FromCm, DeckProbe.ToCm, DeckCm, DeckNormal))
+	{
+		DeckCm = FVector(Solid.Min.X, Solid.GetCenter().Y, Solid.GetCenter().Z);
+	}
+	DeckAimCm = DeckCm;
+	const FTransform TowerLamp = DeepHullLights::Mount(Back, BackNormal, DeckCm, T);
+	WorkLamps[0]->SetRelativeTransform(TowerLamp);
+	// The stern's quarters, aimed forward and up across the stern at the tower lamp.
+	for (int32 Index = 1; Index < 3; ++Index)
+	{
+		const DeepHullLights::FProbe Probe = DeepHullLights::SternProbe(Solid, Index == 1 ? -1 : 1, T);
+		FVector At, Normal;
+		if (TraceHullSurface(Probe.FromCm, Probe.ToCm, At, Normal))
+		{
+			WorkLamps[Index]->SetRelativeTransform(DeepHullLights::Mount(At, Normal, TowerLamp.GetLocation(), T));
+		}
+	}
+	bWorkLampsPlaced = true;
+	ApplyHullLights();
+	return true;
+}
+
+void ADeepSubmarine::ApplyHullLights()
+{
+	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
+	const FDeepHullLightTuning& T = Tuning.HullLights;
+	const FDeepLookTuning& Look = Tuning.Look;
+	const bool bGreyBox = Tuning.Arena.bGreyBox;
+	// Full while someone drives (every depth: the pilot's lamps); off the helm a share of it, faded with depth.
+	const float Share = bHelmManned ? 1.f : FMath::Max(0.f, T.OffHelmShare) * FMath::Max(0.f, OutsideScale);
+	for (int32 Index = 0; Index < WorkLamps.Num(); ++Index)
+	{
+		USpotLightComponent* Light = WorkLamps[Index];
+		const bool bTower = Index == 0;
+		const float Intensity = (bTower ? T.TowerLampIntensity : T.SternLampIntensity) * Share;
+		const float Cone = bTower ? T.TowerLampConeDeg : T.SternLampConeDeg;
+		Light->SetLightColor(T.Color);
+		Light->SetIntensity(Intensity);
+		Light->SetInnerConeAngle(Cone * 0.5f);
+		Light->SetOuterConeAngle(Cone);
+		Light->SetAttenuationRadius((bTower ? T.TowerLampRangeM : T.SternLampRangeM) * UDeepRules::CmPerM);
+		Light->SetSourceRadius(FMath::Max(0.f, T.LampSourceRadiusCm));
+		const bool bOn = bWorkLampsPlaced && !bGreyBox && Intensity > 0.f;
+		Light->SetVisibility(bOn);
+		if (WorkBulbs.IsValidIndex(Index))
+		{
+			WorkBulbs[Index]->SetVisibility(bOn);
+		}
+	}
+	for (int32 Index = 0; Index < FloodSpills.Num(); ++Index)
+	{
+		UPointLightComponent* Spill = FloodSpills[Index];
+		Spill->SetLightColor(BowLights.IsValidIndex(Index) ? BowLights[Index]->GetLightColor() : T.Color);
+		Spill->SetIntensity(T.FloodSpillIntensity);
+		Spill->SetAttenuationRadius(T.FloodSpillRangeM * UDeepRules::CmPerM);
+		Spill->SetVisibility(bHelmManned && !bGreyBox && T.FloodSpillIntensity > 0.f);
+	}
+	// The markers: brighter and wider while someone drives, so the hull's sides catch red and green (they still blink).
+	for (UPointLightComponent* Marker : Markers)
+	{
+		Marker->SetIntensity(bHelmManned ? T.HelmMarkerIntensity : Look.MarkerIntensity);
+		Marker->SetAttenuationRadius(bHelmManned ? T.HelmMarkerRangeM * UDeepRules::CmPerM : 180.f);
 	}
 }
 

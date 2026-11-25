@@ -22,6 +22,8 @@
 #include "Story/DeepEventBus.h"
 #include "World/DeepArena.h"
 #include "World/DeepSalvage.h"
+#include "World/DeepSubmarine.h"
+#include "Camera/CameraComponent.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepState, Log, All);
 
@@ -133,6 +135,28 @@ namespace DeepStateReport
 		{
 			const FDeepDriveInput Hold = State ? State->HelmHold : FDeepDriveInput();
 			Json->SetStringField(TEXT("drive_hold"), FString::Printf(TEXT("%.2f %.2f %.2f %.2f"), Hold.Surge, Hold.Turn, Hold.Heave, Hold.Strafe));
+		}
+		// D1b: the pilot's view on this machine: chase or cockpit, the hull top's place on the frame (0 the centre, 1 the
+		// bottom edge), the chase height over the trail, the floods' and fill's share for near rock, the work lamps placed.
+		if (const ADeepSubmarine* Sub = Tether ? Tether->GetSubmarine() : nullptr; Sub && Run && Run->IsSeated())
+		{
+			TSharedRef<FJsonObject> View = MakeShared<FJsonObject>();
+			View->SetStringField(TEXT("mode"), Sub->IsHelmCockpit() ? TEXT("cockpit") : TEXT("chase"));
+			View->SetNumberField(TEXT("hull_top_y"), Sub->GetHullTopFrameY());
+			View->SetNumberField(TEXT("chase_up_m"), Sub->GetChaseUpM());
+			View->SetStringField(TEXT("flood_near"), FString::Printf(TEXT("%.2f %.2f"), Sub->GetFloodNear(0), Sub->GetFloodNear(1)));
+			View->SetNumberField(TEXT("fill_near"), Sub->GetFillNear());
+			View->SetBoolField(TEXT("work_lamps"), Sub->AreWorkLampsPlaced());
+			const FBox Box = Sub->GetSolidBoundsLocal(false);
+			View->SetStringField(TEXT("hull_box_m"), FString::Printf(TEXT("%.2f %.2f %.2f / %.2f %.2f %.2f"), Box.Min.X / 100.0, Box.Min.Y / 100.0, Box.Min.Z / 100.0,
+				Box.Max.X / 100.0, Box.Max.Y / 100.0, Box.Max.Z / 100.0));
+			if (const UCameraComponent* Camera = Sub->GetHelmCamera())
+			{
+				const FVector Off = Sub->GetActorTransform().InverseTransformPosition(Camera->GetComponentLocation()) - Box.GetCenter();
+				View->SetStringField(TEXT("camera_m"), FString::Printf(TEXT("%.2f %.2f %.2f pitch %.1f"), Off.X / 100.0, Off.Y / 100.0, Off.Z / 100.0,
+					Camera->GetComponentRotation().Pitch));
+			}
+			Json->SetObjectField(TEXT("helm_view"), View);
 		}
 		Json->SetNumberField(TEXT("helm_surge_mps"), State ? State->HelmSurgeMps : 0.f);
 		Json->SetNumberField(TEXT("helm_heave_mps"), State ? State->HelmHeaveMps : 0.f);

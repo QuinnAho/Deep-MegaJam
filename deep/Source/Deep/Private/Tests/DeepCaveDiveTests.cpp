@@ -21,6 +21,7 @@
 #include "EngineUtils.h"
 #include "Game/DeepGameMode.h"
 #include "Game/DeepGameState.h"
+#include "GameFramework/PlayerController.h"
 #include "Misc/AutomationTest.h"
 #include "Private/Tests/DeepTestCVar.h"
 #include "Sim/DeepCaveDiveRules.h"
@@ -33,6 +34,9 @@
 #include "World/DeepSalvage.h"
 #include "Components/CapsuleComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Components/SpotLightComponent.h"
+#include "Sim/DeepHelmViewRules.h"
 #include "World/DeepShaft.h"
 #include "World/DeepSubmarine.h"
 #include "World/DeepSubRoom.h"
@@ -1827,6 +1831,10 @@ bool FDeepCaveChaseViewTest::RunTest(const FString& Parameters)
 	int32 InHull = 0;
 	int32 Blind = 0;
 	int32 Astern = 0;
+	int32 HullHigh = 0;
+	int32 WayHidden = 0;
+	int32 AheadChecks = 0;
+	float LowestTopY = 10.f;
 	double NearestM = 1000.0;
 	for (int32 Index = 48; Index < Poses.Num(); Index += 40)
 	{
@@ -1854,18 +1862,43 @@ bool FDeepCaveChaseViewTest::RunTest(const FString& Parameters)
 		Blind += bBlind ? 1 : 0;
 		Astern += bAstern ? 1 : 0;
 		NearestM = FMath::Min(NearestM, FVector::Dist(Cam, HullCentre) / 100.0);
-		if ((bInRock || bInHull || bBlind) && InRock + InHull + Blind <= 6)
+		// D1b: the hull sits in the lower part of the frame, and it never hides the way ahead (where its top will pass 15 m
+		// on: the line from the camera to it misses the hull).
+		const FDeepHelmViewTuning& ViewT = UDeepTuningSettings::Get().HelmView;
+		const float TopY = DeepHelmView::FrameY(Cam, Camera->GetComponentRotation(), HullTop, Camera->FieldOfView, ViewT.FrameAspect);
+		const bool bHullHigh = TopY < ViewT.HullTopFrameFrac - 0.05f;
+		bool bWayHidden = false;
+		if (Poses.IsValidIndex(Index + 60))
 		{
-			AddWarning(FString::Printf(TEXT("sample %d (%s %s): camera %s, rock %d hull %d blind %d"), Index, *String->GetPath()[Index].Chunk.ToString(),
-				*String->GetPath()[Index].Region.ToString(), *Cam.ToString(), bInRock, bInHull, bBlind));
+			++AheadChecks;
+			const FDeepCavePose& On = Poses[Index + 60];
+			// Where the hull's top will pass 15 m on: the upper half of the opening the hull is about to enter.
+			const FVector AheadW = String->GetActorTransform().TransformPosition(On.LocationCm + FRotator(0.f, On.YawDeg, 0.f).RotateVector(Hull.GetCenter())) +
+				FVector(0.0, 0.0, Hull.Max.Z - Hull.GetCenter().Z);
+			// The hull's real shape (BT-01's collision), not its box: the box is a lot bigger than the rounded hull.
+			const FTransform VisualFrame = W.Sub->GetHullVisual()->GetComponentTransform();
+			FVector Blocked, BlockedNormal;
+			bWayHidden = W.Sub->TraceHullSurface(VisualFrame.InverseTransformPosition(Cam), VisualFrame.InverseTransformPosition(AheadW), Blocked, BlockedNormal);
+			WayHidden += bWayHidden ? 1 : 0;
+		}
+		HullHigh += bHullHigh ? 1 : 0;
+		LowestTopY = FMath::Min(LowestTopY, TopY);
+		if ((bInRock || bInHull || bBlind || bHullHigh || bWayHidden) && InRock + InHull + Blind + HullHigh + WayHidden <= 8)
+		{
+			AddWarning(FString::Printf(TEXT("sample %d (%s %s): camera %s, rock %d hull %d blind %d, hull top at %.2f, way hidden %d, up %.1f m"), Index,
+				*String->GetPath()[Index].Chunk.ToString(), *String->GetPath()[Index].Region.ToString(), *Cam.ToString(), bInRock, bInHull, bBlind, TopY,
+				bWayHidden, W.Sub->GetChaseUpM()));
 		}
 	}
-	AddInfo(FString::Printf(TEXT("DEEPVIEW chase: %d samples, in rock %d, in hull %d, hull hidden %d, astern %d, nearest %.1f m"), Checks, InRock, InHull, Blind, Astern, NearestM));
+	AddInfo(FString::Printf(TEXT("DEEPVIEW chase: %d samples, in rock %d, in hull %d, hull hidden %d, astern %d, nearest %.1f m; hull top high %d (highest %.2f), way ahead hidden %d of %d"),
+		Checks, InRock, InHull, Blind, Astern, NearestM, HullHigh, LowestTopY, WayHidden, AheadChecks));
 	TestTrue(TEXT("sampled the whole path"), Checks > 20);
 	TestEqual(TEXT("the chase view is never in rock"), InRock, 0);
 	TestEqual(TEXT("the chase view is never in the hull"), InHull, 0);
 	TestTrue(TEXT("the chase view sees the hull (at least 95% of samples)"), Blind * 20 <= Checks);
 	TestTrue(TEXT("the chase view sits astern (at least 80% of samples)"), Astern * 5 >= Checks * 4);
+	TestTrue(TEXT("the hull sits in the lower part of the frame (at least 90% of samples)"), HullHigh * 10 <= Checks);
+	TestTrue(TEXT("the hull hides the way ahead at most 1 sample in 10"), WayHidden * 10 <= AheadChecks);
 	return true;
 }
 
@@ -1913,6 +1946,247 @@ bool FDeepCaveCockpitViewTest::RunTest(const FString& Parameters)
 	const float Back = FRotator::NormalizeAxis(Camera->GetComponentRotation().Yaw - W.Sub->GetActorRotation().Yaw);
 	AddInfo(FString::Printf(TEXT("looked %.1f deg, 5 s later %.1f deg"), Looked, Back));
 	TestTrue(TEXT("the view eases back ahead"), FMath::Abs(Back) < 2.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveHullLitTest, "Deep.World.CaveDive.View.HullLit", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveHullLitTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// D1b: at the helm BT-01 reads from behind as a lit, working machine: cool work lamps on its own hull (the tower's aft
+	// face, the stern's quarters) light the hull itself where the chase view looks; the floods spill on the bow; the
+	// markers burn brighter. Nothing rides the camera.
+	ADeepSubmarine* Sub = W.Sub;
+	const FDeepHullLightTuning& T = UDeepTuningSettings::Get().HullLights;
+	W.Run->TakeHelm();
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	for (int32 Tick = 0; Tick < 45; ++Tick)
+	{
+		W.TickSub();
+	}
+	if (!TestTrue(TEXT("the work lamps found the hull's surface"), Sub->AreWorkLampsPlaced()) || !TestEqual(TEXT("three work lamps"), Sub->GetWorkLamps().Num(), 3))
+	{
+		return false;
+	}
+	UCameraComponent* Camera = Sub->GetHelmCamera();
+	const FTransform Visual = Sub->GetHullVisual()->GetComponentTransform();
+	const FBox Box = Sub->GetSolidBoundsLocal(false);
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const USpotLightComponent* Lamp = Sub->GetWorkLamps()[Index];
+		const FString Name = Lamp->GetName();
+		TestTrue(Name + TEXT(" burns while someone drives"), Lamp->IsVisible() && Lamp->Intensity > 0.f);
+		TestTrue(Name + TEXT(" is the sub strips' cool colour"), Lamp->GetLightColor().Equals(T.Color, 0.01f));
+		TestTrue(Name + TEXT(" rides the hull, not the camera"), Lamp->IsAttachedTo(Sub->GetHullVisual()) && !Lamp->IsAttachedTo(Camera));
+		const FVector Local = Visual.InverseTransformPosition(Lamp->GetComponentLocation());
+		// The nearest point of the hull's solid shape.
+		FVector At, Normal;
+		const double OffCm = Sub->HullDistanceCm(Local);
+		const bool bNear = OffCm > 0.0;
+		AddInfo(FString::Printf(TEXT("%s at %s (visual hull frame), %.1f cm off the hull, aims %s"), *Name, *Local.ToString(), OffCm,
+			*Visual.InverseTransformVectorNoScale(Lamp->GetForwardVector()).ToString()));
+		TestTrue(Name + TEXT(" sits on the hull's surface, outside it"), bNear && OffCm > 1.0 && OffCm < 40.0);
+		const FVector Fwd = Visual.InverseTransformVectorNoScale(Lamp->GetForwardVector());
+		const double RangeCm = (Index == 0 ? T.TowerLampRangeM : T.SternLampRangeM) * UDeepRules::CmPerM;
+		TestTrue(Name + TEXT(" aims at the hull"), Sub->TraceHullSurface(Local + Fwd * 5.0, Local + Fwd * RangeCm, At, Normal));
+	}
+	// Where the tower lamp lands (the after deck) is in the chase frame and in the camera's sight.
+	const FDeepHelmViewTuning& ViewT = UDeepTuningSettings::Get().HelmView;
+	const FVector DeckW = Visual.TransformPosition(Sub->GetDeckAimLocal());
+	const FVector Cam = Camera->GetComponentLocation();
+	const FVector InView = Camera->GetComponentRotation().UnrotateVector(DeckW - Cam);
+	const double TanHalfH = FMath::Tan(FMath::DegreesToRadians(Camera->FieldOfView * 0.5));
+	const float DeckY = DeepHelmView::FrameY(Cam, Camera->GetComponentRotation(), DeckW, Camera->FieldOfView, ViewT.FrameAspect);
+	const bool bInFrame = InView.X > 0.0 && FMath::Abs(InView.Y / InView.X) <= TanHalfH && FMath::Abs(DeckY) <= 1.f;
+	FVector Seen, SeenNormal;
+	// The first hull surface on the line from the camera through the deck spot (and a little past it) is that spot.
+	const FVector CamLocal = Visual.InverseTransformPosition(Cam);
+	const FVector Through = Sub->GetDeckAimLocal() + (Sub->GetDeckAimLocal() - CamLocal).GetSafeNormal() * 50.0;
+	const bool bHit = Sub->TraceHullSurface(CamLocal, Through, Seen, SeenNormal);
+	const bool bSeen = bHit && FVector::Dist(Seen, Sub->GetDeckAimLocal()) < 40.0;
+	AddInfo(FString::Printf(TEXT("the after deck shows at %.2f down the frame, in frame %d, in sight %d (first hull met %.0f cm from it)"), DeckY, bInFrame, bSeen,
+		bHit ? FVector::Dist(Seen, Sub->GetDeckAimLocal()) : -1.0));
+	TestTrue(TEXT("the chase view frames the lit after deck"), bInFrame);
+	TestTrue(TEXT("the chase view sees the lit after deck"), bSeen);
+	// The floods' spill on the bow and the markers' red and green on the sides.
+	for (const UPointLightComponent* Spill : Sub->GetFloodSpills())
+	{
+		TestTrue(TEXT("the flood heads spill on the bow"), Spill->IsVisible() && Spill->Intensity > 0.f && Spill->IsAttachedTo(Sub->GetHullVisual()));
+	}
+	for (const UPointLightComponent* Marker : Sub->GetMarkers())
+	{
+		TestEqual(TEXT("the markers burn brighter at the helm"), Marker->Intensity, T.HelmMarkerIntensity, 0.01f);
+	}
+	// Up from the helm: the spills go out and the work lamps fall to their outside share.
+	W.Run->LeaveHelm();
+	W.TickSub();
+	for (const UPointLightComponent* Spill : Sub->GetFloodSpills())
+	{
+		TestFalse(TEXT("no spill with nobody at the helm"), Spill->IsVisible());
+	}
+	TestTrue(TEXT("the tower lamp dims off the helm"), Sub->GetWorkLamps()[0]->Intensity <= T.TowerLampIntensity * T.OffHelmShare + 0.01f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveFloodsReachSTest, "Deep.World.CaveDive.View.FloodsReachS", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveFloodsReachSTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// D1b: a player takes the helm on S's berth (the run's start) and the view reads as a cave at once: the wide fill
+	// reaches S's walls round the bow, and the throws or the fill reach S's way out (where the path leaves S).
+	const FDeepLookTuning& Look = UDeepTuningSettings::Get().Look;
+	W.Run->TakeHelm();
+	for (int32 Tick = 0; Tick < 45; ++Tick)
+	{
+		W.TickSub();
+	}
+	const USpotLightComponent* Fill = W.Sub->GetHelmFill();
+	if (!TestTrue(TEXT("the fill burns at the helm"), Fill && Fill->IsVisible() && Fill->Intensity > 0.f))
+	{
+		return false;
+	}
+	const FVector From = Fill->GetComponentLocation();
+	const FQuat Aim = Fill->GetComponentQuat();
+	const double ReachCm = Fill->AttenuationRadius;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepTestFillReach), true, W.Sub);
+	int32 Walls = 0;
+	int32 Reached = 0;
+	for (float Yaw = -Look.HelmFillConeDeg; Yaw <= Look.HelmFillConeDeg + 0.1f; Yaw += 10.f)
+	{
+		for (float Pitch = -Look.HelmFillConeDeg; Pitch <= Look.HelmFillConeDeg + 0.1f; Pitch += 10.f)
+		{
+			const FVector Dir = Aim.RotateVector(FRotator(Pitch, Yaw, 0.f).Vector());
+			if (FVector::DotProduct(Dir, Fill->GetForwardVector()) < FMath::Cos(FMath::DegreesToRadians(Fill->OuterConeAngle)))
+			{
+				continue;
+			}
+			FHitResult Hit;
+			if (W.World->LineTraceSingleByObjectType(Hit, From, From + Dir * 20000.0, FCollisionObjectQueryParams(ECC_WorldStatic), Params))
+			{
+				++Walls;
+				Reached += Hit.Distance <= ReachCm * 0.9 ? 1 : 0;
+			}
+		}
+	}
+	// S's way out: the first point of the path past S.
+	int32 Exit = INDEX_NONE;
+	for (int32 Index = 0; Index < String->GetPath().Num(); ++Index)
+	{
+		if (String->GetPath()[Index].Chunk != FName(TEXT("S")))
+		{
+			Exit = Index;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("the path leaves S"), Exit != INDEX_NONE))
+	{
+		return false;
+	}
+	const FBox Hull = W.Sub->GetSolidBoundsLocal(false);
+	const FDeepCavePose& Out = String->GetPathPoses()[Exit];
+	const FVector ExitW = String->GetActorTransform().TransformPosition(Out.LocationCm + FRotator(0.f, Out.YawDeg, 0.f).RotateVector(Hull.GetCenter()));
+	bool bExitLit = false;
+	double ExitM = 0.0;
+	TArray<const USpotLightComponent*> Lights = { Fill };
+	for (const USpotLightComponent* Flood : W.Sub->GetBowLights())
+	{
+		Lights.Add(Flood);
+	}
+	for (const USpotLightComponent* Light : Lights)
+	{
+		const FVector To = ExitW - Light->GetComponentLocation();
+		const double Cos = FVector::DotProduct(To.GetSafeNormal(), Light->GetForwardVector());
+		bExitLit |= To.Size() <= Light->AttenuationRadius * 0.9 && Cos >= FMath::Cos(FMath::DegreesToRadians(Light->OuterConeAngle));
+		ExitM = To.Size() / 100.0;
+	}
+	AddInfo(FString::Printf(TEXT("S: the fill (%.0f m, %.0f deg) reaches %d of %d wall rays; the way out is %.1f m off, lit %d; floods at %.2f %.2f, fill at %.2f"),
+		ReachCm / 100.0, Fill->OuterConeAngle, Reached, Walls, ExitM, bExitLit, W.Sub->GetFloodNear(0), W.Sub->GetFloodNear(1), W.Sub->GetFillNear()));
+	TestTrue(TEXT("the fill's rays meet S's walls"), Walls > 20);
+	TestTrue(TEXT("the fill reaches S's walls (80% of its rays)"), Reached * 5 >= Walls * 4);
+	TestTrue(TEXT("a flood or the fill reaches S's way out"), bExitLit);
+	TestTrue(TEXT("the throws are not dimmed to nothing on S's berth"), W.Sub->GetFloodNear(0) >= 0.2f && W.Sub->GetFloodNear(1) >= 0.2f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDeepCaveMouseSteerTest, "Deep.World.CaveDive.Direct.MouseSteer", DEEP_CAVEDIVE_TEST_FLAGS)
+
+bool FDeepCaveMouseSteerTest::RunTest(const FString& Parameters)
+{
+	using namespace DeepCaveDiveTest;
+	FCVarScope Still(TEXT("Deep.World.Still"), 1);
+	FCVarScope Caves(TEXT("Deep.World.Caves"), 1);
+	FCVarScope Mouse(TEXT("Deep.Pilot.MouseSteer"), 1);
+	const FDiveWorld W(false, false);
+	const ADeepCaveString* String = W.Valid() ? W.String() : nullptr;
+	if (!TestNotNull(TEXT("the chunk string is built"), String))
+	{
+		return false;
+	}
+	// D1b checks D1's Deep.Pilot.MouseSteer 1 end to end, through the diver's own helm input: in C1's open water, the
+	// view turned 25 deg to starboard and W held, the hull turns to starboard toward the view and the view's offset closes.
+	// The diver is driven from this machine (a local controller), so its own Tick reads the keys and the view.
+	AController* Player = W.World->SpawnActor<AAIController>();
+	if (!TestNotNull(TEXT("a local controller"), Player))
+	{
+		return false;
+	}
+	Player->Possess(W.Diver);
+	TestTrue(TEXT("the diver is driven from this machine"), W.Diver->IsLocallyControlled());
+	W.Run->TakeHelm();
+	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("C1"), 10.f);
+	PlaceDirect(W, String->GetPathPoses()[Sample]);
+	for (int32 Tick = 0; Tick < 10; ++Tick)
+	{
+		W.TickSub();
+	}
+	const float StartYaw = W.Pose().YawDeg;
+	TestTrue(TEXT("the diver looks round at the helm"), W.Diver->AddHelmLook(25.f, 0.f));
+	W.Diver->SetMoveInput(FVector2D(0.f, 1.f));
+	float MostTurn = 0.f;
+	for (float T = 0.f; T < 3.f; T += 0.05f)
+	{
+		static_cast<AActor*>(W.Diver)->Tick(0.05f);
+		W.Run->StepRun(0.05f);
+		static_cast<AActor*>(W.Sub)->Tick(0.05f);
+		MostTurn = FMath::Max(MostTurn, FRotator::NormalizeAxis(W.Pose().YawDeg - StartYaw));
+	}
+	const float Turned = FRotator::NormalizeAxis(W.Pose().YawDeg - StartYaw);
+	const float LookLeft = W.Sub->GetHelmLookOffsetDeg().X;
+	W.Diver->SetMoveInput(FVector2D::ZeroVector);
+	AddInfo(FString::Printf(TEXT("mouse steer: turned %.1f deg (most %.1f) toward a view 25 deg to starboard; the view is %.1f deg off the heading now; hold %s"),
+		Turned, MostTurn, LookLeft, *FString::Printf(TEXT("%.2f %.2f"), W.State->HelmHold.Surge, W.State->HelmHold.Turn)));
+	TestTrue(TEXT("the hull turns to starboard, toward the view"), Turned > 10.f);
+	TestTrue(TEXT("and does not run far past it"), Turned < 40.f);
+	TestTrue(TEXT("the view's offset from the heading closes"), FMath::Abs(LookLeft) < 15.f);
+	// Without thrust the view only looks: no turn.
+	const float Before = W.Pose().YawDeg;
+	W.Diver->AddHelmLook(-25.f, 0.f);
+	for (float T = 0.f; T < 1.f; T += 0.05f)
+	{
+		static_cast<AActor*>(W.Diver)->Tick(0.05f);
+		W.Run->StepRun(0.05f);
+		static_cast<AActor*>(W.Sub)->Tick(0.05f);
+	}
+	TestTrue(TEXT("no thrust, no turn"), FMath::Abs(FRotator::NormalizeAxis(W.Pose().YawDeg - Before)) < 2.f);
 	return true;
 }
 

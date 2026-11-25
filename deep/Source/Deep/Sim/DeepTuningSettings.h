@@ -102,6 +102,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Helm view")
 	FDeepHelmViewTuning HelmView;
 
+	/** D1b: the hull's own work lamps, the floods' spill and the markers while someone drives (World/DeepSubmarine). */
+	UPROPERTY(Config, EditAnywhere, Category = "Hull lights")
+	FDeepHullLightTuning HullLights;
+
 	/** The airlock between the room and the water: the valve hold, the hiss and the fades (Sim/DeepMovingSubRules). */
 	UPROPERTY(Config, EditAnywhere, Category = "Submarine")
 	FDeepAirlockTuning Airlock;

@@ -36,4 +36,19 @@ namespace DeepHelmView
 
 	/** The look easing back toward ahead once the mouse has been still LookReturnDelayS. */
 	DEEP_API FVector2D EaseLook(const FVector2D& LookDeg, float IdleS, float DeltaSeconds, const FDeepHelmViewTuning& T);
+
+	/** The vertical field of view (deg) for a horizontal one and the frame's aspect (width over height). */
+	DEEP_API float VerticalFovDeg(float HorizontalFovDeg, float Aspect);
+
+	/**
+	 * Where a point shows on the frame's vertical: 0 the centre, +1 the bottom edge, -1 the top (past +-1 it is off the
+	 * frame). A point behind the camera is 10 (off the frame).
+	 */
+	DEEP_API float FrameY(const FVector& CameraCm, const FRotator& View, const FVector& PointCm, float HorizontalFovDeg, float Aspect);
+
+	/**
+	 * D1b: the chase view's pitch. LookPitchDeg (the look ahead), raised until HullTopCm shows HullTopFrameFrac of the half
+	 * frame under the centre, so the passage shows over and past the hull; inside the look's pitch limits.
+	 */
+	DEEP_API float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T);
 }

@@ -67,6 +67,63 @@ namespace
 			DeepStateReport::LogState(World);
 		}));
 
+	// D1b: tuning by frames without a rebuild. Sets one DEEP Tuning value by its path (the struct members' names, e.g.
+	// HullLights.TowerLampIntensity or Look.HelmFillIntensity) on this machine for this session, and re-applies the sub's
+	// lights. Logs DEEPTUNE <path>: <old> -> <new>.
+	FAutoConsoleCommandWithWorldAndArgs TuneCommand(
+		TEXT("Deep.Tune"),
+		TEXT("Deep.Tune <Group.Field> <value>: sets one DEEP Tuning value on this machine for this session (not saved), e.g. Deep.Tune Look.HelmFillIntensity 400000; the sub's lights re-apply."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (Args.Num() < 2)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Tune <Group.Field> <value>"));
+				return;
+			}
+			UDeepTuningSettings* Settings = GetMutableDefault<UDeepTuningSettings>();
+			TArray<FString> Parts;
+			Args[0].ParseIntoArray(Parts, TEXT("."));
+			const UStruct* Type = Settings->GetClass();
+			void* Container = Settings;
+			FProperty* Property = nullptr;
+			for (int32 Index = 0; Index < Parts.Num(); ++Index)
+			{
+				Property = Type ? FindFProperty<FProperty>(Type, *Parts[Index]) : nullptr;
+				if (!Property)
+				{
+					UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Tune: no %s in %s"), *Parts[Index], *Args[0]);
+					return;
+				}
+				if (Index + 1 < Parts.Num())
+				{
+					const FStructProperty* Struct = CastField<FStructProperty>(Property);
+					if (!Struct)
+					{
+						UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Tune: %s is not a group"), *Parts[Index]);
+						return;
+					}
+					Container = Struct->ContainerPtrToValuePtr<void>(Container);
+					Type = Struct->Struct;
+				}
+			}
+			void* Value = Property->ContainerPtrToValuePtr<void>(Container);
+			FString Old;
+			Property->ExportTextItem_Direct(Old, Value, nullptr, nullptr, PPF_None);
+			const FString Text = FString::Join(TArrayView<const FString>(Args).RightChop(1), TEXT(" "));
+			if (!Property->ImportText_Direct(*Text, Value, nullptr, PPF_None))
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Tune: %s does not take '%s'"), *Args[0], *Text);
+				return;
+			}
+			FString New;
+			Property->ExportTextItem_Direct(New, Value, nullptr, nullptr, PPF_None);
+			UE_LOG(LogDeepCheats, Display, TEXT("DEEPTUNE %s: %s -> %s"), *Args[0], *Old, *New);
+			for (TActorIterator<ADeepSubmarine> It(World); It; ++It)
+			{
+				It->RefreshLights();
+			}
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs GiveSalvageCommand(
 		TEXT("Deep.GiveSalvage"),
 		TEXT("Deep.GiveSalvage <kg> <value>: adds a piece of cargo to the diver."),

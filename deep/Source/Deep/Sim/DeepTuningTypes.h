@@ -1174,10 +1174,11 @@ struct FDeepLookTuning
 	/**
 	 * How much the floods light the water: a visible beam that the specks stream through. 0.15 then (rescope/light: at
 	 * 0.35 two floods in front of the bow camera milked the view grey). D-070: the chase view sits 3 m over and 11 m
-	 * behind the beams, so they are seen from the side and can show: 0.3.
+	 * behind the beams, so they are seen from the side and can show: 0.3. D1b: from the chase view the beams run along the
+	 * view, so they show as a glow in the passage ahead only at 2 (frames, Nov 25); the cockpit view has its own (HelmFloodCockpitFog).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFloodFog = 0.2f;
+	float HelmFloodFog = 2.f;
 
 	/** D-070: the floods aim level and forward (down is negative), so the passage ahead is lit, not the floor under the bow. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
@@ -1218,21 +1219,46 @@ struct FDeepLookTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmFloodNearMin = 0.01f;
 
-	/** D-070: a wide, dim fill from the bow for the walls round the hull (the throws only reach ahead). */
+	/**
+	 * D-070: a wide fill from the bow for the walls round the hull (the throws only reach ahead). D1b: strong and long
+	 * enough to reach a cavern's walls (S's, 20 to 30 m off), and dimmed with the square of the distance to the nearest
+	 * rock ahead, either side or above under HelmFillNearFullM (never under HelmFillNearMin), so a tunnel's walls do not burn.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillIntensity = 60000.f;
+	float HelmFillIntensity = 1500000.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
 	float HelmFillConeDeg = 75.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillRangeM = 22.f;
+	float HelmFillRangeM = 40.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillPitchDeg = -15.f;
+	float HelmFillPitchDeg = -5.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
-	float HelmFillFog = 0.05f;
+	float HelmFillFog = 0.02f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillNearFullM = 20.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFillNearMin = 0.005f;
+
+	/**
+	 * D1b: seen from the chase view the throws' beams stand in the water beside the hull (HelmFloodFog); from the cockpit
+	 * they would milk the view grey (rescope/light), so a player in the cockpit view sees them at this instead (local).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodCockpitFog = 0.15f;
+
+	/** D1b: as a throw dims for near rock its beam in the water keeps its brightness, down to this share of full. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodFogNearFloor = 0.3f;
+
+	/** D1b: the floods' and the fill's lamp size (cm): wet rock catches a broad, moving glint instead of a pin point. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
+	float HelmFloodSourceRadiusCm = 12.f;
 
 	/** Seen from the helm, specks are this much larger (the hull camera sits farther from them than a diver's eye). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Look|Helm")
@@ -2908,6 +2934,96 @@ struct DEEP_API FDeepHelmViewTuning
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
 	float LookReturnPerS = 2.5f;
+
+	/**
+	 * D1b: the hull never hides the way ahead. The chase view pitches up (never down) until the top of the hull's box sits
+	 * this share of the half frame under the centre (0 = the centre, 1 = the bottom edge), so the passage shows over and
+	 * past it. FrameAspect is the frame's width over its height, for the vertical field of view.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float HullTopFrameFrac = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float FrameAspect = 1.7778f;
+};
+
+/**
+ * D1b: BT-01 reads from behind as a lit, working machine (World/DeepSubmarine, Sim/DeepHullLightRules). Low, cool work
+ * lamps (style guide 3: the sub's strips, #BFE3EA) sit on the hull's own surface and light the hull itself: one on the
+ * tower's aft face near its top, aimed aft and down onto the after deck; two on the after deck, port and starboard, aimed
+ * forward and up at the tower's back. The floods' heads spill a little light back onto the bow, and the markers
+ * burn brighter so the sides catch red and green. Nothing follows the camera. Full while someone drives; off the helm
+ * they fade with depth like the other outside lights.
+ */
+USTRUCT(BlueprintType)
+struct DEEP_API FDeepHullLightTuning
+{
+	GENERATED_BODY()
+
+	/** The work lamps' colour: the sub's strips, cool and low (style guide 3). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights")
+	FLinearColor Color = FLinearColor(FColor(0xBF, 0xE3, 0xEA));
+
+	/** Each lamp stands this far out from the hull's surface (cm), along the surface's normal. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights")
+	float MountOutCm = 10.f;
+
+	/** The lamps' size (cm): a soft highlight on wet steel, not a pin point. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights")
+	float LampSourceRadiusCm = 6.f;
+
+	/** Off the helm the work lamps burn at this share of their helm intensity, times the outside lights' depth fade. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights")
+	float OffHelmShare = 0.5f;
+
+	/** The tower lamp: this far under the tower's top (cm), on its aft face; it aims at the after deck, this share of the hull's length from the stern. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Tower")
+	float TowerLampBelowTopCm = 30.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Tower")
+	float TowerLampAimAlongFrac = 0.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Tower")
+	float TowerLampIntensity = 10000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Tower")
+	float TowerLampConeDeg = 70.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Tower")
+	float TowerLampRangeM = 9.f;
+
+	/**
+	 * The stern lamps: on the after deck, this share of the hull's length from the stern and this share of the half beam
+	 * out from the centre line (port and starboard), aimed forward and up at the tower lamp's mount (the tower's aft face).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Stern")
+	float SternLampAlongFrac = 0.15f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Stern")
+	float SternLampSideFrac = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Stern")
+	float SternLampIntensity = 15000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Stern")
+	float SternLampConeDeg = 35.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Stern")
+	float SternLampRangeM = 10.f;
+
+	/** The floods' spill: a small light at each flood head, in the flood's colour, that lights the bow behind it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Spill")
+	float FloodSpillIntensity = 2500.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Spill")
+	float FloodSpillRangeM = 3.f;
+
+	/** While someone drives the markers (red port, green starboard, still blinking at Look.MarkerHz) burn at this and reach this far. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Markers")
+	float HelmMarkerIntensity = 900.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Hull lights|Markers")
+	float HelmMarkerRangeM = 4.f;
 };
 
 /**

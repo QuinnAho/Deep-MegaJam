@@ -94,4 +94,32 @@ namespace DeepHelmView
 		const FVector2D Eased = LookDeg * FMath::Exp(-FMath::Max(0.f, T.LookReturnPerS) * FMath::Max(0.f, DeltaSeconds));
 		return Eased.Size() < 0.05f ? FVector2D::ZeroVector : Eased;
 	}
+
+	float VerticalFovDeg(float HorizontalFovDeg, float Aspect)
+	{
+		const double HalfH = FMath::DegreesToRadians(FMath::Clamp(HorizontalFovDeg, 1.f, 170.f) * 0.5);
+		return float(FMath::RadiansToDegrees(2.0 * FMath::Atan(FMath::Tan(HalfH) / FMath::Max(0.1f, Aspect))));
+	}
+
+	float FrameY(const FVector& CameraCm, const FRotator& View, const FVector& PointCm, float HorizontalFovDeg, float Aspect)
+	{
+		const FVector Local = View.UnrotateVector(PointCm - CameraCm);
+		if (Local.X <= UE_KINDA_SMALL_NUMBER)
+		{
+			return 10.f;
+		}
+		const double TanHalfV = FMath::Tan(FMath::DegreesToRadians(VerticalFovDeg(HorizontalFovDeg, Aspect) * 0.5));
+		return float(-(Local.Z / Local.X) / FMath::Max(1e-4, TanHalfV));
+	}
+
+	float FramePitch(const FVector& CameraCm, const FVector& HullTopCm, float LookPitchDeg, float HorizontalFovDeg, const FDeepHelmViewTuning& T)
+	{
+		const FVector To = HullTopCm - CameraCm;
+		const double Flat = FVector(To.X, To.Y, 0.0).Size();
+		const double TopDeg = FMath::RadiansToDegrees(FMath::Atan2(To.Z, FMath::Max(1.0, Flat)));
+		const double TanHalfV = FMath::Tan(FMath::DegreesToRadians(VerticalFovDeg(HorizontalFovDeg, T.FrameAspect) * 0.5));
+		const double BelowDeg = FMath::RadiansToDegrees(FMath::Atan(FMath::Clamp(T.HullTopFrameFrac, 0.f, 0.95f) * TanHalfV));
+		const float Want = FMath::Max(LookPitchDeg, float(TopDeg + BelowDeg));
+		return FMath::Clamp(Want, FMath::Min(T.LookMinPitchDeg, T.LookMaxPitchDeg), FMath::Max(T.LookMinPitchDeg, T.LookMaxPitchDeg));
+	}
 }
