@@ -8,6 +8,13 @@
 #include "CoreMinimal.h"
 #include "Sim/DeepTuningTypes.h"
 
+/** D2: the pilot's view on its servo: where it points (deg off ahead, x yaw + starboard, y pitch + up) and how fast it turns. */
+struct FDeepServo
+{
+	FVector2D AngleDeg = FVector2D::ZeroVector;
+	FVector2D RateDegS = FVector2D::ZeroVector;
+};
+
 namespace DeepHelmView
 {
 	/**
@@ -34,8 +41,16 @@ namespace DeepHelmView
 	/** The mouse's look after a move (degrees, + right, + up), inside the view's limits. */
 	DEEP_API FVector2D AddLook(const FVector2D& LookDeg, float YawDeg, float PitchDeg, bool bCockpit, const FDeepHelmViewTuning& T);
 
-	/** The look easing back toward ahead once the mouse has been still LookReturnDelayS. */
-	DEEP_API FVector2D EaseLook(const FVector2D& LookDeg, float IdleS, float DeltaSeconds, const FDeepHelmViewTuning& T);
+	/**
+	 * D2: the servo that turns the view toward the aim (deg, x yaw, y pitch), each axis on its own: a spring of
+	 * ServoStiffnessPerS damped at ServoDamping, its push capped at ServoAccelDegS2 and its speed at ServoRateDegS, so a
+	 * big move speeds up, cruises and slows like a motor and overshoots a little; once within ServoHoldDeg of the aim and
+	 * slower than ServoHoldRateDegS it stops on the aim and holds (no creep). Steps in slices of at most 1/120 s.
+	 */
+	DEEP_API FDeepServo StepServo(const FDeepServo& In, const FVector2D& AimDeg, float DeltaSeconds, const FDeepHelmViewTuning& T);
+
+	/** The servo's speed as a share of its cap, 0..1 (the faster axis): what the whine follows. */
+	DEEP_API float ServoSpeed01(const FDeepServo& Servo, const FDeepHelmViewTuning& T);
 
 	/** The vertical field of view (deg) for a horizontal one and the frame's aspect (width over height). */
 	DEEP_API float VerticalFovDeg(float HorizontalFovDeg, float Aspect);

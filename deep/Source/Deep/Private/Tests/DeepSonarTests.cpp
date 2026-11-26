@@ -456,9 +456,11 @@ bool FDeepSonarSweepTest::RunTest(const FString& Parameters)
 	W.Sonar->SetTestFrame(FVector::ZeroVector, FVector::ForwardVector, FVector2D(4.0, 2.0));
 	W.Block(FVector(550, 0, 0), FVector(50, 800, 400));
 
-	// The first manned frame takes a whole picture and pings.
+	// The first manned frame takes a whole picture; it pings only where the helm pings on its own (D2: the soft style
+	// waits for the pilot's F; the jam's style pings every sweep).
+	const bool bAuto = UDeepSonarRules::AutoPings(UDeepCameraSubsystem::GetSonarStyle(), T);
 	W.Sonar->StepSonar(1.f / 60.f);
-	TestEqual(TEXT("A fresh helm pings"), W.Sonar->GetPings(), 1);
+	TestEqual(TEXT("A fresh helm pings only on its own style"), W.Sonar->GetPings(), bAuto ? 1 : 0);
 	TestEqual(TEXT("Wall off the bow"), W.Sonar->GetNearestM(), 5.f, 0.35f);
 	TestEqual(TEXT("1 m from the hull"), W.Sonar->GetClearanceM(), 1.f, 0.35f);
 	TestEqual(TEXT("Full proximity"), W.Sonar->GetProximity01(), 1.f, 1e-3f);
@@ -473,7 +475,10 @@ bool FDeepSonarSweepTest::RunTest(const FString& Parameters)
 		MostTraces = FMath::Max(MostTraces, W.Sonar->GetTracesLastStep());
 	}
 	TestTrue(FString::Printf(TEXT("Traces a frame within the budget (%d, budget %d plus the bottom probe)"), MostTraces, T.MaxTracesPerFrame), MostTraces <= T.MaxTracesPerFrame + 1);
-	TestEqual(TEXT("One ping a period"), W.Sonar->GetPings(), 2);
+	TestEqual(TEXT("One ping a period on its own, none on demand"), W.Sonar->GetPings(), bAuto ? 2 : 0);
+	// D2: a ping on demand (the server's word, ADeepDiver::MulticastHelmPing) counts and refreshes the picture.
+	W.Sonar->NoteHelmPing();
+	TestEqual(TEXT("The pilot's ping counts"), W.Sonar->GetPings(), bAuto ? 3 : 1);
 	// A beep lands on a frame, so at 60 fps each interval rounds up to whole frames (this matters over a 6 s period).
 	const int32 ExpectBeeps = Frames / FMath::Max(1, FMath::CeilToInt(T.ToneFastS * 60.f - 1e-3f));
 	TestTrue(FString::Printf(TEXT("The tone beeps fast (%d beeps, about %d expected)"), W.Sonar->GetBeeps(), ExpectBeeps), W.Sonar->GetBeeps() >= ExpectBeeps - 2);

@@ -85,14 +85,53 @@ namespace DeepHelmView
 		return FVector2D(FMath::Clamp(LookDeg.X + YawDeg, -YawMax, YawMax), FMath::Clamp(LookDeg.Y + PitchDeg, -PitchMax, PitchMax));
 	}
 
-	FVector2D EaseLook(const FVector2D& LookDeg, float IdleS, float DeltaSeconds, const FDeepHelmViewTuning& T)
+	FDeepServo StepServo(const FDeepServo& In, const FVector2D& AimDeg, float DeltaSeconds, const FDeepHelmViewTuning& T)
 	{
-		if (IdleS < T.LookReturnDelayS)
+		FDeepServo Out = In;
+		const double Dt = FMath::Max(0.f, DeltaSeconds);
+		if (Dt <= 0.0)
 		{
-			return LookDeg;
+			return Out;
 		}
-		const FVector2D Eased = LookDeg * FMath::Exp(-FMath::Max(0.f, T.LookReturnPerS) * FMath::Max(0.f, DeltaSeconds));
-		return Eased.Size() < 0.05f ? FVector2D::ZeroVector : Eased;
+		const double W = FMath::Max(0.1f, T.ServoStiffnessPerS);
+		const double Zeta = FMath::Max(0.f, T.ServoDamping);
+		const double Accel = FMath::Max(1.f, T.ServoAccelDegS2);
+		const double Rate = FMath::Max(0.1f, T.ServoRateDegS);
+		const int32 Slices = FMath::Clamp(FMath::CeilToInt(Dt * 120.0), 1, 60);
+		const double H = Dt / Slices;
+		const auto Axis = [&](double X, double V, double Aim, double& OutX, double& OutV)
+		{
+			for (int32 Slice = 0; Slice < Slices; ++Slice)
+			{
+				const double Error = Aim - X;
+				if (FMath::Abs(Error) <= T.ServoHoldDeg && FMath::Abs(V) <= T.ServoHoldRateDegS)
+				{
+					// Settled: on the aim, still, and it stays there until the aim moves.
+					X = Aim;
+					V = 0.0;
+					break;
+				}
+				const double A = FMath::Clamp(W * W * Error - 2.0 * Zeta * W * V, -Accel, Accel);
+				V = FMath::Clamp(V + A * H, -Rate, Rate);
+				X += V * H;
+			}
+			OutX = X;
+			OutV = V;
+		};
+		double X, V;
+		Axis(In.AngleDeg.X, In.RateDegS.X, AimDeg.X, X, V);
+		Out.AngleDeg.X = X;
+		Out.RateDegS.X = V;
+		Axis(In.AngleDeg.Y, In.RateDegS.Y, AimDeg.Y, X, V);
+		Out.AngleDeg.Y = X;
+		Out.RateDegS.Y = V;
+		return Out;
+	}
+
+	float ServoSpeed01(const FDeepServo& Servo, const FDeepHelmViewTuning& T)
+	{
+		const double Rate = FMath::Max(0.1f, T.ServoRateDegS);
+		return float(FMath::Clamp(FMath::Max(FMath::Abs(Servo.RateDegS.X), FMath::Abs(Servo.RateDegS.Y)) / Rate, 0.0, 1.0));
 	}
 
 	float VerticalFovDeg(float HorizontalFovDeg, float Aspect)

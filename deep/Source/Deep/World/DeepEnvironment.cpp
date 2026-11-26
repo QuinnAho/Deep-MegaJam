@@ -283,6 +283,27 @@ void ADeepEnvironment::Tick(float DeltaSeconds)
 		AppliedDepthM = DepthM;
 		ApplyLook(BlendLook(Tuning.Look, DepthM), Tuning.Look);
 	}
+	// D2: from BT-01's cabin the water starts at the glass: no height fog or volumetric haze in the dry cabin, the
+	// water's look unchanged past the ports (Style Guide 5). Local: only this machine's pilot looks from the cabin.
+	{
+		bool bCabin = false;
+		if (const APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			const ADeepSubmarine* Sub = Cast<ADeepSubmarine>(PC->GetViewTarget());
+			bCabin = Sub && Sub->IsHelmCockpit() && Sub->IsHelmManned();
+		}
+		const float GlassCm = Tuning.HelmView.CabinFogStartM * UDeepRules::CmPerM;
+		const float WantStartCm = bCabin ? GlassCm : 0.f;
+		const float WantVolumetricCm = FMath::Max(Tuning.Look.VolumetricStartM * UDeepRules::CmPerM, bCabin ? GlassCm : 0.f);
+		if (!FMath::IsNearlyEqual(Fog->StartDistance, WantStartCm, 0.5f))
+		{
+			Fog->SetStartDistance(WantStartCm);
+		}
+		if (!FMath::IsNearlyEqual(Fog->VolumetricFogStartDistance, WantVolumetricCm, 0.5f))
+		{
+			Fog->SetVolumetricFogStartDistance(WantVolumetricCm);
+		}
+	}
 	// Salvage respawns each dive: keep every glint at this depth's scale (a no-op when unchanged).
 	for (TActorIterator<ADeepSalvage> It(GetWorld()); It; ++It)
 	{

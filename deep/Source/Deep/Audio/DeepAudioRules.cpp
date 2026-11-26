@@ -8,7 +8,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogDeepAudioData, Log, All);
 
 TArray<FName> DeepAudioLoop::All()
 {
-	return { DroneOut, DroneIn, Breath, BreathFast, Winch, Serpent, Helm, BreathPanic, Heartbeat, Flow };
+	return { DroneOut, DroneIn, Breath, BreathFast, Winch, Serpent, Helm, BreathPanic, Heartbeat, Flow, Servo };
 }
 
 TArray<FName> DeepAudioMusic::Beds()
@@ -129,6 +129,7 @@ namespace DeepAudioRules
 		Out[FName(DeepAudioLoop::Helm)].Volume01 = In.bHelmMoving ? 1.f : (In.bHelmManned ? FMath::Clamp(Settings.HelmIdleVolume01, 0.f, 1.f) : 0.f);
 		// Immersion I1: water along the hull, by its speed; only aboard (the room and the helm hear it through the steel).
 		Out[FName(DeepAudioLoop::Flow)] = In.bInside ? In.Flow : FDeepLoopTarget();
+		Out[FName(DeepAudioLoop::Servo)] = In.bInside ? In.Servo : FDeepLoopTarget();
 		return Out;
 	}
 

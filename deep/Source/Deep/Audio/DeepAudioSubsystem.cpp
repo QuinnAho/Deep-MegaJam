@@ -549,6 +549,19 @@ FDeepAudioMixInputs UDeepAudioSubsystem::GatherInputs(float DeltaSeconds)
 	In.bHelmMoving = HelmHoldS > 0.f;
 	const ADeepSubmarine* HelmSub = DeepArena::FindSubmarine(GetWorld());
 	In.bHelmManned = HelmSub && HelmSub->IsHelmManned();
+	// D2: the view's servo whines while it swings: only for the pilot looking through it on this machine.
+	{
+		const APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+		if (HelmSub && In.bInside && PC && PC->GetViewTarget() == HelmSub)
+		{
+			const FDeepHelmViewTuning& View = UDeepTuningSettings::Get().HelmView;
+			const float Speed = HelmSub->GetHelmServoSpeed01();
+			In.Servo.Volume01 = Speed;
+			In.Servo.Pitch = FMath::Lerp(View.WhinePitchMin, View.WhinePitchMax, Speed);
+			In.Servo.FadeInS = FMath::Max(0.01f, View.WhineFadeS);
+			In.Servo.FadeOutS = FMath::Max(0.01f, View.WhineFadeS);
+		}
+	}
 	// Immersion I1 (D-072): water along the hull, by its speed, heard aboard (Deep.Immersion 0 = silent).
 	if (State && In.bInside && !State->bOnTitle && UDeepImmersion::IsOn())
 	{

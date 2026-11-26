@@ -804,6 +804,30 @@ namespace
 		return X;
 	}
 
+	/**
+	 * D2: the view's servo, a small geared motor behind the cabin's panel, heard while the view swings. A thin whine
+	 * (two partials an octave apart and a faint third), its gear mesh as a slow flutter, and a little brush hiss in the
+	 * middle band. Whole cycles in the 2 s loop. Quiet by its row (Sounds.csv loop_servo); its pitch follows the speed.
+	 */
+	TArray<float> ServoWhine()
+	{
+		constexpr float LoopS = 2.f;
+		TArray<float> X = MakeLoop(LoopS);
+		FRandomStream Rng(131);
+		FLowPass Top(2600.f);
+		FLowPass Bottom(700.f);
+		for (int32 I = 0; I < X.Num(); ++I)
+		{
+			const float T = TimeOf(I);
+			const float Whine = FMath::Sin(TwoPi * 340.f * T) + 0.45f * FMath::Sin(TwoPi * 680.5f * T) + 0.18f * FMath::Sin(TwoPi * 1021.f * T);
+			const float Gear = 1.f - 0.3f * (0.5f + 0.5f * FMath::Sin(TwoPi * 41.f * T));
+			float Brush = Top.Step(Rng.FRandRange(-1.f, 1.f));
+			Brush -= Bottom.Step(Brush);
+			X[I] = 0.6f * Gear * Whine + 1.2f * Brush;
+		}
+		return X;
+	}
+
 	struct FBuiltin
 	{
 		const TCHAR* Name;
@@ -850,6 +874,7 @@ namespace
 			{ TEXT("heartbeat"), true, 3.f, &Heartbeat },
 			{ TEXT("serpent_drone"), true, 6.f, &SerpentDrone },
 			{ TEXT("flow"), true, 6.f, &SynthFlow },
+			{ TEXT("servo_whine"), true, 2.f, &ServoWhine },
 		};
 		return Builtins;
 	}

@@ -1,4 +1,4 @@
-// Sonar cheats (Sonar lane): Deep.Sonar [0|1], Deep.Sonar.Bench <s>, Deep.Sonar.State. Each logs `DEEPSONAR {...}`.
+// Sonar cheats (Sonar lane): Deep.Sonar [0|1], Deep.Sonar.Bench <s>, Deep.Sonar.State, Deep.Sonar.Ping (D2). Each logs `DEEPSONAR {...}`.
 // The sonar is local: these act on this machine's player HUD only.
 
 #include "CoreMinimal.h"
@@ -8,6 +8,7 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Sonar/DeepSonarComponent.h"
+#include "Diver/DeepDiver.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepSonarCheats, Log, All);
 
@@ -61,6 +62,21 @@ namespace
 		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
 		{
 			if (UDeepSonarComponent* Sonar = LocalSonar(World, TEXT("Deep.Sonar.State")))
+			{
+				LogSonar(World, *Sonar);
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SonarPingCommand(
+		TEXT("Deep.Sonar.Ping"),
+		TEXT("Deep.Sonar.Ping: the local pilot pings the helm sonar once, as F at the helm does (the server decides: seated, past Sonar.HelmPingCooldownS)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			APlayerController* PC = World ? World->GetFirstPlayerController() : nullptr;
+			ADeepDiver* Diver = PC ? Cast<ADeepDiver>(PC->GetPawn()) : nullptr;
+			const bool bWent = Diver && Diver->HelmPing();
+			UE_LOG(LogDeepSonarCheats, Display, TEXT("Deep.Sonar.Ping: %s"), bWent ? TEXT("sent") : TEXT("refused (not at the helm, or cooling down)"));
+			if (UDeepSonarComponent* Sonar = LocalSonar(World, TEXT("Deep.Sonar.Ping")))
 			{
 				LogSonar(World, *Sonar);
 			}

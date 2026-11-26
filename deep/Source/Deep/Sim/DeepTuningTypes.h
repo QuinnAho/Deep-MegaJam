@@ -2589,6 +2589,18 @@ struct FDeepSonarTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float PingPeriodS = 6.f;
 
+	/**
+	 * D2: the soft look pings only when the pilot asks (F at the helm; the server decides, every machine hears it), never
+	 * on its own: the scope keeps sweeping in silence. Off, it pings every PingPeriodS as before. The jam look (style 0)
+	 * keeps its ping a sweep either way. A ping is noise the serpent hears, so pinging is a choice.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	bool bPingOnDemand = true;
+
+	/** D2: after a helm ping the next one waits this long (s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
+	float HelmPingCooldownS = 2.f;
+
 	/** The dim slice runs this far under the sub's centre, so a bend shows before the sub reaches it. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sonar")
 	float SliceBelowM = 20.f;
@@ -2936,9 +2948,9 @@ struct DEEP_API FDeepHelmViewTuning
 {
 	GENERATED_BODY()
 
-	/** The helm starts in the chase view (V switches). */
+	/** The helm starts in the chase view (V switches). D2: off, the pilot starts in BT-01's own cabin. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view")
-	bool bChaseFirst = true;
+	bool bChaseFirst = false;
 
 	/** Chase: this far back along the trail from the hull's centre (m): the stern is 6.2 m back, so about 5 m of water shows between. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
@@ -3003,14 +3015,96 @@ struct DEEP_API FDeepHelmViewTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
 	float ChaseFovDeg = 85.f;
 
-	/** Cockpit: level, a little down (deg), and its field of view. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cockpit")
+	/**
+	 * D2: the chase view's probe has a soft shell too: a wider sphere (m) swept the same way, whose stop the camera eases
+	 * toward (in at InPerS, back out at OutPerS, shares of the gap per second), so rock coming close draws the view in
+	 * smoothly before the hard probe (ProbeRadiusM) has to snap it. The hard probe still wins: never inside rock.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ProbeSoftRadiusM = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ProbeSoftInPerS = 8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Chase")
+	float ProbeSoftOutPerS = 2.f;
+
+	/**
+	 * D2: the cabin (the default view). The pilot's eye in BT-01's own chair, sub-local cm (x ahead, y starboard, z up;
+	 * the hatch at x 0, y 0), looking out of the two bow ports over the controls; level, a little down (deg), and its
+	 * horizontal field of view. The eye rides the hull's idle bob in full: the cabin never moves against the eye.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cabin")
+	FVector CabinEyeCm = FVector(355.0, 0.0, 145.0);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cabin")
 	float CockpitPitchDeg = -4.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cockpit")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cabin")
 	float CockpitFovDeg = 90.f;
 
-	/** The mouse looks round within these limits (deg either side; up and down), chase and cockpit. */
+	/**
+	 * D2: in the cabin the water starts at the glass: the height fog and the volumetric fog begin this far from the eye
+	 * (m), so the dry cabin carries no haze while everything past the ports keeps the water's look (Style Guide 5).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Cabin")
+	float CabinFogStartM = 1.1f;
+
+	/**
+	 * D2: the look is a servo (DeepHelmView::StepServo). The mouse moves an aim; the view swings to it no faster than
+	 * ServoRateDegS, speeding up and slowing down at no more than ServoAccelDegS2 like a motor, pulled by a spring of
+	 * ServoStiffnessPerS (rad/s) damped at ServoDamping (under 1: a small overshoot), and holds once within ServoHoldDeg
+	 * and slower than ServoHoldRateDegS. The same in both views.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ServoRateDegS = 50.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ServoAccelDegS2 = 300.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ServoStiffnessPerS = 8.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ServoDamping = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ServoHoldDeg = 0.08f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float ServoHoldRateDegS = 2.f;
+
+	/**
+	 * D2: the servo's whine (Sounds.csv loop_servo, DeepSynth servo_whine) while the view swings: its level follows the
+	 * servo's speed share, its pitch runs from WhinePitchMin at a crawl to WhinePitchMax at the cap, and it fades in and
+	 * out over WhineFadeS (a motor spinning up and down).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float WhinePitchMin = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float WhinePitchMax = 1.15f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
+	float WhineFadeS = 0.08f;
+
+	/**
+	 * D2: rubbing rock shakes the view: a low rumble (ScrapeShakeHz, well under the frame rate so it never reads as
+	 * judder) of up to ScrapeShakeDeg, full when the hull slides along the rock at ScrapeFullMps, none when it is still.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Shake")
+	float ScrapeShakeDeg = 0.18f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Shake")
+	float ScrapeShakeHz = 9.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Shake")
+	float ScrapeFullMps = 1.5f;
+
+	/**
+	 * The aim stays within these limits (deg either side; up and down), chase and cabin. D2: the cabin's are the ports'
+	 * reach from the chair: the two bow ports face about 58 deg off the bow, and a pilot leaning in sees past their rims.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
 	float ChaseLookYawDeg = 120.f;
 
@@ -3021,14 +3115,11 @@ struct DEEP_API FDeepHelmViewTuning
 	float CockpitLookYawDeg = 75.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
-	float CockpitLookPitchDeg = 40.f;
+	float CockpitLookPitchDeg = 35.f;
 
-	/** After this long without the mouse the view eases back ahead, at this share of the gap per second. */
+	/** After this long without the mouse the aim goes back ahead, and the servo swings the view there at its own pace. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
-	float LookReturnDelayS = 1.2f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Helm view|Look")
-	float LookReturnPerS = 2.5f;
+	float LookReturnDelayS = 2.5f;
 
 	/**
 	 * D1b: the hull never hides the way ahead. The chase view pitches up (never down) until the top of the hull's box sits
@@ -3206,9 +3297,12 @@ struct DEEP_API FDeepIdleTuning
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
 	float BlendPerS = 1.5f;
 
-	/** The pilot's views carry this share of it (the cockpit rides the hull; the chase view only a hint). */
+	/**
+	 * The pilot's views carry this share of it (the chase view only a hint). D2: the cabin rides the hull in full (1): the
+	 * eye sits in BT-01's chair, so the cabin never moves against it and the water outside breathes instead.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
-	float CockpitShare = 0.6f;
+	float CockpitShare = 1.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Idle")
 	float ChaseShare = 0.25f;

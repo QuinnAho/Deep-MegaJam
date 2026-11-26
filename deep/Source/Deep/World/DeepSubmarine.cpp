@@ -38,9 +38,22 @@
 #include "World/DeepShapes.h"
 #include "World/DeepArena.h"
 #include "World/DeepSubParts.h"
+#include "Sim/DeepCabinRules.h"
 
 namespace
 {
+	/**
+	 * D2: rubbing rock rumbles the view, by how fast the hull slides along it (none while it rests against it). Two low
+	 * partials under ScrapeShakeHz x 1.6, well below any frame rate the game runs at (the old 23 and 37 Hz shiver read as
+	 * judder at 55 fps: Deep.Judder measured 0.35 deg of pitch noise a frame against a still wall).
+	 */
+	float ScrapeShake(double TimeS, float SpeedMps, const FDeepHelmViewTuning& T)
+	{
+		const float Share = FMath::Clamp(SpeedMps / FMath::Max(0.05f, T.ScrapeFullMps), 0.f, 1.f);
+		const double Hz = FMath::Max(0.5f, T.ScrapeShakeHz);
+		return T.ScrapeShakeDeg * Share * float(0.6 * FMath::Sin(UE_TWO_PI * Hz * TimeS) + 0.4 * FMath::Sin(UE_TWO_PI * Hz * 1.57 * TimeS + 1.3));
+	}
+
 	using namespace DeepSubParts;
 	constexpr double SubWinZ = WinZ;
 	constexpr double SubWinHalfW = WinHalfW;
@@ -258,6 +271,29 @@ ADeepSubmarine::ADeepSubmarine()
 		Bulb->bAffectDynamicIndirectLighting = false;
 		Bulb->SetVisibility(false);
 		WorkBulbs.Add(Bulb);
+	}
+	// D2: BT-01's own cabin: four light fittings (Cabin.Lights sets how many burn) and a pane in each bow port, riding the
+	// visual hull (ApplyCabin lays them out). No fog from any of them: the cabin is dry.
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		UPointLightComponent* Light = CreateDefaultSubobject<UPointLightComponent>(FName(*FString::Printf(TEXT("CabinLight%d"), Index)));
+		Light->SetupAttachment(HullVisual);
+		Light->SetMobility(EComponentMobility::Movable);
+		Light->SetCastShadows(false);
+		Light->SetVolumetricScatteringIntensity(0.f);
+		Light->SetVisibility(false);
+		CabinLights.Add(Light);
+	}
+	for (const TCHAR* Name : { TEXT("CabinPanePort"), TEXT("CabinPaneStbd") })
+	{
+		UStaticMeshComponent* Pane = DeepShapes::CreateShape(this, Name, DeepShapes::Cylinder);
+		Pane->SetupAttachment(HullVisual);
+		Pane->SetCastShadow(false);
+		Pane->bAffectDistanceFieldLighting = false;
+		Pane->bAffectDynamicIndirectLighting = false;
+		Pane->bVisibleInRayTracing = false;
+		Pane->SetHiddenInGame(true);
+		PortPanes.Add(Pane);
 	}
 	// D1b: the flood heads' spill on the bow, riding each bow light.
 	for (int32 Index = 0; Index < BowLights.Num(); ++Index)
@@ -662,6 +698,11 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		HelmFill->SetAttenuationRadius(Look.HelmFillRangeM * UDeepRules::CmPerM);
 		HelmFill->SetVolumetricScatteringIntensity(Look.HelmFillFog);
 		HelmFill->SetVisibility(bManned);
+		// D2: the cabin's own lights burn while someone is at the helm (they light the cabin and show through the ports).
+		for (int32 Index = 0; Index < CabinLights.Num(); ++Index)
+		{
+			CabinLights[Index]->SetVisibility(bManned && IsModelHull() && UDeepTuningSettings::Get().Cabin.Lights.IsValidIndex(Index));
+		}
 		// D1b: a lamp with a size, so wet rock catches a broad glint that slides as the sub moves (the bow lights are points off the helm).
 		for (USpotLightComponent* Light : BowLights)
 		{
@@ -856,7 +897,7 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		const FDeepCavePose Pose = DeepCaveString::HullPose(*State);
 		if (String && String->OverlapsHull(GetSolidBoundsLocal(false), Pose.LocationCm, Pose.YawDeg, Tuning.CaveString.ShiverNearCm))
 		{
-			Shiver += 0.25f * FMath::Sin(UE_TWO_PI * 23.f * T) + 0.15f * FMath::Sin(UE_TWO_PI * 37.f * T + 1.3);
+			Shiver += ScrapeShake(T, State->HelmSpeedMps, Tuning.HelmView);
 		}
 	}
 	else if (State && !bParked && DeepShaft::IsOn(World))
@@ -867,7 +908,7 @@ void ADeepSubmarine::TickHelmLook(float DeltaSeconds)
 		const FDeepCaveContact Touch = UDeepCaveRules::Contact(State->SubOffsetM, DepthM, BoxMin, BoxMax, Stops, UDeepCaveRules::MinRadiusM(BoxMin, BoxMax, Cave), Cave);
 		if (Touch.bTouching || Touch.PenetrationM > -0.05f)
 		{
-			Shiver += 0.25f * FMath::Sin(UE_TWO_PI * 23.f * T) + 0.15f * FMath::Sin(UE_TWO_PI * 37.f * T + 1.3);
+			Shiver += ScrapeShake(T, State->HelmSpeedMps, Tuning.HelmView);
 		}
 	}
 	// D-070: the pilot's view (chase or cockpit) carries the sway, the settle and the knock's jolt.
@@ -897,8 +938,10 @@ void ADeepSubmarine::ToggleHelmView()
 void ADeepSubmarine::SetHelmCockpit(bool bCockpit)
 {
 	bHelmCockpit = bCockpit;
-	HelmLookDeg = FVector2D::ZeroVector;
+	HelmAimDeg = FVector2D::ZeroVector;
+	HelmServo = FDeepServo();
 	HelmLookIdleS = 100.f;
+	ChaseSoftCm = -1.0;
 	// The chase view snaps behind the hull rather than gliding in from the bow.
 	bHelmViewInit = false;
 }
@@ -909,8 +952,13 @@ void ADeepSubmarine::AddHelmLook(float YawDeg, float PitchDeg)
 	{
 		return;
 	}
-	HelmLookDeg = DeepHelmView::AddLook(HelmLookDeg, YawDeg, PitchDeg, bHelmCockpit, UDeepTuningSettings::Get().HelmView);
+	HelmAimDeg = DeepHelmView::AddLook(HelmAimDeg, YawDeg, PitchDeg, bHelmCockpit, UDeepTuningSettings::Get().HelmView);
 	HelmLookIdleS = 0.f;
+}
+
+float ADeepSubmarine::GetHelmServoSpeed01() const
+{
+	return bHelmManned ? DeepHelmView::ServoSpeed01(HelmServo, UDeepTuningSettings::Get().HelmView) : 0.f;
 }
 
 void ADeepSubmarine::ResetHelmView()
@@ -952,7 +1000,8 @@ void ADeepSubmarine::GatherSnowLights(TArray<DeepHelmLight::FSnowLight>& Out, fl
 	TInlineComponentArray<ULocalLightComponent*> Lights(this);
 	for (const ULocalLightComponent* Light : Lights)
 	{
-		if (!Light || !Light->IsVisible() || Light->Intensity <= 0.f)
+		// D2: the cabin's lights stay behind the steel: no speck outside is lit by them.
+		if (!Light || !Light->IsVisible() || Light->Intensity <= 0.f || CabinLights.Contains(Cast<UPointLightComponent>(const_cast<ULocalLightComponent*>(Light))))
 		{
 			continue;
 		}
@@ -996,10 +1045,10 @@ bool ADeepSubmarine::ProbeBlocked(const FVector& Cm) const
 	return World->OverlapAnyTestByObjectType(Cm, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(Radius), Params);
 }
 
-FVector ADeepSubmarine::ProbeChase(const FVector& AnchorCm, const FVector& WantCm) const
+FVector ADeepSubmarine::ProbeChase(const FVector& AnchorCm, const FVector& WantCm, float RadiusCm) const
 {
 	UWorld* World = GetWorld();
-	const float Radius = FMath::Max(1.f, UDeepTuningSettings::Get().HelmView.ProbeRadiusM * UDeepRules::CmPerM);
+	const float Radius = RadiusCm > 0.f ? RadiusCm : FMath::Max(1.f, UDeepTuningSettings::Get().HelmView.ProbeRadiusM * UDeepRules::CmPerM);
 	FVector Camera = WantCm;
 	if (World)
 	{
@@ -1024,25 +1073,29 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 {
 	const UDeepTuningSettings& Tuning = UDeepTuningSettings::Get();
 	const FDeepHelmViewTuning& T = Tuning.HelmView;
-	const FDeepSubTuning& Sub = Tuning.Sub;
 	const float Dt = FMath::Max(0.f, DeltaSeconds);
 	const ADeepGameState* State = GetWorld() ? GetWorld()->GetGameState<ADeepGameState>() : nullptr;
 	const float HullYaw = State ? State->SubYawDeg : 0.f;
 	static IConsoleVariable* MouseSteerVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Deep.Pilot.MouseSteer"));
 	const bool bMouseSteer = MouseSteerVar && MouseSteerVar->GetInt() != 0;
 
-	// The mouse's look: with mouse steer it holds its direction while the hull turns under it (the sub turns toward it);
-	// otherwise it eases back ahead after a moment.
+	// The mouse's aim: with mouse steer it holds its direction while the hull turns under it (the sub turns toward it);
+	// otherwise it goes back ahead after a pause. D2: the view follows the aim on its servo (a capped, eased swing).
 	HelmLookIdleS += Dt;
 	if (bMouseSteer && bHelmViewInit)
 	{
-		HelmLookDeg = DeepHelmView::AddLook(HelmLookDeg, -FRotator::NormalizeAxis(HullYaw - LastHelmYawDeg), 0.f, bHelmCockpit, T);
+		const float Turned = FRotator::NormalizeAxis(HullYaw - LastHelmYawDeg);
+		HelmAimDeg = DeepHelmView::AddLook(HelmAimDeg, -Turned, 0.f, bHelmCockpit, T);
+		// The view holds its bearing too: the servo turns against the hull's turn at once (the camera is not on the hull's turn).
+		HelmServo.AngleDeg.X -= Turned;
 	}
-	else if (!bMouseSteer)
+	else if (!bMouseSteer && HelmLookIdleS >= T.LookReturnDelayS)
 	{
-		HelmLookDeg = DeepHelmView::EaseLook(HelmLookDeg, HelmLookIdleS, Dt, T);
+		HelmAimDeg = FVector2D::ZeroVector;
 	}
 	LastHelmYawDeg = HullYaw;
+	HelmServo = DeepHelmView::StepServo(HelmServo, HelmAimDeg, Dt, T);
+	const FVector2D HelmLookDeg = HelmServo.AngleDeg;
 
 	// The hull's trail and travel, in the arena root's frame (a jump of 20 m or more is a placement: start again).
 	const FTransform Frame = HelmTrailFrame();
@@ -1064,12 +1117,14 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 
 	if (bHelmCockpit)
 	{
-		// The cockpit: level at the bow, looking ahead; the mouse looks round within limits.
-		// The cockpit rides the hull: it carries part of the idle (the rest is the hull's, which the camera sits outside of).
-		const float CockpitIdle = Tuning.Idle.CockpitShare;
-		HelmCamera->SetRelativeLocation(Sub.HelmCameraM * UDeepRules::CmPerM - FVector(0.0, 0.0, DropCm - IdleNow.HeaveCm * CockpitIdle));
-		HelmCamera->SetRelativeRotation(FRotator(T.CockpitPitchDeg + HelmLookDeg.Y + PitchShakeDeg + IdleNow.PitchDeg * CockpitIdle,
-			HelmLookDeg.X + YawShakeDeg + IdleNow.YawDeg * CockpitIdle, RollShakeDeg + IdleNow.RollDeg * CockpitIdle));
+		// D2: the cabin. The eye in BT-01's chair, looking out of the bow ports; the servo turns the head, the helm's shakes
+		// move it a little in the chair. It rides the hull's idle bob (CockpitShare, 1 = in full: the cabin never moves
+		// against the eye) as HullVisual does, about the hull's origin, so the lever arm to the bow is kept.
+		const float Share = Tuning.Idle.CockpitShare;
+		const FTransform Bob(FRotator(IdleNow.PitchDeg * Share, IdleNow.YawDeg * Share, IdleNow.RollDeg * Share), FVector(0.0, 0.0, IdleNow.HeaveCm * Share));
+		const FTransform Eye(FRotator(T.CockpitPitchDeg + HelmLookDeg.Y + PitchShakeDeg, HelmLookDeg.X + YawShakeDeg, RollShakeDeg),
+			T.CabinEyeCm - FVector(0.0, 0.0, DropCm));
+		HelmCamera->SetRelativeTransform(Eye * Bob);
 		HelmCamera->SetFieldOfView(T.CockpitFovDeg);
 		ViewHeave = 0.f;
 		bHelmViewInit = true;
@@ -1133,7 +1188,35 @@ void ADeepSubmarine::StepHelmView(float DeltaSeconds, float PitchShakeDeg, float
 			break;
 		}
 	}
-	const FVector Camera = ProbeChase(ChaseAnchorCm, ChaseSpotCm);
+	// D2: the soft probe (a wider sphere) draws the view in smoothly as rock comes close; the hard one still never lets it
+	// into rock (Deep.Judder: the hard probe alone snapped the view up to 4 m in a frame in T1).
+	const FVector Boom = ChaseSpotCm - ChaseAnchorCm;
+	const double BoomCm = Boom.Size();
+	const FVector BoomDir = BoomCm > 1.0 ? Boom / BoomCm : FVector::ZeroVector;
+	double SoftWantCm = BoomCm;
+	if (UWorld* World = GetWorld(); World && BoomCm > 1.0)
+	{
+		FCollisionQueryParams Params(SCENE_QUERY_STAT(DeepHelmProbeSoft), true, this);
+		FHitResult Hit;
+		const float SoftRadius = FMath::Max(T.ProbeRadiusM, T.ProbeSoftRadiusM) * UDeepRules::CmPerM;
+		// Started in rock (a tight roof): the soft shell tells nothing there, and the hard probe decides alone.
+		if (World->SweepSingleByObjectType(Hit, ChaseAnchorCm, ChaseSpotCm, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), FCollisionShape::MakeSphere(SoftRadius), Params)
+			&& !Hit.bStartPenetrating)
+		{
+			SoftWantCm = BoomCm * Hit.Time;
+		}
+	}
+	if (bJump || ChaseSoftCm < 0.0)
+	{
+		ChaseSoftCm = SoftWantCm;
+	}
+	else
+	{
+		const float Rate = SoftWantCm < ChaseSoftCm ? T.ProbeSoftInPerS : T.ProbeSoftOutPerS;
+		ChaseSoftCm += (SoftWantCm - ChaseSoftCm) * (1.0 - FMath::Exp(-FMath::Max(0.f, Rate) * Dt));
+	}
+	const FVector Hard = ProbeChase(ChaseAnchorCm, ChaseSpotCm);
+	const FVector Camera = ChaseAnchorCm + BoomDir * FMath::Min(ChaseSoftCm, FVector::Dist(ChaseAnchorCm, Hard));
 	FRotator Rotation = DeepHelmView::ChaseLook(Camera, HullW, Frame.TransformVectorNoScale(LookDirLocal), H);
 	// D1b: the hull never hides the way ahead: pitch up until the top of the hull sits in the lower part of the frame (D1c:
 	// sinking, the look down past the hull stands; rising, the hull stays at the frame's foot).
@@ -1338,8 +1421,9 @@ void ADeepSubmarine::BeginPlay()
 {
 	Super::BeginPlay();
 	LayOut();
-	// D-070: the pilot starts in the chase view (V switches to the cockpit).
+	// D2: the pilot starts in BT-01's own cabin (V switches to the chase view); bChaseFirst puts the chase view first.
 	bHelmCockpit = !UDeepTuningSettings::Get().HelmView.bChaseFirst;
+	ApplyCabin();
 
 	// The cave shaft's rock: one per machine (not replicated), placed from the replicated depth and offset.
 	if (UWorld* World = GetWorld())
@@ -1544,6 +1628,77 @@ void ADeepSubmarine::OnHullModelSwitched()
 	WorkLampTries = 0;
 	// The lamps: on the model's surface, or back where the box hull has them.
 	LayOut();
+	// D2: the cabin's ports open with the model (its own glass stays shut on the old dress).
+	ApplyCabin();
+}
+
+void ADeepSubmarine::ApplyCabin()
+{
+	const FDeepCabinTuning& C = UDeepTuningSettings::Get().Cabin;
+	// The lights, from the tuning; the helm's state shows them (TickHelmLook).
+	for (int32 Index = 0; Index < CabinLights.Num(); ++Index)
+	{
+		UPointLightComponent* Light = CabinLights[Index];
+		if (!C.Lights.IsValidIndex(Index))
+		{
+			Light->SetIntensity(0.f);
+			Light->SetVisibility(false);
+			continue;
+		}
+		const FDeepCabinLight& L = C.Lights[Index];
+		Light->SetRelativeLocation(L.AtCm);
+		Light->SetLightColor(L.Color);
+		Light->SetIntensity(L.Intensity);
+		Light->SetAttenuationRadius(L.RadiusCm);
+		Light->SetSourceRadius(L.SourceRadiusCm);
+		Light->SetSoftSourceRadius(L.SourceRadiusCm);
+		Light->SetCastShadows(L.bShadows);
+		Light->SetVolumetricScatteringIntensity(0.f);
+		Light->SetVisibility(bHelmManned && IsModelHull());
+	}
+	// The ports: the model's own opaque glass is cut away inside the ports' box (M_PortCut, Nanite-safe), a pane of
+	// thick glass fills each port (M_PortGlass). The box is laid out in the sub's frame and handed to the material in
+	// the mesh's own space.
+	const int32 Slot = HullModel ? HullModel->GetMaterialIndex(C.GlassSlot) : INDEX_NONE;
+	UMaterialInterface* Cut = Cast<UMaterialInterface>(C.PortCutMaterial.TryLoad());
+	UMaterialInterface* Glass = Cast<UMaterialInterface>(C.PortGlassMaterial.TryLoad());
+	const TArray<FDeepPortPane> Panes = DeepCabin::TunedPanes(C);
+	const bool bOpen = IsModelHull() && C.bPorts && Slot != INDEX_NONE && Cut && Glass && Panes.Num() == PortPanes.Num();
+	if (!bOpen)
+	{
+		if (bPortsCut && Slot != INDEX_NONE)
+		{
+			HullModel->SetMaterial(Slot, nullptr);
+		}
+		bPortsCut = false;
+		for (UStaticMeshComponent* Pane : PortPanes)
+		{
+			Pane->SetHiddenInGame(true);
+		}
+		return;
+	}
+	const FBox MeshBox = DeepCabin::BoxInto(DeepCabin::CutBox(Panes, C), HullModel->GetRelativeTransform().Inverse());
+	UMaterialInstanceDynamic* CutMid = UMaterialInstanceDynamic::Create(Cut, HullModel);
+	CutMid->SetVectorParameterValue(TEXT("CutMin"), FLinearColor(MeshBox.Min.X, MeshBox.Min.Y, MeshBox.Min.Z, 0.f));
+	CutMid->SetVectorParameterValue(TEXT("CutMax"), FLinearColor(MeshBox.Max.X, MeshBox.Max.Y, MeshBox.Max.Z, 0.f));
+	HullModel->SetMaterial(Slot, CutMid);
+	bPortsCut = true;
+	for (int32 Index = 0; Index < PortPanes.Num(); ++Index)
+	{
+		UStaticMeshComponent* Pane = PortPanes[Index];
+		Pane->SetRelativeTransform(DeepCabin::PaneTransform(Panes[Index], C));
+		UMaterialInstanceDynamic* G = UMaterialInstanceDynamic::Create(Glass, Pane);
+		G->SetScalarParameterValue(TEXT("OpacityFacing"), C.OpacityFacing);
+		G->SetScalarParameterValue(TEXT("OpacityGrazing"), C.OpacityGrazing);
+		G->SetScalarParameterValue(TEXT("Roughness"), C.Roughness);
+		G->SetScalarParameterValue(TEXT("GrimeStart"), C.GrimeStart);
+		G->SetScalarParameterValue(TEXT("Film"), C.GrimeFilm);
+		G->SetScalarParameterValue(TEXT("GrimeOpacity"), C.GrimeOpacity);
+		G->SetVectorParameterValue(TEXT("GrimeColor"), C.GrimeColor);
+		G->SetVectorParameterValue(TEXT("Tint"), C.GlassTint);
+		Pane->SetMaterial(0, G);
+		Pane->SetHiddenInGame(false);
+	}
 }
 
 void ADeepSubmarine::PlaceLampsOnModel()
@@ -1611,6 +1766,7 @@ void ADeepSubmarine::RefreshLights()
 	bWorkLampsPlaced = false;
 	WorkLampTries = 0;
 	ApplyLook();
+	ApplyCabin();
 }
 
 bool ADeepSubmarine::PlaceWorkLamps()

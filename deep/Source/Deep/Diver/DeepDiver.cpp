@@ -4,6 +4,8 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Camera/DeepCameraRules.h"
 #include "Sonar/DeepSonarRules.h"
+#include "Sonar/DeepSonarComponent.h"
+#include "Game/DeepHUD.h"
 #include "Story/DeepEventBus.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SpotLightComponent.h"
@@ -716,6 +718,63 @@ void ADeepDiver::MulticastPing_Implementation(float RangeM)
 		Payload.Source = this;
 		Payload.DepthM = RangeM;
 		Bus->Broadcast(FName(DeepSonarEvent::Ping), Payload);
+	}
+}
+
+float ADeepDiver::GetHelmPingWaitS() const
+{
+	const UWorld* World = GetWorld();
+	return World ? UDeepSonarRules::HelmPingWaitS(World->GetTimeSeconds(), LastHelmPingS, UDeepTuningSettings::Get().Sonar) : 0.f;
+}
+
+bool ADeepDiver::HelmPing()
+{
+	if (!HasAuthority())
+	{
+		if (!IsSeatedAtHelm())
+		{
+			return false;
+		}
+		ServerHelmPing();
+		return true;
+	}
+	const UWorld* World = GetWorld();
+	const FDeepSonarTuning& T = UDeepTuningSettings::Get().Sonar;
+	if (!World || !UDeepSonarRules::CanHelmPing(World->GetTimeSeconds(), LastHelmPingS, IsSeatedAtHelm(), T))
+	{
+		return false;
+	}
+	LastHelmPingS = World->GetTimeSeconds();
+	MulticastHelmPing(T.RangeM);
+	return true;
+}
+
+void ADeepDiver::ServerHelmPing_Implementation()
+{
+	HelmPing();
+}
+
+void ADeepDiver::MulticastHelmPing_Implementation(float RangeM)
+{
+	UWorld* World = GetWorld();
+	ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+	if (UDeepEventBus* Bus = UDeepEventBus::Get(this))
+	{
+		FDeepEventPayload Payload;
+		Payload.Source = Sub;
+		Payload.DepthM = RangeM;
+		Bus->Broadcast(FName(DeepSonarEvent::Ping), Payload);
+	}
+	// The pilot's own scope counts it and takes a fresh picture (only the seated player's sonar works).
+	if (const APlayerController* PC = Cast<APlayerController>(GetController()); PC && PC->IsLocalController())
+	{
+		if (const ADeepHUD* Hud = Cast<ADeepHUD>(PC->GetHUD()))
+		{
+			if (UDeepSonarComponent* Sonar = Hud->GetSonar())
+			{
+				Sonar->NoteHelmPing();
+			}
+		}
 	}
 }
 

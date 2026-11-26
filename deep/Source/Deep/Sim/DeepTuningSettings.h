@@ -7,6 +7,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "Sim/DeepTuningTypes.h"
 #include "Sim/DeepImmersionTuning.h"
+#include "Sim/DeepCabinTuning.h"
 #include "DeepTuningSettings.generated.h"
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "DEEP Tuning"))
@@ -136,4 +137,7 @@ public:
 	/** D-072: the hull's creaks, groans and flow, the silt it lifts, the sonar's echo (Sim/DeepImmersionRules). */
 	UPROPERTY(Config, EditAnywhere, Category = "Immersion")
 	FDeepImmersionTuning Immersion;
+	/** D2: BT-01's own cabin as the pilot's view: its lights and the bow ports' glass (Sim/DeepCabinRules). */
+	UPROPERTY(Config, EditAnywhere, Category = "Cabin")
+	FDeepCabinTuning Cabin;
 };

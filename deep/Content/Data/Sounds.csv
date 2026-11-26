@@ -74,3 +74,4 @@
 "hull_creak","sfx","","hull_creak",0.5,1.0,0,"Immersion I1: the pressure hull creaks, more often and lower the deeper it is, and on hard turns and depth changes; built-in family hull_creak_01..03 (a file: hull_creak_01..03 variations)"
 "hull_groan","sfx","","hull_groan",0.75,1.0,0,"Immersion I1: a long low groan the first time the sub passes each 100 m of read depth"
 "loop_flow","ambience","","flow",0.55,1.0,1,"Immersion I1: water along the hull, rising and brightening with speed, nothing at rest; under the helm hum"
+"loop_servo","sfx","","servo_whine",0.1,1.0,1,"D2: the view's servo while it swings, by its speed; a small motor behind the cabin's panel, faint"

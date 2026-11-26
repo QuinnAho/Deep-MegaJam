@@ -80,6 +80,25 @@ float UDeepSonarRules::PingPeriodFor(int32 Style, const FDeepSonarTuning& Tuning
 	return Style == 0 ? Tuning.SweepPeriodS : FMath::Max(Tuning.SweepPeriodS, Tuning.PingPeriodS);
 }
 
+bool UDeepSonarRules::AutoPings(int32 Style, const FDeepSonarTuning& Tuning)
+{
+	return Style == 0 || !Tuning.bPingOnDemand;
+}
+
+float UDeepSonarRules::HelmPingWaitS(double NowS, double LastPingS, const FDeepSonarTuning& Tuning)
+{
+	if (LastPingS < 0.0)
+	{
+		return 0.f;
+	}
+	return float(FMath::Max(0.0, double(FMath::Max(0.f, Tuning.HelmPingCooldownS)) - (NowS - LastPingS)));
+}
+
+bool UDeepSonarRules::CanHelmPing(double NowS, double LastPingS, bool bSeated, const FDeepSonarTuning& Tuning)
+{
+	return bSeated && HelmPingWaitS(NowS, LastPingS, Tuning) <= 0.f;
+}
+
 bool UDeepSonarRules::SweptOver(float BearingDeg, float PrevSweepDeg, float NewSweepDeg)
 {
 	const float Prev = Wrap360(PrevSweepDeg);

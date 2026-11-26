@@ -17,6 +17,8 @@
 #include "World/DeepRopeComponent.h"
 #include "World/DeepSalvage.h"
 #include "World/DeepSubmarine.h"
+#include "World/DeepHull.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/LocalLightComponent.h"
 #include "Containers/Ticker.h"
@@ -718,6 +720,53 @@ namespace
 				++Count;
 			}
 			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Hull: dress %s on %d sub(s)"), bShow ? TEXT("shown") : TEXT("hidden"), Count);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs HullRepairCommand(
+		TEXT("Deep.Hull.Repair"),
+		TEXT("Deep.Hull.Repair: the hull's dents back to none (server), so a scripted drive is not cut short by a breach."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepGameState* State = World ? World->GetGameState<ADeepGameState>() : nullptr;
+			if (!State || !World->GetAuthGameMode())
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Hull.Repair: server only"));
+				return;
+			}
+			State->HullDamage = 0;
+			DeepStateReport::LogState(World);
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SubSlotCommand(
+		TEXT("Deep.Sub.Slot"),
+		TEXT("Deep.Sub.Slot <slot name> [r g b]: paints one of BT-01's material slots a flat glowing colour on this machine (default red), to find which parts it holds; 'reset' puts the model's own materials back."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+			UStaticMeshComponent* Model = Sub ? Cast<UStaticMeshComponent>(Sub->GetHullModel()) : nullptr;
+			if (!Model || Args.Num() < 1)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Sub.Slot <slot name> [r g b] | reset"));
+				return;
+			}
+			if (Args[0] == TEXT("reset"))
+			{
+				Model->EmptyOverrideMaterials();
+				return;
+			}
+			const int32 Index = Model->GetMaterialIndex(FName(*Args[0]));
+			UMaterialInterface* Bulb = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Deep/Subs/M_SubBulb.M_SubBulb"));
+			if (Index == INDEX_NONE || !Bulb)
+			{
+				UE_LOG(LogDeepCheats, Warning, TEXT("Deep.Sub.Slot: no slot %s"), *Args[0]);
+				return;
+			}
+			UMaterialInstanceDynamic* Paint = UMaterialInstanceDynamic::Create(Bulb, Model);
+			const FLinearColor Color = Args.Num() >= 4 ? FLinearColor(FCString::Atof(*Args[1]), FCString::Atof(*Args[2]), FCString::Atof(*Args[3])) : FLinearColor::Red;
+			Paint->SetVectorParameterValue(TEXT("Color"), Color);
+			Paint->SetScalarParameterValue(TEXT("Glow"), 2.f);
+			Model->SetMaterial(Index, Paint);
+			UE_LOG(LogDeepCheats, Display, TEXT("Deep.Sub.Slot: %s (%d) painted"), *Args[0], Index);
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs SubLampsCommand(

@@ -382,7 +382,8 @@ void UDeepHullModel::ApplySwitch(bool bModel)
 	{
 		// The hatch's cover and water and the lamps' bulbs: the sub shows and hides them (OnHullModelSwitched).
 		const FString Name = Mesh->GetName();
-		if (Mesh == this || Name == TEXT("HatchCover") || Name == TEXT("HatchWater") || Name.StartsWith(TEXT("Bulb_")))
+		// D2: the cabin's port panes too (ADeepSubmarine::ApplyCabin shows them with the model).
+		if (Mesh == this || Name == TEXT("HatchCover") || Name == TEXT("HatchWater") || Name.StartsWith(TEXT("Bulb_")) || Name.StartsWith(TEXT("CabinPane")))
 		{
 			continue;
 		}

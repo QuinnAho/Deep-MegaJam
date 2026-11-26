@@ -8,6 +8,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Sim/DeepHelmLightRules.h"
+#include "Sim/DeepHelmViewRules.h"
 #include "Sim/DeepMovingSubRules.h"
 #include "DeepSubmarine.generated.h"
 
@@ -133,14 +134,21 @@ public:
 	static bool TrenchShows(bool bHelmView, bool bInRoomView, bool bParked);
 
 	// ---- D-070: what the pilot sees (Sim/DeepHelmViewRules). Local to each machine: only the seated pilot views it. ----
-	/** V: the chase view (behind and above, on the hull's trail) or the cockpit (level at the bow). */
+	/** V: the chase view (behind and above, on the hull's trail) or the cabin (D2: BT-01's own, the pilot's chair; "cockpit"). */
 	void ToggleHelmView();
 	bool IsHelmCockpit() const { return bHelmCockpit; }
 	void SetHelmCockpit(bool bCockpit);
-	/** The mouse: looks round the view (degrees, + right, + up), within the view's limits; eases back after a moment. */
+	/**
+	 * The mouse: moves the aim (degrees, + right, + up), within the view's limits; the view follows on its servo (D2) and
+	 * the aim goes back ahead after a pause.
+	 */
 	void AddHelmLook(float YawDeg, float PitchDeg);
-	/** The look's offset from straight ahead (degrees, X + starboard, Y + up): Deep.Pilot.MouseSteer steers by it. */
-	FVector2D GetHelmLookOffsetDeg() const { return HelmLookDeg; }
+	/** Where the view points now, off straight ahead (degrees, X + starboard, Y + up): the servo's angle. */
+	FVector2D GetHelmLookOffsetDeg() const { return HelmServo.AngleDeg; }
+	/** Where the pilot aims it (the servo's target): Deep.Pilot.MouseSteer steers by it. */
+	FVector2D GetHelmAimDeg() const { return HelmAimDeg; }
+	/** The servo's speed as a share of its cap (0..1, local): the whine follows it. */
+	float GetHelmServoSpeed01() const;
 	/**
 	 * One step of the pilot's view: the trail, the chase spot (the trail, else straight astern), the probe from over the
 	 * hull to it (never in rock, never in the hull), the look ahead along the travel, the mouse's look. Tick calls it
@@ -170,6 +178,10 @@ public:
 	USpotLightComponent* GetHelmFill() const { return HelmFill; }
 	const TArray<TObjectPtr<UPointLightComponent>>& GetMarkers() const { return Markers; }
 	bool PlaceWorkLamps();
+	/** D2: the cabin's lights and the bow ports' panes (index 0 port, 1 starboard), and whether the ports are cut open. */
+	const TArray<TObjectPtr<UPointLightComponent>>& GetCabinLights() const { return CabinLights; }
+	const TArray<TObjectPtr<UStaticMeshComponent>>& GetPortPanes() const { return PortPanes; }
+	bool ArePortsCut() const { return bPortsCut; }
 	bool AreWorkLampsPlaced() const { return bWorkLampsPlaced; }
 	/** Re-applies every outside light from the tuning (Deep.Tune): now, and the helm's own on the next tick. */
 	void RefreshLights();
@@ -225,11 +237,14 @@ protected:
 	float ViewHeave = 0.f;
 	float LampHeave = 0.f;
 
-	/** D-070's pilot view (local): cockpit or chase, the mouse's look and how long since it moved, the hull's trail. */
+	/** D-070's pilot view (local): cabin or chase, the mouse's aim, the servo that follows it, how long since the mouse moved, the hull's trail. */
 	bool bHelmCockpit = false;
 	bool bHelmViewInit = false;
-	FVector2D HelmLookDeg = FVector2D::ZeroVector;
+	FVector2D HelmAimDeg = FVector2D::ZeroVector;
+	FDeepServo HelmServo;
 	float HelmLookIdleS = 100.f;
+	/** D2: the chase probe's soft stop, eased (cm from the anchor; negative = not yet measured). */
+	double ChaseSoftCm = -1.0;
 	float LastHelmYawDeg = 0.f;
 	/** The hull's centre, newest last, in the arena root's frame (the shaft moves the root, the caves the hull). */
 	TArray<FVector> HelmTrail;
@@ -243,8 +258,8 @@ protected:
 	FVector ChaseAnchorCm = FVector::ZeroVector;
 	/** The world frame the trail is kept in (the arena root's, or identity). */
 	FTransform HelmTrailFrame() const;
-	/** The chase view's probe: a sphere swept from Anchor toward Want against world rock (never the hull); where it stops. */
-	FVector ProbeChase(const FVector& AnchorCm, const FVector& WantCm) const;
+	/** The chase view's probe: a sphere (RadiusCm; <= 0: ProbeRadiusM) swept from Anchor toward Want against world rock (never the hull); where it stops. */
+	FVector ProbeChase(const FVector& AnchorCm, const FVector& WantCm, float RadiusCm = 0.f) const;
 	/** True when a probe-sized sphere at Cm overlaps world rock. */
 	bool ProbeBlocked(const FVector& Cm) const;
 
@@ -353,6 +368,8 @@ protected:
 
 	/** Puts the lamps on the model's surface (DeepHull::ModelLamp); LayOut calls it with the model hull. */
 	void PlaceLampsOnModel();
+	/** D2: lays out the cabin's lights and cuts the bow ports from the tuning (the model shown, Cabin.bPorts). */
+	void ApplyCabin();
 
 	/** D1b: the work lamps on the hull (tower, stern port, stern starboard) and a small bulb on each. */
 	UPROPERTY(VisibleAnywhere, Category = "Deep")
@@ -367,6 +384,19 @@ protected:
 
 	bool bWorkLampsPlaced = false;
 	int32 WorkLampTries = 0;
+
+	/**
+	 * D2: BT-01's own cabin (Cabin tuning, Sim/DeepCabinRules): its lights (on while the helm is manned; never in the
+	 * fog), the bow ports' panes (thick grimy glass) and the cut that takes the model's opaque port glass away.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UPointLightComponent>> CabinLights;
+
+	UPROPERTY(VisibleAnywhere, Category = "Deep")
+	TArray<TObjectPtr<UStaticMeshComponent>> PortPanes;
+
+	bool bPortsCut = false;
+
 	FVector DeckAimCm = FVector::ZeroVector;
 	float HullTopFrameY = 0.f;
 

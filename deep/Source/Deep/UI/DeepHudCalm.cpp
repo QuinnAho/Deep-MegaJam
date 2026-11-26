@@ -54,7 +54,8 @@ namespace DeepHudCalm
 			Row(TEXT("hh2"), TEXT("A / D"), TEXT("TURN")),
 			Row(TEXT("hh3"), TEXT("SPACE / C"), TEXT("UP / DOWN"), TEXT("hold")),
 			Row(TEXT("hh4"), TEXT("Q / E"), TEXT("STRAFE")),
-			Row(TEXT("hh6"), TEXT("V"), TEXT("VIEW"), TEXT("behind or cockpit; the mouse looks")),
+			Row(TEXT("hh7"), TEXT("F"), TEXT("PING"), TEXT("the sonar sounds the walls")),
+			Row(TEXT("hh6"), TEXT("V"), TEXT("VIEW"), TEXT("cabin or behind; the mouse turns it")),
 			Row(TEXT("hh5"), TEXT("X"), TEXT("STAND UP")),
 		};
 	}

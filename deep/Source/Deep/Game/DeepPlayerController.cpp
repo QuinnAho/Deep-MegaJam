@@ -120,6 +120,7 @@ void ADeepPlayerController::BuildInputObjects()
 	// Left mouse is the harpoon (UDeepHarpoonComponent maps it itself).
 	Mapping->MapKey(DropAction, EKeys::G);
 	Mapping->MapKey(WinchAction, EKeys::R);
+	// F: the lamp in the water; D2, at the helm: the sonar's ping on demand (the diver checks which).
 	Mapping->MapKey(LampAction, EKeys::F);
 	// The diver's sonar ping (in the water only; the diver checks).
 	Mapping->MapKey(PingAction, EKeys::V);
@@ -299,6 +300,12 @@ void ADeepPlayerController::OnLamp()
 {
 	if (ADeepDiver* Diver = GetDiver())
 	{
+		// D2: F at the helm pings the sonar once (the lamp is stowed in the dry cabin); in the water it is the lamp.
+		if (Diver->IsSeatedAtHelm())
+		{
+			Diver->HelmPing();
+			return;
+		}
 		Diver->ToggleLamp();
 	}
 }

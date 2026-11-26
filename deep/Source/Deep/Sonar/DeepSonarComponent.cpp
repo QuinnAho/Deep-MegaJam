@@ -339,14 +339,19 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 	const FDeepSonarTuning& T = Tune();
 	const int32 N = Upper.Num();
 
-	// A fresh helm starts with a full picture: one whole sweep at once, then the turning sweep keeps it current.
+	// A fresh helm starts with a full picture: one whole sweep at once, then the turning sweep keeps it current. D2: it
+	// pings only where the helm pings on its own (the jam's style); the soft style waits for the pilot (F).
+	const bool bAutoPings = UDeepSonarRules::AutoPings(UDeepCameraSubsystem::GetSonarStyle(), T);
 	if (!bWasWorking)
 	{
 		bWasWorking = true;
 		SweepNow();
-		PlaySonarSound(DeepSonarEvent::Ping, 1.f, 1.f);
-		++Pings;
-		BroadcastPing(this, Sub.Get(), T.RangeM);
+		if (bAutoPings)
+		{
+			PlaySonarSound(DeepSonarEvent::Ping, 1.f, 1.f);
+			++Pings;
+			BroadcastPing(this, Sub.Get(), T.RangeM);
+		}
 		return;
 	}
 
@@ -389,7 +394,7 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 
 	// The ping (sound, pulse, the serpent's noise) keeps its own cadence: every sweep in the jam style, every
 	// PingPeriodS in the soft one. The traces and scope above still turn every SweepPeriodS.
-	if (UDeepSonarRules::PingDueAt(PrevClock, Clock, UDeepSonarRules::PingPeriodFor(UDeepCameraSubsystem::GetSonarStyle(), T)))
+	if (bAutoPings && UDeepSonarRules::PingDueAt(PrevClock, Clock, UDeepSonarRules::PingPeriodFor(UDeepCameraSubsystem::GetSonarStyle(), T)))
 	{
 		PlaySonarSound(DeepSonarEvent::Ping, 1.f, 1.f);
 		++Pings;
@@ -411,6 +416,18 @@ void UDeepSonarComponent::StepSonar(float DeltaSeconds)
 	{
 		SinceBeep = 1000.f;
 	}
+}
+
+void UDeepSonarComponent::NoteHelmPing()
+{
+	// The pilot's ping, decided by the server (ADeepDiver::MulticastHelmPing): the bus event that carried it sounds it,
+	// draws the pulse and lets the echo follow; here only the count and a fresh picture for the scope.
+	if (!IsWorking())
+	{
+		return;
+	}
+	++Pings;
+	SweepNow();
 }
 
 void UDeepSonarComponent::SweepNow()

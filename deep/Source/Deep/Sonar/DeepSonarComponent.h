@@ -85,6 +85,8 @@ public:
 	float GetProximity01() const { return Proximity01; }
 	FVector2D GetHullHalfM() const { return HullHalfM; }
 	int32 GetPings() const { return Pings; }
+	/** D2: the pilot pinged (on demand, the server's word): counts it and refreshes the whole picture. */
+	void NoteHelmPing();
 	/** How many times the sonar raised sonar_contact (the serpent's first contact at a stop). */
 	int32 GetContactCalls() const { return ContactCalls; }
 	int32 GetBeeps() const { return Beeps; }

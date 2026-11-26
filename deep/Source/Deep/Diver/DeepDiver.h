@@ -59,6 +59,14 @@ public:
 	bool IsInWater() const;
 	/** Seconds until the next ping is allowed (server's count; 0 = ready). */
 	float GetPingWaitS() const;
+	/**
+	 * D2, F at the helm: the helm's sonar pings once, on demand. The server decides (seated, past
+	 * Sonar.HelmPingCooldownS) and every machine hears it: sonar_ping from the sub on each bus (the sound, the pulse, the
+	 * serpent's ears, the pilot's echo). True if it went out (on a client: if it was sent to the server).
+	 */
+	bool HelmPing();
+	/** D2: seconds until the helm may ping again (server's count; 0 = ready). */
+	float GetHelmPingWaitS() const;
 	/** Hold to ask the Captain to cut the tether (CutHoldSeconds). */
 	void SetCutHeld(bool bHeld) { bCutHeld = bHeld; }
 	/** The continue key on the settlement screen. */
@@ -169,6 +177,16 @@ protected:
 
 	/** Server: when the last ping went out (world seconds; -1 = never). */
 	float LastPingS = -1.f;
+
+	UFUNCTION(Server, Reliable)
+	void ServerHelmPing();
+
+	/** D2: every machine hears the helm's ping, from the sub. */
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastHelmPing(float RangeM);
+
+	/** Server: when the helm last pinged (world seconds; -1 = never). */
+	double LastHelmPingS = -1.0;
 
 	UFUNCTION()
 	void OnRep_Lamp();

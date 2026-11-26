@@ -59,6 +59,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
 	static float PingPeriodFor(int32 Style, const FDeepSonarTuning& Tuning);
 
+	/** D2: whether the helm pings on its own in a sonar style: always in the jam's (0), in the soft one only with bPingOnDemand off. */
+	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
+	static bool AutoPings(int32 Style, const FDeepSonarTuning& Tuning);
+
+	/** D2: seconds until the helm may ping again (0 = now), from the last ping's time (negative = never). */
+	static float HelmPingWaitS(double NowS, double LastPingS, const FDeepSonarTuning& Tuning);
+
+	/** D2: the server lets a helm ping go: the asker sits at the helm and the cooldown has run out. */
+	static bool CanHelmPing(double NowS, double LastPingS, bool bSeated, const FDeepSonarTuning& Tuning);
+
 	/** True when Bearing lies on the arc the sweep covered between two frames (clockwise, Prev excluded, New included). */
 	UFUNCTION(BlueprintPure, Category = "Deep|Sonar")
 	static bool SweptOver(float BearingDeg, float PrevSweepDeg, float NewSweepDeg);

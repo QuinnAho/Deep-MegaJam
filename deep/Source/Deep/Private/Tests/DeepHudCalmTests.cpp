@@ -271,6 +271,7 @@ bool FDeepHudCalmHelmTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("SPACE / C up and down"), Row(TEXT("UP / DOWN")) && Row(TEXT("UP / DOWN"))->Key == TEXT("SPACE / C"));
 	TestTrue(TEXT("Q / E strafe"), Row(TEXT("STRAFE")) && Row(TEXT("STRAFE"))->Key == TEXT("Q / E"));
 	TestTrue(TEXT("V switches the view"), Row(TEXT("VIEW")) && Row(TEXT("VIEW"))->Key == TEXT("V"));
+	TestTrue(TEXT("D2: F pings the sonar"), Row(TEXT("PING")) && Row(TEXT("PING"))->Key == TEXT("F"));
 	TestTrue(TEXT("X stands up"), Row(TEXT("STAND UP")) && Row(TEXT("STAND UP"))->Key == TEXT("X"));
 	TestFalse(TEXT("nothing latches: no ballast, no all stop"), Row(TEXT("BALLAST")) || Row(TEXT("ALL STOP")));
 	// The readout's words: the way along the heading and the way down.

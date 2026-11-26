@@ -17,6 +17,7 @@
 #include "World/DeepShapes.h"
 #include "World/DeepSubmarine.h"
 #include "World/DeepSubRoom.h"
+#include "Containers/Ticker.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogDeepPilot, Log, All);
 
@@ -308,12 +309,47 @@ namespace
 		{
 			ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
 			const FString View = Args.Num() > 0 ? Args[0].ToLower() : FString();
-			if (!Sub || (View != TEXT("chase") && View != TEXT("cockpit")))
+			if (!Sub || (View != TEXT("chase") && View != TEXT("cockpit") && View != TEXT("cabin")))
 			{
-				UE_LOG(LogDeepPilot, Warning, TEXT("Usage: Deep.Pilot.View chase|cockpit"));
+				UE_LOG(LogDeepPilot, Warning, TEXT("Usage: Deep.Pilot.View chase|cabin"));
 				return;
 			}
-			Sub->SetHelmCockpit(View == TEXT("cockpit"));
+			Sub->SetHelmCockpit(View != TEXT("chase"));
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs PilotLookCommand(
+		TEXT("Deep.Pilot.Look"),
+		TEXT("Deep.Pilot.Look <yaw deg> [pitch deg] [seconds]: moves the pilot's look as the mouse would (+ starboard, + up), at once or spread evenly over that many seconds (a hand on the mouse), for frames and the judder drive."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			ADeepSubmarine* Sub = World ? DeepArena::FindSubmarine(World) : nullptr;
+			if (!Sub || Args.Num() < 1)
+			{
+				UE_LOG(LogDeepPilot, Warning, TEXT("Usage: Deep.Pilot.Look <yaw deg> [pitch deg] [seconds]"));
+				return;
+			}
+			const float Yaw = FCString::Atof(*Args[0]);
+			const float Pitch = Args.Num() > 1 ? FCString::Atof(*Args[1]) : 0.f;
+			const float Seconds = Args.Num() > 2 ? FCString::Atof(*Args[2]) : 0.f;
+			if (Seconds <= 0.f)
+			{
+				Sub->AddHelmLook(Yaw, Pitch);
+				return;
+			}
+			TWeakObjectPtr<ADeepSubmarine> WeakSub = Sub;
+			TSharedRef<float> Left = MakeShared<float>(Seconds);
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakSub, Left, Yaw, Pitch, Seconds](float DeltaSeconds)
+			{
+				ADeepSubmarine* Target = WeakSub.Get();
+				if (!Target)
+				{
+					return false;
+				}
+				const float Step = FMath::Min(DeltaSeconds, *Left);
+				*Left -= Step;
+				Target->AddHelmLook(Yaw * Step / Seconds, Pitch * Step / Seconds);
+				return *Left > 0.f;
+			}));
 		}));
 
 	FAutoConsoleCommandWithWorldAndArgs PilotAllStopCommand(

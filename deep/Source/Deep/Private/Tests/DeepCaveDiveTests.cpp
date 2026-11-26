@@ -1920,33 +1920,46 @@ bool FDeepCaveCockpitViewTest::RunTest(const FString& Parameters)
 	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
 	PlaceDirect(W, String->GetPathPoses()[Sample]);
 	UCameraComponent* Camera = W.Sub->GetHelmCamera();
-	// The chase view first (the default), looking ahead along the heading at rest.
-	TestFalse(TEXT("the helm starts in the chase view"), W.Sub->IsHelmCockpit());
+	const FDeepHelmViewTuning& T = UDeepTuningSettings::Get().HelmView;
+	// D2: the pilot starts in BT-01's own cabin; V switches to the chase view, which looks ahead along the heading at rest.
+	TestTrue(TEXT("the helm starts in the cabin"), W.Sub->IsHelmCockpit());
+	W.Sub->ToggleHelmView();
+	TestFalse(TEXT("V: the chase view"), W.Sub->IsHelmCockpit());
 	for (int32 Tick = 0; Tick < 30; ++Tick)
 	{
 		W.TickSub();
 	}
 	const FVector Ahead = W.Sub->GetActorForwardVector();
 	TestTrue(TEXT("the chase view looks ahead"), FVector::DotProduct(Camera->GetForwardVector(), Ahead) > 0.7);
-	// V: the cockpit, level (0 to -5 deg) and looking ahead.
+	// V again: the cabin, level (0 to -5 deg) and looking ahead, the eye inside the hull.
 	W.Sub->ToggleHelmView();
 	W.TickSub();
 	const FRotator Level = Camera->GetComponentRotation();
-	AddInfo(FString::Printf(TEXT("cockpit: pitch %.2f, yaw %.2f (hull yaw %.2f)"), Level.Pitch, Level.Yaw, W.Sub->GetActorRotation().Yaw));
-	TestTrue(TEXT("the cockpit view is level (0 to -5 deg)"), Level.Pitch <= 0.5f && Level.Pitch >= -5.5f);
-	TestTrue(TEXT("the cockpit view looks ahead"), FVector::DotProduct(Camera->GetForwardVector(), Ahead) > 0.99);
-	// The mouse looks round within limits and the view eases back after a moment.
+	const FVector EyeLocal = W.Sub->GetActorTransform().InverseTransformPosition(Camera->GetComponentLocation());
+	AddInfo(FString::Printf(TEXT("cabin: pitch %.2f, yaw %.2f (hull yaw %.2f), eye %s in the hull's box"), Level.Pitch, Level.Yaw, W.Sub->GetActorRotation().Yaw, *EyeLocal.ToCompactString()));
+	TestTrue(TEXT("the cabin view is level (0 to -5 deg)"), Level.Pitch <= 0.5f && Level.Pitch >= -5.5f);
+	TestTrue(TEXT("the cabin view looks ahead"), FVector::DotProduct(Camera->GetForwardVector(), Ahead) > 0.99);
+	TestTrue(TEXT("the eye is inside the hull"), W.Sub->GetSolidBoundsLocal(false).IsInside(EyeLocal));
+	// D2: the mouse moves an aim; the view swings to it on its servo (capped, eased), holds at the limit, and goes back
+	// ahead after the pause.
 	W.Sub->AddHelmLook(500.f, 0.f);
 	W.TickSub();
+	const float First = FRotator::NormalizeAxis(Camera->GetComponentRotation().Yaw - W.Sub->GetActorRotation().Yaw);
+	TestTrue(TEXT("the first frame swings no faster than the cap"), FMath::Abs(First) <= T.ServoRateDegS / 30.f + 0.05f);
+	TestEqual(TEXT("the aim stops at the cabin's limit"), float(W.Sub->GetHelmAimDeg().X), T.CockpitLookYawDeg, 0.01f);
+	for (int32 Tick = 0; Tick < 72; ++Tick)
+	{
+		W.TickSub();
+	}
 	const float Looked = FRotator::NormalizeAxis(Camera->GetComponentRotation().Yaw - W.Sub->GetActorRotation().Yaw);
-	TestEqual(TEXT("the look stops at the cockpit's limit"), Looked, UDeepTuningSettings::Get().HelmView.CockpitLookYawDeg, 1.f);
+	TestEqual(TEXT("the view reaches the limit and holds"), Looked, T.CockpitLookYawDeg, 1.f);
 	for (int32 Tick = 0; Tick < 150; ++Tick)
 	{
 		W.TickSub();
 	}
 	const float Back = FRotator::NormalizeAxis(Camera->GetComponentRotation().Yaw - W.Sub->GetActorRotation().Yaw);
-	AddInfo(FString::Printf(TEXT("looked %.1f deg, 5 s later %.1f deg"), Looked, Back));
-	TestTrue(TEXT("the view eases back ahead"), FMath::Abs(Back) < 2.f);
+	AddInfo(FString::Printf(TEXT("first frame %.2f deg, 2.4 s %.1f deg, 7.4 s later %.1f deg"), First, Looked, Back));
+	TestTrue(TEXT("the view goes back ahead"), FMath::Abs(Back) < 1.f);
 	return true;
 }
 
@@ -1969,6 +1982,8 @@ bool FDeepCaveHullLitTest::RunTest(const FString& Parameters)
 	ADeepSubmarine* Sub = W.Sub;
 	const FDeepHullLightTuning& T = UDeepTuningSettings::Get().HullLights;
 	W.Run->TakeHelm();
+	// The chase view (D2: V from the cabin, where the pilot starts).
+	Sub->SetHelmCockpit(false);
 	const int32 Sample = UDeepCaveStringRules::FindPathSample(String->GetPath(), String->GetPathMetres(), TEXT("A"), 10.f);
 	PlaceDirect(W, String->GetPathPoses()[Sample]);
 	for (int32 Tick = 0; Tick < 45; ++Tick)

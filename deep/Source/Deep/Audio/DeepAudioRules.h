@@ -23,6 +23,8 @@ namespace DeepAudioLoop
 	inline const TCHAR* Heartbeat = TEXT("loop_heartbeat");
 	/** Immersion I1 (D-072): water along the hull, by its speed (Sim/DeepImmersionRules::FlowLevel). */
 	inline const TCHAR* Flow = TEXT("loop_flow");
+	/** D2: the view's servo whine while it swings (the local pilot's, by its speed). */
+	inline const TCHAR* Servo = TEXT("loop_servo");
 
 	DEEP_API TArray<FName> All();
 }
@@ -126,6 +128,8 @@ struct FDeepAudioMixInputs
 	bool bHelmManned = false;
 	/** Immersion I1: the flow loop's target (silent unless aboard with the hull moving), from DeepImmersionRules::FlowLevel. */
 	FDeepLoopTarget Flow;
+	/** D2: the servo whine's target (silent unless the local pilot's view is swinging). */
+	FDeepLoopTarget Servo;
 
 	// Deep.Music (step 3 of D-040). Off: music silent, breathing as before.
 	bool bMusic = false;
