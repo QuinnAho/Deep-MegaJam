@@ -1404,4 +1404,7 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Decided (D-073): the pilot sits at BT-01's own controls, and the mouse turns the view like a servo. The ping comes on a key, and the jank gets measured before it gets fixed.
 - Started: lane D2 (opus) on `build/drive3`, from `play/nov25`. Open for Quinn: should players also walk inside the real cabin, in place of the code-built room? It's cramped, with a 60 to 80 cm aisle.
 
-**Nov 26, morning.** Quinn is moving to another computer, so everything is pushed. Lane D2's agent had stopped at about 3:19 PM Nov 25, about 45 minutes in. Its work is committed as it stood (`2152ae1` on `build/drive3`), unbuilt and untested. The parked `look/pass1` branch is pushed too. Deep.uproject's engine association (a GUID in git, "5.9" on disk) is left for Quinn to decide.
+### 2:50 PM, Nov 26  Everything pushed for the move to another computer
+- What happened: Quinn is moving to another computer, so all work went to GitHub. Lane D2's agent had stopped at about 3:19 PM Nov 25, about 45 minutes in, with its work uncommitted. That work is committed as it stood, unbuilt and untested, and the parked `look/pass1` branch is pushed too.
+- Why it matters: D2 resumes from its lane note's plan on any machine. Deep.uproject's engine association (a GUID in git, "5.9" on disk) is left for Quinn to decide.
+- Evidence: `2152ae1` on `origin/build/drive3`; `origin/look/pass1`.
