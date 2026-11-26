@@ -1403,3 +1403,5 @@ Quinn, about 9:30 PM: keep the log light, a few lines per milestone: what change
 - Quinn drove `Nov25-All`. The chase view reads as arcade, the controls are "still a little jank", and the sonar's ping never lets up in tunnels. He pointed at BT-01's own furnished cabin, which the game never shows: the "cockpit" camera hung outside, under the hull.
 - Decided (D-073): the pilot sits at BT-01's own controls, and the mouse turns the view like a servo. The ping comes on a key, and the jank gets measured before it gets fixed.
 - Started: lane D2 (opus) on `build/drive3`, from `play/nov25`. Open for Quinn: should players also walk inside the real cabin, in place of the code-built room? It's cramped, with a 60 to 80 cm aisle.
+
+**Nov 26, morning.** Quinn is moving to another computer, so everything is pushed. Lane D2's agent had stopped at about 3:19 PM Nov 25, about 45 minutes in. Its work is committed as it stood (`2152ae1` on `build/drive3`), unbuilt and untested. The parked `look/pass1` branch is pushed too. Deep.uproject's engine association (a GUID in git, "5.9" on disk) is left for Quinn to decide.
